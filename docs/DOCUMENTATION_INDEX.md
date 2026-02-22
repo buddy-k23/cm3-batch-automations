@@ -19,6 +19,7 @@ This is the **single source of truth** for docs navigation.
 - `docs/UNIVERSAL_MAPPING_GUIDE.md`
 - `docs/MAPPING_SCHEMA.md`
 - `docs/VALIDATION_RULES.md`
+- `docs/FIXED_WIDTH_MAPPING_CHECKLIST.md` — checklist + failure playbook
 - `docs/TRANSFORMATION_TYPES.md`
 
 ## Deployment

@@ -117,5 +117,7 @@ def test_validation_renderer_required_field_error_summary(tmp_path):
 
     html = out.read_text(encoding="utf-8")
     assert "Required Field Error Summary" in html
+    assert "Mapping Errors" in html
+    assert "Data Errors" in html
     assert "LOCATION-CODE" in html
     assert "BASE-CURRENCY" in html

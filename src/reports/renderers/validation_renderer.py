@@ -798,13 +798,39 @@ class ValidationReporter:
             )
             required_summary_html = f"""
             <details>
-                <summary>Required Field Error Summary ({sum(required_counts.values()):,})</summary>
+                <summary>Required Field Error Summary ({sum(required_counts.values()):,} errors across {len(required_counts)} fields)</summary>
                 <table style=\"margin-top: 15px;\">
                     <thead><tr><th>Field</th><th>Error Count</th></tr></thead>
                     <tbody>{rows}</tbody>
                 </table>
             </details>
             """
+
+        mapping_errors = 0
+        data_errors = 0
+        for e in errors:
+            if not isinstance(e, dict):
+                data_errors += 1
+                continue
+            code = str(e.get('code') or '')
+            msg = str(e.get('message') or '').lower()
+            if code.startswith('MAP_') or 'invalid mapping' in msg or 'mapping:' in msg:
+                mapping_errors += 1
+            else:
+                data_errors += 1
+
+        error_bucket_html = f"""
+        <div class=\"metrics-grid\" style=\"margin: 12px 0 18px 0;\">
+            <div class=\"metric-card\">
+                <div class=\"metric-label\">Mapping Errors</div>
+                <div class=\"metric-value\" style=\"color: #c53030;\">{mapping_errors:,}</div>
+            </div>
+            <div class=\"metric-card\">
+                <div class=\"metric-label\">Data Errors</div>
+                <div class=\"metric-value\" style=\"color: #2d3748;\">{data_errors:,}</div>
+            </div>
+        </div>
+        """
 
         error_items = errors[:self.ERROR_DISPLAY_LIMIT]
         warning_items = warnings[:self.WARNING_DISPLAY_LIMIT]
@@ -838,6 +864,7 @@ class ValidationReporter:
             <h2 class="section-title">Issues & Warnings</h2>
             {affected_rows_html}
             {required_summary_html}
+            {error_bucket_html}
 
             <details open>
                 <summary>Errors ({len(errors)})</summary>
