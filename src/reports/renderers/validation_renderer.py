@@ -111,6 +111,7 @@ class ValidationReporter:
         {self._generate_file_metadata(results)}
         {self._generate_quality_metrics(results)}
         {self._generate_issues(results)}
+        {self._generate_required_fields(results)}
         {self._generate_field_analysis(results)}
         {self._generate_date_analysis(results)}
         {self._generate_duplicate_analysis(results)}
@@ -190,6 +191,42 @@ class ValidationReporter:
             border-radius: 12px;
             margin-bottom: 25px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .compact-section {
+            padding: 22px;
+            margin-bottom: 18px;
+        }
+
+        .compact-section .section-title {
+            font-size: 1.35em;
+            margin-bottom: 14px;
+            padding-bottom: 8px;
+        }
+
+        .compact-section .metrics-grid {
+            gap: 14px;
+            margin-top: 14px;
+        }
+
+        .compact-section .metric-card {
+            padding: 18px;
+        }
+
+        .compact-section .metric-value {
+            font-size: 1.65em;
+        }
+
+        .compact-section .quality-score {
+            padding: 28px;
+        }
+
+        .compact-section .quality-score-value {
+            font-size: 3em;
+        }
+
+        .compact-section .quality-score-label {
+            font-size: 1em;
         }
         
         .section-title {
@@ -549,12 +586,20 @@ class ValidationReporter:
 
     def _generate_summary(self, results: Dict[str, Any]) -> str:
         """Generate executive summary."""
-        quality_score = results.get('quality_metrics', {}).get('quality_score', 0)
+        quality_metrics = results.get('quality_metrics', {})
+        quality_score = quality_metrics.get('quality_score', 0)
+        total_rows = int(quality_metrics.get('total_rows', 0) or 0)
         error_count = results.get('error_count', 0)
         warning_count = results.get('warning_count', 0)
-        
+        appendix = results.get('appendix', {})
+        affected_rows = appendix.get('affected_rows', {}) if isinstance(appendix, dict) else {}
+        errored_rows = int(affected_rows.get('total_affected_rows', 0) or 0)
+        if total_rows > 0:
+            errored_rows = min(max(errored_rows, 0), total_rows)
+        good_rows = max(total_rows - errored_rows, 0)
+
         return f"""
-        <div class="section">
+        <div class="section compact-section">
             <h2 class="section-title">Executive Summary</h2>
             <div class="quality-score">
                 <div class="quality-score-value">{quality_score}%</div>
@@ -569,6 +614,14 @@ class ValidationReporter:
                     <div class="metric-label">Warnings</div>
                     <div class="metric-value" style="color: #f6ad55;">{warning_count}</div>
                 </div>
+                <div class="metric-card">
+                    <div class="metric-label">Errored Rows</div>
+                    <div class="metric-value" style="color: #f56565;">{errored_rows:,}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Good Rows</div>
+                    <div class="metric-value" style="color: #48bb78;">{good_rows:,}</div>
+                </div>
             </div>
         </div>
         """
@@ -578,7 +631,7 @@ class ValidationReporter:
         metadata = results.get('file_metadata', {})
         
         return f"""
-        <div class="section">
+        <div class="section compact-section">
             <h2 class="section-title">File Metadata</h2>
             <div class="metrics-grid">
                 <div class="metric-card">
@@ -605,7 +658,7 @@ class ValidationReporter:
             return ""
         
         return f"""
-        <div class="section">
+        <div class="section compact-section">
             <h2 class="section-title">Data Quality Metrics</h2>
             <div class="metrics-grid">
                 <div class="metric-card">
@@ -745,13 +798,39 @@ class ValidationReporter:
             )
             required_summary_html = f"""
             <details>
-                <summary>Required Field Error Summary ({sum(required_counts.values()):,})</summary>
+                <summary>Required Field Error Summary ({sum(required_counts.values()):,} errors across {len(required_counts)} fields)</summary>
                 <table style=\"margin-top: 15px;\">
                     <thead><tr><th>Field</th><th>Error Count</th></tr></thead>
                     <tbody>{rows}</tbody>
                 </table>
             </details>
             """
+
+        mapping_errors = 0
+        data_errors = 0
+        for e in errors:
+            if not isinstance(e, dict):
+                data_errors += 1
+                continue
+            code = str(e.get('code') or '')
+            msg = str(e.get('message') or '').lower()
+            if code.startswith('MAP_') or 'invalid mapping' in msg or 'mapping:' in msg:
+                mapping_errors += 1
+            else:
+                data_errors += 1
+
+        error_bucket_html = f"""
+        <div class=\"metrics-grid\" style=\"margin: 12px 0 18px 0;\">
+            <div class=\"metric-card\">
+                <div class=\"metric-label\">Mapping Errors</div>
+                <div class=\"metric-value\" style=\"color: #c53030;\">{mapping_errors:,}</div>
+            </div>
+            <div class=\"metric-card\">
+                <div class=\"metric-label\">Data Errors</div>
+                <div class=\"metric-value\" style=\"color: #2d3748;\">{data_errors:,}</div>
+            </div>
+        </div>
+        """
 
         error_items = errors[:self.ERROR_DISPLAY_LIMIT]
         warning_items = warnings[:self.WARNING_DISPLAY_LIMIT]
@@ -785,6 +864,7 @@ class ValidationReporter:
             <h2 class="section-title">Issues & Warnings</h2>
             {affected_rows_html}
             {required_summary_html}
+            {error_bucket_html}
 
             <details open>
                 <summary>Errors ({len(errors)})</summary>
@@ -805,17 +885,67 @@ class ValidationReporter:
         </div>
         """
 
+    def _generate_required_fields(self, results: Dict[str, Any]) -> str:
+        """Generate required fields section above field-level analysis."""
+        appendix = results.get('appendix', {})
+        mapping_details = appendix.get('mapping_details', {}) if isinstance(appendix, dict) else {}
+        required_fields = mapping_details.get('required_fields', []) if isinstance(mapping_details, dict) else []
+
+        if not required_fields:
+            return ""
+
+        required_count = len(required_fields)
+        items = ''.join(f'<li><code>{field}</code></li>' for field in required_fields[:100])
+        more = f'<li><em>... and {required_count - 100} more</em></li>' if required_count > 100 else ''
+
+        return f"""
+        <div class="section">
+            <h2 class="section-title">Required Fields</h2>
+            <p style="margin-bottom: 10px; color: #4a5568;">Configured required fields: <strong>{required_count}</strong></p>
+            <ul style="margin-top: 10px; padding-left: 20px; column-count: 2; column-gap: 30px;">
+                {items}
+                {more}
+            </ul>
+        </div>
+        """
+
+    def _field_position_order_map(self, results: Dict[str, Any]) -> Dict[str, int]:
+        """Build a field-name -> ordinal map based on mapping field positions."""
+        appendix = results.get('appendix', {})
+        validation_config = appendix.get('validation_config', {}) if isinstance(appendix, dict) else {}
+        mapping_file = validation_config.get('mapping_file') if isinstance(validation_config, dict) else None
+        if not mapping_file:
+            return {}
+
+        try:
+            with open(mapping_file, 'r', encoding='utf-8') as f:
+                mapping = json.load(f)
+            fields = mapping.get('fields', []) if isinstance(mapping, dict) else []
+            ordered = sorted(
+                [f for f in fields if isinstance(f, dict) and f.get('name')],
+                key=lambda f: int(f.get('position')) if f.get('position') not in (None, '') else 10**9,
+            )
+            return {str(f['name']): idx for idx, f in enumerate(ordered)}
+        except Exception:
+            return {}
+
     def _generate_field_analysis(self, results: Dict[str, Any]) -> str:
         """Generate field-level analysis table with search, sort, and pagination."""
         field_analysis = results.get('field_analysis', {})
-        
+
         if not field_analysis:
             return ""
-        
+
+        order_map = self._field_position_order_map(results)
+        sorted_items = sorted(
+            field_analysis.items(),
+            key=lambda kv: (order_map.get(str(kv[0]), 10**9), str(kv[0]))
+        )
+
         total_fields = len(field_analysis)
         rows = []
-        
-        for field_name, analysis in field_analysis.items():
+
+        for field_name, analysis in sorted_items:
             inferred_type = analysis.get('inferred_type', 'unknown')
             fill_rate = analysis.get('fill_rate_pct', 0)
             unique_count = analysis.get('unique_count', 0)
@@ -1140,14 +1270,7 @@ class ValidationReporter:
                     <td>{required_count}</td>
                 </tr>
             </table>
-            
-            <details>
-                <summary>View Required Fields ({required_count})</summary>
-                <ul style="margin-top: 10px; padding-left: 20px;">
-                    {''.join(f'<li><code>{field}</code></li>' for field in required_fields[:50])}
-                    {f'<li><em>... and {len(required_fields) - 50} more</em></li>' if len(required_fields) > 50 else ''}
-                </ul>
-            </details>
+            <p style="margin-top: 10px; color: #718096;">Required field list is shown above Field-Level Analysis.</p>
             """
         
         # Affected rows summary moved to Issues & Warnings section.

@@ -38,7 +38,12 @@ def _validate_template_strict(template_path: Path) -> list[dict]:
         })
         return issues
 
-    is_fixed_width = all(c in df.columns for c in fixed_width_columns)
+    has_position_col = "Position" in df.columns
+    has_length_col = "Length" in df.columns
+    is_fixed_width = has_position_col and has_length_col
+
+    seen_names: set[str] = set()
+    prev_end: int | None = None
 
     for idx, row in df.iterrows():
         row_no = idx + 2
@@ -48,16 +53,60 @@ def _validate_template_strict(template_path: Path) -> list[dict]:
             if not v:
                 issues.append({"row": row_no, "field": c, "issue": "Required value is empty", "value": ""})
 
-        if is_fixed_width:
-            for c in fixed_width_columns:
-                v = (row.get(c) or "").strip() if pd.notna(row.get(c)) else ""
-                if not v.isdigit():
-                    issues.append({
-                        "row": row_no,
-                        "field": c,
-                        "issue": "Expected numeric value for fixed-width template",
-                        "value": v,
-                    })
+        field_name = (row.get("Field Name") or "").strip() if pd.notna(row.get("Field Name")) else ""
+        if field_name:
+            if field_name in seen_names:
+                issues.append({
+                    "row": row_no,
+                    "field": "Field Name",
+                    "issue": "Duplicate field name; field names must be unique",
+                    "value": field_name,
+                })
+            seen_names.add(field_name)
+
+        # Guardrail: if either Position/Length is provided, both must be provided
+        pos_val = (row.get("Position") or "").strip() if has_position_col and pd.notna(row.get("Position")) else ""
+        len_val = (row.get("Length") or "").strip() if has_length_col and pd.notna(row.get("Length")) else ""
+        if (pos_val and not len_val) or (len_val and not pos_val):
+            missing = "Length" if pos_val and not len_val else "Position"
+            issues.append({
+                "row": row_no,
+                "field": missing,
+                "issue": "Fixed-width row is incomplete: both Position and Length are required together",
+                "value": "",
+            })
+
+        if is_fixed_width and (pos_val or len_val):
+            if not pos_val.isdigit() or not len_val.isdigit():
+                issues.append({
+                    "row": row_no,
+                    "field": "Position/Length",
+                    "issue": "Expected numeric Position and Length for fixed-width template",
+                    "value": f"Position={pos_val!r}, Length={len_val!r}",
+                })
+                continue
+
+            pos_int = int(pos_val)
+            len_int = int(len_val)
+            if pos_int <= 0 or len_int <= 0:
+                issues.append({
+                    "row": row_no,
+                    "field": "Position/Length",
+                    "issue": "Position and Length must be positive integers",
+                    "value": f"Position={pos_int}, Length={len_int}",
+                })
+                continue
+
+            start = pos_int
+            end = pos_int + len_int - 1
+            if prev_end is not None and start <= prev_end:
+                issues.append({
+                    "row": row_no,
+                    "field": "Position",
+                    "issue": "Overlapping or out-of-order fixed-width span; ensure rows are sorted and non-overlapping",
+                    "value": f"start={start}, previous_end={prev_end}",
+                })
+            prev_end = end
 
     return issues
 
