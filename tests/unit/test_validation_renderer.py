@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from src.reports.renderers.validation_renderer import ValidationReporter
@@ -56,6 +57,49 @@ def test_validation_renderer_generates_html_and_sidecars(tmp_path):
     warn = tmp_path / "report_warnings.csv"
     assert err.exists()
     assert warn.exists()
+
+
+def test_validation_renderer_layout_counts_and_field_order(tmp_path):
+    out = tmp_path / "report_layout.html"
+    mapping = tmp_path / "mapping.json"
+    mapping.write_text(
+        json.dumps(
+            {
+                "fields": [
+                    {"name": "LOCATION-CODE", "position": 1, "length": 6, "required": True},
+                    {"name": "ACCT-NUM", "position": 7, "length": 18, "required": True},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    payload = _sample_result()
+    payload["field_analysis"] = {
+        "ACCT-NUM": {"inferred_type": "string", "fill_rate_pct": 100.0, "unique_count": 2},
+        "LOCATION-CODE": {"inferred_type": "string", "fill_rate_pct": 100.0, "unique_count": 2},
+    }
+    payload["appendix"] = {
+        "validation_config": {"mapping_file": str(mapping)},
+        "mapping_details": {
+            "required_field_count": 2,
+            "required_fields": ["LOCATION-CODE", "ACCT-NUM"],
+            "total_fields": 2,
+            "total_width": 24,
+        },
+        "affected_rows": {"total_affected_rows": 1, "affected_row_pct": 50.0},
+    }
+
+    reporter = ValidationReporter()
+    reporter.generate(payload, str(out))
+    html = out.read_text(encoding="utf-8")
+
+    assert "Errored Rows" in html
+    assert "Good Rows" in html
+    assert "Required Fields" in html
+
+    assert html.index("Required Fields") < html.index("Field-Level Analysis")
+    assert html.index("LOCATION-CODE") < html.index("ACCT-NUM")
 
 
 def test_validation_renderer_required_field_error_summary(tmp_path):
