@@ -1,0 +1,5 @@
+transaction_code,target_field,source_field,data_type,required,length,position_start,position_end,format,default_value,transform_logic
+,ACCOUNT_ID,,string,Y,16,1,16,,,
+,PAYMENT_AMOUNT,,numeric,Y,12,17,28,9(10)V99,0,default('0')
+,POSTED_DATE,,date,Y,10,29,38,MM/DD/CCYY,,if_not_future
+,CHANNEL_CODE,,string,N,2,39,40,,01,default('01')

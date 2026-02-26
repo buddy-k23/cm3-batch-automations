@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://database-validations/schemas/report.schema.json",
+  "title": "Validation Summary Report",
+  "type": "object",
+  "required": ["runId", "status", "summary", "artifacts"],
+  "properties": {
+    "runId": {"type": "string"},
+    "status": {"type": "string", "enum": ["SUCCESS", "WARN", "FAILED"]},
+    "summary": {
+      "type": "object",
+      "required": ["validated", "passed", "failed", "warned"],
+      "properties": {
+        "validated": {"type": "integer", "minimum": 0},
+        "passed": {"type": "integer", "minimum": 0},
+        "failed": {"type": "integer", "minimum": 0},
+        "warned": {"type": "integer", "minimum": 0},
+        "topFailingRules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["ruleId", "count"],
+            "properties": {
+              "ruleId": {"type": "string"},
+              "count": {"type": "integer", "minimum": 0}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "artifacts": {
+      "type": "object",
+      "required": ["summaryJson", "detailCsv", "telemetryJson"],
+      "properties": {
+        "summaryJson": {"type": "string"},
+        "detailCsv": {"type": "string"},
+        "telemetryJson": {"type": "string"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,9 @@
+transaction_code,target_field,source_field,data_type,required,length,position_start,position_end,format,default_value,transform_logic
+ALL,RECORD_TYPE,constant,string,Y,3,1,3,,DTL,default('DTL')
+ALL,BANK_CODE,bank_code,string,Y,5,4,8,,10003,default('10003')
+ALL,TXN_CODE,transaction_code,string,Y,5,9,13,,,
+ALL,ACCOUNT_ID,account_id,string,Y,10,14,23,,,
+32005,REL_SEQ,rel_seq,string,N,3,24,26,,,
+32010,CHARGE_OFF_AMT,charge_off_amt,numeric,N,10,27,36,,,
+32040,FIRST_DELQ_DATE,first_delq_date,date,N,8,37,44,YYYYMMDD,,
+ALL,CONTACT_NAME,contact_name,string,N,20,45,64,,,

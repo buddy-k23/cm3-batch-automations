@@ -1,0 +1,5 @@
+transaction_code,target_field,source_field,data_type,required,length,position_start,position_end,format,default_value,transform_logic
+32010,BK-NUM-ERT,BK_NUM,numeric,Y,5,1,5,9(5),00040,default('00040')
+32010,APP-ERT,APP,numeric,Y,3,6,8,9(3),001,default('001')
+32005,CIF-REF-NUM-CUS,REL_SEQUENCE,string,Y,3,247,249,,,
+32040,DAT-DLQ-STR-CBRS,FIRST_DELQ_DATE,date,N,10,191,200,MM/DD/CCYY,,if_not_future

@@ -1,0 +1,2 @@
+format,delimiter,quote_char,escape_char,record_length,header_enabled,header_total_count_field
+fixed-width,,,,64,Y,400
