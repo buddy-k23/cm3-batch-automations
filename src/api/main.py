@@ -18,13 +18,14 @@ from src.utils.cleanup import cleanup_old_files
 logger = logging.getLogger(__name__)
 
 FILE_RETENTION_HOURS = float(os.getenv("FILE_RETENTION_HOURS", "24"))
+_UPLOADS_DIR = Path(__file__).parent.parent.parent / "uploads"
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan handler: runs startup cleanup, then yields."""
     # Startup: remove stale uploaded files
-    result = cleanup_old_files("uploads", FILE_RETENTION_HOURS)
+    result = cleanup_old_files(_UPLOADS_DIR, FILE_RETENTION_HOURS)
     if result["deleted_count"] > 0:
         logger.info(
             "Startup cleanup: removed %d files (%d bytes)",
