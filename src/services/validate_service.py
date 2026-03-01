@@ -31,14 +31,20 @@ def run_validate_service(
             mapping_config = json.load(f)
         mapping_config["file_path"] = mapping
 
-    detector = FormatDetector()
-    try:
-        parser_class = detector.get_parser_class(file)
-    except Exception:
-        if mapping_config and mapping_config.get("fields"):
-            parser_class = FixedWidthParser
-        else:
-            raise
+    # If the mapping declares fixed-width fields (each with a 'length'), skip format
+    # detection and go straight to FixedWidthParser.  Detection is heuristic and
+    # can be fooled when data values happen to contain commas, pipes, or tabs.
+    if mapping_config and _is_fixed_width_mapping(mapping_config):
+        parser_class = FixedWidthParser
+    else:
+        detector = FormatDetector()
+        try:
+            parser_class = detector.get_parser_class(file)
+        except Exception:
+            if mapping_config and mapping_config.get("fields"):
+                parser_class = FixedWidthParser
+            else:
+                raise
 
     if mapping_config and parser_class == FixedWidthParser:
         field_specs = _build_fixed_width_specs(mapping_config)
@@ -72,6 +78,12 @@ def run_validate_service(
             reporter.generate(result, output)
 
     return result
+
+
+def _is_fixed_width_mapping(cfg: dict) -> bool:
+    """Return True when the mapping defines fixed-width fields (each has a 'length')."""
+    fields = cfg.get("fields", [])
+    return bool(fields) and any("length" in f for f in fields)
 
 
 def _build_fixed_width_specs(cfg: dict) -> list[tuple[str, int, int]]:
