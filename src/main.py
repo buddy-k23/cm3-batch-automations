@@ -667,6 +667,63 @@ def gx_checkpoint1(targets_csv, expectations_csv, output_json, csv_output, html_
         sys.exit(1)
 
 
+@cli.command('run-tests')
+@click.option('--suite', '-s', required=True, help='Path to test suite YAML file')
+@click.option('--params', '-p', default='', help='Parameters as key=value,key2=value2')
+@click.option('--env', default='dev', help='Environment name (appears in reports)')
+@click.option('--output-dir', '-o', default='reports', help='Directory for output reports')
+@click.option('--dry-run', is_flag=True, help='Print resolved config without running tests')
+def run_tests(suite, params, env, output_dir, dry_run):
+    """Run a complete test suite defined in a YAML file."""
+    from src.commands.run_tests_command import run_tests_command
+
+    try:
+        results = run_tests_command(
+            suite_path=suite,
+            params_str=params,
+            env=env,
+            output_dir=output_dir,
+            dry_run=dry_run,
+        )
+    except Exception as e:
+        click.echo(click.style(f"Error: {e}", fg='red'), err=True)
+        sys.exit(1)
+
+    if dry_run:
+        return
+
+    # Determine suite name from YAML (reload header for display).
+    import yaml
+    with open(suite, 'r') as f:
+        raw = yaml.safe_load(f)
+    suite_name = raw.get('name', suite)
+    suite_env = env.upper()
+
+    total = len(results)
+    passed = sum(1 for r in results if r['status'] == 'PASS')
+    failed = total - passed
+    overall = 'PASSED' if failed == 0 else 'FAILED'
+
+    click.echo(
+        f"\nTest Suite: {suite_name} | Environment: {suite_env} | "
+        f"Result: {overall} ({passed}/{total} passed)\n"
+    )
+
+    # Header row.
+    click.echo(f"  {'Test':<32}{'Status':<10}{'Rows':>10}  {'Errors':>7}  {'Duration':>9}")
+
+    for r in results:
+        name = r['name'][:31]
+        status = r['status']
+        rows = f"{r['total_rows']:,}" if r['total_rows'] else '-'
+        errors = str(r['error_count'])
+        duration = f"{r['duration_seconds']}s"
+        click.echo(f"  {name:<32}{status:<10}{rows:>10}  {errors:>7}  {duration:>9}")
+
+    if results and failed > 0:
+        sys.exit(1)
+
+
 def main():
     """Main entry point."""
     cli()
