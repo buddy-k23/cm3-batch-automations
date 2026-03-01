@@ -1,4 +1,4 @@
-"""Rules upload endpoint."""
+"""Rules upload and download endpoints."""
 
 import shutil
 import sys
@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
@@ -81,3 +82,22 @@ async def upload_rules_template(
     finally:
         if upload_path.exists():
             upload_path.unlink()
+
+
+@router.get("/{rules_id}.json")
+async def download_rules(rules_id: str):
+    """Download a generated rules JSON file by ID.
+
+    Args:
+        rules_id: The rules config identifier (without .json extension).
+
+    Returns:
+        The rules JSON file as a downloadable attachment.
+
+    Raises:
+        HTTPException: 404 if no rules file with the given ID exists.
+    """
+    path = RULES_DIR / f"{rules_id}.json"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"Rules '{rules_id}' not found")
+    return FileResponse(str(path), media_type="application/json", filename=f"{rules_id}.json")

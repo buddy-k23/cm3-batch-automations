@@ -82,3 +82,25 @@ def test_upload_rules_defaults_to_ba_friendly(monkeypatch, tmp_path):
     r = client.post("/api/v1/rules/upload?rules_name=default_rules", files=files)
     assert r.status_code == 200
     assert called_with.get("converter") == "ba_friendly"
+
+
+def test_download_rules_not_found():
+    """GET /api/v1/rules/missing.json must return 404."""
+    r = client.get("/api/v1/rules/definitely_missing_rules.json")
+    assert r.status_code == 404
+
+
+def test_download_rules_success(tmp_path, monkeypatch):
+    """GET /api/v1/rules/<id>.json must return the JSON file."""
+    import json as _json
+    import src.api.routers.rules as rules_mod
+
+    # Write a test rules file to tmp_path
+    test_file = tmp_path / "dl_test_rules.json"
+    test_file.write_text(_json.dumps({"rules": []}))
+
+    monkeypatch.setattr(rules_mod, "RULES_DIR", tmp_path)
+
+    r = client.get("/api/v1/rules/dl_test_rules.json")
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("application/json")
