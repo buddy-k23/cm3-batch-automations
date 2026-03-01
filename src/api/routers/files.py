@@ -227,7 +227,8 @@ async def compare_files(
 
 async def _run_compare_job(job_id: str, file1_path: Path, file2_path: Path, request: FileCompareRequest) -> None:
     try:
-        result = _run_compare_with_mapping(file1_path, file2_path, request)
+        # Run blocking I/O-bound compare in a thread pool so the event loop is not blocked
+        result = await asyncio.to_thread(_run_compare_with_mapping, file1_path, file2_path, request)
         _COMPARE_JOBS[job_id]["status"] = "completed"
         _COMPARE_JOBS[job_id]["result"] = result.model_dump()
     except Exception as e:
