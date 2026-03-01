@@ -7,6 +7,15 @@ from typing import Dict, Any
 from datetime import datetime
 from pathlib import Path
 
+_CHART_JS_PATH = Path(__file__).parent.parent / "static" / "chart.umd.min.js"
+if not _CHART_JS_PATH.exists():
+    raise FileNotFoundError(
+        f"Chart.js bundle not found: {_CHART_JS_PATH}. "
+        "If developing locally, pull the latest commits. "
+        "If running from an installed package, re-install from the latest release."
+    )
+_CHART_JS_INLINE = _CHART_JS_PATH.read_text(encoding="utf-8")
+
 
 class ValidationReporter:
     """Generates HTML validation reports with charts and detailed analysis."""
@@ -99,7 +108,7 @@ class ValidationReporter:
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>File Validation Report</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script>{_CHART_JS_INLINE}</script>
     <style>
         {self._get_css()}
     </style>

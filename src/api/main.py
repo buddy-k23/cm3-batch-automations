@@ -1,8 +1,11 @@
 """FastAPI main application."""
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+import logging
+import os
 import sys
 from pathlib import Path
 
@@ -10,9 +13,32 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.api.routers import mappings, files, system
+from src.utils.cleanup import cleanup_old_files
+
+logger = logging.getLogger(__name__)
+
+FILE_RETENTION_HOURS = float(os.getenv("FILE_RETENTION_HOURS", "24"))
+_UPLOADS_DIR = Path(__file__).parent.parent.parent / "uploads"
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan handler: runs startup cleanup, then yields."""
+    # Startup: remove stale uploaded files
+    result = cleanup_old_files(_UPLOADS_DIR, FILE_RETENTION_HOURS)
+    if result["deleted_count"] > 0:
+        logger.info(
+            "Startup cleanup: removed %d files (%d bytes)",
+            result["deleted_count"],
+            result["deleted_bytes"],
+        )
+    yield
+    # Shutdown: nothing needed
+
 
 # Create FastAPI application
 app = FastAPI(
+    lifespan=lifespan,
     title="CM3 Batch Automations API",
     description="""
     REST API for CM3 Batch Automations - File parsing, validation, and comparison tool.

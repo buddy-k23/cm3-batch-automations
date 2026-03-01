@@ -4,6 +4,9 @@
 
 This guide provides practical examples for using CM3 Batch Automations in both **CLI mode** and **API mode**.
 
+> **Offline-capable reports**: All HTML reports (validation, comparison, suite summary) embed Chart.js inline.
+> No internet access is required to view reports.
+
 ---
 
 ## Table of Contents
@@ -464,6 +467,67 @@ cm3-batch gx-checkpoint1 \
 - Row-count thresholds
 
 See `docs/GREAT_EXPECTATIONS_CHECKPOINT1.md` for full BA-oriented setup.
+
+---
+
+## Test Suite Orchestration
+
+Run multiple tests in one command using a YAML suite file.
+
+### Create a suite from Excel
+
+```bash
+# Write an empty Excel template
+cm3-batch convert-suite --template config/test_suites/my_suite.xlsx
+
+# Convert a filled-in Excel to YAML
+cm3-batch convert-suite --input config/test_suites/my_suite.xlsx --output-dir config/test_suites
+```
+
+### Run a test suite
+
+```bash
+# Dry-run (shows what would run without executing)
+cm3-batch run-tests --suite config/test_suites/p327_uat.yaml --dry-run
+
+# Run with a specific date parameter
+cm3-batch run-tests --suite config/test_suites/p327_uat.yaml \
+  --params "run_date=20260301" \
+  --env dev \
+  --output-dir reports
+```
+
+**Suite YAML format:**
+```yaml
+name: P327 UAT Suite
+environment: dev
+tests:
+  - name: P327 structural check
+    type: structural
+    file: data/p327_${run_date}.dat
+    mapping: P327_full_in_sheet_order_strict
+    thresholds:
+      max_errors: 0
+  - name: P327 Oracle vs file
+    type: oracle_vs_file
+    file: data/p327_${run_date}.dat
+    mapping: P327_full_in_sheet_order_strict
+    oracle_query: "SELECT * FROM CM3INT.SHAW_SRC_P327 WHERE BATCH_DATE = :run_date"
+    oracle_params:
+      run_date: "${run_date}"
+    key_columns: [LN]
+    thresholds:
+      max_different_rows_pct: 0.5
+```
+
+**Built-in parameters:** `${today}`, `${yesterday}`, `${run_date}` (same as today unless overridden), `${run_id}`, `${environment}`.
+
+**Test types:**
+- `structural` — validates file format against mapping (field lengths, required fields, data types)
+- `rules` — validates business rules from a rules file
+- `oracle_vs_file` — extracts Oracle data to CSV then compares against the file
+
+**Exit codes:** 0 = all tests passed, 1 = one or more tests failed or errored.
 
 ---
 
