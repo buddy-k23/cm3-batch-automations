@@ -775,6 +775,54 @@ def run_tests(suite, params, env, output_dir, dry_run):
         sys.exit(1)
 
 
+@cli.command('list-runs')
+@click.option('--limit', default=20, show_default=True, type=int,
+              help='Maximum number of runs to show (most recent first)')
+def list_runs(limit):
+    """List archived test suite runs (most recent first)."""
+    from src.utils.archive import ArchiveManager
+
+    archive = ArchiveManager()
+    archive.purge_old_runs()
+    runs = archive.list_runs()[:limit]
+
+    if not runs:
+        click.echo("No archived runs found.")
+        return
+
+    click.echo(f"{'RUN ID':<38} {'SUITE':<28} {'ENV':<8} {'TIMESTAMP':<22} STATUS")
+    click.echo("-" * 106)
+    for r in runs:
+        click.echo(
+            f"{r.get('run_id', ''):<38} "
+            f"{r.get('suite_name', '')[:27]:<28} "
+            f"{r.get('environment', ''):<8} "
+            f"{r.get('timestamp', ''):<22} "
+            f"{r.get('status', 'unknown')}"
+        )
+
+
+@cli.command('get-run')
+@click.argument('run_id')
+def get_run(run_id):
+    """Retrieve archived files and manifest for a specific run."""
+    import json
+    from src.utils.archive import ArchiveManager
+
+    archive = ArchiveManager()
+    result = archive.get_run(run_id)
+
+    if result is None:
+        click.echo(click.style(f"Run '{run_id}' not found in archive.", fg='red'), err=True)
+        raise SystemExit(1)
+
+    click.echo("Manifest:")
+    click.echo(json.dumps(result['manifest'], indent=2))
+    click.echo("\nFiles:")
+    for f in result['files']:
+        click.echo(f"  {f}")
+
+
 def main():
     """Main entry point."""
     cli()
