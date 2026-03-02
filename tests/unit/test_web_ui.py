@@ -204,35 +204,44 @@ class TestTooltips:
 
     def test_validate_button_has_tooltip(self):
         html = _load_ui_html()
-        assert 'id="btnValidate"' in html
-        assert 'data-tooltip=' in html
+        match = re.search(r'<(?:button|select|div|a)[^>]*id="btnValidate"[^>]*>', html, re.DOTALL)
+        assert match, "btnValidate element not found"
+        assert 'data-tooltip=' in match.group(0), "btnValidate must carry a data-tooltip attribute"
 
     def test_compare_button_has_tooltip(self):
         html = _load_ui_html()
-        assert 'id="btnToggleCompare"' in html
-        assert 'data-tooltip=' in html
+        match = re.search(r'<(?:button|select|div|a)[^>]*id="btnToggleCompare"[^>]*>', html, re.DOTALL)
+        assert match, "btnToggleCompare element not found"
+        assert 'data-tooltip=' in match.group(0), "btnToggleCompare must carry a data-tooltip attribute"
 
     def test_mapping_select_has_tooltip(self):
         html = _load_ui_html()
-        assert 'id="mappingSelect"' in html
-        assert 'data-tooltip=' in html
+        match = re.search(r'<(?:button|select|div|a)[^>]*id="mappingSelect"[^>]*>', html, re.DOTALL)
+        assert match, "mappingSelect element not found"
+        assert 'data-tooltip=' in match.group(0), "mappingSelect must carry a data-tooltip attribute"
 
     def test_generate_mapping_button_has_tooltip(self):
         html = _load_ui_html()
-        assert 'id="btnGenMapping"' in html
-        assert 'data-tooltip=' in html
+        match = re.search(r'<(?:button|select|div|a)[^>]*id="btnGenMapping"[^>]*>', html, re.DOTALL)
+        assert match, "btnGenMapping element not found"
+        assert 'data-tooltip=' in match.group(0), "btnGenMapping must carry a data-tooltip attribute"
 
     def test_generate_rules_button_has_tooltip(self):
         html = _load_ui_html()
-        assert 'id="btnGenRules"' in html
-        assert 'data-tooltip=' in html
+        match = re.search(r'<(?:button|select|div|a)[^>]*id="btnGenRules"[^>]*>', html, re.DOTALL)
+        assert match, "btnGenRules element not found"
+        assert 'data-tooltip=' in match.group(0), "btnGenRules must carry a data-tooltip attribute"
 
     def test_rules_type_select_has_tooltip(self):
         html = _load_ui_html()
-        assert 'id="rulesTypeSelect"' in html
-        assert 'data-tooltip=' in html
+        match = re.search(r'<(?:button|select|div|a)[^>]*id="rulesTypeSelect"[^>]*>', html, re.DOTALL)
+        assert match, "rulesTypeSelect element not found"
+        assert 'data-tooltip=' in match.group(0), "rulesTypeSelect must carry a data-tooltip attribute"
 
     def test_status_badges_have_tooltip_in_js(self):
         """The JS that builds the runs table must add data-tooltip to badges."""
         html = _load_ui_html()
-        assert "data-tooltip" in html
+        assert "setAttribute('data-tooltip'" in html or 'setAttribute("data-tooltip"' in html
+        assert "All tests passed or were skipped" in html
+        assert "One or more tests failed" in html
+        assert "Some tests passed and some failed" in html
