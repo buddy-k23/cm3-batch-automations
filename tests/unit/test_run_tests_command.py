@@ -447,3 +447,104 @@ class TestExitCode:
         assert "Minimal Suite" in result.output
         assert "PASS" in result.output
         assert "My Test" in result.output
+
+
+# ---------------------------------------------------------------------------
+# 8. ArchiveManager integration — archive_run called and archive_path recorded
+# ---------------------------------------------------------------------------
+
+class TestArchiveIntegration:
+    """Verify run_suite_from_path archives reports after every run."""
+
+    def test_archive_called_after_suite_run(self, tmp_path, monkeypatch):
+        """archive_run() must be called once per suite run."""
+        import yaml
+        from src.commands.run_tests_command import run_suite_from_path
+
+        # Write a minimal suite YAML with one api_check test (no file needed)
+        suite_yaml = tmp_path / "suite.yaml"
+        suite_yaml.write_text(
+            yaml.dump({
+                "name": "Archive Test Suite",
+                "environment": "dev",
+                "tests": [
+                    {
+                        "name": "Health check",
+                        "type": "api_check",
+                        "url": "http://localhost:9999/nope",
+                    }
+                ],
+            }),
+            encoding="utf-8",
+        )
+
+        archive_calls = []
+
+        def fake_archive_run(self_inner, **kwargs):
+            archive_calls.append(kwargs)
+            return tmp_path
+
+        import src.utils.archive as archive_mod
+        monkeypatch.setattr(
+            archive_mod.ArchiveManager, "archive_run",
+            fake_archive_run,
+        )
+
+        run_suite_from_path(
+            suite_path=str(suite_yaml),
+            params={},
+            env="dev",
+            output_dir=str(tmp_path),
+        )
+
+        assert len(archive_calls) == 1
+        assert archive_calls[0]["suite_name"] == "Archive Test Suite"
+
+    def test_archive_path_added_to_run_history(self, tmp_path, monkeypatch):
+        """run_history.json entry must include archive_path."""
+        import json
+        import yaml
+        from pathlib import Path
+        from src.commands.run_tests_command import run_suite_from_path
+
+        suite_yaml = tmp_path / "suite.yaml"
+        suite_yaml.write_text(
+            yaml.dump({
+                "name": "History Suite",
+                "environment": "dev",
+                "tests": [
+                    {
+                        "name": "API up",
+                        "type": "api_check",
+                        "url": "http://localhost:9999/nope",
+                    }
+                ],
+            }),
+            encoding="utf-8",
+        )
+
+        archive_dir = tmp_path / "archive"
+
+        import src.utils.archive as archive_mod
+        monkeypatch.setattr(
+            archive_mod.ArchiveManager, "archive_run",
+            lambda self_inner, **kwargs: archive_dir,
+        )
+
+        output_dir = tmp_path / "reports"
+        output_dir.mkdir()
+
+        run_suite_from_path(
+            suite_path=str(suite_yaml),
+            params={},
+            env="dev",
+            output_dir=str(output_dir),
+        )
+
+        import glob
+        found = glob.glob(str(tmp_path / "**" / "run_history.json"), recursive=True)
+        assert found, "run_history.json not created"
+        history = json.loads(Path(found[0]).read_text(encoding="utf-8"))
+        assert len(history) == 1
+        assert "archive_path" in history[0]
+        assert history[0]["archive_path"] == str(archive_dir)

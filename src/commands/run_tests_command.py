@@ -389,6 +389,7 @@ def _append_run_history(
     results: list[dict[str, Any]],
     suite_report_path: str,
     env: str,
+    archive_path: str = "",
 ) -> None:
     """Append a run summary entry to ``reports/run_history.json``.
 
@@ -409,6 +410,9 @@ def _append_run_history(
         results: List of per-test result dicts returned by ``_run_single_test``.
         suite_report_path: Absolute path to the suite-level HTML report file.
         env: Effective environment string (resolved from CLI flag or suite config).
+        archive_path: Absolute path to the archive directory created by
+            ``ArchiveManager.archive_run``.  Empty string when archiving was
+            skipped or not yet implemented.
     """
     history_path = Path(output_dir) / ".." / "reports" / "run_history.json"
     history_path = history_path.resolve()
@@ -444,6 +448,7 @@ def _append_run_history(
         "fail_count":  sum(1 for r in results if r["status"] in ("FAIL", "ERROR")),
         "skip_count":  sum(1 for r in results if r["status"] == "SKIPPED"),
         "total_count": len(results),
+        "archive_path": archive_path,
     }
 
     existing: list[dict[str, Any]] = []
@@ -511,6 +516,21 @@ def run_suite_from_path(
         environment=env or suite.environment,
     )
 
+    from src.utils.archive import ArchiveManager
+
+    archive = ArchiveManager()
+    run_timestamp = datetime.utcnow().isoformat() + "Z"
+    report_files = [suite_report_path] + [
+        r["report_path"] for r in results if r.get("report_path")
+    ]
+    archive_run_dir = archive.archive_run(
+        run_id=run_id,
+        suite_name=suite.name,
+        env=env or suite.environment,
+        timestamp=run_timestamp,
+        files=report_files,
+    )
+
     _append_run_history(
         output_dir=output_dir,
         run_id=run_id,
@@ -518,6 +538,7 @@ def run_suite_from_path(
         results=results,
         suite_report_path=suite_report_path,
         env=env or suite.environment,
+        archive_path=str(archive_run_dir),
     )
 
     return results
