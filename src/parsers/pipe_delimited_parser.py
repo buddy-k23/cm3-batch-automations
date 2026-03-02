@@ -20,10 +20,17 @@ class PipeDelimitedParser(BaseParser):
         self.columns = columns
 
     def parse(self) -> pd.DataFrame:
-        """Parse pipe-delimited file.
-        
+        """Parse the pipe-delimited file into a DataFrame.
+
         Returns:
-            DataFrame containing parsed data
+            DataFrame with columns matching those provided at construction
+            (or auto-detected), plus a leading ``__source_row__`` column
+            containing the 1-indexed source file line number for each record.
+            Because this parser reads with ``header=None``, row 1 in the file
+            becomes ``__source_row__ == 1``.
+
+        Raises:
+            ValueError: If the file cannot be parsed.
         """
         try:
             df = pd.read_csv(
@@ -34,6 +41,9 @@ class PipeDelimitedParser(BaseParser):
                 dtype=str,
                 keep_default_na=False,
             )
+            # Insert 1-indexed physical line numbers as the first column.
+            # The parser reads with header=None, so data starts at file line 1.
+            df.insert(0, '__source_row__', range(1, len(df) + 1))
             return df
         except EmptyDataError:
             return pd.DataFrame(columns=self.columns or [])

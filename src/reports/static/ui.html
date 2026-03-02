@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CM3 Batch Automations — Test UI</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #1a1a2e;
+    --panel:     #16213e;
+    --accent:    #0f3460;
+    --accent2:   #1a4a8a;
+    --pass:      #27ae60;
+    --fail:      #e74c3c;
+    --partial:   #f39c12;
+    --text:      #e0e0e0;
+    --muted:     #8899aa;
+    --border:    #2a3a5e;
+    --radius:    6px;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+
+  /* header */
+  header {
+    background: var(--accent);
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 52px;
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 { font-size: 16px; font-weight: 600; letter-spacing: 0.3px; }
+  header span.version { font-size: 11px; color: var(--muted); }
+
+  /* tabs */
+  nav.tabs {
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    padding: 0 24px;
+  }
+  nav.tabs button {
+    background: transparent;
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 12px 18px;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  nav.tabs button:hover { color: var(--text); }
+  nav.tabs button.active { color: var(--text); border-bottom-color: #4a9eff; }
+
+  /* main */
+  main { max-width: 900px; margin: 28px auto; padding: 0 20px; }
+
+  /* panel */
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+  }
+  .panel h2 { font-size: 15px; font-weight: 600; margin-bottom: 18px; color: #aac4ff; }
+
+  /* drop zone */
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 110px;
+    padding: 20px;
+    text-align: center;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .drop-zone:hover, .drop-zone.dragover {
+    border-color: #4a9eff;
+    background: rgba(74, 158, 255, 0.07);
+  }
+  .drop-zone svg { opacity: 0.45; }
+  .drop-zone .dz-label { color: var(--muted); font-size: 13px; }
+  .drop-zone .dz-filename { color: #4a9eff; font-size: 13px; font-weight: 500; }
+  input[type="file"] { display: none; }
+
+  /* form row */
+  .form-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+  }
+  label.field-label {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+  }
+  select {
+    background: var(--accent);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 13px;
+    min-width: 220px;
+    outline: none;
+    padding: 6px 10px;
+    transition: border-color 0.15s;
+  }
+  select:focus { border-color: #4a9eff; }
+
+  /* compare second file */
+  #compare-section { margin-top: 14px; display: none; }
+  #compare-section.visible { display: block; }
+
+  /* buttons */
+  .btn-row { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+  button.btn {
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 20px;
+    transition: opacity 0.15s;
+  }
+  button.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  button.btn-primary  { background: #2563eb; color: #fff; }
+  button.btn-primary:hover:not(:disabled) { background: #1d4fd8; }
+  button.btn-secondary { background: var(--accent2); color: var(--text); }
+  button.btn-secondary:hover:not(:disabled) { background: #1e5aa8; }
+  button.btn-toggle {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  button.btn-toggle:hover { color: var(--text); border-color: #4a9eff; }
+  button.btn-toggle.active { color: var(--text); border-color: #4a9eff; background: rgba(74,158,255,0.08); }
+
+  /* status message */
+  .status-msg { margin-top: 14px; min-height: 22px; font-size: 13px; }
+  .status-msg.loading { color: #4a9eff; }
+  .status-msg.success { color: var(--pass); }
+  .status-msg.error   { color: var(--fail); }
+  .status-msg.info    { color: var(--muted); }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner {
+    display: inline-block;
+    width: 12px; height: 12px;
+    border: 2px solid #4a9eff;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+
+  /* runs table */
+  .table-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  thead th {
+    background: var(--accent);
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    padding: 8px 12px;
+    text-align: left;
+    text-transform: uppercase;
+  }
+  tbody tr { border-bottom: 1px solid var(--border); }
+  tbody tr:last-child { border-bottom: none; }
+  tbody td { padding: 9px 12px; vertical-align: middle; }
+  tbody tr:hover { background: rgba(255,255,255,0.03); }
+
+  .badge {
+    border-radius: 4px;
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    padding: 2px 8px;
+    text-transform: uppercase;
+  }
+  .badge-pass    { background: rgba(39,174,96,0.18);  color: var(--pass);    border: 1px solid rgba(39,174,96,0.4);  }
+  .badge-fail    { background: rgba(231,76,60,0.18);  color: var(--fail);    border: 1px solid rgba(231,76,60,0.4);  }
+  .badge-partial { background: rgba(243,156,18,0.18); color: var(--partial); border: 1px solid rgba(243,156,18,0.4); }
+
+  a.report-link { color: #4a9eff; text-decoration: none; font-size: 12px; }
+  a.report-link:hover { text-decoration: underline; }
+
+  .empty-msg { color: var(--muted); padding: 24px 12px; text-align: center; font-size: 13px; }
+
+  /* mapping generator */
+  .gen-section { margin-bottom: 28px; }
+  .gen-section:last-child { margin-bottom: 0; }
+  .gen-section-title {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  input.text-input {
+    background: var(--accent);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 13px;
+    outline: none;
+    padding: 6px 10px;
+    width: 200px;
+    transition: border-color 0.15s;
+  }
+  input.text-input:focus { border-color: #4a9eff; }
+  input.text-input::placeholder { color: var(--muted); }
+  .result-bar {
+    margin-top: 14px;
+    min-height: 22px;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .result-bar.loading { color: #4a9eff; }
+  .result-bar.success { color: var(--pass); }
+  .result-bar.error   { color: var(--fail); }
+  .result-bar.info    { color: var(--muted); }
+  .result-bar a { color: #4a9eff; font-size: 12px; text-decoration: none; }
+  .result-bar a:hover { text-decoration: underline; }
+
+  /* -----------------------------------------------------------------------
+     Tooltip system — add data-tooltip="..." to any element
+     ----------------------------------------------------------------------- */
+  [data-tooltip] { position: relative; }
+  [data-tooltip]:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1e293b;
+    color: #f8fafc;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    white-space: nowrap;
+    z-index: 100;
+    pointer-events: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  }
+  [data-tooltip]:hover::before {
+    content: '';
+    position: absolute;
+    bottom: 110%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: #1e293b;
+    z-index: 100;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>CM3 Batch Automations &mdash; Test UI</h1>
+  <span class="version">v1.0</span>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button class="active" id="tab-quick" role="tab" aria-selected="true"
+          onclick="switchTab('quick')">Quick Test</button>
+  <button id="tab-runs" role="tab" aria-selected="false"
+          onclick="switchTab('runs')">Recent Runs</button>
+  <button id="tab-mapping" role="tab" aria-selected="false"
+          onclick="switchTab('mapping')">Mapping Generator</button>
+</nav>
+
+<main>
+
+  <!-- QUICK TEST PANEL -->
+  <div id="panel-quick" class="panel" role="tabpanel" aria-labelledby="tab-quick">
+    <h2>Quick Test</h2>
+
+    <div class="drop-zone" id="dropZone" tabindex="0"
+         role="button" aria-label="Click or drag a file here"
+         data-tooltip="Drop a batch file here, or click to browse (.txt, .csv, .dat, .pipe)">
+      <svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round"
+          d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+      </svg>
+      <span class="dz-label">Drop file here or click to browse</span>
+      <span class="dz-filename" id="primaryFileName"></span>
+    </div>
+    <input type="file" id="fileInput">
+
+    <div class="form-row">
+      <label class="field-label" for="mappingSelect">Mapping</label>
+      <select id="mappingSelect"
+              data-tooltip="Select a mapping schema to validate field positions and lengths">
+        <option value="">Loading mappings&hellip;</option>
+      </select>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary"  id="btnValidate"      disabled
+              data-tooltip="Run structural validation against the selected mapping and rules">Validate</button>
+      <button class="btn btn-toggle"   id="btnToggleCompare"
+              data-tooltip="Compare two batch files row-by-row and highlight differences">Compare (pick 2nd file)</button>
+    </div>
+
+    <div id="compare-section">
+      <div class="drop-zone" id="dropZone2" tabindex="0"
+           role="button" aria-label="Click or drag the second file here">
+        <svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round"
+            d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+        </svg>
+        <span class="dz-label">Drop second file here or click to browse</span>
+        <span class="dz-filename" id="secondaryFileName"></span>
+      </div>
+      <input type="file" id="fileInput2">
+      <div class="btn-row">
+        <button class="btn btn-secondary" id="btnCompare" disabled
+                data-tooltip="Run a row-by-row comparison between the two selected files">Compare Files</button>
+      </div>
+    </div>
+
+    <div class="status-msg info" id="statusMsg">Select a file and mapping to get started.</div>
+  </div>
+
+  <!-- RECENT RUNS PANEL -->
+  <div id="panel-runs" class="panel" role="tabpanel" aria-labelledby="tab-runs" style="display:none">
+    <h2>Recent Runs</h2>
+    <div class="table-wrap" id="runsTableWrap">
+      <p class="empty-msg" id="runsLoading">Loading run history&hellip;</p>
+    </div>
+  </div>
+
+  <!-- MAPPING GENERATOR PANEL -->
+  <div id="panel-mapping" class="panel" role="tabpanel" aria-labelledby="tab-mapping" style="display:none">
+    <h2>Mapping Generator</h2>
+
+    <!-- Section 1: Field Mapping -->
+    <div class="gen-section">
+      <div class="gen-section-title">Field Mapping</div>
+      <div class="drop-zone" id="mapDropZone" tabindex="0"
+           role="button" aria-label="Click or drag a mapping template here"
+           data-tooltip="Upload an Excel or CSV template to generate a mapping JSON config">
+        <svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round"
+            d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+        </svg>
+        <span class="dz-label">Drop mapping template here or click to browse (.xlsx, .csv)</span>
+        <span class="dz-filename" id="mapFileName"></span>
+      </div>
+      <input type="file" id="mapFileInput" accept=".xlsx,.xls,.csv">
+      <div class="form-row">
+        <label class="field-label" for="mapNameInput">Mapping name</label>
+        <input type="text" id="mapNameInput" class="text-input" placeholder="(optional — uses filename)">
+        <label class="field-label" for="mapFormatSelect">Format</label>
+        <select id="mapFormatSelect"
+                data-tooltip="Override auto-detection if the file format is not detected correctly">
+          <option value="">Auto-detect</option>
+          <option value="fixed_width">Fixed Width</option>
+          <option value="pipe_delimited">Pipe-delimited</option>
+          <option value="csv">CSV</option>
+          <option value="tsv">TSV</option>
+        </select>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="btnGenMapping" disabled
+                data-tooltip="Convert the uploaded template into a mapping JSON config file">Generate Mapping</button>
+      </div>
+      <div class="result-bar info" id="mapResultBar">Select a mapping template to get started.</div>
+    </div>
+
+    <!-- Section 2: Validation Rules -->
+    <div class="gen-section">
+      <div class="gen-section-title">Validation Rules</div>
+      <div class="drop-zone" id="rulesDropZone" tabindex="0"
+           role="button" aria-label="Click or drag a rules template here"
+           data-tooltip="Upload an Excel or CSV template to generate a rules JSON config">
+        <svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round"
+            d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+        </svg>
+        <span class="dz-label">Drop rules template here or click to browse (.xlsx, .csv)</span>
+        <span class="dz-filename" id="rulesFileName"></span>
+      </div>
+      <input type="file" id="rulesFileInput" accept=".xlsx,.xls,.csv">
+      <div class="form-row">
+        <label class="field-label" for="rulesNameInput">Rules name</label>
+        <input type="text" id="rulesNameInput" class="text-input" placeholder="(optional — uses filename)">
+        <label class="field-label" for="rulesTypeSelect">Type</label>
+        <select id="rulesTypeSelect"
+                data-tooltip="BA-friendly: human-readable rules. Technical: strict regex/type rules">
+          <option value="ba_friendly">BA-friendly</option>
+          <option value="technical">Technical</option>
+        </select>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="btnGenRules" disabled
+                data-tooltip="Convert the uploaded template into a rules JSON config file">Generate Rules</button>
+      </div>
+      <div class="result-bar info" id="rulesResultBar">Select a rules template to get started.</div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ---------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------
+var primaryFile   = null;
+var secondaryFile = null;
+var compareMode   = false;
+
+// ---------------------------------------------------------------------------
+// Tab switching
+// ---------------------------------------------------------------------------
+function switchTab(name) {
+  ['quick', 'runs', 'mapping'].forEach(function(t) {
+    document.getElementById('panel-' + t).style.display = (t === name) ? '' : 'none';
+    var btn = document.getElementById('tab-' + t);
+    btn.classList.toggle('active', t === name);
+    btn.setAttribute('aria-selected', String(t === name));
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Status helpers — use textContent to avoid XSS
+// ---------------------------------------------------------------------------
+function clearStatus() {
+  var el = document.getElementById('statusMsg');
+  el.className = 'status-msg info';
+  while (el.firstChild) { el.removeChild(el.firstChild); }
+}
+
+function setStatusText(msg, type) {
+  var el = document.getElementById('statusMsg');
+  el.className = 'status-msg ' + type;
+  while (el.firstChild) { el.removeChild(el.firstChild); }
+  el.textContent = msg;
+}
+
+function setStatusWithLink(msg, type, linkText, linkHref) {
+  var el = document.getElementById('statusMsg');
+  el.className = 'status-msg ' + type;
+  while (el.firstChild) { el.removeChild(el.firstChild); }
+  el.appendChild(document.createTextNode(msg + ' '));
+  if (linkText && linkHref) {
+    var a = document.createElement('a');
+    a.className = 'report-link';
+    a.textContent = linkText;
+    a.href = linkHref;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    el.appendChild(a);
+  }
+}
+
+function setLoading(msg) {
+  var el = document.getElementById('statusMsg');
+  el.className = 'status-msg loading';
+  while (el.firstChild) { el.removeChild(el.firstChild); }
+  var sp = document.createElement('span');
+  sp.className = 'spinner';
+  el.appendChild(sp);
+  el.appendChild(document.createTextNode(msg));
+}
+
+// ---------------------------------------------------------------------------
+// Drag-and-drop
+// ---------------------------------------------------------------------------
+function setupDrop(zoneId, slot) {
+  var zone = document.getElementById(zoneId);
+  zone.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    zone.classList.add('dragover');
+  });
+  zone.addEventListener('dragleave', function() {
+    zone.classList.remove('dragover');
+  });
+  zone.addEventListener('drop', function(e) {
+    e.preventDefault();
+    zone.classList.remove('dragover');
+    var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) { setFile(f, slot); }
+  });
+  zone.addEventListener('click', function() {
+    document.getElementById(slot === 'primary' ? 'fileInput' : 'fileInput2').click();
+  });
+  zone.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      document.getElementById(slot === 'primary' ? 'fileInput' : 'fileInput2').click();
+    }
+  });
+}
+setupDrop('dropZone',  'primary');
+setupDrop('dropZone2', 'secondary');
+
+document.getElementById('fileInput').addEventListener('change', function() {
+  if (this.files.length) { setFile(this.files[0], 'primary'); }
+});
+document.getElementById('fileInput2').addEventListener('change', function() {
+  if (this.files.length) { setFile(this.files[0], 'secondary'); }
+});
+
+function setFile(file, slot) {
+  var nameEl;
+  if (slot === 'primary') {
+    primaryFile = file;
+    nameEl = document.getElementById('primaryFileName');
+  } else {
+    secondaryFile = file;
+    nameEl = document.getElementById('secondaryFileName');
+  }
+  nameEl.textContent = file.name;
+  updateButtons();
+}
+
+function updateButtons() {
+  var hasPrimary   = !!primaryFile;
+  var hasMapping   = !!document.getElementById('mappingSelect').value;
+  var hasSecondary = !!secondaryFile;
+  document.getElementById('btnValidate').disabled = !(hasPrimary && hasMapping);
+  document.getElementById('btnCompare').disabled  = !(hasPrimary && hasMapping && hasSecondary);
+}
+
+// ---------------------------------------------------------------------------
+// Toggle compare
+// ---------------------------------------------------------------------------
+document.getElementById('btnToggleCompare').addEventListener('click', function() {
+  compareMode = !compareMode;
+  document.getElementById('compare-section').classList.toggle('visible', compareMode);
+  this.classList.toggle('active', compareMode);
+});
+
+// ---------------------------------------------------------------------------
+// Load mappings
+// ---------------------------------------------------------------------------
+async function loadMappings() {
+  var sel = document.getElementById('mappingSelect');
+  try {
+    var resp = await fetch('/api/v1/mappings/');
+    if (!resp.ok) { throw new Error('HTTP ' + resp.status); }
+    var list = await resp.json();
+    while (sel.firstChild) { sel.removeChild(sel.firstChild); }
+    if (!list.length) {
+      var opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = 'No mappings available';
+      sel.appendChild(opt);
+    } else {
+      var placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = '— select a mapping —';
+      sel.appendChild(placeholder);
+      list.forEach(function(m) {
+        var o = document.createElement('option');
+        o.value = m.id;
+        o.textContent = m.mapping_name + ' (' + m.format + ')';
+        sel.appendChild(o);
+      });
+    }
+  } catch (err) {
+    while (sel.firstChild) { sel.removeChild(sel.firstChild); }
+    var errOpt = document.createElement('option');
+    errOpt.value = '';
+    errOpt.textContent = 'Could not load mappings';
+    sel.appendChild(errOpt);
+    console.error('Failed to load mappings:', err);
+  }
+  sel.addEventListener('change', updateButtons);
+}
+
+// ---------------------------------------------------------------------------
+// Validate
+// ---------------------------------------------------------------------------
+document.getElementById('btnValidate').addEventListener('click', async function() {
+  if (!primaryFile) { setStatusText('Please select a file.', 'error'); return; }
+  var mapping = document.getElementById('mappingSelect').value;
+  if (!mapping) { setStatusText('Please select a mapping.', 'error'); return; }
+
+  setLoading('Validating…');
+  this.disabled = true;
+
+  try {
+    var requestBlob = new Blob(
+      [JSON.stringify({ mapping_id: mapping, output_format: 'csv' })],
+      { type: 'application/json' }
+    );
+    var fd = new FormData();
+    fd.append('file', primaryFile);
+    fd.append('request', requestBlob);
+
+    var resp = await fetch('/api/v1/files/parse', { method: 'POST', body: fd });
+    if (!resp.ok) {
+      var errData = await resp.json().catch(function() { return { detail: resp.statusText }; });
+      throw new Error(errData.detail || resp.statusText);
+    }
+    var data = await resp.json();
+    var msg = 'Parsed successfully — ' + data.rows_parsed + ' rows, ' + data.columns + ' columns.';
+    if (data.download_url) {
+      setStatusWithLink(msg, 'success', 'Download CSV', data.download_url);
+    } else {
+      setStatusText(msg, 'success');
+    }
+  } catch (err) {
+    setStatusText('Error: ' + err.message, 'error');
+  } finally {
+    updateButtons();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Compare
+// ---------------------------------------------------------------------------
+document.getElementById('btnCompare').addEventListener('click', async function() {
+  if (!primaryFile || !secondaryFile) { setStatusText('Please select both files.', 'error'); return; }
+  var mapping = document.getElementById('mappingSelect').value;
+  if (!mapping) { setStatusText('Please select a mapping.', 'error'); return; }
+
+  setLoading('Comparing files…');
+  this.disabled = true;
+
+  try {
+    var requestBlob = new Blob(
+      [JSON.stringify({ mapping_id: mapping, key_columns: [], detailed: true })],
+      { type: 'application/json' }
+    );
+    var fd = new FormData();
+    fd.append('file1', primaryFile);
+    fd.append('file2', secondaryFile);
+    fd.append('request', requestBlob);
+
+    var resp = await fetch('/api/v1/files/compare', { method: 'POST', body: fd });
+    if (!resp.ok) {
+      var errData = await resp.json().catch(function() { return { detail: resp.statusText }; });
+      throw new Error(errData.detail || resp.statusText);
+    }
+    var data = await resp.json();
+    var matchPct = data.total_rows_file1
+      ? Math.round((data.matching_rows / data.total_rows_file1) * 100)
+      : 0;
+    var msg = 'Comparison complete — ' + data.matching_rows + '/' + data.total_rows_file1 +
+              ' rows match (' + matchPct + '%).';
+    if (data.report_url) {
+      setStatusWithLink(msg, 'success', 'Open report', data.report_url);
+    } else {
+      setStatusText(msg, 'success');
+    }
+  } catch (err) {
+    setStatusText('Error: ' + err.message, 'error');
+  } finally {
+    updateButtons();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Build run history table using DOM methods (no innerHTML with dynamic data)
+// ---------------------------------------------------------------------------
+function buildRunsTable(rows) {
+  var wrap = document.getElementById('runsTableWrap');
+  while (wrap.firstChild) { wrap.removeChild(wrap.firstChild); }
+
+  if (!rows.length) {
+    var empty = document.createElement('p');
+    empty.className = 'empty-msg';
+    empty.textContent = 'No run history found. Run a test suite to see results here.';
+    wrap.appendChild(empty);
+    return;
+  }
+
+  var table = document.createElement('table');
+
+  // thead
+  var thead = document.createElement('thead');
+  var headerRow = document.createElement('tr');
+  ['Run ID', 'Suite Name', 'Environment', 'Date', 'Status', 'Tests', 'Report'].forEach(function(h) {
+    var th = document.createElement('th');
+    th.textContent = h;
+    headerRow.appendChild(th);
+  });
+  thead.appendChild(headerRow);
+  table.appendChild(thead);
+
+  // tbody
+  var tbody = document.createElement('tbody');
+  rows.forEach(function(r) {
+    var tr = document.createElement('tr');
+
+    // Run ID
+    var tdId = document.createElement('td');
+    tdId.textContent = r.run_id ? r.run_id.substring(0, 8) + '…' : '—';
+    tdId.style.fontFamily = 'monospace';
+    tdId.style.fontSize = '11px';
+    tdId.setAttribute('data-tooltip', 'Unique identifier for this suite run');
+    tr.appendChild(tdId);
+
+    // Suite name
+    var tdName = document.createElement('td');
+    tdName.textContent = r.suite_name || '—';
+    tr.appendChild(tdName);
+
+    // Environment
+    var tdEnv = document.createElement('td');
+    tdEnv.textContent = r.environment || '—';
+    tr.appendChild(tdEnv);
+
+    // Date
+    var tdDate = document.createElement('td');
+    tdDate.textContent = r.timestamp ? new Date(r.timestamp).toLocaleString() : '—';
+    tdDate.setAttribute('data-tooltip', 'UTC time when the suite run completed');
+    tr.appendChild(tdDate);
+
+    // Status badge
+    var tdStatus = document.createElement('td');
+    var st  = (r.status || 'UNKNOWN').toUpperCase();
+    var cls = st === 'PASS' ? 'pass' : st === 'FAIL' ? 'fail' : 'partial';
+    var badge = document.createElement('span');
+    badge.className = 'badge badge-' + cls;
+    if (cls === 'pass') {
+      badge.setAttribute('data-tooltip', 'All tests passed or were skipped');
+    } else if (cls === 'fail') {
+      badge.setAttribute('data-tooltip', 'One or more tests failed');
+    } else {
+      badge.setAttribute('data-tooltip', 'Some tests passed and some failed');
+    }
+    badge.textContent = st;
+    tdStatus.appendChild(badge);
+    tr.appendChild(tdStatus);
+
+    // Tests
+    var tdTests = document.createElement('td');
+    tdTests.textContent = (r.pass_count || 0) + '/' + (r.total_count || 0) + ' passed';
+    tr.appendChild(tdTests);
+
+    // Report link + archive icon
+    var tdReport = document.createElement('td');
+    if (r.report_url) {
+      var a = document.createElement('a');
+      a.className = 'report-link';
+      a.textContent = 'View Report';
+      a.href = r.report_url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      tdReport.appendChild(a);
+    } else {
+      tdReport.textContent = '—';
+    }
+    if (r.archive_path) {
+      var archiveIcon = document.createElement('span');
+      archiveIcon.textContent = ' 🔒';
+      archiveIcon.setAttribute('data-tooltip', 'This run is permanently archived with a tamper-evident SHA-256 manifest');
+      tdReport.appendChild(archiveIcon);
+    }
+    tr.appendChild(tdReport);
+
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+}
+
+async function loadRunHistory() {
+  var wrap = document.getElementById('runsTableWrap');
+  try {
+    var resp = await fetch('/api/v1/runs/history');
+    if (!resp.ok) { throw new Error('HTTP ' + resp.status); }
+    var rows = await resp.json();
+    buildRunsTable(rows);
+  } catch (err) {
+    while (wrap.firstChild) { wrap.removeChild(wrap.firstChild); }
+    var p = document.createElement('p');
+    p.className = 'empty-msg';
+    p.textContent = 'Could not load run history: ' + err.message;
+    wrap.appendChild(p);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Mapping Generator — state
+// ---------------------------------------------------------------------------
+var mapFile   = null;
+var rulesFile = null;
+
+// ---------------------------------------------------------------------------
+// Mapping Generator — result bar helper
+// ---------------------------------------------------------------------------
+function setGenResult(barId, type, msg, links) {
+  var el = document.getElementById(barId);
+  el.className = 'result-bar ' + type;
+  while (el.firstChild) { el.removeChild(el.firstChild); }
+  if (type === 'loading') {
+    var sp = document.createElement('span');
+    sp.className = 'spinner';
+    el.appendChild(sp);
+  }
+  el.appendChild(document.createTextNode(msg));
+  if (links) {
+    links.forEach(function(lnk) {
+      var a = document.createElement('a');
+      a.textContent = lnk.text;
+      a.href = lnk.href || '#';
+      if (lnk.download) { a.setAttribute('download', lnk.download); }
+      if (lnk.onClick)  { a.addEventListener('click', lnk.onClick); }
+      if (lnk.tooltip)  { a.setAttribute('data-tooltip', lnk.tooltip); }
+      el.appendChild(a);
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Mapping Generator — drop zones
+// ---------------------------------------------------------------------------
+function setupGenDrop(zoneId, inputId, slot) {
+  var zone   = document.getElementById(zoneId);
+  var input  = document.getElementById(inputId);
+  var nameId = slot === 'map' ? 'mapFileName'  : 'rulesFileName';
+  var btnId  = slot === 'map' ? 'btnGenMapping' : 'btnGenRules';
+
+  zone.addEventListener('dragover',  function(e) { e.preventDefault(); zone.classList.add('dragover'); });
+  zone.addEventListener('dragleave', function()  { zone.classList.remove('dragover'); });
+  zone.addEventListener('drop', function(e) {
+    e.preventDefault(); zone.classList.remove('dragover');
+    var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) { setGenFile(f, slot, nameId, btnId); }
+  });
+  zone.addEventListener('click',   function()  { input.click(); });
+  zone.addEventListener('keydown', function(e) { if (e.key === 'Enter' || e.key === ' ') { input.click(); } });
+  input.addEventListener('change', function()  { if (this.files.length) { setGenFile(this.files[0], slot, nameId, btnId); } });
+}
+
+function setGenFile(file, slot, nameId, btnId) {
+  document.getElementById(nameId).textContent = file.name;
+  document.getElementById(btnId).disabled = false;
+  if (slot === 'map')   { mapFile   = file; }
+  if (slot === 'rules') { rulesFile = file; }
+}
+
+setupGenDrop('mapDropZone',   'mapFileInput',   'map');
+setupGenDrop('rulesDropZone', 'rulesFileInput', 'rules');
+
+// ---------------------------------------------------------------------------
+// Mapping Generator — Generate Mapping button
+// ---------------------------------------------------------------------------
+document.getElementById('btnGenMapping').addEventListener('click', async function() {
+  if (!mapFile) { return; }
+  setGenResult('mapResultBar', 'loading', 'Generating mapping\u2026', null);
+  this.disabled = true;
+  try {
+    var mappingName = document.getElementById('mapNameInput').value.trim();
+    var format      = document.getElementById('mapFormatSelect').value;
+    var url = '/api/v1/mappings/upload';
+    var params = [];
+    if (mappingName) { params.push('mapping_name=' + encodeURIComponent(mappingName)); }
+    if (format)      { params.push('file_format='  + encodeURIComponent(format)); }
+    if (params.length) { url += '?' + params.join('&'); }
+    var fd = new FormData();
+    fd.append('file', mapFile);
+    var resp = await fetch(url, { method: 'POST', body: fd });
+    if (!resp.ok) {
+      var err = await resp.json().catch(function() { return { detail: resp.statusText }; });
+      throw new Error(err.detail || resp.statusText);
+    }
+    var data = await resp.json();
+    var mid  = data.mapping_id;
+    setGenResult('mapResultBar', 'success', '\u2705 \u2018' + mid + '\u2019 created\u00a0\u00a0', [
+      { text: 'Download JSON', href: '/api/v1/mappings/' + encodeURIComponent(mid), download: mid + '.json', tooltip: 'Download the generated JSON config to your machine' },
+      { text: 'Use in Quick Test \u2192', tooltip: 'Load this config into the Quick Test tab and switch to it', onClick: function(e) {
+          e.preventDefault();
+          loadMappings();
+          switchTab('quick');
+      }}
+    ]);
+  } catch (err) {
+    setGenResult('mapResultBar', 'error', 'Error: ' + err.message, null);
+  } finally {
+    document.getElementById('btnGenMapping').disabled = false;
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Mapping Generator — Generate Rules button
+// ---------------------------------------------------------------------------
+document.getElementById('btnGenRules').addEventListener('click', async function() {
+  if (!rulesFile) { return; }
+  setGenResult('rulesResultBar', 'loading', 'Generating rules\u2026', null);
+  this.disabled = true;
+  try {
+    var rulesName = document.getElementById('rulesNameInput').value.trim();
+    var rulesType = document.getElementById('rulesTypeSelect').value;
+    var url = '/api/v1/rules/upload?rules_type=' + encodeURIComponent(rulesType);
+    if (rulesName) { url += '&rules_name=' + encodeURIComponent(rulesName); }
+    var fd = new FormData();
+    fd.append('file', rulesFile);
+    var resp = await fetch(url, { method: 'POST', body: fd });
+    if (!resp.ok) {
+      var err = await resp.json().catch(function() { return { detail: resp.statusText }; });
+      throw new Error(err.detail || resp.statusText);
+    }
+    var data = await resp.json();
+    var rid  = data.rules_id;
+    setGenResult('rulesResultBar', 'success', '\u2705 \u2018' + rid + '\u2019 created\u00a0\u00a0', [
+      { text: 'Download JSON', href: '/api/v1/rules/' + encodeURIComponent(rid) + '.json', download: rid + '.json', tooltip: 'Download the generated JSON config to your machine' }
+    ]);
+  } catch (err) {
+    setGenResult('rulesResultBar', 'error', 'Error: ' + err.message, null);
+  } finally {
+    document.getElementById('btnGenRules').disabled = false;
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Init
+// ---------------------------------------------------------------------------
+loadMappings();
+loadRunHistory();
+</script>
+</body>
+</html>

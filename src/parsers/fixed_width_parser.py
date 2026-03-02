@@ -19,21 +19,30 @@ class FixedWidthParser(BaseParser):
         self.column_specs = column_specs
 
     def parse(self) -> pd.DataFrame:
-        """Parse fixed-width file.
-        
+        """Parse the fixed-width file into a DataFrame.
+
         Returns:
-            DataFrame containing parsed data
+            DataFrame with columns matching the mapping definition,
+            plus a leading ``__source_row__`` column containing the
+            1-indexed source file line number for each record.
+
+        Raises:
+            ValueError: If the file cannot be parsed.
         """
         try:
             colspecs = [(start, end) for _, start, end in self.column_specs]
             names = [name for name, _, _ in self.column_specs]
-            
+
             df = pd.read_fwf(
                 self.file_path,
                 colspecs=colspecs,
                 names=names,
                 dtype=str,
             )
+            # Insert 1-indexed physical line numbers as the first column.
+            # Fixed-width files have exactly one record per line, so the
+            # DataFrame row index maps directly to the source file line number.
+            df.insert(0, '__source_row__', range(1, len(df) + 1))
             return df
         except Exception as e:
             raise ValueError(f"Failed to parse fixed-width file: {e}")

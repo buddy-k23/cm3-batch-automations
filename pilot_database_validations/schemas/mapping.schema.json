@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://database-validations/schemas/mapping.schema.json",
+  "title": "Source to Target Mapping",
+  "type": "object",
+  "required": ["mappingId", "version", "source", "target", "fields"],
+  "properties": {
+    "mappingId": {"type": "string", "minLength": 1},
+    "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "description": {"type": "string"},
+    "source": {
+      "type": "object",
+      "required": ["type", "query"],
+      "properties": {
+        "type": {"type": "string", "enum": ["oracle"]},
+        "query": {"type": "string", "minLength": 1},
+        "primaryKey": {"type": "array", "items": {"type": "string"}},
+        "groupKeys": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "target": {
+      "type": "object",
+      "required": ["format", "recordLayout"],
+      "properties": {
+        "format": {"type": "string", "enum": ["fixed-width", "delimited"]},
+        "delimiter": {"type": "string", "minLength": 1, "maxLength": 1},
+        "quoteChar": {"type": "string", "minLength": 1, "maxLength": 1},
+        "escapeChar": {"type": "string", "minLength": 1, "maxLength": 1},
+        "header": {
+          "type": "object",
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "totalCountField": {"type": "string"}
+          },
+          "additionalProperties": false
+        },
+        "recordLayout": {
+          "type": "object",
+          "properties": {
+            "strictLength": {"type": "boolean"},
+            "recordLength": {"type": "integer", "minimum": 1}
+          },
+          "additionalProperties": false
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"format": {"const": "delimited"}}},
+          "then": {"required": ["delimiter"]}
+        },
+        {
+          "if": {"properties": {"format": {"const": "fixed-width"}}},
+          "then": {"required": ["recordLayout"]}
+        }
+      ],
+      "additionalProperties": false
+    },
+    "fields": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name", "source", "targetType"],
+        "properties": {
+          "name": {"type": "string"},
+          "source": {"type": "string"},
+          "transactionCode": {"type": "string"},
+          "targetType": {"type": "string", "enum": ["string", "numeric", "date", "boolean"]},
+          "required": {"type": "boolean"},
+          "format": {"type": "string"},
+          "length": {"type": "integer", "minimum": 1},
+          "positionStart": {"type": "integer", "minimum": 1},
+          "positionEnd": {"type": "integer", "minimum": 1},
+          "default": {},
+          "transform": {"type": "string"},
+          "lineage": {
+            "type": "object",
+            "required": ["lineageId", "origin", "transforms", "derivationFlag", "confidence", "strategy", "inputsUsed", "placeholderUsed"],
+            "properties": {
+              "lineageId": {"type": "string", "minLength": 1},
+              "origin": {"type": "string", "minLength": 1},
+              "transforms": {"type": "array", "items": {"type": "string"}, "minItems": 0},
+              "derivationFlag": {"type": "boolean"},
+              "confidence": {"type": "string", "enum": ["high", "medium", "low", "none"]},
+              "strategy": {"type": "string", "minLength": 1},
+              "inputsUsed": {"type": "array", "items": {"type": "string"}},
+              "placeholderUsed": {"type": "boolean"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

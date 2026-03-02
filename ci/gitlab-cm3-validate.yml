@@ -1,0 +1,31 @@
+# GitLab CI include template for post-batch CM3 validation
+# Usage in your pipeline:
+#   include:
+#     - project: 'your-group/cm3-batch-automations'
+#       file: 'ci/gitlab-cm3-validate.yml'
+
+.cm3_validate:
+  stage: validate
+  image: python:3.11-slim
+  variables:
+    CM3_SUITE: "config/test_suites/default.yaml"
+    CM3_ENV: "dev"
+    CM3_OUTPUT_DIR: "reports"
+    CM3_RUN_DATE: ""   # Set to YYYYMMDD or leave blank for today
+  before_script:
+    - pip install -e . --quiet
+  script:
+    - |
+      PARAMS=""
+      if [ -n "$CM3_RUN_DATE" ]; then
+        PARAMS="--params run_date=$CM3_RUN_DATE"
+      fi
+      cm3-batch run-tests --suite "$CM3_SUITE" --env "$CM3_ENV" --output-dir "$CM3_OUTPUT_DIR" $PARAMS
+  artifacts:
+    when: always
+    paths:
+      - reports/
+    expire_in: 30 days
+
+cm3-validate:
+  extends: .cm3_validate

@@ -1,0 +1,2 @@
+rule_id,rule_name,scope,severity,priority,group_by,expression,message_template,enabled
+FILE_DETAIL_COUNT_NON_NEGATIVE,File detail count must be non-negative,file,ERROR,10,,detail.count >= 0,Detail count must be non-negative,Y

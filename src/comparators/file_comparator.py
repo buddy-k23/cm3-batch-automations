@@ -61,74 +61,116 @@ class FileComparator:
         }
 
     def _find_unique_rows(self, df_source: pd.DataFrame, df_target: pd.DataFrame) -> pd.DataFrame:
-        """Find rows in source that don't exist in target."""
+        """Find rows in source that don't exist in target.
+
+        Args:
+            df_source: DataFrame whose unique rows are returned.
+            df_target: DataFrame used as the reference set.
+
+        Returns:
+            DataFrame of rows present in ``df_source`` but absent from
+            ``df_target``, with ``__source_row__`` renamed to ``source_row``
+            for user-facing readability.
+        """
+        # Only merge on key columns that exist in df_target (guard against missing cols)
+        target_key_cols = [c for c in self.key_columns if c in df_target.columns]
         merged = df_source.merge(
-            df_target[self.key_columns],
-            on=self.key_columns,
+            df_target[target_key_cols],
+            on=target_key_cols,
             how="left",
             indicator=True,
         )
         unique_rows = merged[merged["_merge"] == "left_only"].drop(columns=["_merge"])
+        # Rename the internal tracking column to a user-friendly name.
+        if '__source_row__' in unique_rows.columns:
+            unique_rows = unique_rows.rename(columns={'__source_row__': 'source_row'})
         return unique_rows
 
     def _find_differences(self) -> List[Dict[str, Any]]:
-        """Find rows with same keys but different values."""
+        """Find rows with same keys but different values.
+
+        Returns:
+            List of dicts, each containing ``keys``, ``differences``,
+            ``source_row_file1``, and ``source_row_file2``.  The source
+            row values are taken from the ``__source_row__`` column when
+            present, falling back to the merged DataFrame positional index.
+        """
         merged = self.df1.merge(
             self.df2,
             on=self.key_columns,
             how="inner",
             suffixes=("_file1", "_file2"),
         )
-        
+
         differences = []
-        value_columns = [col for col in self.df1.columns 
-                        if col not in self.key_columns and col not in self.ignore_columns]
-        
-        for _, row in merged.iterrows():
+        value_columns = [col for col in self.df1.columns
+                         if col not in self.key_columns and col not in self.ignore_columns
+                         and col != '__source_row__']
+
+        for idx, row in merged.iterrows():
             row_diffs = {}
             for col in value_columns:
                 val1 = row.get(f"{col}_file1")
                 val2 = row.get(f"{col}_file2")
                 if val1 != val2:
                     row_diffs[col] = {"file1": val1, "file2": val2}
-            
+
             if row_diffs:
                 key_values = {k: row[k] for k in self.key_columns}
-                differences.append({"keys": key_values, "differences": row_diffs})
-        
+                source_row_file1 = row.get('__source_row___file1', row.get('__source_row__', idx + 1))
+                source_row_file2 = row.get('__source_row___file2', row.get('__source_row__', idx + 1))
+                differences.append({
+                    "keys": key_values,
+                    "differences": row_diffs,
+                    "source_row_file1": source_row_file1,
+                    "source_row_file2": source_row_file2,
+                })
+
         return differences
 
     def _find_detailed_differences(self) -> List[Dict[str, Any]]:
-        """Find rows with detailed field-level difference analysis."""
+        """Find rows with detailed field-level difference analysis.
+
+        Returns:
+            List of dicts, each containing ``keys``, ``differences``,
+            ``difference_count``, ``source_row_file1``, and
+            ``source_row_file2``.  Source row values come from the
+            ``__source_row__`` column when present in the input DataFrames.
+        """
         merged = self.df1.merge(
             self.df2,
             on=self.key_columns,
             how="inner",
             suffixes=("_file1", "_file2"),
         )
-        
+
         differences = []
-        value_columns = [col for col in self.df1.columns 
-                        if col not in self.key_columns and col not in self.ignore_columns]
-        
-        for _, row in merged.iterrows():
+        value_columns = [col for col in self.df1.columns
+                         if col not in self.key_columns and col not in self.ignore_columns
+                         and col != '__source_row__']
+
+        for idx, row in merged.iterrows():
             row_diffs = {}
             for col in value_columns:
                 val1 = row.get(f"{col}_file1")
                 val2 = row.get(f"{col}_file2")
-                
+
                 if val1 != val2:
                     diff_detail = self._analyze_field_difference(col, val1, val2)
                     row_diffs[col] = diff_detail
-            
+
             if row_diffs:
                 key_values = {k: row[k] for k in self.key_columns}
+                source_row_file1 = row.get('__source_row___file1', row.get('__source_row__', idx + 1))
+                source_row_file2 = row.get('__source_row___file2', row.get('__source_row__', idx + 1))
                 differences.append({
-                    "keys": key_values, 
+                    "keys": key_values,
                     "differences": row_diffs,
-                    "difference_count": len(row_diffs)
+                    "difference_count": len(row_diffs),
+                    "source_row_file1": source_row_file1,
+                    "source_row_file2": source_row_file2,
                 })
-        
+
         return differences
 
     def _analyze_field_difference(self, field_name: str, val1: Any, val2: Any) -> Dict[str, Any]:
@@ -236,31 +278,40 @@ class FileComparator:
     
     def _compare_row_by_row(self, detailed: bool = True) -> Dict[str, Any]:
         """Compare files row-by-row (positional comparison).
-        
+
         Args:
-            detailed: Include detailed field-level differences
-            
+            detailed: Include detailed field-level differences.
+
         Returns:
-            Dictionary containing comparison results
+            Dictionary containing comparison results, including
+            ``source_row_file1`` and ``source_row_file2`` on every diff
+            entry so users can trace differences back to the physical
+            source file line numbers.
         """
         min_rows = min(len(self.df1), len(self.df2))
-        
+
         differences = []
         matching_rows = 0
-        
+
         # Compare rows that exist in both files
         for idx in range(min_rows):
             row1 = self.df1.iloc[idx]
             row2 = self.df2.iloc[idx]
-            
-            # Get columns to compare (excluding ignored columns)
-            compare_cols = [col for col in self.df1.columns if col not in self.ignore_columns and col in self.df2.columns]
-            
+
+            # Get columns to compare (excluding ignored columns and the
+            # internal tracking column which is not a data field).
+            compare_cols = [
+                col for col in self.df1.columns
+                if col not in self.ignore_columns
+                and col != '__source_row__'
+                and col in self.df2.columns
+            ]
+
             row_diffs = {}
             for col in compare_cols:
                 val1 = row1[col] if pd.notna(row1[col]) else ''
                 val2 = row2[col] if pd.notna(row2[col]) else ''
-                
+
                 if str(val1) != str(val2):
                     if detailed:
                         row_diffs[col] = {
@@ -270,32 +321,40 @@ class FileComparator:
                         }
                     else:
                         row_diffs[col] = {'file1': str(val1), 'file2': str(val2)}
-            
+
             if row_diffs:
+                source_row1 = int(row1.get('__source_row__', idx + 1))
+                source_row2 = int(row2.get('__source_row__', idx + 1))
                 diff_entry = {
                     'row_number': idx + 1,  # 1-indexed for user display
-                    'differences': row_diffs
+                    'source_row_file1': source_row1,
+                    'source_row_file2': source_row2,
+                    'differences': row_diffs,
                 }
                 if detailed:
                     diff_entry['difference_count'] = len(row_diffs)
                 differences.append(diff_entry)
             else:
                 matching_rows += 1
-        
+
         # Rows only in file1 (if file1 is longer)
         only_in_file1 = []
         if len(self.df1) > len(self.df2):
             for idx in range(min_rows, len(self.df1)):
-                only_in_file1.append({'row_number': idx + 1})
-        
+                row1 = self.df1.iloc[idx]
+                source_row = int(row1.get('__source_row__', idx + 1))
+                only_in_file1.append({'row_number': idx + 1, 'source_row': source_row})
+
         # Rows only in file2 (if file2 is longer)
         only_in_file2 = []
         if len(self.df2) > len(self.df1):
             for idx in range(min_rows, len(self.df2)):
-                only_in_file2.append({'row_number': idx + 1})
-        
+                row2 = self.df2.iloc[idx]
+                source_row = int(row2.get('__source_row__', idx + 1))
+                only_in_file2.append({'row_number': idx + 1, 'source_row': source_row})
+
         field_diff_stats = self._calculate_field_statistics(differences) if detailed else {}
-        
+
         return {
             "only_in_file1": only_in_file1,
             "only_in_file2": only_in_file2,

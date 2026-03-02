@@ -1,0 +1,144 @@
+{
+  "sources": {
+    "SHAW_SRC_ATOCTRAN": {
+      "positive": {
+        "expectedStatus": "PASS",
+        "notes": "Parses cleanly and validates ingest schema"
+      },
+      "negative": {
+        "expectedStatus": "FAIL",
+        "expectedErrorCodes": [
+          "HEADER_MISSING",
+          "ENUM_INVALID",
+          "POSITION_INVALID",
+          "RULE_DUPLICATE_ID",
+          "GROUPBY_REQUIRED"
+        ]
+      },
+      "edge": {
+        "expectedStatus": "WARN_OR_PASS",
+        "notes": "Requires derive-missing for mapping-edge; fixed-width file-config valid with record_length"
+      }
+    },
+    "SHAW_SRC_EAC": {
+      "positive": {
+        "expectedStatus": "PASS",
+        "notes": "Parses cleanly and validates ingest schema"
+      },
+      "negative": {
+        "expectedStatus": "FAIL",
+        "expectedErrorCodes": [
+          "HEADER_MISSING",
+          "ENUM_INVALID",
+          "POSITION_INVALID",
+          "RULE_DUPLICATE_ID",
+          "GROUPBY_REQUIRED"
+        ]
+      },
+      "edge": {
+        "expectedStatus": "WARN_OR_PASS",
+        "notes": "Requires derive-missing for mapping-edge; fixed-width file-config valid with record_length"
+      }
+    },
+    "SHAW_SRC_ESA": {
+      "positive": {
+        "expectedStatus": "PASS",
+        "notes": "Parses cleanly and validates ingest schema"
+      },
+      "negative": {
+        "expectedStatus": "FAIL",
+        "expectedErrorCodes": [
+          "HEADER_MISSING",
+          "ENUM_INVALID",
+          "POSITION_INVALID",
+          "RULE_DUPLICATE_ID",
+          "GROUPBY_REQUIRED"
+        ]
+      },
+      "edge": {
+        "expectedStatus": "WARN_OR_PASS",
+        "notes": "Requires derive-missing for mapping-edge; fixed-width file-config valid with record_length"
+      }
+    },
+    "SHAW_SRC_EST": {
+      "positive": {
+        "expectedStatus": "PASS",
+        "notes": "Parses cleanly and validates ingest schema"
+      },
+      "negative": {
+        "expectedStatus": "FAIL",
+        "expectedErrorCodes": [
+          "HEADER_MISSING",
+          "ENUM_INVALID",
+          "POSITION_INVALID",
+          "RULE_DUPLICATE_ID",
+          "GROUPBY_REQUIRED"
+        ]
+      },
+      "edge": {
+        "expectedStatus": "WARN_OR_PASS",
+        "notes": "Requires derive-missing for mapping-edge; fixed-width file-config valid with record_length"
+      }
+    },
+    "SRC_SRC_NAS_TRANERT_MAPPING_SH": {
+      "positive": {
+        "expectedStatus": "PASS",
+        "notes": "Parses cleanly and validates ingest schema"
+      },
+      "negative": {
+        "expectedStatus": "FAIL",
+        "expectedErrorCodes": [
+          "HEADER_MISSING",
+          "ENUM_INVALID",
+          "POSITION_INVALID",
+          "RULE_DUPLICATE_ID",
+          "GROUPBY_REQUIRED"
+        ]
+      },
+      "edge": {
+        "expectedStatus": "WARN_OR_PASS",
+        "notes": "Requires derive-missing for mapping-edge; fixed-width file-config valid with record_length"
+      }
+    },
+    "SHAW_SRC_P327": {
+      "positive": {
+        "expectedStatus": "PASS",
+        "notes": "Parses cleanly and validates ingest schema"
+      },
+      "negative": {
+        "expectedStatus": "FAIL",
+        "expectedErrorCodes": [
+          "HEADER_MISSING",
+          "ENUM_INVALID",
+          "POSITION_INVALID",
+          "RULE_DUPLICATE_ID",
+          "GROUPBY_REQUIRED"
+        ]
+      },
+      "edge": {
+        "expectedStatus": "WARN_OR_PASS",
+        "notes": "Requires derive-missing for mapping-edge; fixed-width file-config valid with record_length"
+      }
+    },
+    "SHAW_SRC_TRANERT": {
+      "positive": {
+        "expectedStatus": "PASS",
+        "notes": "Parses cleanly and validates ingest schema"
+      },
+      "negative": {
+        "expectedStatus": "FAIL",
+        "expectedErrorCodes": [
+          "HEADER_MISSING",
+          "ENUM_INVALID",
+          "POSITION_INVALID",
+          "RULE_DUPLICATE_ID",
+          "GROUPBY_REQUIRED"
+        ]
+      },
+      "edge": {
+        "expectedStatus": "WARN_OR_PASS",
+        "notes": "Requires derive-missing for mapping-edge; fixed-width file-config valid with record_length"
+      }
+    }
+  }
+}

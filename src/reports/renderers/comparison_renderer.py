@@ -24,12 +24,13 @@ class HTMLReporter:
         tr:nth-child(even) { background-color: #f2f2f2; }
         .difference { background-color: #ffeb3b; }
         .timestamp { color: #666; font-size: 0.9em; }
+        .source-row { color: #555; font-size: 0.85em; }
     </style>
 </head>
 <body>
     <h1>CM3 Batch Comparison Report</h1>
     <p class="timestamp">Generated: {{ timestamp }}</p>
-    
+
     <div class="summary">
         <h2>Summary</h2>
         <div class="summary-item"><strong>Total Rows (File 1):</strong> {{ summary.total_rows_file1 }}</div>
@@ -39,11 +40,13 @@ class HTMLReporter:
         <div class="summary-item"><strong>Only in File 2:</strong> {{ summary.only_in_file2|length }}</div>
         <div class="summary-item"><strong>Rows with Differences:</strong> {{ summary.differences|length }}</div>
     </div>
-    
+
     {% if summary.differences %}
     <h2>Differences Found</h2>
     <table>
         <tr>
+            <th>File 1 Row</th>
+            <th>File 2 Row</th>
             <th>Keys</th>
             <th>Column</th>
             <th>File 1 Value</th>
@@ -52,6 +55,8 @@ class HTMLReporter:
         {% for diff in summary.differences %}
             {% for col, values in diff.differences.items() %}
             <tr class="difference">
+                <td class="source-row">{{ diff.source_row_file1 if diff.source_row_file1 is defined else '' }}</td>
+                <td class="source-row">{{ diff.source_row_file2 if diff.source_row_file2 is defined else '' }}</td>
                 <td>{{ diff.keys }}</td>
                 <td>{{ col }}</td>
                 <td>{{ values.file1 }}</td>
@@ -67,17 +72,24 @@ class HTMLReporter:
 
     def generate(self, comparison_results: Dict[str, Any], output_path: str) -> None:
         """Generate HTML report from comparison results.
-        
+
+        The differences table includes ``File 1 Row`` and ``File 2 Row``
+        columns that show the physical source file line number for each
+        difference, enabling users to trace mismatches back to the exact
+        line in the original batch files.
+
         Args:
-            comparison_results: Results from FileComparator
-            output_path: Path to save HTML report
+            comparison_results: Results dict from FileComparator, including
+                optional ``source_row_file1`` / ``source_row_file2`` keys on
+                each difference entry.
+            output_path: Filesystem path to write the HTML report to.
         """
         template = Template(self.TEMPLATE)
-        
+
         html_content = template.render(
             timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             summary=comparison_results,
         )
-        
+
         with open(output_path, "w") as f:
             f.write(html_content)

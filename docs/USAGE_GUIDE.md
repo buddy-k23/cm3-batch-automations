@@ -4,6 +4,9 @@
 
 This guide provides practical examples for using CM3 Batch Automations in both **CLI mode** and **API mode**.
 
+> **Offline-capable reports**: All HTML reports (validation, comparison, suite summary) embed Chart.js inline.
+> No internet access is required to view reports.
+
 ---
 
 ## Table of Contents
@@ -97,6 +100,8 @@ cm3-batch parse -f data/samples/p327_test_data.txt \
   --chunk-size 50000 \
   -o reports/p327_parsed_chunked.csv
 ```
+
+> All exported CSV files include a `source_row` column identifying the original line number in the source file. This column is also shown in HTML error and difference tables for easy trace-back.
 
 ### 3. File Comparison
 
@@ -229,6 +234,8 @@ cm3-batch convert-rules \
 - `-t, --template`: Excel (.xlsx) or CSV (.csv) template file
 - `-o, --output`: Output JSON rules file
 - `-s, --sheet`: Sheet name (for Excel, optional)
+
+> All exported CSV files include a `source_row` column identifying the original line number in the source file. This column is also shown in HTML error and difference tables for easy trace-back.
 
 ### 6. Validation
 
@@ -464,6 +471,112 @@ cm3-batch gx-checkpoint1 \
 - Row-count thresholds
 
 See `docs/GREAT_EXPECTATIONS_CHECKPOINT1.md` for full BA-oriented setup.
+
+---
+
+## Test Suite Orchestration
+
+Run multiple tests in one command using a YAML suite file.
+
+### Create a suite from Excel
+
+```bash
+# Write an empty Excel template
+cm3-batch convert-suite --template config/test_suites/my_suite.xlsx
+
+# Convert a filled-in Excel to YAML
+cm3-batch convert-suite --input config/test_suites/my_suite.xlsx --output-dir config/test_suites
+```
+
+### Run a test suite
+
+```bash
+# Dry-run (shows what would run without executing)
+cm3-batch run-tests --suite config/test_suites/p327_uat.yaml --dry-run
+
+# Run with a specific date parameter
+cm3-batch run-tests --suite config/test_suites/p327_uat.yaml \
+  --params "run_date=20260301" \
+  --env dev \
+  --output-dir reports
+```
+
+**Suite YAML format:**
+```yaml
+name: P327 UAT Suite
+environment: dev
+tests:
+  - name: P327 structural check
+    type: structural
+    file: data/p327_${run_date}.dat
+    mapping: P327_full_in_sheet_order_strict
+    thresholds:
+      max_errors: 0
+  - name: P327 Oracle vs file
+    type: oracle_vs_file
+    file: data/p327_${run_date}.dat
+    mapping: P327_full_in_sheet_order_strict
+    oracle_query: "SELECT * FROM CM3INT.SHAW_SRC_P327 WHERE BATCH_DATE = :run_date"
+    oracle_params:
+      run_date: "${run_date}"
+    key_columns: [LN]
+    thresholds:
+      max_different_rows_pct: 0.5
+```
+
+**Built-in parameters:** `${today}`, `${yesterday}`, `${run_date}` (same as today unless overridden), `${run_id}`, `${environment}`.
+
+**Test types:**
+- `structural` — validates file format against mapping (field lengths, required fields, data types)
+- `rules` — validates business rules from a rules file
+- `oracle_vs_file` — extracts Oracle data to CSV then compares against the file
+- `api_check` — calls an external HTTP endpoint and asserts on status code / JSON response
+
+**Exit codes:** 0 = all tests passed, 1 = one or more tests failed or errored.
+
+### Listing archived runs
+
+```bash
+cm3-batch list-runs            # show latest 20 runs
+cm3-batch list-runs --limit 5  # show latest 5 runs
+```
+
+Lists all archived suite runs, newest first. Runs older than `REPORT_RETENTION_DAYS` (default 365) are purged automatically on each call.
+
+### Inspecting a specific run
+
+```bash
+cm3-batch get-run <run_id>
+```
+
+Prints the SHA-256 manifest for the given run and lists all archived file paths. Exits with code 1 if the run ID is not found.
+
+### Tamper-evident archive
+
+Every suite run is automatically archived to `reports/archive/YYYY/MM/DD/{run_id}/` with a SHA-256 manifest. The manifest covers all report files and itself, allowing auditors to detect post-run tampering.
+
+Environment variables:
+- `REPORT_ARCHIVE_PATH` (default: `reports/archive`) — root of the archive tree
+- `REPORT_RETENTION_DAYS` (default: `365`) — runs older than this are deleted by `list-runs`
+
+### API Check Tests
+
+Use `type: api_check` to validate external HTTP endpoints in your suite:
+
+```yaml
+tests:
+  - name: Batch service health check
+    type: api_check
+    url: "http://internal-batch-svc/health"
+    method: GET
+    expected_status: 200
+    response_contains:
+      status: "ok"
+    timeout_seconds: 30
+```
+
+Supported fields: `url`, `method` (GET/POST), `body` (JSON dict for POST),
+`expected_status`, `response_contains` (JSON key/value assertions), `timeout_seconds`.
 
 ---
 
@@ -961,6 +1074,8 @@ cm3-batch validate -f <file>            # Validate file
 cm3-batch convert-rules -t <template>   # Convert rules
 cm3-batch extract -t <table>            # Extract from DB
 cm3-batch reconcile -m <mapping>        # Reconcile mapping
+cm3-batch list-runs                     # List archived suite runs
+cm3-batch get-run <run_id>              # Inspect a specific run
 ```
 
 ### API Endpoints
@@ -992,3 +1107,81 @@ response = requests.get("http://localhost:8000/api/v1/system/health")
 ---
 
 **Need Help?** Check the [Swagger UI](http://localhost:8000/docs) for interactive API documentation!
+
+---
+
+## CI/CD Integration
+
+### Trigger File Watcher
+
+Drop a file named `batch_complete_YYYYMMDD.trigger` in your watch directory when the
+batch job completes. The watcher picks it up, runs the matching suite, and deletes the trigger.
+
+```bash
+cm3-batch watch \
+  --dir /batch/triggers \
+  --suites config/test_suites/ \
+  --env dev \
+  --output-dir reports \
+  --interval 30
+```
+
+### Webhook Trigger
+
+Call the API from GitLab/Azure after the batch completes:
+
+```bash
+curl -X POST http://cm3-server:8000/api/v1/runs/trigger \
+  -H "Content-Type: application/json" \
+  -d '{"suite": "config/test_suites/p327_uat.yaml", "params": {"run_date": "20260301"}, "env": "dev"}'
+```
+
+Check status: `GET /api/v1/runs/{run_id}`
+
+### Pipeline Templates
+
+Copy from the `ci/` directory:
+- `ci/gitlab-cm3-validate.yml` — GitLab CI include template
+- `ci/azure-cm3-validate.yml` — Azure DevOps pipeline task
+
+---
+
+## Web UI
+
+Start the API server and open `http://localhost:8000/ui` in your browser.
+
+**Quick Test** — Upload a batch file, select a mapping, and click Validate or Compare.
+The HTML report opens in a new tab.
+
+**Recent Runs** — Shows the last 20 test suite runs with pass/fail status and links
+to suite reports.
+
+### Mapping Generator Tab
+
+Upload an Excel or CSV template to generate JSON config files without using the CLI.
+
+#### Generate a Field Mapping
+
+1. Open the web UI at `http://localhost:8000/ui`
+2. Click the **Mapping Generator** tab
+3. Drop your mapping template (`.xlsx` or `.csv`) into the **Field Mapping** drop zone
+4. Optionally enter a mapping name and select a format (defaults to auto-detect)
+5. Click **Generate Mapping**
+6. On success: download the JSON or click **Use in Quick Test →** to use it immediately
+
+**Required template columns:** `Field Name`, `Data Type`
+**Optional columns:** `Position`, `Length`, `Format`, `Required`, `Description`, `Default Value`, `Target Name`, `Valid Values`
+
+#### Generate Validation Rules
+
+1. Drop your rules template into the **Validation Rules** drop zone
+2. Select the template type: **BA-friendly** (default) or **Technical**
+3. Click **Generate Rules**
+4. Download the generated rules JSON
+
+**BA-friendly required columns:** `Rule ID`, `Rule Name`, `Field`, `Rule Type`, `Severity`, `Expected / Values`, `Enabled`
+**Technical required columns:** `Rule ID`, `Rule Name`, `Description`, `Type`, `Severity`, `Operator`
+
+### UI tooltips
+
+Hover over any button, dropdown, or upload zone to see a contextual tooltip describing what it does.

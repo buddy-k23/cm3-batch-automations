@@ -1,0 +1,62 @@
+{
+  "input": {
+    "fileName": "customer_extract.xlsx",
+    "fileType": "xlsx",
+    "sheetName": "Template"
+  },
+  "fileConfig": {
+    "format": "fixed-width",
+    "recordLength": 80,
+    "headerEnabled": true,
+    "headerTotalCountField": "TOTAL_COUNT"
+  },
+  "mappingRows": [
+    {
+      "transactionCode": "A01",
+      "targetField": "ACCOUNT_ID",
+      "sourceField": "SRC_ACCOUNT_ID",
+      "dataType": "string",
+      "required": "Y",
+      "length": 12,
+      "positionStart": 1,
+      "positionEnd": 12
+    },
+    {
+      "transactionCode": "A01",
+      "targetField": "BALANCE",
+      "sourceField": "SRC_BALANCE",
+      "dataType": "numeric",
+      "required": "N",
+      "length": 10,
+      "positionStart": 13,
+      "positionEnd": 22,
+      "defaultValue": 0,
+      "transformLogic": "ROUND(SRC_BALANCE,2)"
+    }
+  ],
+  "ruleRows": [
+    {
+      "ruleId": "BALANCE_NON_NEGATIVE",
+      "ruleName": "Balance cannot be negative",
+      "scope": "field",
+      "severity": "ERROR",
+      "priority": 10,
+      "expression": "BALANCE >= 0",
+      "messageTemplate": "Balance must be non-negative",
+      "enabled": true
+    },
+    {
+      "ruleId": "A01_GROUP_COUNT",
+      "ruleName": "A01 records grouped by ACCOUNT_ID",
+      "scope": "group",
+      "severity": "WARN",
+      "priority": 20,
+      "groupBy": [
+        "ACCOUNT_ID"
+      ],
+      "expression": "COUNT(*) > 0",
+      "messageTemplate": "Group must have records",
+      "enabled": true
+    }
+  ]
+}

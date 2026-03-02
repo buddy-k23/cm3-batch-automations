@@ -47,19 +47,14 @@ def test_files_router_detect_parse_compare_direct():
         det = asyncio.run(detect_format(file=_upload_file("sample.txt", "1|Alice\n2|Bob\n")))
         assert det.format
 
-        # Current API parser path returns HTTP 500 because preview dict keys are numeric
-        # for pipe-delimited parsing without explicit column names.
-        try:
-            asyncio.run(
-                parse_file(
-                    file=_upload_file("sample_parse.txt", "1|Alice\n2|Bob\n"),
-                    request=FileParseRequest(mapping_id=mapping_id, output_format="csv"),
-                )
+        # parse_service normalizes column names to strings, so parse succeeds.
+        parse_res = asyncio.run(
+            parse_file(
+                file=_upload_file("sample_parse.txt", "1|Alice\n2|Bob\n"),
+                request=FileParseRequest(mapping_id=mapping_id, output_format="csv"),
             )
-            assert False, "Expected HTTPException from parse_file"
-        except HTTPException as exc:
-            assert exc.status_code == 500
-            assert "Error parsing file" in str(exc.detail)
+        )
+        assert parse_res.rows_parsed == 2
 
         cmp_res = asyncio.run(
             compare_files(

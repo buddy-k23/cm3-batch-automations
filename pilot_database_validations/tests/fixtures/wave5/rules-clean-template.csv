@@ -1,0 +1,4 @@
+rule_id,rule_name,scope,severity,priority,group_by,expression,message_template,enabled
+REC_OPEN_DATE_NOT_FUTURE,Open date not in future,record,ERROR,10,,OPEN_DATE <= TODAY,OPEN_DATE cannot be in the future,Y
+REC_STATUS_DOMAIN,Status code in allowed set,record,WARN,20,,STATUS_CODE in ['A','I'],STATUS_CODE should be A or I,Y
+REC_EMAIL_HASH_LENGTH,Email hash length,record,ERROR,30,,len(EMAIL_HASH) in [0,64],EMAIL_HASH must be blank or 64 chars,Y

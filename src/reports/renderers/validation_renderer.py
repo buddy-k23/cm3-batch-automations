@@ -7,6 +7,15 @@ from typing import Dict, Any
 from datetime import datetime
 from pathlib import Path
 
+_CHART_JS_PATH = Path(__file__).parent.parent / "static" / "chart.umd.min.js"
+if not _CHART_JS_PATH.exists():
+    raise FileNotFoundError(
+        f"Chart.js bundle not found: {_CHART_JS_PATH}. "
+        "If developing locally, pull the latest commits. "
+        "If running from an installed package, re-install from the latest release."
+    )
+_CHART_JS_INLINE = _CHART_JS_PATH.read_text(encoding="utf-8")
+
 
 class ValidationReporter:
     """Generates HTML validation reports with charts and detailed analysis."""
@@ -46,46 +55,66 @@ class ValidationReporter:
         return sorted(issues, key=_key)
 
     def _write_errors_csv(self, validation_results: Dict[str, Any], output_path: str) -> None:
-        """Write all errors to a CSV sidecar next to the HTML report."""
+        """Write all errors to a CSV sidecar next to the HTML report.
+
+        The sidecar includes a ``source_row`` column so users can trace each
+        error back to the physical line number in the source batch file.
+
+        Args:
+            validation_results: Validation results dict from EnhancedFileValidator.
+            output_path: Path to the main HTML report (used to derive the CSV path).
+        """
         errors = self._sort_issues(validation_results.get('errors', []))
         output = Path(output_path)
         csv_path = output.with_name(f"{output.stem}_errors.csv")
 
         with open(csv_path, 'w', encoding='utf-8', newline='') as f:
-            writer = csv.DictWriter(f, fieldnames=['index', 'severity', 'message'])
+            writer = csv.DictWriter(f, fieldnames=['source_row', 'index', 'severity', 'message'])
             writer.writeheader()
             for idx, error in enumerate(errors, start=1):
                 if isinstance(error, dict):
                     writer.writerow({
+                        'source_row': error.get('source_row', error.get('row', '')),
                         'index': idx,
                         'severity': error.get('severity', 'error'),
                         'message': error.get('message', ''),
                     })
                 else:
                     writer.writerow({
+                        'source_row': '',
                         'index': idx,
                         'severity': 'error',
                         'message': str(error),
                     })
 
     def _write_warnings_csv(self, validation_results: Dict[str, Any], output_path: str) -> None:
-        """Write all warnings to a CSV sidecar next to the HTML report."""
+        """Write all warnings to a CSV sidecar next to the HTML report.
+
+        The sidecar includes a ``source_row`` column so users can trace each
+        warning back to the physical line number in the source batch file.
+
+        Args:
+            validation_results: Validation results dict from EnhancedFileValidator.
+            output_path: Path to the main HTML report (used to derive the CSV path).
+        """
         warnings = self._sort_issues(validation_results.get('warnings', []))
         output = Path(output_path)
         csv_path = output.with_name(f"{output.stem}_warnings.csv")
 
         with open(csv_path, 'w', encoding='utf-8', newline='') as f:
-            writer = csv.DictWriter(f, fieldnames=['index', 'severity', 'message'])
+            writer = csv.DictWriter(f, fieldnames=['source_row', 'index', 'severity', 'message'])
             writer.writeheader()
             for idx, warning in enumerate(warnings, start=1):
                 if isinstance(warning, dict):
                     writer.writerow({
+                        'source_row': warning.get('source_row', warning.get('row', '')),
                         'index': idx,
                         'severity': warning.get('severity', 'warning'),
                         'message': warning.get('message', ''),
                     })
                 else:
                     writer.writerow({
+                        'source_row': '',
                         'index': idx,
                         'severity': 'warning',
                         'message': str(warning),
@@ -99,7 +128,7 @@ class ValidationReporter:
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>File Validation Report</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script>{_CHART_JS_INLINE}</script>
     <style>
         {self._get_css()}
     </style>
@@ -809,9 +838,18 @@ class ValidationReporter:
             for item in items:
                 severity = item.get('severity', 'info') if isinstance(item, dict) else 'info'
                 message = item.get('message', '') if isinstance(item, dict) else str(item)
+                # Surface source_row (physical line number) when available.
+                source_row = None
+                if isinstance(item, dict):
+                    source_row = item.get('source_row', item.get('row'))
+                source_row_html = (
+                    f'<div class="issue-meta">Source Row: <strong>{source_row}</strong></div>'
+                    if source_row is not None else ''
+                )
                 html.append(f"""
                 <div class="issue issue-{severity}">
                     <div class="issue-title">{icon} {severity.upper()}</div>
+                    {source_row_html}
                     <div class="issue-message">{message}</div>
                 </div>
                 """)

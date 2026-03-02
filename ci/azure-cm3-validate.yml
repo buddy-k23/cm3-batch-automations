@@ -1,0 +1,48 @@
+# Azure DevOps pipeline task for post-batch CM3 validation
+# Add this as a step in your pipeline:
+#
+# - template: ci/azure-cm3-validate.yml
+#   parameters:
+#     suite: config/test_suites/p327_uat.yaml
+#     env: dev
+#     runDate: $(Build.BuildId)
+
+parameters:
+  - name: suite
+    type: string
+    default: config/test_suites/default.yaml
+  - name: env
+    type: string
+    default: dev
+  - name: runDate
+    type: string
+    default: ''
+  - name: outputDir
+    type: string
+    default: reports
+
+steps:
+  - script: pip install -e . --quiet
+    displayName: 'Install CM3 Batch Automations'
+
+  - script: |
+      PARAMS=""
+      if [ -n "${{ parameters.runDate }}" ]; then
+        PARAMS="--params run_date=${{ parameters.runDate }}"
+      fi
+      cm3-batch run-tests \
+        --suite "${{ parameters.suite }}" \
+        --env "${{ parameters.env }}" \
+        --output-dir "${{ parameters.outputDir }}" \
+        $PARAMS
+    displayName: 'Run CM3 Test Suite'
+    env:
+      ORACLE_USER: $(ORACLE_USER)
+      ORACLE_PASSWORD: $(ORACLE_PASSWORD)
+      ORACLE_DSN: $(ORACLE_DSN)
+
+  - task: PublishBuildArtifacts@1
+    condition: always()
+    inputs:
+      pathToPublish: '${{ parameters.outputDir }}'
+      artifactName: 'cm3-test-reports'

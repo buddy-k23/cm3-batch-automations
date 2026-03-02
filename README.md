@@ -11,7 +11,7 @@ Automated file parsing, validation, and comparison tool for CM3 batch processing
 - **Database Integration**: Oracle database connectivity with `oracledb` (thin mode supported)
 - **Data Validation**: Comprehensive validation with interactive HTML reports
 - **File Comparison**: Compare files and identify differences with field-level analysis
-- **HTML Reporting**: Generate detailed comparison and validation reports
+- **Self-Contained HTML Reports**: Generate detailed comparison and validation reports — all reports embed Chart.js inline, no internet access required
 - **REST API**: FastAPI-based REST API with Swagger UI (interactive documentation)
 
 ### Validation Features (New!)
@@ -32,6 +32,8 @@ Automated file parsing, validation, and comparison tool for CM3 batch processing
 - **CLI Interface**: Command-line tools for all operations
 - **API Interface**: RESTful API for web-based access and integration
 - **Source Data Verification**: Validate generated files against trusted source data using custom SQL queries
+- **Test Suite Orchestration**: YAML-defined multi-test suites with parameterized run dates, Oracle vs file comparison, and consolidated HTML pass/fail summary
+- **Excel Test Builder**: Convert Excel-based test suite templates to YAML using `cm3-batch convert-suite`
 
 ## Documentation Navigation
 
@@ -39,6 +41,7 @@ Automated file parsing, validation, and comparison tool for CM3 batch processing
 - **Functionality matrix**: `docs/FUNCTIONALITY_MATRIX.md`
 - **Architecture diagrams**: `docs/architecture.md`
 - **Hands-on usage**: `docs/USAGE_GUIDE.md`
+- **Installation guide**: `docs/INSTALL.md` — local installation guide (Windows, Linux, VSCode)
 - **Testing**: `docs/TESTING_GUIDE.md`
 
 ## Quick Start
@@ -47,6 +50,8 @@ For Java multi-step ETL regression orchestration, see:
 - `docs/PIPELINE_REGRESSION_GUIDE.md`
 
 ### First-Time Setup (Beginner Friendly)
+
+> **New to this project?** See `docs/INSTALL.md` for a step-by-step installation guide covering Windows, Linux, and VSCode setup. Quick helper scripts: `setup-windows.bat` (Windows) and `setup-linux.sh` (Linux/macOS).
 
 **Important:** Open your terminal or command prompt and navigate to the **project root directory** before running these commands.
 
@@ -353,6 +358,19 @@ curl -X POST "http://localhost:8000/api/v1/mappings/upload" \
 
 curl "http://localhost:8000/api/v1/mappings/"
 ```
+
+## Running Test Suites
+
+Run multiple tests in one command using a YAML suite file.
+
+```bash
+# Create YAML suite from Excel template
+cm3-batch convert-suite --template config/test_suites/my_suite.xlsx
+# Run the suite
+cm3-batch run-tests --suite config/test_suites/my_suite.yaml --params "run_date=20260301"
+```
+
+For full suite YAML format and test type reference, see the [Test Suite Orchestration](#test-suite-orchestration) section in `docs/USAGE_GUIDE.md`.
 
 ## Project Structure
 

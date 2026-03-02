@@ -499,8 +499,8 @@ class EnhancedFileValidator:
                     'field': field
                 })
         
-        # Extra fields
-        extra = actual_fields - expected_fields
+        # Extra fields — exclude internal columns added by parsers (e.g. __source_row__)
+        extra = actual_fields - expected_fields - {'__source_row__'}
         if extra:
             for field in extra:
                 self.warnings.append({
@@ -895,6 +895,17 @@ class EnhancedFileValidator:
             if sign_kind == 'S':
                 return bool(re.fullmatch(rf'[+-]?\d{{{n+m}}}', v))
             return bool(re.fullmatch(rf'\d{{{n+m}}}', v))
+
+        # X(N) — alphanumeric characters (A-Za-z0-9) and spaces; length not
+        # enforced here because the parser strips trailing spaces from text fields.
+        m_xn = re.fullmatch(r'X\((\d+)\)', fmt)
+        if m_xn:
+            return bool(re.fullmatch(r'[A-Za-z0-9 ]*', v))
+
+        # A(N) — alphabetic characters and spaces only.
+        m_an = re.fullmatch(r'A\((\d+)\)', fmt)
+        if m_an:
+            return bool(re.fullmatch(r'[A-Za-z ]*', v))
 
         return True
 

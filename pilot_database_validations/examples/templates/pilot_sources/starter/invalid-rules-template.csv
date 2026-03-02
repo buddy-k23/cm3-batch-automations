@@ -1,0 +1,2 @@
+rule_id,rule_name,scope,severity,priority,group_by,expression,message_template,enabled
+BAD_SCOPE_EXAMPLE,Bad scope test,bad_scope,ERROR,10,,x == y,Invalid scope example,Y

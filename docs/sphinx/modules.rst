@@ -9,6 +9,17 @@ Core CLI
    :undoc-members:
    :show-inheritance:
 
+Commands
+~~~~~~~~
+
+.. automodule:: src.commands.watch_command
+   :members:
+   :undoc-members:
+
+.. automodule:: src.commands.run_tests_command
+   :members:
+   :undoc-members:
+
 Database
 --------
 
@@ -117,6 +128,23 @@ Configuration & Validators
    :members:
    :undoc-members:
 
+API Routers
+-----------
+
+Web UI
+~~~~~~
+
+.. automodule:: src.api.routers.ui
+   :members:
+   :undoc-members:
+
+Runs
+~~~~
+
+.. automodule:: src.api.routers.runs
+   :members:
+   :undoc-members:
+
 Reporting & Utilities
 ---------------------
 
@@ -137,5 +165,9 @@ Reporting & Utilities
    :undoc-members:
 
 .. automodule:: src.utils.memory_monitor
+   :members:
+   :undoc-members:
+
+.. automodule:: src.utils.archive
    :members:
    :undoc-members:

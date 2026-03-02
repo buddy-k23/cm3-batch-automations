@@ -1,0 +1,2 @@
+transaction_code,target_field,source_field,data_type,required,length,position_start,position_end,format,default_value,transform_logic
+SRCSRCNASTRANERTMAPP,RAW_RECORD,RAW_RECORD,string,N,4000,1,4000,,,'pass_through'

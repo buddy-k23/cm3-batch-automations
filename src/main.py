@@ -1,6 +1,7 @@
 """Main entry point for CM3 Batch Automations."""
 
 import sys
+import json
 import os
 import click
 from src.utils.logger import setup_logger
@@ -665,6 +666,161 @@ def gx_checkpoint1(targets_csv, expectations_csv, output_json, csv_output, html_
     except Exception as e:
         logger.error(f"Error running Great Expectations Checkpoint 1: {e}")
         sys.exit(1)
+
+
+@cli.command('convert-suite')
+@click.option('--input', 'input_path', required=False, default=None,
+              type=click.Path(), help='Path to Excel test suite file to convert')
+@click.option('--output-dir', default='.', show_default=True,
+              type=click.Path(), help='Directory to write the generated YAML file')
+@click.option('--template', 'template_path', default=None,
+              type=click.Path(), help='Write an empty Excel template to this path and exit')
+def convert_suite(input_path, output_dir, template_path):
+    """Convert an Excel test suite template to a YAML file for cm3-batch run-tests."""
+    logger = setup_logger('cm3-batch', log_to_file=False)
+
+    try:
+        from src.config.suite_template_converter import SuiteTemplateConverter
+
+        converter = SuiteTemplateConverter()
+
+        if template_path:
+            converter.create_template(template_path)
+            click.echo(f"Template written to: {template_path}")
+            return
+
+        if not input_path:
+            click.echo(click.style('Error: --input is required when --template is not specified', fg='red'))
+            sys.exit(1)
+
+        output_path = converter.convert(input_path, output_dir)
+        click.echo(f"YAML test suite written to: {output_path}")
+
+    except Exception as e:
+        logger.error(f"Error converting test suite: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
+@cli.command('watch')
+@click.option('--dir', 'watch_dir', required=True, type=click.Path(),
+              help='Directory to watch for .trigger files')
+@click.option('--suites', 'suites_dir', required=True, type=click.Path(),
+              help='Directory containing suite YAML files')
+@click.option('--env', default='dev', show_default=True, help='Environment name')
+@click.option('--output-dir', default='reports', show_default=True, type=click.Path(),
+              help='Directory for test reports')
+@click.option('--interval', default=30, show_default=True, type=int,
+              help='Poll interval in seconds')
+def watch(watch_dir, suites_dir, env, output_dir, interval):
+    """Watch a directory for batch trigger files and run matching test suites."""
+    from src.commands.watch_command import run_watch
+    run_watch(watch_dir, suites_dir, env, output_dir, poll_interval=interval)
+
+
+@cli.command('run-tests')
+@click.option('--suite', '-s', required=True, help='Path to test suite YAML file')
+@click.option('--params', '-p', default='', help='Parameters as key=value,key2=value2')
+@click.option('--env', default='dev', help='Environment name (appears in reports)')
+@click.option('--output-dir', '-o', default='reports', help='Directory for output reports')
+@click.option('--dry-run', is_flag=True, help='Print resolved config without running tests')
+def run_tests(suite, params, env, output_dir, dry_run):
+    """Run a complete test suite defined in a YAML file."""
+    from src.commands.run_tests_command import run_tests_command
+
+    try:
+        results = run_tests_command(
+            suite_path=suite,
+            params_str=params,
+            env=env,
+            output_dir=output_dir,
+            dry_run=dry_run,
+        )
+    except Exception as e:
+        click.echo(click.style(f"Error: {e}", fg='red'), err=True)
+        sys.exit(1)
+
+    if dry_run:
+        return
+
+    # Determine suite name from YAML (reload header for display).
+    import yaml
+    with open(suite, 'r') as f:
+        raw = yaml.safe_load(f)
+    suite_name = raw.get('name', suite)
+    suite_env = env.upper()
+
+    total = len(results)
+    passed = sum(1 for r in results if r['status'] == 'PASS')
+    failed = total - passed
+    overall = 'PASSED' if failed == 0 else 'FAILED'
+
+    click.echo(
+        f"\nTest Suite: {suite_name} | Environment: {suite_env} | "
+        f"Result: {overall} ({passed}/{total} passed)\n"
+    )
+
+    # Header row.
+    click.echo(f"  {'Test':<32}{'Status':<10}{'Rows':>10}  {'Errors':>7}  {'Duration':>9}")
+
+    for r in results:
+        name = r['name'][:31]
+        status = r['status']
+        rows = f"{r['total_rows']:,}" if r['total_rows'] else '-'
+        errors = str(r['error_count'])
+        duration = f"{r['duration_seconds']}s"
+        click.echo(f"  {name:<32}{status:<10}{rows:>10}  {errors:>7}  {duration:>9}")
+
+    if results and failed > 0:
+        sys.exit(1)
+
+
+@cli.command('list-runs')
+@click.option('--limit', default=20, show_default=True, type=int,
+              help='Maximum number of runs to show (most recent first)')
+def list_runs(limit):
+    """List archived test suite runs (most recent first)."""
+    from src.utils.archive import ArchiveManager
+
+    archive = ArchiveManager()
+    archive.purge_old_runs()
+    runs = archive.list_runs()[:limit]
+
+    if not runs:
+        click.echo("No archived runs found.")
+        return
+
+    click.echo(f"{'RUN ID':<38} {'SUITE':<28} {'ENV':<8} {'TIMESTAMP':<22} STATUS")
+    click.echo("-" * 106)
+    for r in runs:
+        click.echo(
+            f"{r.get('run_id', ''):<38} "
+            f"{r.get('suite_name', '')[:27]:<28} "
+            f"{r.get('environment', ''):<8} "
+            f"{r.get('timestamp', ''):<22} "
+            f"{r.get('status', 'unknown')}"
+        )
+
+
+@cli.command('get-run')
+@click.argument('run_id')
+def get_run(run_id):
+    """Retrieve archived files and manifest for a specific run."""
+    from src.utils.archive import ArchiveManager
+
+    archive = ArchiveManager()
+    result = archive.get_run(run_id)
+
+    if result is None:
+        click.echo(click.style(f"Run '{run_id}' not found in archive.", fg='red'), err=True)
+        raise SystemExit(1)
+
+    click.echo("Manifest:")
+    click.echo(json.dumps(result['manifest'], indent=2))
+    click.echo("\nFiles:")
+    for f in result['files']:
+        click.echo(f"  {f}")
 
 
 def main():

@@ -23,8 +23,9 @@ class TestPipeDelimitedParser:
             df = parser.parse()
             
             assert len(df) == 3
-            assert len(df.columns) == 3
-            assert list(df.columns) == ['col1', 'col2', 'col3']
+            # __source_row__ is prepended by the parser (issue #37)
+            assert len(df.columns) == 4
+            assert list(df.columns) == ['__source_row__', 'col1', 'col2', 'col3']
             assert df['col1'].iloc[0] == 'value1'
             assert df['col2'].iloc[1] == 'value5'
         finally:
@@ -42,7 +43,8 @@ class TestPipeDelimitedParser:
             df = parser.parse()
             
             assert len(df) == 2
-            assert len(df.columns) == 3
+            # __source_row__ is prepended by the parser (issue #37), plus 3 data columns
+            assert len(df.columns) == 4
         finally:
             os.unlink(temp_file)
 

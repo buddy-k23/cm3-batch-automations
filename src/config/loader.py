@@ -37,15 +37,21 @@ class ConfigLoader:
 
     def load_mapping(self, mapping_file: str) -> Dict[str, str]:
         """Load column mapping configuration.
-        
+
         Args:
-            mapping_file: Path to mapping JSON file
-            
+            mapping_file: Path to mapping JSON file. May be an absolute path,
+                a path relative to cwd, or a filename resolved under
+                <config_dir>/mappings/.
+
         Returns:
             Mapping dictionary
         """
-        mapping_path = os.path.join(self.config_dir, "mappings", mapping_file)
-        
+        # Use the path directly if it is absolute or already exists as given
+        if os.path.isabs(mapping_file) or os.path.exists(mapping_file):
+            mapping_path = mapping_file
+        else:
+            mapping_path = os.path.join(self.config_dir, "mappings", mapping_file)
+
         if not os.path.exists(mapping_path):
             raise FileNotFoundError(f"Mapping file not found: {mapping_path}")
         

@@ -25,6 +25,9 @@ setup(
         "Programming Language :: Python :: 3.11",
     ],
     python_requires=">=3.9",
+    package_data={
+        "src.reports": ["static/*.js"],
+    },
     install_requires=requirements,
     extras_require={
         "dev": [

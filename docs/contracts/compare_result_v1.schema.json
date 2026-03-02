@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CompareResultV1",
+  "type": "object",
+  "required": [
+    "total_rows_file1",
+    "total_rows_file2",
+    "matching_rows"
+  ],
+  "properties": {
+    "total_rows_file1": {"type": "integer"},
+    "total_rows_file2": {"type": "integer"},
+    "matching_rows": {"type": "integer"},
+    "only_in_file1": {"type": "integer"},
+    "only_in_file2": {"type": "integer"},
+    "differences": {"type": "integer"},
+    "report_url": {"type": ["string", "null"]},
+    "field_statistics": {"type": ["object", "null"]}
+  },
+  "additionalProperties": true
+}

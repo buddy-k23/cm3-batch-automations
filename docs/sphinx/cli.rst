@@ -15,6 +15,7 @@ Commands
 - ``extract``: Extract table/query data from Oracle to file
 - ``convert-rules``: Convert Excel/CSV rules templates to JSON
 - ``info``: System and dependency diagnostics
+- ``watch``: Poll a directory for batch trigger files and run matching suites automatically
 
 For command-specific details run:
 

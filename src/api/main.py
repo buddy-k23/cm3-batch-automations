@@ -1,8 +1,12 @@
 """FastAPI main application."""
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+import logging
+import os
 import sys
 from pathlib import Path
 
@@ -10,9 +14,35 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.api.routers import mappings, files, system
+from src.api.routers.ui import router as ui_router
+from src.api.routers.runs import router as runs_router
+from src.api.routers import rules as rules_router_mod
+from src.utils.cleanup import cleanup_old_files
+
+logger = logging.getLogger(__name__)
+
+FILE_RETENTION_HOURS = float(os.getenv("FILE_RETENTION_HOURS", "24"))
+_UPLOADS_DIR = Path(__file__).parent.parent.parent / "uploads"
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan handler: runs startup cleanup, then yields."""
+    # Startup: remove stale uploaded files
+    result = cleanup_old_files(_UPLOADS_DIR, FILE_RETENTION_HOURS)
+    if result["deleted_count"] > 0:
+        logger.info(
+            "Startup cleanup: removed %d files (%d bytes)",
+            result["deleted_count"],
+            result["deleted_bytes"],
+        )
+    yield
+    # Shutdown: nothing needed
+
 
 # Create FastAPI application
 app = FastAPI(
+    lifespan=lifespan,
     title="CM3 Batch Automations API",
     description="""
     REST API for CM3 Batch Automations - File parsing, validation, and comparison tool.
@@ -62,6 +92,20 @@ app.include_router(
     prefix="/api/v1/system",
     tags=["System"]
 )
+app.include_router(ui_router)
+app.include_router(runs_router)
+app.include_router(
+    rules_router_mod.router,
+    prefix="/api/v1/rules",
+    tags=["Rules"]
+)
+
+# Serve generated reports
+_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(_UPLOADS_DIR)), name="uploads")
+_REPORTS_DIR = Path(__file__).parent.parent.parent / "reports"
+_REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/reports", StaticFiles(directory=str(_REPORTS_DIR)), name="reports")
 
 # Root endpoint
 @app.get("/", tags=["Root"])

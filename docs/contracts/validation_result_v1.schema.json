@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ValidationResultV1",
+  "type": "object",
+  "required": [
+    "valid",
+    "total_rows",
+    "valid_rows",
+    "invalid_rows",
+    "errors",
+    "warnings"
+  ],
+  "properties": {
+    "valid": {"type": "boolean"},
+    "total_rows": {"type": "integer"},
+    "valid_rows": {"type": "integer"},
+    "invalid_rows": {"type": "integer"},
+    "errors": {"type": "array"},
+    "warnings": {"type": "array"},
+    "quality_score": {"type": ["number", "null"]},
+    "report_url": {"type": ["string", "null"]}
+  },
+  "additionalProperties": true
+}

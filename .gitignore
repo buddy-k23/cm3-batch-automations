@@ -32,7 +32,11 @@ env.bak/
 venv.bak/
 
 # IDEs
-.vscode/
+# Track project-level VSCode config; ignore personal/local files
+.vscode/*
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/tasks.json
 .idea/
 *.swp
 *.swo
@@ -71,6 +75,7 @@ data/samples/*.csv
 /reports/
 *.html
 !docs/*.html
+!src/reports/static/ui.html
 
 # Temporary files
 *.tmp
@@ -78,3 +83,4 @@ data/samples/*.csv
 output/
 
 .venv312/
+.worktrees/
