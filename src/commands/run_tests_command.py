@@ -18,9 +18,9 @@ from src.reports.renderers.suite_renderer import SuiteReporter
 from src.utils.params import resolve_params
 
 try:
-    from src.database.run_history import RunHistoryRepository
-except ImportError:  # module not yet present in all environments
-    RunHistoryRepository = None  # type: ignore[assignment,misc]
+    from src.services.run_history_service import write_run_to_db as _db_write_run
+except ImportError:  # service not yet present in all environments
+    _db_write_run = None  # type: ignore[assignment]
 
 
 def _run_api_check_test(test: TestConfig, params: dict) -> dict:
@@ -467,17 +467,18 @@ def _append_run_history(
     if history_path.exists():
         try:
             existing = json.loads(history_path.read_text(encoding="utf-8"))
-        except Exception:
+        except Exception as exc:  # noqa: BLE001
+            logging.getLogger(__name__).warning(
+                "run_history.json is unreadable, starting fresh: %s", exc
+            )
             existing = []
     existing.append(entry)
     history_path.write_text(json.dumps(existing, indent=2), encoding="utf-8")
 
     # Dual-write to Oracle when ORACLE_USER is configured.
-    if os.getenv("ORACLE_USER") and RunHistoryRepository is not None:
+    if os.getenv("ORACLE_USER") and _db_write_run is not None:
         try:
-            repo = RunHistoryRepository()
-            repo.insert_run(entry)
-            repo.insert_tests(run_id, results)
+            _db_write_run(entry, run_id, results)
         except Exception as exc:  # noqa: BLE001
             logging.getLogger(__name__).warning(
                 "run_history DB write failed (JSON fallback still written): %s", exc
