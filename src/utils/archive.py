@@ -62,6 +62,7 @@ class ArchiveManager:
         env: str,
         timestamp: str,
         files: list[str],
+        status: str = "UNKNOWN",
     ) -> Path:
         """Copy report files to a dated archive dir and write a manifest.
 
@@ -71,6 +72,7 @@ class ArchiveManager:
             env: Environment string (e.g. ``"uat"``).
             timestamp: ISO-8601 UTC timestamp string (``"2026-03-02T09:00:00Z"``).
             files: List of absolute file paths to archive. Non-existent paths are skipped.
+            status: Overall suite result (``"PASS"``, ``"FAIL"``, ``"PARTIAL"``).
 
         Returns:
             Path to the run directory that was created.
@@ -101,6 +103,7 @@ class ArchiveManager:
             "suite_name": suite_name,
             "environment": env,
             "timestamp": timestamp,
+            "status": status,
             "files": archived,
         }
         manifest: dict[str, Any] = {**payload, "manifest_hash": _manifest_hash(payload)}

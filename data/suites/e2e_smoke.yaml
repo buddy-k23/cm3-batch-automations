@@ -1,0 +1,22 @@
+name: "E2E Smoke"
+environment: "local"
+
+tests:
+  - name: "Validate transactions file (fixed-width)"
+    type: structural
+    file: data/samples/transactions.txt
+    mapping: config/mappings/transaction_batch_universal.json
+
+  - name: "API health check"
+    type: api_check
+    url: "http://127.0.0.1:8000/api/v1/system/health"
+    method: GET
+    expected_status: 200
+    response_contains:
+      status: healthy
+
+  - name: "API mappings list"
+    type: api_check
+    url: "http://127.0.0.1:8000/api/v1/mappings/"
+    method: GET
+    expected_status: 200

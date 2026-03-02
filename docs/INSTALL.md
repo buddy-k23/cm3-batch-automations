@@ -234,6 +234,87 @@ All configuration is loaded from the `.env` file in the project root. Copy `.env
 
 ---
 
+## Database Setup
+
+### What requires the database
+
+| Feature | Requires Oracle? | Notes |
+|---|---|---|
+| File validation (`validate`) | No | Runs locally against mapping JSON |
+| File comparison (`compare`) | No | Runs locally |
+| Oracle vs file tests (`oracle_vs_file` suites) | **Yes** | Queries source tables in Oracle |
+| Run history (Recent Runs UI) | No | Stored in `reports/run_history.json` by default |
+| Run history in Oracle | Optional | See below — enables multi-user history, BI queries |
+
+### Configuring Oracle credentials
+
+Copy `.env.example` to `.env` and set:
+
+```
+ORACLE_USER=CM3INT
+ORACLE_PASSWORD=your_password
+ORACLE_DSN=localhost:1521/FREEPDB1
+```
+
+The tool uses oracledb **thin mode** — no Oracle Instant Client is required.
+
+### Source tables (SHAW→C360 validation)
+
+The 17 Shaw source tables (`SHAW_SRC_P327`, `SHAW_SRC_ATOCTRAN`, `SHAW_SRC_EAC`, etc.) must already exist in the target Oracle schema. They are created and populated by the Shaw→C360 migration pipeline, not by this tool. Contact the DBA team for access.
+
+To verify connectivity and confirm the expected tables are present:
+
+```bash
+cm3-batch db-check
+```
+
+### Run history tables (optional)
+
+By default, suite run history is saved to `reports/run_history.json`. This file is local to the machine running the tool.
+
+If your team wants run history to persist across deployments, be visible to multiple users, or feed into a reporting dashboard, create two Oracle tables using the provided DDL script:
+
+```bash
+sqlplus CM3INT/<password>@localhost:1521/FREEPDB1 @sql/cm3int/setup_cm3_run_history.sql
+```
+
+This creates:
+
+| Table | Purpose |
+|---|---|
+| `CM3INT.CM3_RUN_HISTORY` | One row per suite run — run ID, suite name, environment, status, pass/fail counts, report URL |
+| `CM3INT.CM3_RUN_TESTS` | One row per individual test within a run — test name, type, status, row count, duration |
+
+> **Note:** The tool does not yet write to these tables automatically. They are provided as the target schema for a future database-backed history feature. In the meantime, you can load data from `reports/run_history.json` using a SQL\*Loader or Python ETL script.
+
+**Useful queries once populated:**
+
+```sql
+-- Last 10 suite runs
+SELECT run_id, suite_name, environment, status, pass_count, fail_count, run_timestamp
+FROM CM3INT.CM3_RUN_HISTORY
+ORDER BY run_timestamp DESC
+FETCH FIRST 10 ROWS ONLY;
+
+-- Failure rate by suite name over the past 30 days
+SELECT suite_name,
+       COUNT(*) AS total_runs,
+       SUM(CASE WHEN status = 'PASS' THEN 1 ELSE 0 END) AS passed,
+       SUM(CASE WHEN status = 'FAIL' THEN 1 ELSE 0 END) AS failed
+FROM CM3INT.CM3_RUN_HISTORY
+WHERE run_timestamp >= SYSTIMESTAMP - INTERVAL '30' DAY
+GROUP BY suite_name
+ORDER BY suite_name;
+
+-- All tests in a specific run
+SELECT test_name, test_type, status, row_count, error_count, duration_secs
+FROM CM3INT.CM3_RUN_TESTS
+WHERE run_id = '<paste-run-id-here>'
+ORDER BY test_id;
+```
+
+---
+
 ## Verifying the Installation
 
 Run these commands after installation. All should succeed.

@@ -97,7 +97,7 @@ class TestArchiveRun:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
         # Re-derive the hash from the manifest fields (excluding manifest_hash)
-        payload = {k: manifest[k] for k in ("run_id", "suite_name", "environment", "timestamp", "files")}
+        payload = {k: manifest[k] for k in ("run_id", "suite_name", "environment", "timestamp", "status", "files")}
         expected_hash = hashlib.sha256(
             json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
         ).hexdigest()

@@ -382,6 +382,24 @@ def _run_single_test(
     }
 
 
+def _compute_overall_status(results: list[dict[str, Any]]) -> str:
+    """Derive PASS / PARTIAL / FAIL from a list of per-test result dicts."""
+    statuses = {r["status"] for r in results}
+    error_statuses = {"FAIL", "ERROR"}
+    pass_statuses = {"PASS", "SKIPPED"}
+
+    if statuses <= pass_statuses:
+        overall = "PASS"
+    elif statuses & error_statuses and not (statuses - error_statuses - pass_statuses):
+        overall = "PARTIAL" if statuses & pass_statuses else "FAIL"
+    else:
+        overall = "PARTIAL"
+
+    if not (statuses & pass_statuses):
+        overall = "FAIL"
+    return overall
+
+
 def _append_run_history(
     output_dir: str,
     run_id: str,
@@ -423,24 +441,7 @@ def _append_run_history(
     history_path = history_path.resolve()
     history_path.parent.mkdir(parents=True, exist_ok=True)
 
-    statuses = {r["status"] for r in results}
-    error_statuses = {"FAIL", "ERROR"}
-    pass_statuses   = {"PASS", "SKIPPED"}
-
-    if statuses <= pass_statuses:
-        overall_status = "PASS"
-    elif statuses & error_statuses and not (statuses - error_statuses - pass_statuses):
-        # Some errors and the rest are pass/skipped — at least one non-error: PARTIAL
-        if statuses & pass_statuses:
-            overall_status = "PARTIAL"
-        else:
-            overall_status = "FAIL"
-    else:
-        overall_status = "PARTIAL"
-
-    # Re-check: if ALL results are ERROR/FAIL with no passes it is a full FAIL
-    if not (statuses & pass_statuses):
-        overall_status = "FAIL"
+    overall_status = _compute_overall_status(results)
 
     entry: dict[str, Any] = {
         "run_id": run_id,
@@ -448,7 +449,7 @@ def _append_run_history(
         "environment": env,
         "timestamp": timestamp or (datetime.utcnow().isoformat() + "Z"),
         "status": overall_status,
-        "report_url": f"/uploads/{Path(suite_report_path).name}",
+        "report_url": f"/reports/{Path(suite_report_path).name}",
         "pass_count":  sum(1 for r in results if r["status"] == "PASS"),
         "fail_count":  sum(1 for r in results if r["status"] in ("FAIL", "ERROR")),
         "skip_count":  sum(1 for r in results if r["status"] == "SKIPPED"),
@@ -525,6 +526,7 @@ def run_suite_from_path(
     from src.utils.archive import ArchiveManager
 
     run_timestamp = datetime.utcnow().isoformat() + "Z"
+    overall_status = _compute_overall_status(results)
     archive_path_str = ""
     try:
         archive = ArchiveManager()
@@ -537,6 +539,7 @@ def run_suite_from_path(
             env=env or suite.environment,
             timestamp=run_timestamp,
             files=report_files,
+            status=overall_status,
         )
         archive_path_str = str(archive_run_dir)
     except Exception as exc:
