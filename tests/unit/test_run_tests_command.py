@@ -549,3 +549,41 @@ class TestArchiveIntegration:
         assert len(history) == 1
         assert "archive_path" in history[0]
         assert history[0]["archive_path"] == str(archive_dir)
+
+    def test_run_history_written_even_if_archive_fails(self, tmp_path, monkeypatch):
+        """_append_run_history must be called even when archive_run raises."""
+        import yaml
+        from src.commands.run_tests_command import run_suite_from_path
+
+        suite_yaml = tmp_path / "suite.yaml"
+        suite_yaml.write_text(
+            yaml.dump({
+                "name": "Resilient Suite",
+                "environment": "dev",
+                "tests": [
+                    {"name": "Ping", "type": "api_check", "url": "http://localhost:9999/nope"}
+                ],
+            }),
+            encoding="utf-8",
+        )
+
+        import src.utils.archive as archive_mod
+        monkeypatch.setattr(
+            archive_mod.ArchiveManager,
+            "archive_run",
+            lambda self_inner, **kwargs: (_ for _ in ()).throw(OSError("disk full")),
+        )
+
+        output_dir = tmp_path / "reports"
+        output_dir.mkdir()
+
+        # Must not raise even though archive_run fails
+        run_suite_from_path(suite_path=str(suite_yaml), params={}, env="dev", output_dir=str(output_dir))
+
+        import glob
+        import json
+        found = glob.glob(str(tmp_path / "**" / "run_history.json"), recursive=True)
+        assert found, "run_history.json must be written even after archive failure"
+        history = json.loads(Path(found[0]).read_text(encoding="utf-8"))
+        assert len(history) == 1
+        assert history[0]["archive_path"] == ""

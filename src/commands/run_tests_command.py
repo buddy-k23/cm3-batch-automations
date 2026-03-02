@@ -539,7 +539,7 @@ def run_suite_from_path(
             files=report_files,
         )
         archive_path_str = str(archive_run_dir)
-    except Exception as exc:  # pragma: no cover
+    except Exception as exc:
         click.echo(f"[archive] warning: could not archive run {run_id}: {exc}", err=True)
 
     _append_run_history(
