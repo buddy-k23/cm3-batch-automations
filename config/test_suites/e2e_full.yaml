@@ -1,0 +1,37 @@
+name: E2E Full Regression Suite
+environment: dev
+tests:
+  - name: Customer file — all valid
+    type: structural
+    file: data/samples/customers.txt
+    mapping: customer_mapping
+    thresholds:
+      max_errors: 0
+
+  - name: Transaction file — all valid
+    type: structural
+    file: data/samples/transactions.txt
+    mapping: transaction_mapping
+    thresholds:
+      max_errors: 0
+
+  - name: P327 error file — expect failures
+    type: structural
+    file: data/samples/p327_sample_errors.txt
+    mapping: p327_universal
+    thresholds:
+      max_errors: 999
+
+  - name: System health check
+    type: api_check
+    url: http://127.0.0.1:8000/api/v1/system/health
+    method: GET
+    expected_status: 200
+    response_contains:
+      status: healthy
+
+  - name: Runs history available
+    type: api_check
+    url: http://127.0.0.1:8000/api/v1/runs/history
+    method: GET
+    expected_status: 200
