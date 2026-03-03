@@ -149,6 +149,17 @@ Runs
    :members:
    :undoc-members:
 
+API Tester
+~~~~~~~~~~
+
+.. automodule:: src.api.routers.api_tester
+   :members:
+   :undoc-members:
+
+.. automodule:: src.api.models.api_tester
+   :members:
+   :undoc-members:
+
 Services
 --------
 

@@ -38,6 +38,7 @@ This is the **single source of truth** for docs navigation.
 
 ## API
 - `docs/API_UPLOAD_GUIDE.md`
+- `docs/USAGE_GUIDE.md#api-tester-tab` — API Tester: proxy-based REST tester with suite runner and assertions
 
 ## Contracts
 - `docs/contracts/business_rules_v1.md`

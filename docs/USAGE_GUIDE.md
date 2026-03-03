@@ -1184,6 +1184,43 @@ Upload an Excel or CSV template to generate JSON config files without using the 
 **BA-friendly required columns:** `Rule ID`, `Rule Name`, `Field`, `Rule Type`, `Severity`, `Expected / Values`, `Enabled`
 **Technical required columns:** `Rule ID`, `Rule Name`, `Description`, `Type`, `Severity`, `Operator`
 
+### API Tester Tab
+
+Test any REST API without leaving the app. All requests are proxied server-side, so there are no CORS restrictions.
+
+#### Send a Single Request
+
+1. Click the **API Tester** tab
+2. Select the HTTP method (GET / POST / PUT / PATCH / DELETE)
+3. Enter the **Base URL** (e.g. `http://127.0.0.1:8000`) and **Path** (e.g. `/api/v1/system/health`)
+4. Optionally expand **Headers**, **Body**, or **Assertions** to add request data
+5. Click **Send** — the response appears on the right with a status badge and elapsed time
+6. Switch between **Body** (pretty-printed JSON), **Headers**, and **Raw** sub-tabs
+
+**Body types:** None, JSON (paste raw JSON), Form Data (key/value fields + file uploads)
+
+#### Save a Request to a Suite
+
+1. Enter a **Request name** in the send row
+2. Select a suite from the **— save to suite —** dropdown (or click **New Suite** in the Suite Runner)
+3. Click **Save** — the request is appended to the suite on the server
+
+#### Run a Test Suite
+
+1. In the **Suite Runner** section, select a suite from the dropdown
+2. Assertions are defined per-request (field + operator + expected):
+   - `status_code` `equals` `200`
+   - `$.status` `equals` `healthy`
+   - `$.data[0].id` `exists`
+3. Click **Run Suite** — all requests execute sequentially; pass (✓) / fail (✗) appears inline per assertion
+4. The summary bar shows total passed / failed / elapsed ms
+
+**Assertion operators:** `equals` (exact match), `contains` (substring or array element), `exists` (field is present and non-null)
+
+#### Suite Storage
+
+Suites are saved as JSON files in `config/api-tester/suites/`. Each suite is a `{uuid}.json` file containing the suite name, base URL, and all saved requests with their assertions.
+
 ### UI tooltips
 
 Hover over any button, dropdown, or upload zone to see a contextual tooltip describing what it does.
