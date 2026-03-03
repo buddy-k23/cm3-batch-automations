@@ -23,7 +23,6 @@ from typing import Any
 import httpx
 
 PROJECT_ROOT = Path(__file__).parent.parent
-RUN_DATE = date.today().isoformat()
 BASE = "http://127.0.0.1:8000"
 
 SAMPLES = PROJECT_ROOT / "data" / "samples"
