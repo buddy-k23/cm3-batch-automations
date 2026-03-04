@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, List
+
+import pandas as pd
 
 from src.comparators.chunked_comparator import ChunkedFileComparator
 from src.comparators.file_comparator import FileComparator
@@ -23,6 +25,74 @@ def _build_fixed_width_specs(cfg: dict[str, Any]) -> list[tuple[str, int, int]]:
         field_specs.append((name, start, end))
         current_pos = end
     return field_specs
+
+
+def _check_structure_compatibility(
+    df1: pd.DataFrame,
+    df2: pd.DataFrame,
+    mapping_config: dict[str, Any] | None = None,
+) -> List[dict[str, Any]]:
+    """Check that two DataFrames are structurally compatible for comparison.
+
+    Checks are performed in order and short-circuit on the first blocking issue:
+
+    1. Column count mismatch — returns immediately with a single error.
+    2. Missing column names — reports columns present in one file but absent in the other.
+    3. Column order mismatch — only when ``mapping_config`` supplies a ``fields`` list.
+
+    Args:
+        df1: Parsed DataFrame for the first file.
+        df2: Parsed DataFrame for the second file.
+        mapping_config: Optional mapping dict containing a ``fields`` key whose
+            items each have a ``name`` entry that defines the expected column order.
+
+    Returns:
+        A list of error dicts.  An empty list means the files are compatible.
+        Each dict contains at minimum a ``"type"`` key; additional keys depend on
+        the error type:
+
+        - ``column_count_mismatch``: ``file1_count``, ``file2_count``
+        - ``missing_columns``: ``columns`` (list of names), ``in_file`` (``"file1"`` or ``"file2"``)
+        - ``column_order_mismatch``: ``expected_columns``, ``file1_columns``, ``file2_columns``
+    """
+    cols1 = list(df1.columns)
+    cols2 = list(df2.columns)
+
+    # 1. Column count mismatch — short-circuit immediately.
+    if len(cols1) != len(cols2):
+        return [{"type": "column_count_mismatch", "file1_count": len(cols1), "file2_count": len(cols2)}]
+
+    errors: List[dict[str, Any]] = []
+
+    # 2. Missing column names.
+    set1, set2 = set(cols1), set(cols2)
+    missing_in_file2 = sorted(set1 - set2)
+    missing_in_file1 = sorted(set2 - set1)
+    if missing_in_file2:
+        errors.append({"type": "missing_columns", "columns": missing_in_file2, "in_file": "file2"})
+    if missing_in_file1:
+        errors.append({"type": "missing_columns", "columns": missing_in_file1, "in_file": "file1"})
+
+    if errors:
+        return errors
+
+    # 3. Column order mismatch — only when the mapping supplies an ordered fields list
+    #    AND the files' columns are the same named columns as the mapping expects
+    #    (i.e. the names match but the sequence differs).  When the files carry
+    #    unnamed/integer columns the files have not yet been renamed, so there is
+    #    nothing meaningful to check against the mapping order.
+    if mapping_config and mapping_config.get("fields"):
+        expected = [f["name"] for f in mapping_config["fields"] if "name" in f]
+        expected_set = set(expected)
+        if expected and set(cols1) == expected_set and (cols1 != expected or cols2 != expected):
+            errors.append({
+                "type": "column_order_mismatch",
+                "expected_columns": expected,
+                "file1_columns": cols1,
+                "file2_columns": cols2,
+            })
+
+    return errors
 
 
 def run_compare_service(
@@ -78,6 +148,21 @@ def run_compare_service(
     df1 = parser1.parse()
     df2 = parser2.parse()
 
+    # Phase 1: structure compatibility check
+    structure_errors = _check_structure_compatibility(df1, df2, mapping_config)
+    if structure_errors:
+        return {
+            "structure_compatible": False,
+            "structure_errors": structure_errors,
+            "total_rows_file1": len(df1),
+            "total_rows_file2": len(df2),
+            "matching_rows": 0,
+            "only_in_file1": 0,
+            "only_in_file2": 0,
+            "differences": 0,
+            "valid": False,
+        }
+
     if key_columns and any(k not in df1.columns for k in key_columns):
         try:
             import pandas as pd
@@ -99,4 +184,6 @@ def run_compare_service(
             pass
 
     comparator = FileComparator(df1, df2, key_columns)
-    return comparator.compare(detailed=detailed)
+    result = comparator.compare(detailed=detailed)
+    result["structure_compatible"] = True
+    return result

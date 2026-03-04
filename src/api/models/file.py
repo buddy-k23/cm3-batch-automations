@@ -46,6 +46,8 @@ class FileCompareResult(BaseModel):
     differences: int
     report_url: Optional[str] = None
     field_statistics: Optional[Dict[str, Any]] = None
+    structure_compatible: Optional[bool] = None
+    structure_errors: Optional[List[Dict[str, Any]]] = None
 
 
 class FileValidateRequest(BaseModel):
