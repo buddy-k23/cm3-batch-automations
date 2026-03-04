@@ -138,6 +138,27 @@ cm3-batch compare \
 
 > Chunked comparison requires key columns (`-k/--keys`). Row-by-row mode is not supported in chunked compare.
 
+#### Structure compatibility check
+
+Before any data comparison, the compare service checks that both files are structurally compatible:
+
+1. **Column count** — must be equal (hard stop if not)
+2. **Column names** — all columns in file1 must exist in file2, and vice versa
+3. **Column order** — when a mapping is provided, columns must match the mapping field order
+
+If a mismatch is found, comparison stops early and the result includes:
+
+```json
+{
+  "structure_compatible": false,
+  "structure_errors": [
+    {"type": "column_count_mismatch", "file1_count": 10, "file2_count": 9}
+  ]
+}
+```
+
+No data diff is performed when `structure_compatible` is `false`. Structurally compatible comparisons include `"structure_compatible": true` in the result.
+
 ### 4. Database Operations
 
 Extract data from Oracle database:
@@ -1214,6 +1235,16 @@ Test any REST API without leaving the app. All requests are proxied server-side,
    - `$.data[0].id` `exists`
 3. Click **Run Suite** — all requests execute sequentially; pass (✓) / fail (✗) appears inline per assertion
 4. The summary bar shows total passed / failed / elapsed ms
+
+#### Reorder requests in a suite
+
+Drag any request row to a new position within the suite runner list:
+
+1. Hover over a request row — the cursor changes to a grab hand
+2. Drag the row to the desired position; the target row highlights in blue
+3. Drop — the list reorders immediately in memory
+4. Click **Save Order** (appears below the list) to persist the new order to the server
+5. Loading a different suite clears the Save Order button and any unsaved reorder
 
 **Assertion operators:** `equals` (exact match), `contains` (substring or array element), `exists` (field is present and non-null)
 
