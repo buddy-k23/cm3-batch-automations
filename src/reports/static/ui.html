@@ -411,7 +411,7 @@
     background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
     font-size: 13px; font-weight: 600; padding: 8px 14px; margin-top: 8px;
   }
-  .at-req-row[draggable] { cursor: grab; }
+  .at-req-row[draggable="true"] { cursor: grab; }
   .at-req-row.drag-over  { border-color: #4a9eff; background: #1a2a3a; }
 </style>
 </head>
@@ -1207,8 +1207,9 @@ loadRunHistory();
 var _atBodyType     = 'none';
 var _atRespData     = null;
 var _atSuites       = [];
-var _atCurrentSuite = null;
-var _atDragSrcIdx   = -1;
+var _atCurrentSuite    = null;
+var _atDragSrcIdx      = -1;
+var _atCurrentResults  = [];
 var AT_PROXY_TIMEOUT = 30;
 
 // -- Section collapse ---------------------------------------------------------
@@ -1526,6 +1527,7 @@ async function atLoadSuiteIntoRunner() {
   document.getElementById('atRunnerSummary').style.display = 'none';
   document.getElementById('btnSaveOrder').style.display = 'none';
   _atCurrentSuite = null;
+  _atCurrentResults = [];
   if (!suiteId) return;
   var resp = await fetch('/api/v1/api-tester/suites/' + suiteId);
   _atCurrentSuite = await resp.json();
@@ -1587,10 +1589,11 @@ function atRenderRunnerList(requests, results) {
       var moved = _atCurrentSuite.requests.splice(_atDragSrcIdx, 1)[0];
       _atCurrentSuite.requests.splice(destIdx, 0, moved);
       _atDragSrcIdx = -1;
-      atRenderRunnerList(_atCurrentSuite.requests, []);
+      atRenderRunnerList(_atCurrentSuite.requests, _atCurrentResults);
       document.getElementById('btnSaveOrder').style.display = '';
     });
     row.addEventListener('dragend', function() {
+      _atDragSrcIdx = -1;
       list.querySelectorAll('.at-req-row').forEach(function(r) { r.classList.remove('drag-over'); });
     });
 
@@ -1650,6 +1653,7 @@ async function atRunSuite() {
       return {field: a.field, operator: a.operator, expected: a.expected, pass: pass};
     });
     results.push({assertions: assertResults});
+    _atCurrentResults = results;
     atRenderRunnerList(requests, results);
   }
 

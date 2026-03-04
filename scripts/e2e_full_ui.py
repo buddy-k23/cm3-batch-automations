@@ -417,15 +417,20 @@ def workflow_api_tester(page: Page, out_dir: Path) -> None:
     def assert_rows_draggable_and_button_hidden():
         rows = page.locator(".at-req-row[draggable='true']")
         assert rows.count() == 2, f"Expected 2 draggable rows, got {rows.count()}"
-        hidden = page.locator("#btnSaveOrder").evaluate("el => el.style.display")
-        assert hidden == "none", f"Save Order button should start hidden, got display={hidden!r}"
+        pw_expect(page.locator("#btnSaveOrder")).to_be_hidden(timeout=3000)
     step(tag, "assert rows draggable and Save Order hidden", page, out_dir,
          assert_rows_draggable_and_button_hidden)
 
     def drag_row_and_assert_save_visible():
         rows = page.locator(".at-req-row")
+        # Capture first row name before drag
+        first_name_before = rows.nth(0).locator(".at-req-name").inner_text()
         rows.nth(0).drag_to(rows.nth(1))
         page.wait_for_timeout(500)
+        # Assert row order actually changed
+        first_name_after = rows.nth(0).locator(".at-req-name").inner_text()
+        assert first_name_after != first_name_before, \
+            f"Row order did not change: first row is still '{first_name_after}'"
         pw_expect(page.locator("#btnSaveOrder")).to_be_visible(timeout=3000)
     step(tag, "drag row 0 to row 1 and assert Save Order visible", page, out_dir,
          drag_row_and_assert_save_visible)
@@ -433,8 +438,7 @@ def workflow_api_tester(page: Page, out_dir: Path) -> None:
     def click_save_order_and_assert_hidden():
         page.locator("#btnSaveOrder").click()
         page.wait_for_timeout(800)
-        hidden = page.locator("#btnSaveOrder").evaluate("el => el.style.display")
-        assert hidden == "none", f"Save Order button should hide after save, got display={hidden!r}"
+        pw_expect(page.locator("#btnSaveOrder")).to_be_hidden(timeout=3000)
     step(tag, "click Save Order and assert button hidden", page, out_dir,
          click_save_order_and_assert_hidden)
 
