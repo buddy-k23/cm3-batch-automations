@@ -373,6 +373,71 @@ def workflow_api_tester(page: Page, out_dir: Path) -> None:
             f"Suite not in dropdown: {options_text[:200]}"
     step(tag, "assert suite in dropdown", page, out_dir, assert_suite_in_dropdown)
 
+    def seed_suite_with_requests():
+        dropdown = page.locator("#atRunnerSuiteSel")
+        options = dropdown.evaluate(
+            "sel => Array.from(sel.options).map(o => ({value: o.value, text: o.textContent}))"
+        )
+        suite = next((o for o in options if "E2E UI Suite" in o["text"]), None)
+        assert suite, f"E2E UI Suite not found in runner dropdown: {options}"
+        page.evaluate("""async (suiteId) => {
+            var resp = await fetch('/api/v1/api-tester/suites/' + suiteId);
+            var suite = await resp.json();
+            suite.requests = [
+                {id: 'req-e2e-1', name: 'Health', method: 'GET',
+                 path: '/api/v1/system/health',
+                 headers: [], body_type: 'none', body_json: '',
+                 form_fields: [], assertions: []},
+                {id: 'req-e2e-2', name: 'Version', method: 'GET',
+                 path: '/api/v1/system/version',
+                 headers: [], body_type: 'none', body_json: '',
+                 form_fields: [], assertions: []},
+            ];
+            await fetch('/api/v1/api-tester/suites/' + suiteId, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(suite),
+            });
+        }""", suite["value"])
+        page.wait_for_timeout(600)
+    step(tag, "seed suite with 2 requests", page, out_dir, seed_suite_with_requests)
+
+    def load_suite_in_runner():
+        dropdown = page.locator("#atRunnerSuiteSel")
+        options = dropdown.evaluate(
+            "sel => Array.from(sel.options).map(o => ({value: o.value, text: o.textContent}))"
+        )
+        suite = next((o for o in options if "E2E UI Suite" in o["text"]), None)
+        assert suite, "E2E UI Suite not found in runner dropdown"
+        dropdown.select_option(value=suite["value"])
+        page.evaluate("atLoadSuiteIntoRunner()")
+        page.wait_for_timeout(800)
+    step(tag, "load suite in runner", page, out_dir, load_suite_in_runner)
+
+    def assert_rows_draggable_and_button_hidden():
+        rows = page.locator(".at-req-row[draggable='true']")
+        assert rows.count() == 2, f"Expected 2 draggable rows, got {rows.count()}"
+        hidden = page.locator("#btnSaveOrder").evaluate("el => el.style.display")
+        assert hidden == "none", f"Save Order button should start hidden, got display={hidden!r}"
+    step(tag, "assert rows draggable and Save Order hidden", page, out_dir,
+         assert_rows_draggable_and_button_hidden)
+
+    def drag_row_and_assert_save_visible():
+        rows = page.locator(".at-req-row")
+        rows.nth(0).drag_to(rows.nth(1))
+        page.wait_for_timeout(500)
+        pw_expect(page.locator("#btnSaveOrder")).to_be_visible(timeout=3000)
+    step(tag, "drag row 0 to row 1 and assert Save Order visible", page, out_dir,
+         drag_row_and_assert_save_visible)
+
+    def click_save_order_and_assert_hidden():
+        page.locator("#btnSaveOrder").click()
+        page.wait_for_timeout(800)
+        hidden = page.locator("#btnSaveOrder").evaluate("el => el.style.display")
+        assert hidden == "none", f"Save Order button should hide after save, got display={hidden!r}"
+    step(tag, "click Save Order and assert button hidden", page, out_dir,
+         click_save_order_and_assert_hidden)
+
 
 # ---------------------------------------------------------------------------
 # Main

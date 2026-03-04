@@ -411,6 +411,8 @@
     background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
     font-size: 13px; font-weight: 600; padding: 8px 14px; margin-top: 8px;
   }
+  .at-req-row[draggable] { cursor: grab; }
+  .at-req-row.drag-over  { border-color: #4a9eff; background: #1a2a3a; }
 </style>
 </head>
 <body>
@@ -669,6 +671,8 @@
         <button class="btn btn-secondary" onclick="atNewSuite()">New Suite</button>
       </div>
       <div class="at-req-list"      id="atRunnerReqList"></div>
+      <button id="btnSaveOrder" class="btn btn-secondary"
+              onclick="atSaveOrder()" style="display:none;margin-bottom:8px">Save Order</button>
       <div class="at-runner-summary" id="atRunnerSummary" style="display:none"></div>
     </div>
 
@@ -1204,6 +1208,7 @@ var _atBodyType     = 'none';
 var _atRespData     = null;
 var _atSuites       = [];
 var _atCurrentSuite = null;
+var _atDragSrcIdx   = -1;
 var AT_PROXY_TIMEOUT = 30;
 
 // -- Section collapse ---------------------------------------------------------
@@ -1519,6 +1524,7 @@ async function atLoadSuiteIntoRunner() {
   var suiteId = document.getElementById('atRunnerSuiteSel').value;
   document.getElementById('atRunnerReqList').textContent = '';
   document.getElementById('atRunnerSummary').style.display = 'none';
+  document.getElementById('btnSaveOrder').style.display = 'none';
   _atCurrentSuite = null;
   if (!suiteId) return;
   var resp = await fetch('/api/v1/api-tester/suites/' + suiteId);
@@ -1532,6 +1538,7 @@ function atRenderRunnerList(requests, results) {
   requests.forEach(function(req, idx) {
     var row = document.createElement('div');
     row.className = 'at-req-row';
+    row.draggable = true;
 
     var methodSpan = document.createElement('span');
     methodSpan.className = 'at-req-method';
@@ -1559,8 +1566,52 @@ function atRenderRunnerList(requests, results) {
         row.appendChild(span);
       });
     }
+
+    // Drag-and-drop reorder
+    row.addEventListener('dragstart', function() {
+      _atDragSrcIdx = idx;
+    });
+    row.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      list.querySelectorAll('.at-req-row').forEach(function(r) { r.classList.remove('drag-over'); });
+      row.classList.add('drag-over');
+    });
+    row.addEventListener('dragleave', function() {
+      row.classList.remove('drag-over');
+    });
+    row.addEventListener('drop', function(e) {
+      e.preventDefault();
+      row.classList.remove('drag-over');
+      var destIdx = idx;
+      if (_atDragSrcIdx < 0 || _atDragSrcIdx === destIdx) return;
+      var moved = _atCurrentSuite.requests.splice(_atDragSrcIdx, 1)[0];
+      _atCurrentSuite.requests.splice(destIdx, 0, moved);
+      _atDragSrcIdx = -1;
+      atRenderRunnerList(_atCurrentSuite.requests, []);
+      document.getElementById('btnSaveOrder').style.display = '';
+    });
+    row.addEventListener('dragend', function() {
+      list.querySelectorAll('.at-req-row').forEach(function(r) { r.classList.remove('drag-over'); });
+    });
+
     list.appendChild(row);
   });
+}
+
+async function atSaveOrder() {
+  if (!_atCurrentSuite) return;
+  var btn = document.getElementById('btnSaveOrder');
+  try {
+    var resp = await fetch('/api/v1/api-tester/suites/' + _atCurrentSuite.id, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(_atCurrentSuite),
+    });
+    if (!resp.ok) { alert('Could not save order (status ' + resp.status + ').'); return; }
+    btn.style.display = 'none';
+  } catch (err) {
+    alert('Network error: ' + err.message);
+  }
 }
 
 async function atRunSuite() {
