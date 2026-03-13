@@ -1,22 +1,42 @@
 import json
+import uuid
 
 from click.testing import CliRunner
-from fastapi import HTTPException
+from fastapi.testclient import TestClient
 
-from src.api.routers.tasks import submit_task
+from src.api.main import app
 from src.main import cli
 
 
+client = TestClient(app)
+
+
 def test_api_task_submit_invalid_contract_returns_structured_4xx():
-    try:
-        import asyncio
-        asyncio.run(submit_task({"payload": {"a": 1}}))
-        assert False, "expected HTTPException"
-    except HTTPException as exc:
-        assert exc.status_code == 422
-        detail = exc.detail
-        assert "errors" in detail
-        assert detail["errors"][0]["code"] == "CONTRACT_VALIDATION_ERROR"
+    response = client.post("/api/v1/tasks/submit", json={"payload": {"a": 1}})
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert "errors" in detail
+    assert detail["errors"][0]["code"] == "CONTRACT_VALIDATION_ERROR"
+
+
+def test_api_task_submit_idempotency_deduplicates_and_propagates_trace():
+    idem = f"idem-{uuid.uuid4()}"
+    payload = {
+        "intent": "validate",
+        "idempotency_key": idem,
+        "payload": {"mapping_id": "p327"},
+    }
+
+    first = client.post("/api/v1/tasks/submit", json=payload, headers={"x-trace-id": "trace-from-header"})
+    assert first.status_code == 200
+    first_body = first.json()
+    assert first.headers["x-trace-id"] == "trace-from-header"
+
+    second = client.post("/api/v1/tasks/submit", json=payload)
+    assert second.status_code == 200
+    second_body = second.json()
+    assert second_body["task_id"] == first_body["task_id"]
+    assert "duplicate idempotency key" in second_body["warnings"]
 
 
 def test_cli_submit_task_invalid_json_machine_errors_nonzero():

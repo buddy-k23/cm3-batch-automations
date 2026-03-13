@@ -863,8 +863,24 @@ def submit_task(intent, payload, task_id, trace_id, idempotency_key, priority, d
         click.echo(json.dumps(err, indent=2) if machine_errors else str(err))
         raise SystemExit(2)
 
+    store = JobStateStore()
+    if req.idempotency_key:
+        existing = store.get_by_idempotency_key(req.idempotency_key, intent=req.intent, source=req.source)
+        if existing:
+            dedup_result = {
+                "task_id": existing["task_id"],
+                "trace_id": existing["trace_id"],
+                "status": existing["status"],
+                "result": existing.get("result") or {"deduplicated": True},
+                "errors": [],
+                "warnings": ["duplicate idempotency key"],
+                "version": "v1",
+            }
+            click.echo(json.dumps(dedup_result, indent=2))
+            return
+
     result = TaskResult(task_id=req.task_id, trace_id=req.trace_id, status='queued', result={"accepted": True})
-    JobStateStore().create(req, result)
+    store.create(req, result)
     click.echo(json.dumps(result.model_dump(), indent=2))
 
 

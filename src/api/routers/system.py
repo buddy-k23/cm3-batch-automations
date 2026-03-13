@@ -5,6 +5,8 @@ from src.api.models.response import HealthResponse, SystemInfoResponse
 from datetime import datetime
 import sys
 
+from src.services.metrics_registry import METRICS
+
 router = APIRouter()
 
 
@@ -35,3 +37,15 @@ async def system_info():
         supported_formats=["pipe_delimited", "fixed_width", "csv", "tsv"],
         database_connected=False  # TODO: Check actual database connection
     )
+
+
+@router.get("/metrics")
+async def metrics_snapshot():
+    """Return runtime metrics snapshot for dashboard ingestion."""
+    return METRICS.snapshot()
+
+
+@router.get("/slo-alerts")
+async def slo_alerts():
+    """Return evaluated SLO alerts for operators."""
+    return {"alerts": METRICS.slo_alerts()}

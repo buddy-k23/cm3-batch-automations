@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from pathlib import Path
 
@@ -37,6 +38,12 @@ class JobStateStore:
                 )
                 """
             )
+            conn.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_job_states_idem_intent_source
+                ON job_states(idempotency_key, intent, source)
+                """
+            )
 
     def create(self, request: TaskRequest, result: TaskResult) -> None:
         with self._connect() as conn:
@@ -44,7 +51,7 @@ class JobStateStore:
                 """
                 INSERT OR REPLACE INTO job_states
                 (task_id, trace_id, status, intent, payload_json, result_json, source, idempotency_key, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
                 """,
                 (
                     request.task_id,
@@ -55,8 +62,6 @@ class JobStateStore:
                     result.model_dump_json(),
                     request.source,
                     request.idempotency_key,
-                    request.deadline.isoformat(),
-                    request.deadline.isoformat(),
                 ),
             )
 
@@ -84,6 +89,21 @@ class JobStateStore:
             "source": row[4],
             "idempotency_key": row[5],
             "result_json": row[6],
+        }
+
+    def get_by_idempotency_key(self, idempotency_key: str, *, intent: str, source: str) -> dict | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT task_id, trace_id, status, result_json FROM job_states WHERE idempotency_key=? AND intent=? AND source=?",
+                (idempotency_key, intent, source),
+            ).fetchone()
+        if not row:
+            return None
+        return {
+            "task_id": row[0],
+            "trace_id": row[1],
+            "status": row[2],
+            "result": json.loads(row[3]) if row[3] else None,
         }
 
     def list(self, limit: int = 100) -> list[dict]:

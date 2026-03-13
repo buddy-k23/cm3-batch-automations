@@ -3,6 +3,7 @@
 import asyncio
 import uuid
 import sys
+import time
 from pathlib import Path
 import shutil
 
@@ -27,6 +28,10 @@ from src.services.compare_service import run_compare_service
 from src.services.parse_service import run_parse_service
 from src.services.validate_service import run_validate_service
 from src.reports.renderers.comparison_renderer import HTMLReporter
+from src.services.compare_job_store import CompareJobStore
+from src.services.retry_policy import execute_with_retries
+from src.services.metrics_registry import METRICS
+from src.utils.structured_logger import get_structured_logger, log_event
 
 router = APIRouter()
 
@@ -54,8 +59,9 @@ UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 MAPPINGS_DIR = Path("config/mappings")
 
-# In-memory registry for async compare jobs.
-_COMPARE_JOBS: dict[str, dict] = {}
+# Durable registry for async compare jobs.
+_COMPARE_JOB_STORE = CompareJobStore()
+_LOGGER = get_structured_logger("cm3.files")
 
 
 @router.post("/detect", response_model=FileDetectionResult)
@@ -296,15 +302,25 @@ async def _run_compare_job(
     file2_path: Path,
     request: FileCompareRequest,
 ) -> None:
-    """Background coroutine: run blocking compare in thread pool, update job registry."""
+    """Background coroutine with retry/backoff and dead-letter on final failure."""
+    started = time.perf_counter()
     try:
-        result = await asyncio.to_thread(_run_compare_with_mapping, file1_path, file2_path, request)
-        _COMPARE_JOBS[job_id]["status"] = "completed"
-        _COMPARE_JOBS[job_id]["result"] = result.model_dump()
+        result = await asyncio.to_thread(
+            lambda: execute_with_retries(
+                lambda: _run_compare_with_mapping(file1_path, file2_path, request),
+                max_attempts=3,
+                base_delay_seconds=0.25,
+            )
+        )
+        _COMPARE_JOB_STORE.update(job_id, status="completed", result=result.model_dump())
+        METRICS.incr("compare.async.success")
+        log_event(_LOGGER, "compare async job completed", trace_id=job_id, job_id=job_id, status="completed")
     except Exception as e:
-        _COMPARE_JOBS[job_id]["status"] = "failed"
-        _COMPARE_JOBS[job_id]["error"] = str(e)
+        _COMPARE_JOB_STORE.update(job_id, status="dead-letter", error=str(e))
+        METRICS.incr("compare.async.dead_letter")
+        log_event(_LOGGER, "compare async job dead-letter", trace_id=job_id, job_id=job_id, status="dead-letter", error=str(e))
     finally:
+        METRICS.observe_latency("compare.async", (time.perf_counter() - started) * 1000)
         for p in [file1_path, file2_path]:
             if p.exists():
                 p.unlink()
@@ -334,10 +350,11 @@ async def compare_files_async(
     keys_list = [k.strip() for k in key_columns.split(",") if k.strip()]
     request = FileCompareRequest(mapping_id=mapping_id, key_columns=keys_list, detailed=detailed)
 
-    _COMPARE_JOBS[job_id] = {"status": "queued", "result": None, "error": None}
-    task = asyncio.create_task(_run_compare_job(job_id, upload_path1, upload_path2, request))
-    _COMPARE_JOBS[job_id]["status"] = "running"
-    _COMPARE_JOBS[job_id]["task"] = task
+    _COMPARE_JOB_STORE.create(job_id, status="queued")
+    _COMPARE_JOB_STORE.update(job_id, status="running")
+    METRICS.incr("compare.async.submitted")
+    log_event(_LOGGER, "compare async job submitted", trace_id=job_id, job_id=job_id, status="running")
+    asyncio.create_task(_run_compare_job(job_id, upload_path1, upload_path2, request))
 
     return FileCompareAsyncCreateResponse(job_id=job_id, status="running")
 
@@ -345,7 +362,7 @@ async def compare_files_async(
 @router.get("/compare-jobs/{job_id}", response_model=FileCompareAsyncStatusResponse)
 async def compare_job_status(job_id: str):
     """Fetch the status and result of an async compare job."""
-    job = _COMPARE_JOBS.get(job_id)
+    job = _COMPARE_JOB_STORE.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Compare job '{job_id}' not found")
 
