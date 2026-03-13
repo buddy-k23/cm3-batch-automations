@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cm3-batch/contracts/task_request_v1.schema.json",
+  "title": "TaskRequestV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "task_id",
+    "trace_id",
+    "source",
+    "intent",
+    "payload",
+    "priority",
+    "deadline"
+  ],
+  "properties": {
+    "task_id": {"type": "string", "minLength": 1},
+    "trace_id": {"type": "string", "minLength": 1},
+    "idempotency_key": {"type": ["string", "null"]},
+    "source": {"type": "string", "enum": ["cli", "api", "internal"]},
+    "intent": {"type": "string", "minLength": 1},
+    "payload": {"type": "object"},
+    "priority": {"type": "string", "enum": ["low", "normal", "high", "urgent"]},
+    "deadline": {"type": "string", "format": "date-time"},
+    "metadata": {"type": "object"},
+    "version": {"type": "string", "const": "v1"}
+  }
+}

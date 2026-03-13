@@ -84,3 +84,9 @@ output/
 
 .venv312/
 .worktrees/
+
+# Sprint-1/task orchestration artifacts
+uploads/
+state/
+docs/sphinx/_build/
+docs/sphinx/state/

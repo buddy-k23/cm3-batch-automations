@@ -44,6 +44,7 @@ This is the **single source of truth** for docs navigation.
 - `docs/contracts/business_rules_v1.md`
 - `docs/contracts/validation_result_v1.md`
 - `docs/contracts/fixed_width_multitype_v2.md`
+- `docs/contracts/task_contracts_v1.md`
 
 ---
 

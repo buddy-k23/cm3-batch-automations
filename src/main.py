@@ -823,6 +823,51 @@ def get_run(run_id):
         click.echo(f"  {f}")
 
 
+@cli.command('submit-task')
+@click.option('--intent', required=True, help='Task intent (e.g., validate, compare)')
+@click.option('--payload', required=True, help='JSON payload string')
+@click.option('--task-id', default=None, help='Optional task id override')
+@click.option('--trace-id', default=None, help='Optional trace id override')
+@click.option('--idempotency-key', default=None, help='Optional idempotency key')
+@click.option('--priority', default='normal', show_default=True, help='Task priority')
+@click.option('--deadline', default=None, help='ISO timestamp deadline')
+@click.option('--machine-errors', is_flag=True, help='Emit machine-readable JSON errors')
+def submit_task(intent, payload, task_id, trace_id, idempotency_key, priority, deadline, machine_errors):
+    """Submit a canonical task request from CLI ingest boundary."""
+    from datetime import datetime, timezone
+    from src.adapters.cli_task_adapter import normalize_cli_task_request
+    from src.contracts.validation import validate_task_request
+    from src.contracts.task_contracts import TaskResult
+    from src.services.job_state_store import JobStateStore
+
+    try:
+        payload_obj = json.loads(payload)
+    except json.JSONDecodeError as exc:
+        err = {"errors": [{"code": "INVALID_JSON", "message": str(exc), "path": "payload"}]}
+        click.echo(json.dumps(err, indent=2) if machine_errors else f"Invalid payload JSON: {exc}")
+        raise SystemExit(2)
+
+    req = normalize_cli_task_request(
+        intent=intent,
+        payload=payload_obj,
+        task_id=task_id,
+        trace_id=trace_id,
+        idempotency_key=idempotency_key,
+        priority=priority,
+        deadline=datetime.fromisoformat(deadline.replace('Z', '+00:00')) if deadline else datetime.now(timezone.utc),
+    )
+
+    _, errors = validate_task_request(req.model_dump())
+    if errors:
+        err = {"errors": [e.model_dump() for e in errors]}
+        click.echo(json.dumps(err, indent=2) if machine_errors else str(err))
+        raise SystemExit(2)
+
+    result = TaskResult(task_id=req.task_id, trace_id=req.trace_id, status='queued', result={"accepted": True})
+    JobStateStore().create(req, result)
+    click.echo(json.dumps(result.model_dump(), indent=2))
+
+
 def main():
     """Main entry point."""
     cli()

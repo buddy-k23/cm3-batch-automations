@@ -167,6 +167,29 @@ Services
    :members:
    :undoc-members:
 
+.. automodule:: src.services.job_state_store
+   :members:
+   :undoc-members:
+
+Contracts & Adapters
+--------------------
+
+.. automodule:: src.contracts.task_contracts
+   :members:
+   :undoc-members:
+
+.. automodule:: src.contracts.validation
+   :members:
+   :undoc-members:
+
+.. automodule:: src.adapters.api_task_adapter
+   :members:
+   :undoc-members:
+
+.. automodule:: src.adapters.cli_task_adapter
+   :members:
+   :undoc-members:
+
 Reporting & Utilities
 ---------------------
 

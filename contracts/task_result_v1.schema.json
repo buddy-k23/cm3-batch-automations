@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cm3-batch/contracts/task_result_v1.schema.json",
+  "title": "TaskResultV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["task_id", "trace_id", "status", "result"],
+  "properties": {
+    "task_id": {"type": "string", "minLength": 1},
+    "trace_id": {"type": "string", "minLength": 1},
+    "status": {"type": "string", "enum": ["queued", "running", "succeeded", "failed", "dead-letter", "cancelled"]},
+    "result": {"type": "object"},
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": {"type": "string"},
+          "message": {"type": "string"},
+          "path": {"type": ["string", "null"]}
+        },
+        "additionalProperties": false
+      }
+    },
+    "warnings": {"type": "array", "items": {"type": "string"}},
+    "version": {"type": "string", "const": "v1"}
+  }
+}

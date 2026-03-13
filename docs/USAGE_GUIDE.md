@@ -1290,3 +1290,22 @@ Suites are saved as JSON files in `config/api-tester/suites/`. Each suite is a `
 ### UI tooltips
 
 Hover over any button, dropdown, or upload zone to see a contextual tooltip describing what it does.
+
+## Canonical Task Contracts (Sprint 1)
+
+### API ingest
+- `POST /api/v1/tasks/submit` accepts canonical request fields and persists an initial `queued` lifecycle row.
+- `GET /api/v1/tasks/{task_id}` returns durable lifecycle state.
+- `GET /api/v1/tasks?limit=50` lists recent jobs.
+
+### CLI ingest
+Use `submit-task` to submit canonical requests from CLI:
+
+```bash
+python -m src.main submit-task \
+  --intent validate \
+  --payload '{"mapping_id":"p327_mapping","file":"input.txt"}' \
+  --machine-errors
+```
+
+If input is invalid, CLI exits non-zero and prints machine-readable errors when `--machine-errors` is set.

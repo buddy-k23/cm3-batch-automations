@@ -13,7 +13,7 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from src.api.routers import mappings, files, system
+from src.api.routers import mappings, files, system, tasks
 from src.api.routers.ui import router as ui_router
 from src.api.routers.runs import router as runs_router
 from src.api.routers import rules as rules_router_mod
@@ -92,6 +92,11 @@ app.include_router(
     system.router,
     prefix="/api/v1/system",
     tags=["System"]
+)
+app.include_router(
+    tasks.router,
+    prefix="/api/v1/tasks",
+    tags=["Tasks"]
 )
 app.include_router(ui_router)
 app.include_router(runs_router)
