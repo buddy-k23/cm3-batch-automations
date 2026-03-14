@@ -618,6 +618,20 @@ Supported fields: `url`, `method` (GET/POST), `body` (JSON dict for POST),
 
 ---
 
+### Masking files for DEV (PII-safe)
+
+Use `mask` to produce a structurally identical but masked copy of a batch file:
+
+```bash
+cm3-batch mask \
+  --file data/input/P327_sample.txt \
+  --mapping config/mappings/p327_universal.json \
+  --rules config/masking/p327_masking_rules.json \
+  --output data/output/P327_sample_masked.txt
+```
+
+Supported strategies in rules JSON: `preserve`, `preserve_format`, `deterministic_hash`, `random_range`, `redact`, `fake_name`.
+
 ## API Usage
 
 ### Accessing the API

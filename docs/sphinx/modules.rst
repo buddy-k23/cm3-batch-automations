@@ -20,6 +20,10 @@ Commands
    :members:
    :undoc-members:
 
+.. automodule:: src.commands.mask_command
+   :members:
+   :undoc-members:
+
 Database
 --------
 

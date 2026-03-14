@@ -4,7 +4,7 @@ This is the **single source of truth** for docs navigation.
 
 ## Start Here
 - `README.md` — quick start and project overview
-- `docs/USAGE_GUIDE.md` — practical command usage
+- `docs/USAGE_GUIDE.md` — practical command usage (CLI/API and masking workflows)
 - `docs/FUNCTIONALITY_MATRIX.md` — capability matrix (CLI/API/inputs/outputs)
 - `docs/architecture.md` — architecture and flow diagrams
 

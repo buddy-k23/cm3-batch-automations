@@ -668,6 +668,24 @@ def gx_checkpoint1(targets_csv, expectations_csv, output_json, csv_output, html_
         sys.exit(1)
 
 
+@cli.command()
+@click.option('--file', '-f', required=True, type=click.Path(exists=True), help='Input batch file path')
+@click.option('--mapping', '-m', required=True, type=click.Path(exists=True), help='Mapping JSON path')
+@click.option('--rules', '-r', required=True, type=click.Path(exists=True), help='Masking rules JSON path')
+@click.option('--output', '-o', required=True, type=click.Path(), help='Masked output file path')
+def mask(file, mapping, rules, output):
+    """Create a masked, structurally-identical copy of a batch file for DEV use."""
+    logger = setup_logger('cm3-batch', log_to_file=False)
+    try:
+        from src.commands.mask_command import run_mask_command
+
+        run_mask_command(file=file, mapping=mapping, rules=rules, output=output)
+        click.echo(f"Masked file written to: {output}")
+    except Exception as e:
+        logger.error(f"Error masking file: {e}")
+        sys.exit(1)
+
+
 @cli.command('convert-suite')
 @click.option('--input', 'input_path', required=False, default=None,
               type=click.Path(), help='Path to Excel test suite file to convert')

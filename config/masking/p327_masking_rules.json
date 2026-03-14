@@ -1,0 +1,9 @@
+{
+  "fields": [
+    {"name": "ACCT-NUM", "strategy": "preserve_format"},
+    {"name": "SSN", "strategy": "deterministic_hash"},
+    {"name": "FIRST_NAME", "strategy": "fake_name"},
+    {"name": "BALANCE-AMT", "strategy": "random_range", "min": 0, "max": 99999},
+    {"name": "PROCESS_DATE", "strategy": "preserve"}
+  ]
+}
