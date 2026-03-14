@@ -637,6 +637,22 @@ http://localhost:8000/redoc
 curl http://localhost:8000/api/v1/system/health
 ```
 
+### API Security
+
+Most API endpoints require an API key passed via `X-API-Key`.
+
+```bash
+# .env
+API_KEYS=key-dev-abc123,key-int-xyz789
+ALLOWED_ORIGINS=https://internal-dashboard.bank.com
+```
+
+```bash
+curl -H "X-API-Key: key-dev-abc123" http://localhost:8000/api/v1/system/info
+```
+
+`GET /api/v1/system/health` stays unauthenticated for monitoring.
+
 ### 1. System Endpoints
 
 #### Health Check
@@ -657,7 +673,7 @@ curl http://localhost:8000/api/v1/system/health
 #### System Information
 
 ```bash
-curl http://localhost:8000/api/v1/system/info
+curl -H "X-API-Key: key-dev-abc123" http://localhost:8000/api/v1/system/info
 ```
 
 **Response:**

@@ -1,10 +1,11 @@
 """System endpoints - health check and system information."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from src.api.models.response import HealthResponse, SystemInfoResponse
 from datetime import datetime
 import sys
 
+from src.api.auth import require_api_key
 from src.services.metrics_registry import METRICS
 
 router = APIRouter()
@@ -25,7 +26,7 @@ async def health_check():
 
 
 @router.get("/info", response_model=SystemInfoResponse)
-async def system_info():
+async def system_info(_=Depends(require_api_key)):
     """
     Get system information.
     
@@ -40,12 +41,12 @@ async def system_info():
 
 
 @router.get("/metrics")
-async def metrics_snapshot():
+async def metrics_snapshot(_=Depends(require_api_key)):
     """Return runtime metrics snapshot for dashboard ingestion."""
     return METRICS.snapshot()
 
 
 @router.get("/slo-alerts")
-async def slo_alerts():
+async def slo_alerts(_=Depends(require_api_key)):
     """Return evaluated SLO alerts for operators."""
     return {"alerts": METRICS.slo_alerts()}

@@ -1,7 +1,7 @@
 """FastAPI main application."""
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -13,6 +13,7 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from src.api.auth import require_api_key
 from src.api.routers import mappings, files, system, tasks
 from src.api.routers.ui import router as ui_router
 from src.api.routers.runs import router as runs_router
@@ -68,10 +69,12 @@ app = FastAPI(
     openapi_url="/openapi.json"
 )
 
+allowed_origins = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "http://localhost,http://127.0.0.1").split(",") if o.strip()]
+
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify allowed origins
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -81,22 +84,25 @@ app.add_middleware(
 app.include_router(
     mappings.router,
     prefix="/api/v1/mappings",
-    tags=["Mappings"]
+    tags=["Mappings"],
+    dependencies=[Depends(require_api_key)],
 )
 app.include_router(
     files.router,
     prefix="/api/v1/files",
-    tags=["Files"]
+    tags=["Files"],
+    dependencies=[Depends(require_api_key)],
 )
 app.include_router(
     system.router,
     prefix="/api/v1/system",
-    tags=["System"]
+    tags=["System"],
 )
 app.include_router(
     tasks.router,
     prefix="/api/v1/tasks",
-    tags=["Tasks"]
+    tags=["Tasks"],
+    dependencies=[Depends(require_api_key)],
 )
 app.include_router(ui_router)
 app.include_router(runs_router)
