@@ -53,18 +53,11 @@ Check every PR against these (from `docs/ARCHITECTURE_REVIEW_2026-02-20.md`):
 ## Test Commands
 
 ```bash
-# Run full unit suite (ignore 3 known-broken pre-existing files)
-pytest tests/unit/ \
-  --ignore=tests/unit/test_contracts_pipeline.py \
-  --ignore=tests/unit/test_pipeline_runner.py \
-  --ignore=tests/unit/test_workflow_wrapper_parity.py -q
+# Run full unit suite
+pytest tests/unit/ -q
 
 # Run with coverage
-pytest tests/unit/ \
-  --ignore=tests/unit/test_contracts_pipeline.py \
-  --ignore=tests/unit/test_pipeline_runner.py \
-  --ignore=tests/unit/test_workflow_wrapper_parity.py \
-  --cov=src --cov-report=term-missing -q
+pytest tests/unit/ --cov=src --cov-report=term-missing -q
 
 # Build Sphinx docs
 cd docs/sphinx && make html

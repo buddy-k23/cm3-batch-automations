@@ -1,0 +1,11 @@
+.git
+.claude
+__pycache__
+*.pyc
+.env
+uploads/
+reports/
+screenshots/
+docs/sphinx/_build/
+htmlcov/
+.pytest_cache/

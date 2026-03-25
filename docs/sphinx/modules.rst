@@ -12,11 +12,19 @@ Core CLI
 Commands
 ~~~~~~~~
 
+.. automodule:: src.commands.db_compare
+   :members:
+   :undoc-members:
+
 .. automodule:: src.commands.watch_command
    :members:
    :undoc-members:
 
 .. automodule:: src.commands.run_tests_command
+   :members:
+   :undoc-members:
+
+.. automodule:: src.commands.schedule_command
    :members:
    :undoc-members:
 
@@ -96,6 +104,10 @@ Configuration & Validators
    :members:
    :undoc-members:
 
+.. automodule:: src.config.models
+   :members:
+   :undoc-members:
+
 .. automodule:: src.config.mapping_parser
    :members:
    :undoc-members:
@@ -167,11 +179,19 @@ API Tester
 Services
 --------
 
+.. automodule:: src.services.db_file_compare_service
+   :members:
+   :undoc-members:
+
 .. automodule:: src.services.run_history_service
    :members:
    :undoc-members:
 
 .. automodule:: src.services.job_state_store
+   :members:
+   :undoc-members:
+
+.. automodule:: src.services.scheduler_service
    :members:
    :undoc-members:
 
@@ -191,6 +211,13 @@ Contracts & Adapters
    :undoc-members:
 
 .. automodule:: src.adapters.cli_task_adapter
+   :members:
+   :undoc-members:
+
+Pipeline
+--------
+
+.. automodule:: src.pipeline.suite_config
    :members:
    :undoc-members:
 

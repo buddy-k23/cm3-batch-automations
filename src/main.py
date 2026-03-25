@@ -204,6 +204,40 @@ def compare(file1, file2, keys, mapping, output, thresholds, detailed, chunk_siz
         sys.exit(1)
 
 
+@cli.command('db-compare')
+@click.option('--query-or-table', '-q', required=True,
+              help='SQL SELECT statement or bare Oracle table name')
+@click.option('--mapping', '-m', required=True, type=click.Path(exists=True),
+              help='JSON mapping config file')
+@click.option('--actual-file', '-f', required=True, type=click.Path(exists=True),
+              help='Actual batch file to compare against')
+@click.option('--key-columns', '-k', default='',
+              help='Comma-separated key column names for row matching')
+@click.option('--output-format', type=click.Choice(['json', 'html']), default='json',
+              show_default=True, help='Output format for the report')
+@click.option('--output', '-o', help='File path for the written report')
+def db_compare(query_or_table, mapping, actual_file, key_columns, output_format, output):
+    """Extract data from Oracle and compare against an actual batch file."""
+    logger = setup_logger('cm3-batch', log_to_file=False)
+
+    try:
+        from src.commands.db_compare import run_db_compare_command
+        run_db_compare_command(
+            query_or_table=query_or_table,
+            mapping=mapping,
+            actual_file=actual_file,
+            output_format=output_format,
+            key_columns=key_columns or None,
+            output=output,
+            logger=logger,
+        )
+    except SystemExit:
+        raise
+    except Exception as e:
+        logger.error(f"Error running db-compare: {e}")
+        sys.exit(1)
+
+
 @cli.command()
 def info():
     """Display system information and check dependencies."""
@@ -884,8 +918,21 @@ def submit_task(intent, payload, task_id, trace_id, idempotency_key, priority, d
     click.echo(json.dumps(result.model_dump(), indent=2))
 
 
+@cli.command()
+@click.option('--host', default='0.0.0.0', show_default=True,
+              help='Bind address for the server')
+@click.option('--port', default=8000, type=int, show_default=True,
+              help='Port to listen on')
+def serve(host, port):
+    """Start the FastAPI validation server."""
+    import uvicorn
+    uvicorn.run("src.api.main:app", host=host, port=port)
+
+
 def main():
     """Main entry point."""
+    from src.commands.schedule_command import schedule
+    cli.add_command(schedule)
     cli()
 
 

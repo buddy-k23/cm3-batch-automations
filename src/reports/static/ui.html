@@ -1,106 +1,288 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CM3 Batch Automations — Test UI</title>
+<title>CM3 Batch Validator</title>
+<script>
+  /* Apply saved theme before first paint to avoid flash */
+  (function() {
+    var t = localStorage.getItem('cm3-theme');
+    if (t === 'light' || t === 'dark') {
+      document.documentElement.setAttribute('data-theme', t);
+    } else {
+      /* No stored preference — respect system preference */
+      var preferLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+      document.documentElement.setAttribute('data-theme', preferLight ? 'light' : 'dark');
+    }
+  })();
+</script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  :root {
-    --bg:        #1a1a2e;
-    --panel:     #16213e;
-    --accent:    #0f3460;
-    --accent2:   #1a4a8a;
-    --pass:      #27ae60;
-    --fail:      #e74c3c;
-    --partial:   #f39c12;
-    --text:      #e0e0e0;
-    --muted:     #8899aa;
-    --border:    #2a3a5e;
-    --radius:    6px;
+  /* ── Design tokens — dark (default) ─────────────────────────────────── */
+  :root,
+  [data-theme="dark"] {
+    --bg-primary:   #1a1a2e;
+    --bg-secondary: #16213e;
+    --bg-tertiary:  #0f3460;
+    --accent:       #0f3460;
+    --accent2:      #1a4a8a;
+    --pass:         #27ae60;
+    --fail:         #e74c3c;
+    --partial:      #f39c12;
+    --text-primary: #e0e0e0;
+    --text-secondary: #8899aa;
+    --border:       #2a3a5e;
+    --radius:       6px;
+    --blue:         #4a9eff;
+    /* legacy aliases kept for component CSS below */
+    --bg:           #1a1a2e;
+    --panel:        #16213e;
+    --text:         #e0e0e0;
+    --muted:        #8899aa;
+  }
+
+  /* ── Light theme overrides ───────────────────────────────────────────── */
+  [data-theme="light"] {
+    --bg-primary:   #f8f9fc;
+    --bg-secondary: #fff;
+    --bg-tertiary:  #f0f1f5;
+    --accent:       #e8edf5;
+    --accent2:      #d0d9ec;
+    --text-primary: #1a1a2e;
+    --text-secondary: #6b7280;
+    --border:       #e5e7eb;
+    --blue:         #4a9eff;
+    /* legacy aliases */
+    --bg:           #f8f9fc;
+    --panel:        #fff;
+    --text:         #1a1a2e;
+    --muted:        #6b7280;
   }
 
   body {
-    background: var(--bg);
-    color: var(--text);
+    background: var(--bg-primary);
+    color: var(--text-primary);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     font-size: 14px;
     line-height: 1.5;
     min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    transition: background 0.3s, color 0.3s;
   }
 
-  /* header */
+  /* ── App header ─────────────────────────────────────────────────────── */
   header {
-    background: var(--accent);
+    background: var(--bg-tertiary);
     padding: 0 24px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     height: 52px;
     border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    transition: background 0.3s, border-color 0.3s;
   }
-  header h1 { font-size: 16px; font-weight: 600; letter-spacing: 0.3px; }
-  header span.version { font-size: 11px; color: var(--muted); }
+  .header-left  { display: flex; align-items: center; gap: 10px; }
+  header h1     { font-size: 16px; font-weight: 600; letter-spacing: 0.3px; color: var(--text-primary); }
+  .version-badge {
+    background: rgba(74, 158, 255, 0.15);
+    border: 1px solid rgba(74, 158, 255, 0.35);
+    border-radius: 20px;
+    color: #4a9eff;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    padding: 2px 9px;
+  }
 
-  /* tabs */
-  nav.tabs {
-    background: var(--panel);
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    padding: 0 24px;
+  /* Theme toggle button */
+  .btn-theme {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 15px;
+    height: 32px;
+    line-height: 1;
+    padding: 0 8px;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
   }
+  .btn-theme:hover { color: var(--text-primary); border-color: #4a9eff; background: rgba(74,158,255,0.08); }
+
+  /* ── Pill-style tab nav ─────────────────────────────────────────────── */
+  nav.tabs {
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    position: relative;
+    /* horizontal scroll on small screens */
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;      /* Firefox */
+    -ms-overflow-style: none;   /* IE/Edge */
+    flex-shrink: 0;
+    transition: background 0.3s, border-color 0.3s;
+  }
+  nav.tabs::-webkit-scrollbar { display: none; }   /* Chrome/Safari */
+
+  .tabs-inner {
+    display: inline-flex;
+    align-items: stretch;
+    position: relative;
+    min-width: 100%;
+  }
+
+  /* Animated underline indicator */
+  .tab-indicator {
+    background: #4a9eff;
+    bottom: 0;
+    height: 2px;
+    left: 0;
+    position: absolute;
+    border-radius: 2px 2px 0 0;
+    transition: left 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+                width 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+  }
+
   nav.tabs button {
     background: transparent;
     border: none;
-    border-bottom: 3px solid transparent;
-    color: var(--muted);
+    color: var(--text-secondary);
     cursor: pointer;
     font-size: 13px;
     font-weight: 500;
     padding: 12px 18px;
-    transition: color 0.15s, border-color 0.15s;
+    position: relative;
+    transition: color 0.15s;
+    white-space: nowrap;
   }
-  nav.tabs button:hover { color: var(--text); }
-  nav.tabs button.active { color: var(--text); border-bottom-color: #4a9eff; }
+  nav.tabs button:hover  { color: var(--text-primary); }
+  nav.tabs button.active { color: var(--text-primary); font-weight: 600; }
 
-  /* main */
-  main { max-width: 900px; margin: 28px auto; padding: 0 20px; }
+  /* ── Content area fills remaining height ────────────────────────────── */
+  main { flex: 1; max-width: 960px; margin: 28px auto; padding: 0 20px; width: 100%; }
 
-  /* panel */
+  /* ── Panel ────────────────────────────────────────────── */
   .panel {
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 24px;
+    padding: 28px;
+    transition: background 0.3s, border-color 0.3s, color 0.3s;
   }
-  .panel h2 { font-size: 15px; font-weight: 600; margin-bottom: 18px; color: #aac4ff; }
+  .panel h2 { font-size: 16px; font-weight: 700; margin-bottom: 22px; color: #aac4ff; }
 
-  /* drop zone */
+  /* ── Drop zone — enhanced ─────────────────────────────── */
   .drop-zone {
     border: 2px dashed var(--border);
-    border-radius: var(--radius);
+    border-radius: 10px;
     cursor: pointer;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    min-height: 110px;
-    padding: 20px;
+    gap: 10px;
+    min-height: 150px;
+    padding: 28px;
     text-align: center;
-    transition: border-color 0.15s, background 0.15s;
+    transition: border-color 0.2s, background 0.2s, transform 0.1s;
+    position: relative;
   }
   .drop-zone:hover, .drop-zone.dragover {
-    border-color: #4a9eff;
+    border-color: var(--blue);
     background: rgba(74, 158, 255, 0.07);
+    transform: scale(1.02);
   }
-  .drop-zone svg { opacity: 0.45; }
-  .drop-zone .dz-label { color: var(--muted); font-size: 13px; }
-  .drop-zone .dz-filename { color: #4a9eff; font-size: 13px; font-weight: 500; }
+  .drop-zone.dragover { border-style: solid; }
+  .drop-zone .dz-icon { color: var(--muted); opacity: 0.6; }
+  .drop-zone .dz-label { color: var(--muted); font-size: 14px; }
+  .drop-zone .dz-sub { color: var(--muted); font-size: 12px; opacity: 0.7; }
+  .drop-zone .dz-filename { color: var(--blue); font-size: 13px; font-weight: 500; }
   input[type="file"] { display: none; }
 
-  /* form row */
+  /* ── File preview card ────────────────────────────────── */
+  .file-card {
+    display: none;
+    align-items: center;
+    gap: 12px;
+    background: rgba(74,158,255,0.06);
+    border: 1px solid rgba(74,158,255,0.25);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-top: 10px;
+  }
+  .file-card.visible { display: flex; }
+  .file-card-icon { color: var(--blue); opacity: 0.8; flex-shrink: 0; }
+  .file-card-info { flex: 1; min-width: 0; }
+  .file-card-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .file-card-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .file-card-badge {
+    background: rgba(74,158,255,0.18); color: var(--blue);
+    border: 1px solid rgba(74,158,255,0.35);
+    border-radius: 4px; font-size: 10px; font-weight: 700;
+    letter-spacing: 0.5px; padding: 2px 7px; text-transform: uppercase;
+    flex-shrink: 0;
+  }
+  .file-card-remove {
+    background: none; border: none; color: var(--muted);
+    cursor: pointer; font-size: 18px; line-height: 1; padding: 0 2px;
+    flex-shrink: 0;
+  }
+  .file-card-remove:hover { color: var(--fail); }
+
+  /* ── Searchable mapping dropdown ──────────────────────── */
+  .mapping-search-wrap { position: relative; margin-top: 14px; }
+  .mapping-search-label {
+    color: var(--muted); font-size: 12px; font-weight: 500;
+    letter-spacing: 0.4px; text-transform: uppercase; margin-bottom: 6px;
+    display: block;
+  }
+  .mapping-search-input {
+    background: var(--accent);
+    border: 1px solid var(--border);
+    border-radius: var(--radius) var(--radius) 0 0;
+    color: var(--text);
+    font-size: 13px;
+    outline: none;
+    padding: 7px 10px 7px 30px;
+    width: 100%;
+    transition: border-color 0.15s;
+  }
+  .mapping-search-input:focus { border-color: var(--blue); }
+  .mapping-search-input::placeholder { color: var(--muted); }
+  select.mapping-select {
+    background: var(--accent);
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 var(--radius) var(--radius);
+    color: var(--text);
+    font-size: 13px;
+    min-width: 100%;
+    width: 100%;
+    outline: none;
+    padding: 6px 10px;
+    transition: border-color 0.15s;
+  }
+  select.mapping-select:focus { border-color: var(--blue); }
+  select {
+    background: var(--accent);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 13px;
+    min-width: 220px;
+    outline: none;
+    padding: 6px 10px;
+    transition: border-color 0.15s;
+  }
+  select:focus { border-color: var(--blue); }
+
+  /* ── Form helpers ─────────────────────────────────────── */
   .form-row {
     display: flex;
     align-items: center;
@@ -115,37 +297,49 @@
     letter-spacing: 0.4px;
     text-transform: uppercase;
   }
-  select {
-    background: var(--accent);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    color: var(--text);
-    font-size: 13px;
-    min-width: 220px;
-    outline: none;
-    padding: 6px 10px;
-    transition: border-color 0.15s;
-  }
-  select:focus { border-color: #4a9eff; }
 
-  /* compare second file */
-  #compare-section { margin-top: 14px; display: none; }
+  /* ── Compare section ──────────────────────────────────── */
+  #compare-section { margin-top: 20px; display: none; }
   #compare-section.visible { display: block; }
+  .compare-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  @media (max-width: 600px) { .compare-cards { grid-template-columns: 1fr; } }
+  .compare-card-label {
+    font-size: 11px; font-weight: 600; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;
+  }
 
-  /* buttons */
-  .btn-row { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+  /* ── Validate button — gradient ───────────────────────── */
+  .btn-row { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; align-items: center; }
   button.btn {
     border: none;
     border-radius: var(--radius);
     cursor: pointer;
     font-size: 13px;
     font-weight: 600;
-    padding: 8px 20px;
-    transition: opacity 0.15s;
+    padding: 9px 22px;
+    transition: opacity 0.15s, box-shadow 0.15s;
+    display: inline-flex; align-items: center; gap: 7px;
   }
-  button.btn:disabled { opacity: 0.45; cursor: not-allowed; }
-  button.btn-primary  { background: #2563eb; color: #fff; }
-  button.btn-primary:hover:not(:disabled) { background: #1d4fd8; }
+  button.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.btn-primary {
+    background: linear-gradient(135deg, #2563eb 0%, #1a45bb 100%);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(37,99,235,0.35);
+  }
+  button.btn-primary:hover:not(:disabled) {
+    box-shadow: 0 4px 16px rgba(37,99,235,0.5);
+    opacity: 0.92;
+  }
+  button.btn-primary.btn-lg {
+    font-size: 14px;
+    padding: 11px 32px;
+    border-radius: 8px;
+    letter-spacing: 0.2px;
+  }
   button.btn-secondary { background: var(--accent2); color: var(--text); }
   button.btn-secondary:hover:not(:disabled) { background: #1e5aa8; }
   button.btn-toggle {
@@ -153,29 +347,85 @@
     border: 1px solid var(--border);
     color: var(--muted);
   }
-  button.btn-toggle:hover { color: var(--text); border-color: #4a9eff; }
-  button.btn-toggle.active { color: var(--text); border-color: #4a9eff; background: rgba(74,158,255,0.08); }
+  button.btn-toggle:hover { color: var(--text); border-color: var(--blue); }
+  button.btn-toggle.active { color: var(--text); border-color: var(--blue); background: rgba(74,158,255,0.08); }
 
-  /* status message */
-  .status-msg { margin-top: 14px; min-height: 22px; font-size: 13px; }
-  .status-msg.loading { color: #4a9eff; }
-  .status-msg.success { color: var(--pass); }
-  .status-msg.error   { color: var(--fail); }
-  .status-msg.info    { color: var(--muted); }
-
+  /* ── Spinner ──────────────────────────────────────────── */
   @keyframes spin { to { transform: rotate(360deg); } }
   .spinner {
     display: inline-block;
-    width: 12px; height: 12px;
-    border: 2px solid #4a9eff;
+    width: 13px; height: 13px;
+    border: 2px solid var(--blue);
     border-top-color: transparent;
     border-radius: 50%;
     animation: spin 0.7s linear infinite;
     vertical-align: middle;
-    margin-right: 6px;
+    flex-shrink: 0;
+  }
+  .spinner-white {
+    border-color: rgba(255,255,255,0.4);
+    border-top-color: transparent;
   }
 
-  /* runs table */
+  /* ── Metric cards ─────────────────────────────────────── */
+  .metric-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin: 18px 0;
+  }
+  .metric-row.cols-4 { grid-template-columns: repeat(4, 1fr); }
+  .metric-card {
+    background: var(--accent);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    text-align: center;
+  }
+  .metric-card-value { font-size: 26px; font-weight: 700; color: var(--text); line-height: 1.1; }
+  .metric-card-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
+  .metric-card.accent-pass { border-color: rgba(39,174,96,0.4); }
+  .metric-card.accent-pass .metric-card-value { color: var(--pass); }
+  .metric-card.accent-fail { border-color: rgba(231,76,60,0.4); }
+  .metric-card.accent-fail .metric-card-value { color: var(--fail); }
+  .metric-card.accent-blue { border-color: rgba(74,158,255,0.3); }
+  .metric-card.accent-blue .metric-card-value { color: var(--blue); }
+
+  /* ── Status message ───────────────────────────────────── */
+  .status-msg { margin-top: 14px; min-height: 22px; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+  .status-msg.loading { color: var(--blue); }
+  .status-msg.success { color: var(--pass); }
+  .status-msg.error   { color: var(--fail); }
+  .status-msg.info    { color: var(--muted); }
+
+  /* ── Runs table ───────────────────────────────────────── */
+  .empty-msg { color: var(--muted); padding: 40px 12px; text-align: center; font-size: 14px; }
+  .empty-msg a { color: var(--blue); text-decoration: none; }
+  .empty-msg a:hover { text-decoration: underline; }
+  .empty-icon { font-size: 32px; margin-bottom: 10px; opacity: 0.5; }
+
+  .runs-toolbar {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 16px; flex-wrap: wrap;
+  }
+  .runs-toolbar-spacer { flex: 1; }
+  .refresh-toggle {
+    display: flex; align-items: center; gap: 7px;
+    font-size: 12px; color: var(--muted); cursor: pointer;
+    padding: 5px 12px;
+    background: var(--accent); border: 1px solid var(--border);
+    border-radius: var(--radius); user-select: none;
+    transition: border-color 0.15s;
+  }
+  .refresh-toggle:hover { border-color: var(--blue); color: var(--text); }
+  .refresh-toggle.active { border-color: var(--blue); color: var(--text); }
+  .refresh-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--muted); transition: background 0.2s;
+  }
+  .refresh-toggle.active .refresh-dot { background: var(--pass); animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
   .table-wrap { overflow-x: auto; }
   table { border-collapse: collapse; width: 100%; font-size: 13px; }
   thead th {
@@ -184,53 +434,137 @@
     font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.5px;
-    padding: 8px 12px;
+    padding: 10px 12px;
     text-align: left;
     text-transform: uppercase;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
   }
+  thead th:hover { color: var(--text); }
+  thead th .sort-icon { opacity: 0.4; margin-left: 4px; font-size: 10px; }
+  thead th.sort-asc .sort-icon, thead th.sort-desc .sort-icon { opacity: 1; color: var(--blue); }
   tbody tr { border-bottom: 1px solid var(--border); }
   tbody tr:last-child { border-bottom: none; }
-  tbody td { padding: 9px 12px; vertical-align: middle; }
+  tbody td { padding: 10px 12px; vertical-align: middle; }
   tbody tr:hover { background: rgba(255,255,255,0.03); }
 
   .badge {
     border-radius: 4px;
-    display: inline-block;
+    display: inline-flex; align-items: center; gap: 4px;
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.4px;
-    padding: 2px 8px;
+    padding: 3px 8px;
     text-transform: uppercase;
   }
   .badge-pass    { background: rgba(39,174,96,0.18);  color: var(--pass);    border: 1px solid rgba(39,174,96,0.4);  }
   .badge-fail    { background: rgba(231,76,60,0.18);  color: var(--fail);    border: 1px solid rgba(231,76,60,0.4);  }
   .badge-partial { background: rgba(243,156,18,0.18); color: var(--partial); border: 1px solid rgba(243,156,18,0.4); }
 
-  a.report-link { color: #4a9eff; text-decoration: none; font-size: 12px; }
+  a.report-link { color: var(--blue); text-decoration: none; font-size: 12px; }
   a.report-link:hover { text-decoration: underline; }
 
-  #reportPanel { display: none; margin-top: 14px; }
+  /* ── Report panel ─────────────────────────────────────── */
+  #reportPanel { display: none; margin-top: 18px; }
   #reportPanel.visible { display: block; }
   .report-panel-bar {
     display: flex; align-items: center; gap: 10px;
     font-size: 12px; color: var(--muted);
+    background: var(--accent); border: 1px solid var(--border);
+    border-radius: var(--radius) var(--radius) 0 0;
+    padding: 8px 14px;
   }
-  .report-panel-bar span { flex: 1; }
+  .report-panel-bar span { flex: 1; font-weight: 600; }
   #btnCloseReport {
     background: none; border: none; color: var(--muted);
     font-size: 16px; cursor: pointer; padding: 0 4px; line-height: 1;
   }
   #btnCloseReport:hover { color: var(--text); }
   #reportFrame {
-    width: 100%; height: 520px; margin-top: 8px;
-    border: 1px solid #2a2a3a; border-radius: 4px;
+    width: 100%; height: 520px;
+    border: 1px solid var(--border); border-top: none;
+    border-radius: 0 0 var(--radius) var(--radius);
     background: #fff;
   }
 
-  .empty-msg { color: var(--muted); padding: 24px 12px; text-align: center; font-size: 13px; }
+  /* ── Mapping Generator ────────────────────────────────── */
+  .step-indicators {
+    display: flex; align-items: center; gap: 0;
+    margin-bottom: 24px;
+  }
+  .step {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; color: var(--muted);
+  }
+  .step-num {
+    width: 24px; height: 24px; border-radius: 50%;
+    background: var(--accent); border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; flex-shrink: 0;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+  }
+  .step.active .step-num { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .step.done .step-num { background: var(--pass); border-color: var(--pass); color: #fff; }
+  .step.active { color: var(--text); font-weight: 500; }
+  .step.done { color: var(--pass); }
+  .step-sep { width: 32px; height: 1px; background: var(--border); margin: 0 4px; flex-shrink: 0; }
 
-  /* mapping generator */
-  .gen-section { margin-bottom: 28px; }
+  .gen-two-panel {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+  @media (max-width: 700px) { .gen-two-panel { grid-template-columns: 1fr; } }
+
+  .gen-panel-title {
+    font-size: 12px; font-weight: 700; letter-spacing: 0.6px;
+    text-transform: uppercase; color: var(--muted);
+    margin-bottom: 14px; padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .json-preview {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-family: 'Menlo', 'Consolas', monospace;
+    font-size: 12px;
+    min-height: 180px;
+    max-height: 320px;
+    overflow: auto;
+    padding: 12px;
+    white-space: pre;
+    color: var(--muted);
+  }
+  .json-preview.has-content { color: var(--text); }
+  .jp-key  { color: #79b8ff; }
+  .jp-str  { color: #9ecbff; }
+  .jp-num  { color: #f8c555; }
+  .jp-bool { color: #f97583; }
+  .jp-null { color: #f97583; }
+
+  .json-preview-toolbar {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 6px;
+  }
+  .json-preview-toolbar span { flex: 1; font-size: 12px; color: var(--muted); font-weight: 600; }
+  .btn-copy {
+    background: var(--accent); border: 1px solid var(--border);
+    border-radius: var(--radius); color: var(--muted);
+    cursor: pointer; font-size: 11px; padding: 4px 10px;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .btn-copy:hover { border-color: var(--blue); color: var(--text); }
+  .btn-copy.copied { border-color: var(--pass); color: var(--pass); }
+
+  .field-summary-table { margin-top: 16px; }
+  .field-summary-table table { font-size: 12px; }
+  .field-summary-table thead th { padding: 6px 10px; }
+  .field-summary-table tbody td { padding: 6px 10px; }
+
+  .gen-section { margin-bottom: 32px; }
   .gen-section:last-child { margin-bottom: 0; }
   .gen-section-title {
     font-size: 12px;
@@ -249,31 +583,24 @@
     color: var(--text);
     font-size: 13px;
     outline: none;
-    padding: 6px 10px;
+    padding: 7px 10px;
     width: 200px;
     transition: border-color 0.15s;
   }
-  input.text-input:focus { border-color: #4a9eff; }
+  input.text-input:focus { border-color: var(--blue); }
   input.text-input::placeholder { color: var(--muted); }
   .result-bar {
-    margin-top: 14px;
-    min-height: 22px;
-    font-size: 13px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
+    margin-top: 14px; min-height: 22px; font-size: 13px;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   }
-  .result-bar.loading { color: #4a9eff; }
+  .result-bar.loading { color: var(--blue); }
   .result-bar.success { color: var(--pass); }
   .result-bar.error   { color: var(--fail); }
   .result-bar.info    { color: var(--muted); }
-  .result-bar a { color: #4a9eff; font-size: 12px; text-decoration: none; }
+  .result-bar a { color: var(--blue); font-size: 12px; text-decoration: none; }
   .result-bar a:hover { text-decoration: underline; }
 
-  /* -----------------------------------------------------------------------
-     Tooltip system — add data-tooltip="..." to any element
-     ----------------------------------------------------------------------- */
+  /* ── Tooltip system ───────────────────────────────────── */
   [data-tooltip] { position: relative; }
   [data-tooltip]:hover::after {
     content: attr(data-tooltip);
@@ -311,21 +638,52 @@
   }
   @media (max-width: 700px) { .at-layout { grid-template-columns: 1fr; } }
 
-  .at-section { margin-bottom: 12px; }
-  .at-section-title {
-    font-size: 11px; font-weight: 600; text-transform: uppercase;
-    letter-spacing: 0.6px; color: var(--muted); margin-bottom: 6px;
-    cursor: pointer; user-select: none;
+  /* ── API Tester ───────────────────────────────────────── */
+  .at-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
   }
-  .at-section-title::before { content: '▾ '; }
-  .at-section-title.collapsed::before { content: '▸ '; }
-  .at-section-body.hidden { display: none; }
+  @media (max-width: 700px) { .at-layout { grid-template-columns: 1fr; } }
 
   .at-url-row { display: flex; gap: 6px; margin-bottom: 10px; align-items: center; }
-  .at-method { width: 110px; flex-shrink: 0; }
+  /* Color-coded method select */
+  select#atMethod {
+    min-width: 90px; width: 90px;
+    font-weight: 700; font-size: 12px;
+    padding: 7px 10px;
+    border-radius: var(--radius);
+    appearance: none; -webkit-appearance: none;
+    cursor: pointer;
+  }
+  .method-GET    { background: rgba(39,174,96,0.18);  color: #2ecc71; border-color: rgba(39,174,96,0.4) !important; }
+  .method-POST   { background: rgba(74,158,255,0.18); color: var(--blue); border-color: rgba(74,158,255,0.4) !important; }
+  .method-PUT    { background: rgba(243,156,18,0.18); color: var(--partial); border-color: rgba(243,156,18,0.4) !important; }
+  .method-PATCH  { background: rgba(243,156,18,0.18); color: var(--partial); border-color: rgba(243,156,18,0.4) !important; }
+  .method-DELETE { background: rgba(231,76,60,0.18);  color: var(--fail); border-color: rgba(231,76,60,0.4) !important; }
+
   .at-url-input { flex: 1; min-width: 0; }
-  .at-path-row { display: flex; gap: 6px; margin-bottom: 10px; }
+  .at-path-row { display: flex; gap: 6px; margin-bottom: 14px; }
   .at-path-input { flex: 1; }
+
+  /* Horizontal request tabs */
+  .at-req-tabs {
+    display: flex; border-bottom: 1px solid var(--border);
+    margin-bottom: 12px;
+  }
+  .at-req-tabs button {
+    background: none; border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--muted); cursor: pointer;
+    font-size: 12px; font-weight: 500;
+    padding: 7px 14px;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .at-req-tabs button:hover { color: var(--text); }
+  .at-req-tabs button.active { color: var(--text); border-bottom-color: var(--blue); }
+
+  .at-tab-panel { display: none; }
+  .at-tab-panel.active { display: block; }
 
   .at-kv-row { display: flex; gap: 6px; margin-bottom: 4px; align-items: center; }
   .at-kv-key { flex: 1; }
@@ -357,51 +715,59 @@
     font-size: 12px; min-height: 80px; padding: 8px; resize: vertical;
   }
 
-  .at-send-row { display: flex; gap: 8px; align-items: center; margin-top: 12px; }
-  .at-name-input { flex: 1; }
-  .at-suite-sel  { flex: 1; }
+  .at-send-row { display: flex; gap: 8px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
+  .at-name-input { flex: 1; min-width: 120px; }
+  .at-suite-sel  { flex: 1; min-width: 120px; }
 
-  .at-resp-header { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
-  .at-status-badge {
-    border-radius: 4px; font-size: 12px; font-weight: 700; padding: 2px 10px;
+  /* Response status line */
+  .at-resp-status-line {
+    display: none; align-items: center; gap: 10px;
+    padding: 8px 12px; margin-bottom: 10px;
+    background: var(--accent); border: 1px solid var(--border);
+    border-radius: var(--radius);
   }
-  .at-status-2xx { background: var(--pass);    color: #fff; }
-  .at-status-3xx { background: var(--partial); color: #fff; }
-  .at-status-4xx, .at-status-5xx { background: var(--fail); color: #fff; }
+  .at-resp-status-line.visible { display: flex; }
+  .at-status-badge {
+    border-radius: 4px; font-size: 12px; font-weight: 700; padding: 3px 10px;
+  }
+  .at-status-2xx { background: rgba(39,174,96,0.2); color: var(--pass); border: 1px solid rgba(39,174,96,0.4); }
+  .at-status-3xx { background: rgba(243,156,18,0.2); color: var(--partial); border: 1px solid rgba(243,156,18,0.4); }
+  .at-status-4xx, .at-status-5xx { background: rgba(231,76,60,0.2); color: var(--fail); border: 1px solid rgba(231,76,60,0.4); }
   .at-elapsed { font-size: 11px; color: var(--muted); }
+  .at-resp-size { font-size: 11px; color: var(--muted); margin-left: auto; }
 
   .at-resp-tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 8px; }
   .at-resp-tabs button {
     background: none; border: none; border-bottom: 2px solid transparent;
     color: var(--muted); cursor: pointer; font-size: 12px; padding: 6px 14px;
   }
-  .at-resp-tabs button.active { color: var(--text); border-bottom-color: #4a9eff; }
+  .at-resp-tabs button.active { color: var(--text); border-bottom-color: var(--blue); }
 
   .at-resp-body {
     background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
     font-family: monospace; font-size: 12px; max-height: 320px;
     overflow: auto; padding: 10px; white-space: pre-wrap; word-break: break-all;
   }
-  .at-resp-placeholder { color: var(--muted); font-style: italic; }
+  .at-resp-placeholder { color: var(--muted); font-style: italic; font-family: inherit; }
 
-  /* JSON highlight — only used with sanitized (< > escaped) content */
+  /* JSON highlight — only used with sanitized (& < > escaped) content */
   .jh-key  { color: #79b8ff; }
   .jh-str  { color: #9ecbff; }
   .jh-num  { color: #f8c555; }
   .jh-bool { color: #f97583; }
   .jh-null { color: #f97583; }
 
-  .at-runner { margin-top: 20px; border-top: 1px solid var(--border); padding-top: 16px; }
+  .at-runner { margin-top: 24px; border-top: 1px solid var(--border); padding-top: 18px; }
   .at-runner h3 { font-size: 13px; font-weight: 600; color: #aac4ff; margin-bottom: 10px; }
   .at-runner-row { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
   .at-req-list { margin-bottom: 10px; }
   .at-req-row {
     display: flex; gap: 8px; align-items: center;
     background: var(--bg); border: 1px solid var(--border);
-    border-radius: var(--radius); margin-bottom: 4px; padding: 6px 10px;
+    border-radius: var(--radius); margin-bottom: 4px; padding: 7px 10px;
     font-size: 12px;
   }
-  .at-req-method { font-weight: 700; min-width: 52px; color: #4a9eff; }
+  .at-req-method { font-weight: 700; min-width: 52px; }
   .at-req-name   { flex: 1; }
   .at-req-path   { color: var(--muted); flex: 2; font-family: monospace; font-size: 11px; }
   .at-assertion-result { font-size: 11px; margin-left: 8px; }
@@ -412,25 +778,258 @@
     font-size: 13px; font-weight: 600; padding: 8px 14px; margin-top: 8px;
   }
   .at-req-row[draggable="true"] { cursor: grab; }
-  .at-req-row.drag-over  { border-color: #4a9eff; background: #1a2a3a; }
+  .at-req-row.drag-over  { border-color: var(--blue); background: #1a2a3a; }
+
+  /* ── Tab panel transitions ───────────────────────────────────────────── */
+  .panel {
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 0.18s ease, transform 0.18s ease;
+  }
+  .panel.panel-hidden {
+    display: none !important;
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  .panel.panel-entering {
+    animation: panelIn 0.18s ease forwards;
+  }
+  @keyframes panelIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── Footer status bar ───────────────────────────────────────────────── */
+  footer.status-bar {
+    align-items: center;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border);
+    color: var(--text-secondary);
+    display: flex;
+    font-size: 11px;
+    transition: background 0.3s, border-color 0.3s, color 0.3s;
+    gap: 6px;
+    height: 28px;
+    padding: 0 20px;
+    flex-shrink: 0;
+  }
+  .health-dot {
+    border-radius: 50%;
+    display: inline-block;
+    height: 7px;
+    width: 7px;
+    flex-shrink: 0;
+    transition: background 0.3s;
+  }
+  .health-dot.ok      { background: #27ae60; box-shadow: 0 0 0 2px rgba(39,174,96,0.25); }
+  .health-dot.error   { background: #e74c3c; box-shadow: 0 0 0 2px rgba(231,76,60,0.25); }
+  .health-dot.pending { background: #8899aa; }
+
+  /* ── Responsive: tabs scroll on small screens ────────────────────────── */
+  @media (max-width: 768px) {
+    nav.tabs { padding: 0 12px; }
+    main     { padding: 0 12px; margin: 16px auto; }
+  }
+
+  /* ── #125: Theme transition polish ─────────────────────────────────── */
+  input, select, textarea, button {
+    transition: background 0.3s, color 0.3s, border-color 0.3s;
+  }
+  .metric-card, .json-preview, .file-card, .step-num, .badge,
+  .drop-zone, .at-resp-body, .at-resp-status-line, .at-req-row,
+  .refresh-toggle, .at-textarea, .report-panel-bar,
+  .at-runner-summary, thead th, .runs-toolbar {
+    transition: background 0.3s, color 0.3s, border-color 0.3s;
+  }
+  table { transition: color 0.3s; }
+  tbody tr { transition: background 0.15s, color 0.3s; }
+
+  /* ── #125: Full light-theme coverage ───────────────────────────────── */
+  [data-theme="light"] .panel h2 { color: #1e40af; }
+  [data-theme="light"] .at-runner h3 { color: #1e40af; }
+  [data-theme="light"] .metric-card { background: var(--bg-tertiary); }
+  [data-theme="light"] .json-preview { background: #f3f4f6; color: var(--text-secondary); }
+  [data-theme="light"] .json-preview.has-content { color: var(--text-primary); }
+  [data-theme="light"] .jp-key, [data-theme="light"] .jh-key { color: #1e40af; }
+  [data-theme="light"] .jp-str, [data-theme="light"] .jh-str { color: #047857; }
+  [data-theme="light"] .jp-num, [data-theme="light"] .jh-num { color: #b45309; }
+  [data-theme="light"] .jp-bool, [data-theme="light"] .jp-null,
+  [data-theme="light"] .jh-bool, [data-theme="light"] .jh-null { color: #dc2626; }
+  [data-theme="light"] .file-card { background: rgba(37,99,235,0.06); border-color: rgba(37,99,235,0.2); }
+  [data-theme="light"] .step-num { background: var(--bg-tertiary); }
+  [data-theme="light"] .step.active .step-num { background: #2563eb; border-color: #2563eb; }
+  [data-theme="light"] .version-badge { background: rgba(37,99,235,0.1); border-color: rgba(37,99,235,0.3); color: #2563eb; }
+  [data-theme="light"] .method-GET { background: rgba(5,150,105,0.12); color: #047857; }
+  [data-theme="light"] .method-POST { background: rgba(37,99,235,0.12); color: #1d4ed8; }
+  [data-theme="light"] .method-PUT, [data-theme="light"] .method-PATCH { background: rgba(180,83,9,0.12); color: #b45309; }
+  [data-theme="light"] .method-DELETE { background: rgba(220,38,38,0.12); color: #dc2626; }
+  [data-theme="light"] .at-resp-body { background: #f3f4f6; }
+  [data-theme="light"] .at-req-row { background: #f3f4f6; }
+  [data-theme="light"] tbody tr:hover { background: rgba(0,0,0,0.04); }
+  [data-theme="light"] .at-req-row.drag-over { background: rgba(37,99,235,0.08); }
+  [data-theme="light"] .badge-pass { background: rgba(5,150,105,0.1); }
+  [data-theme="light"] .badge-fail { background: rgba(220,38,38,0.1); }
+  [data-theme="light"] .badge-partial { background: rgba(180,83,9,0.1); }
+  [data-theme="light"] .at-textarea { background: #f3f4f6; }
+  [data-theme="light"] .btn-secondary { background: var(--accent2); color: var(--text-primary); }
+  [data-theme="light"] .btn-secondary:hover:not(:disabled) { background: #c0cde4; }
+  [data-theme="light"] .drop-zone { background: transparent; }
+
+  /* ── #126: Drop-zone hover scale ───────────────────────────────────── */
+  .drop-zone {
+    transition: border-color 0.2s, background 0.2s, transform 0.2s ease;
+  }
+  .drop-zone:hover, .drop-zone.dragover {
+    transform: scale(1.02);
+  }
+
+  /* ── #126: Button hover lift ───────────────────────────────────────── */
+  button.btn {
+    transition: opacity 0.15s, box-shadow 0.15s, transform 0.15s;
+  }
+  button.btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+  button.btn-primary:hover:not(:disabled) {
+    box-shadow: 0 6px 20px rgba(37,99,235,0.45);
+  }
+  .btn-theme:hover {
+    transform: translateY(-1px);
+  }
+  .btn-copy:hover {
+    transform: translateY(-1px);
+  }
+
+  /* ── #126: Skeleton loading pulse ──────────────────────────────────── */
+  @keyframes skeletonPulse {
+    0%   { opacity: 1; }
+    50%  { opacity: 0.4; }
+    100% { opacity: 1; }
+  }
+  .skeleton {
+    background: var(--accent);
+    border-radius: var(--radius);
+    animation: skeletonPulse 1.5s ease-in-out infinite;
+    color: transparent !important;
+    pointer-events: none;
+    user-select: none;
+  }
+  .skeleton * { visibility: hidden; }
+
+  /* ── #126: Toast notification system ───────────────────────────────── */
+  .toast-container {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+  }
+  .toast {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+    color: var(--text-primary);
+    font-size: 13px;
+    padding: 10px 16px;
+    pointer-events: auto;
+    max-width: 360px;
+    transform: translateX(120%);
+    opacity: 0;
+    transition: transform 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.3s;
+  }
+  .toast.toast-visible {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  .toast.toast-exit {
+    transform: translateX(120%);
+    opacity: 0;
+  }
+  .toast-success { border-left: 3px solid var(--pass); }
+  .toast-error   { border-left: 3px solid var(--fail); }
+  .toast-info    { border-left: 3px solid var(--blue); }
+  .toast-warning { border-left: 3px solid var(--partial); }
+
+  /* ── #127: Skip link ───────────────────────────────────────────────── */
+  .skip-link {
+    position: absolute;
+    top: -100%;
+    left: 16px;
+    background: var(--blue);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 16px;
+    border-radius: var(--radius);
+    z-index: 10000;
+    text-decoration: none;
+    transition: top 0.15s;
+  }
+  .skip-link:focus {
+    top: 8px;
+  }
+
+  /* ── #127: Screen-reader only ──────────────────────────────────────── */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  /* ── #127: Focus-visible outlines ──────────────────────────────────── */
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  a:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: 2px;
+  }
+  /* Remove default outline when not using keyboard */
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
 </style>
 </head>
 <body>
 
+<a class="skip-link" href="#panel-quick">Skip to main content</a>
+
+<!-- Toast container for notifications (#126) -->
+<div class="toast-container" id="toastContainer" aria-live="polite" aria-relevant="additions"></div>
+
 <header>
-  <h1>CM3 Batch Automations &mdash; Test UI</h1>
-  <span class="version">v1.0</span>
+  <div class="header-left">
+    <h1>CM3 Batch Validator</h1>
+    <span class="version-badge">v2.0</span>
+  </div>
+  <button class="btn-theme" id="btnTheme" aria-label="Toggle light/dark theme"
+          data-tooltip="Switch between light and dark theme">&#9728;</button>
 </header>
 
-<nav class="tabs" role="tablist">
-  <button class="active" id="tab-quick" role="tab" aria-selected="true"
-          onclick="switchTab('quick')">Quick Test</button>
-  <button id="tab-runs" role="tab" aria-selected="false"
-          onclick="switchTab('runs')">Recent Runs</button>
-  <button id="tab-mapping" role="tab" aria-selected="false"
-          onclick="switchTab('mapping')">Mapping Generator</button>
-  <button id="tab-tester" role="tab" aria-selected="false"
-          onclick="switchTab('tester')">API Tester</button>
+<nav class="tabs" role="tablist" id="tabNav">
+  <div class="tabs-inner" id="tabsInner">
+    <span class="tab-indicator" id="tabIndicator" aria-hidden="true"></span>
+    <button class="active" id="tab-quick" role="tab" aria-selected="true"
+            aria-controls="panel-quick" onclick="switchTab('quick')">Quick Test</button>
+    <button id="tab-runs" role="tab" aria-selected="false"
+            aria-controls="panel-runs" onclick="switchTab('runs')">Recent Runs</button>
+    <button id="tab-mapping" role="tab" aria-selected="false"
+            aria-controls="panel-mapping" onclick="switchTab('mapping')">Mapping Generator</button>
+    <button id="tab-tester" role="tab" aria-selected="false"
+            aria-controls="panel-tester" onclick="switchTab('tester')">API Tester</button>
+  </div>
 </nav>
 
 <main>
@@ -439,47 +1038,116 @@
   <div id="panel-quick" class="panel" role="tabpanel" aria-labelledby="tab-quick">
     <h2>Quick Test</h2>
 
+    <!-- Primary drop zone -->
     <div class="drop-zone" id="dropZone" tabindex="0"
          role="button" aria-label="Click or drag a file here"
          data-tooltip="Drop a batch file here, or click to browse (.txt, .csv, .dat, .pipe)">
-      <svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+      <svg class="dz-icon" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.4" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round"
           d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
       </svg>
-      <span class="dz-label">Drop file here or click to browse</span>
-      <span class="dz-filename" id="primaryFileName"></span>
+      <span class="dz-label">Drag &amp; drop or click to browse</span>
+      <span class="dz-sub">Supports .txt, .csv, .dat, .pipe, fixed-width</span>
     </div>
-    <input type="file" id="fileInput">
+    <input type="file" id="fileInput" aria-label="Upload batch file">
 
-    <div class="form-row">
-      <label class="field-label" for="mappingSelect">Mapping</label>
-      <select id="mappingSelect"
+    <!-- Primary file preview card -->
+    <div class="file-card" id="primaryFileCard">
+      <svg class="file-card-icon" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round"
+          d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+      </svg>
+      <div class="file-card-info">
+        <div class="file-card-name" id="primaryFileName"></div>
+        <div class="file-card-meta" id="primaryFileMeta"></div>
+      </div>
+      <span class="file-card-badge" id="primaryFormatBadge"></span>
+      <button class="file-card-remove" id="btnRemovePrimary" aria-label="Remove file" title="Remove file">&times;</button>
+    </div>
+
+    <!-- Searchable mapping dropdown -->
+    <div class="mapping-search-wrap">
+      <label class="mapping-search-label" for="mappingFilter">Mapping</label>
+      <div style="position:relative">
+        <svg style="position:absolute;left:9px;top:50%;transform:translateY(-50%);width:14px;height:14px;pointer-events:none;color:var(--muted)"
+             fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <circle cx="11" cy="11" r="8"/><path stroke-linecap="round" d="m21 21-4.35-4.35"/>
+        </svg>
+        <input type="text" id="mappingFilter" class="mapping-search-input"
+               placeholder="Search mappings&hellip;"
+               data-tooltip="Type to filter the mapping list">
+      </div>
+      <select id="mappingSelect" class="mapping-select"
               data-tooltip="Select a mapping schema to validate field positions and lengths">
         <option value="">Loading mappings&hellip;</option>
       </select>
     </div>
 
     <div class="btn-row">
-      <button class="btn btn-primary"  id="btnValidate"      disabled
-              data-tooltip="Run structural validation against the selected mapping and rules">Validate</button>
-      <button class="btn btn-toggle"   id="btnToggleCompare"
-              data-tooltip="Compare two batch files row-by-row and highlight differences">Compare (pick 2nd file)</button>
+      <button class="btn btn-primary btn-lg" id="btnValidate" disabled
+              data-tooltip="Run structural validation against the selected mapping and rules">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        Validate
+      </button>
+      <button class="btn btn-toggle" id="btnToggleCompare"
+              data-tooltip="Compare two batch files row-by-row and highlight differences">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/>
+        </svg>
+        Compare Mode
+      </button>
     </div>
 
-    <div id="compare-section">
-      <div class="drop-zone" id="dropZone2" tabindex="0"
-           role="button" aria-label="Click or drag the second file here">
-        <svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round"
-            d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
-        </svg>
-        <span class="dz-label">Drop second file here or click to browse</span>
-        <span class="dz-filename" id="secondaryFileName"></span>
+    <!-- Metric cards (hidden until validation runs) -->
+    <div class="metric-row" id="quickMetrics" style="display:none">
+      <div class="metric-card accent-blue">
+        <div class="metric-card-value" id="metricTotalRows">&#x2014;</div>
+        <div class="metric-card-label">Total Rows</div>
       </div>
-      <input type="file" id="fileInput2">
-      <div class="btn-row">
-        <button class="btn btn-secondary" id="btnCompare" disabled
-                data-tooltip="Run a row-by-row comparison between the two selected files">Compare Files</button>
+      <div class="metric-card accent-fail">
+        <div class="metric-card-value" id="metricErrors">&#x2014;</div>
+        <div class="metric-card-label">Errors</div>
+      </div>
+      <div class="metric-card accent-pass">
+        <div class="metric-card-value" id="metricQuality">&#x2014;</div>
+        <div class="metric-card-label">Quality Score</div>
+      </div>
+    </div>
+
+    <!-- Compare section: side-by-side cards -->
+    <div id="compare-section">
+      <div class="compare-cards">
+        <div>
+          <div class="compare-card-label">Second File</div>
+          <div class="drop-zone" id="dropZone2" tabindex="0"
+               role="button" aria-label="Click or drag the second file here">
+            <svg class="dz-icon" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.4" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+            </svg>
+            <span class="dz-label">Drop second file here</span>
+            <span class="dz-sub">or click to browse</span>
+          </div>
+          <div class="file-card" id="secondaryFileCard">
+            <svg class="file-card-icon" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+            </svg>
+            <div class="file-card-info">
+              <div class="file-card-name" id="secondaryFileName"></div>
+              <div class="file-card-meta" id="secondaryFileMeta"></div>
+            </div>
+            <span class="file-card-badge" id="secondaryFormatBadge"></span>
+            <button class="file-card-remove" id="btnRemoveSecondary" aria-label="Remove file" title="Remove file">&times;</button>
+          </div>
+          <input type="file" id="fileInput2" aria-label="Upload second batch file">
+        </div>
+        <div style="display:flex;flex-direction:column;justify-content:flex-end">
+          <button class="btn btn-secondary" id="btnCompare" disabled style="width:100%;justify-content:center"
+                  data-tooltip="Run a row-by-row comparison between the two selected files">Compare Files</button>
+        </div>
       </div>
     </div>
 
@@ -489,152 +1157,251 @@
       <div class="report-panel-bar">
         <span>Inline Report</span>
         <a id="reportOpenLink" href="#" target="_blank" rel="noopener noreferrer"
-           class="report-link">Open in new tab ↗</a>
-        <button id="btnCloseReport" aria-label="Close report">×</button>
+           class="report-link">Open in new tab &#x2197;</a>
+        <button id="btnCloseReport" aria-label="Close report">&times;</button>
       </div>
       <iframe id="reportFrame" src="" title="Validation / Comparison Report" sandbox="allow-scripts"></iframe>
     </div>
   </div>
 
   <!-- RECENT RUNS PANEL -->
-  <div id="panel-runs" class="panel" role="tabpanel" aria-labelledby="tab-runs" style="display:none">
+  <div id="panel-runs" class="panel panel-hidden" role="tabpanel" aria-labelledby="tab-runs">
     <h2>Recent Runs</h2>
+
+    <!-- 4 summary cards -->
+    <div class="metric-row cols-4">
+      <div class="metric-card">
+        <div class="metric-card-value" id="cardTotalRuns">&#x2014;</div>
+        <div class="metric-card-label">Total Runs</div>
+      </div>
+      <div class="metric-card accent-pass">
+        <div class="metric-card-value" id="cardPassRate">&#x2014;</div>
+        <div class="metric-card-label">Pass Rate</div>
+      </div>
+      <div class="metric-card accent-blue">
+        <div class="metric-card-value" id="cardAvgQuality">&#x2014;</div>
+        <div class="metric-card-label">Avg Quality</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-card-value" id="cardLastRun" style="font-size:15px">&#x2014;</div>
+        <div class="metric-card-label">Last Run</div>
+      </div>
+    </div>
+
+    <div class="runs-toolbar">
+      <span style="font-size:12px;color:var(--muted)" id="runsCount"></span>
+      <div class="runs-toolbar-spacer"></div>
+      <div class="refresh-toggle" id="autoRefreshToggle" role="button" tabindex="0"
+           aria-expanded="false" onclick="toggleAutoRefresh()" title="Toggle 30-second auto-refresh">
+        <div class="refresh-dot"></div>
+        <span id="refreshToggleLabel">Auto-refresh off</span>
+      </div>
+      <button class="btn btn-secondary" onclick="loadRunHistory()" style="font-size:12px;padding:6px 14px" aria-label="Refresh run history">Refresh</button>
+    </div>
+
     <div class="table-wrap" id="runsTableWrap">
       <p class="empty-msg" id="runsLoading">Loading run history&hellip;</p>
     </div>
   </div>
 
   <!-- MAPPING GENERATOR PANEL -->
-  <div id="panel-mapping" class="panel" role="tabpanel" aria-labelledby="tab-mapping" style="display:none">
+  <div id="panel-mapping" class="panel panel-hidden" role="tabpanel" aria-labelledby="tab-mapping">
     <h2>Mapping Generator</h2>
 
-    <!-- Section 1: Field Mapping -->
+    <!-- Step indicators -->
+    <div class="step-indicators">
+      <div class="step active" id="mapStep1">
+        <div class="step-num">1</div>
+        <span>Upload</span>
+      </div>
+      <div class="step-sep"></div>
+      <div class="step" id="mapStep2">
+        <div class="step-num">2</div>
+        <span>Configure</span>
+      </div>
+      <div class="step-sep"></div>
+      <div class="step" id="mapStep3">
+        <div class="step-num">3</div>
+        <span>Generate</span>
+      </div>
+    </div>
+
+    <!-- Section 1: Field Mapping — two-panel layout -->
     <div class="gen-section">
       <div class="gen-section-title">Field Mapping</div>
-      <div class="drop-zone" id="mapDropZone" tabindex="0"
-           role="button" aria-label="Click or drag a mapping template here"
-           data-tooltip="Upload an Excel or CSV template to generate a mapping JSON config">
-        <svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round"
-            d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
-        </svg>
-        <span class="dz-label">Drop mapping template here or click to browse (.xlsx, .csv)</span>
-        <span class="dz-filename" id="mapFileName"></span>
+      <div class="gen-two-panel">
+        <!-- Left: upload -->
+        <div>
+          <div class="drop-zone" id="mapDropZone" tabindex="0"
+               role="button" aria-label="Click or drag a mapping template here"
+               data-tooltip="Upload an Excel or CSV template to generate a mapping JSON config">
+            <svg class="dz-icon" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.4" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+            </svg>
+            <span class="dz-label">Drop template here or click to browse</span>
+            <span class="dz-sub">.xlsx, .xls, .csv</span>
+            <span class="dz-filename" id="mapFileName"></span>
+          </div>
+          <input type="file" id="mapFileInput" accept=".xlsx,.xls,.csv" aria-label="Upload mapping template">
+          <div class="form-row">
+            <label class="field-label" for="mapNameInput">Name</label>
+            <input type="text" id="mapNameInput" class="text-input" placeholder="(optional — uses filename)">
+          </div>
+          <div class="form-row">
+            <label class="field-label" for="mapFormatSelect">Format</label>
+            <select id="mapFormatSelect"
+                    data-tooltip="Override auto-detection if the file format is not detected correctly">
+              <option value="">Auto-detect</option>
+              <option value="fixed_width">Fixed Width</option>
+              <option value="pipe_delimited">Pipe-delimited</option>
+              <option value="csv">CSV</option>
+              <option value="tsv">TSV</option>
+            </select>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-primary" id="btnGenMapping" disabled
+                    data-tooltip="Convert the uploaded template into a mapping JSON config file">Generate Mapping</button>
+          </div>
+          <div class="result-bar info" id="mapResultBar">Select a mapping template to get started.</div>
+        </div>
+
+        <!-- Right: JSON preview -->
+        <div>
+          <div class="json-preview-toolbar">
+            <span>JSON Preview</span>
+            <button class="btn-copy" id="btnCopyMapJson" onclick="copyJson('mapJsonPreview','btnCopyMapJson')" title="Copy JSON to clipboard">Copy JSON</button>
+          </div>
+          <div class="json-preview" id="mapJsonPreview">No mapping generated yet.</div>
+
+          <!-- Field summary table -->
+          <div class="field-summary-table" id="mapFieldSummary" style="display:none">
+            <div style="font-size:11px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:var(--muted);margin:14px 0 8px">Field Summary</div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr>
+                  <th style="cursor:default">Field</th>
+                  <th style="cursor:default">Type</th>
+                  <th style="cursor:default">Start</th>
+                  <th style="cursor:default">Length</th>
+                </tr></thead>
+                <tbody id="mapFieldSummaryBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       </div>
-      <input type="file" id="mapFileInput" accept=".xlsx,.xls,.csv">
-      <div class="form-row">
-        <label class="field-label" for="mapNameInput">Mapping name</label>
-        <input type="text" id="mapNameInput" class="text-input" placeholder="(optional — uses filename)">
-        <label class="field-label" for="mapFormatSelect">Format</label>
-        <select id="mapFormatSelect"
-                data-tooltip="Override auto-detection if the file format is not detected correctly">
-          <option value="">Auto-detect</option>
-          <option value="fixed_width">Fixed Width</option>
-          <option value="pipe_delimited">Pipe-delimited</option>
-          <option value="csv">CSV</option>
-          <option value="tsv">TSV</option>
-        </select>
-      </div>
-      <div class="btn-row">
-        <button class="btn btn-primary" id="btnGenMapping" disabled
-                data-tooltip="Convert the uploaded template into a mapping JSON config file">Generate Mapping</button>
-      </div>
-      <div class="result-bar info" id="mapResultBar">Select a mapping template to get started.</div>
     </div>
 
     <!-- Section 2: Validation Rules -->
     <div class="gen-section">
       <div class="gen-section-title">Validation Rules</div>
-      <div class="drop-zone" id="rulesDropZone" tabindex="0"
-           role="button" aria-label="Click or drag a rules template here"
-           data-tooltip="Upload an Excel or CSV template to generate a rules JSON config">
-        <svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round"
-            d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
-        </svg>
-        <span class="dz-label">Drop rules template here or click to browse (.xlsx, .csv)</span>
-        <span class="dz-filename" id="rulesFileName"></span>
+      <div class="gen-two-panel">
+        <!-- Left: upload -->
+        <div>
+          <div class="drop-zone" id="rulesDropZone" tabindex="0"
+               role="button" aria-label="Click or drag a rules template here"
+               data-tooltip="Upload an Excel or CSV template to generate a rules JSON config">
+            <svg class="dz-icon" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.4" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+            </svg>
+            <span class="dz-label">Drop rules template here or click to browse</span>
+            <span class="dz-sub">.xlsx, .xls, .csv</span>
+            <span class="dz-filename" id="rulesFileName"></span>
+          </div>
+          <input type="file" id="rulesFileInput" accept=".xlsx,.xls,.csv" aria-label="Upload rules template">
+          <div class="form-row">
+            <label class="field-label" for="rulesNameInput">Name</label>
+            <input type="text" id="rulesNameInput" class="text-input" placeholder="(optional — uses filename)">
+          </div>
+          <div class="form-row">
+            <label class="field-label" for="rulesTypeSelect">Type</label>
+            <select id="rulesTypeSelect"
+                    data-tooltip="BA-friendly: human-readable rules. Technical: strict regex/type rules">
+              <option value="ba_friendly">BA-friendly</option>
+              <option value="technical">Technical</option>
+            </select>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-primary" id="btnGenRules" disabled
+                    data-tooltip="Convert the uploaded template into a rules JSON config file">Generate Rules</button>
+          </div>
+          <div class="result-bar info" id="rulesResultBar">Select a rules template to get started.</div>
+        </div>
+
+        <!-- Right: JSON preview -->
+        <div>
+          <div class="json-preview-toolbar">
+            <span>JSON Preview</span>
+            <button class="btn-copy" id="btnCopyRulesJson" onclick="copyJson('rulesJsonPreview','btnCopyRulesJson')" title="Copy JSON to clipboard">Copy JSON</button>
+          </div>
+          <div class="json-preview" id="rulesJsonPreview">No rules generated yet.</div>
+        </div>
       </div>
-      <input type="file" id="rulesFileInput" accept=".xlsx,.xls,.csv">
-      <div class="form-row">
-        <label class="field-label" for="rulesNameInput">Rules name</label>
-        <input type="text" id="rulesNameInput" class="text-input" placeholder="(optional — uses filename)">
-        <label class="field-label" for="rulesTypeSelect">Type</label>
-        <select id="rulesTypeSelect"
-                data-tooltip="BA-friendly: human-readable rules. Technical: strict regex/type rules">
-          <option value="ba_friendly">BA-friendly</option>
-          <option value="technical">Technical</option>
-        </select>
-      </div>
-      <div class="btn-row">
-        <button class="btn btn-primary" id="btnGenRules" disabled
-                data-tooltip="Convert the uploaded template into a rules JSON config file">Generate Rules</button>
-      </div>
-      <div class="result-bar info" id="rulesResultBar">Select a rules template to get started.</div>
     </div>
   </div>
 
   <!-- API TESTER PANEL -->
-  <div id="panel-tester" class="panel" role="tabpanel" aria-labelledby="tab-tester" style="display:none">
+  <div id="panel-tester" class="panel panel-hidden" role="tabpanel" aria-labelledby="tab-tester">
     <h2>API Tester</h2>
     <div class="at-layout">
 
       <!-- LEFT: Request Builder -->
       <div>
         <div class="at-url-row">
-          <select id="atMethod" class="at-method">
+          <!-- Color-coded method badge -->
+          <select id="atMethod" class="method-GET" aria-label="HTTP method" onchange="atUpdateMethodColor(this)">
             <option>GET</option><option>POST</option><option>PUT</option>
             <option>PATCH</option><option>DELETE</option>
           </select>
           <input id="atBaseUrl" class="text-input at-url-input" type="text"
-                 placeholder="http://127.0.0.1:8000">
+                 placeholder="http://127.0.0.1:8000" aria-label="Base URL">
         </div>
         <div class="at-path-row">
           <input id="atPath" class="text-input at-path-input" type="text"
-                 placeholder="/api/v1/system/health">
+                 placeholder="/api/v1/system/health" aria-label="API path">
         </div>
 
-        <div class="at-section">
-          <div class="at-section-title" onclick="atToggleSection(this)">Headers</div>
-          <div class="at-section-body" id="atHeadersBody">
-            <div id="atHeaderRows"></div>
-            <button class="at-add-row" onclick="atAddHeader()">+ Add Header</button>
+        <!-- Horizontal tabs: Headers / Body / Assertions -->
+        <div class="at-req-tabs" role="tablist">
+          <button class="active" onclick="atReqTab('Headers', this)">Headers</button>
+          <button onclick="atReqTab('Body', this)">Body</button>
+          <button onclick="atReqTab('Assertions', this)">Assertions</button>
+        </div>
+
+        <div class="at-tab-panel active" id="atTabHeaders">
+          <div id="atHeaderRows"></div>
+          <button class="at-add-row" onclick="atAddHeader()">+ Add Header</button>
+        </div>
+
+        <div class="at-tab-panel" id="atTabBody">
+          <div class="at-body-toggle">
+            <button id="atBodyNone" class="active" onclick="atSetBodyType('none')">None</button>
+            <button id="atBodyJson"                onclick="atSetBodyType('json')">JSON</button>
+            <button id="atBodyForm"                onclick="atSetBodyType('form')">Form Data</button>
+          </div>
+          <div id="atBodyJsonArea" style="display:none">
+            <textarea id="atBodyJsonText" class="at-textarea" placeholder='{"key": "value"}'></textarea>
+          </div>
+          <div id="atBodyFormArea" style="display:none">
+            <div id="atFormRows"></div>
+            <button class="at-add-row" onclick="atAddFormField(false)">+ Add Field</button>
+            <button class="at-add-row" onclick="atAddFormField(true)" style="margin-top:4px">+ Add File</button>
           </div>
         </div>
 
-        <div class="at-section">
-          <div class="at-section-title" onclick="atToggleSection(this)">Body</div>
-          <div class="at-section-body" id="atBodyBody">
-            <div class="at-body-toggle">
-              <button id="atBodyNone" class="active" onclick="atSetBodyType('none')">None</button>
-              <button id="atBodyJson"                onclick="atSetBodyType('json')">JSON</button>
-              <button id="atBodyForm"                onclick="atSetBodyType('form')">Form Data</button>
-            </div>
-            <div id="atBodyJsonArea" style="display:none">
-              <textarea id="atBodyJsonText" class="at-textarea" placeholder='{"key": "value"}'></textarea>
-            </div>
-            <div id="atBodyFormArea" style="display:none">
-              <div id="atFormRows"></div>
-              <button class="at-add-row" onclick="atAddFormField(false)">+ Add Field</button>
-              <button class="at-add-row" onclick="atAddFormField(true)" style="margin-top:4px">+ Add File</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="at-section">
-          <div class="at-section-title" onclick="atToggleSection(this)">Assertions</div>
-          <div class="at-section-body" id="atAssertionsBody">
-            <div id="atAssertionRows"></div>
-            <button class="at-add-row" onclick="atAddAssertion()">+ Add Assertion</button>
-          </div>
+        <div class="at-tab-panel" id="atTabAssertions">
+          <div id="atAssertionRows"></div>
+          <button class="at-add-row" onclick="atAddAssertion()">+ Add Assertion</button>
         </div>
 
         <div class="at-send-row">
           <button class="btn btn-primary" onclick="atSend()">Send</button>
           <input id="atReqName" class="text-input at-name-input" type="text"
-                 placeholder="Request name (for saving)">
-          <select id="atSuiteSel" class="at-suite-sel">
-            <option value="">— save to suite —</option>
+                 placeholder="Request name (for saving)" aria-label="Request name">
+          <select id="atSuiteSel" class="at-suite-sel" aria-label="Save to suite">
+            <option value="">&#x2014; save to suite &#x2014;</option>
           </select>
           <button class="btn btn-secondary" onclick="atSaveRequest()">Save</button>
         </div>
@@ -642,9 +1409,11 @@
 
       <!-- RIGHT: Response Viewer -->
       <div>
-        <div class="at-resp-header" id="atRespHeader" style="display:none">
+        <!-- Response status line -->
+        <div class="at-resp-status-line" id="atRespStatusLine">
           <span class="at-status-badge" id="atStatusBadge"></span>
           <span class="at-elapsed"      id="atElapsed"></span>
+          <span class="at-resp-size"    id="atRespSize"></span>
         </div>
         <div class="at-resp-tabs">
           <button class="active" onclick="atRespTab('Body',    this)">Body</button>
@@ -664,8 +1433,8 @@
     <div class="at-runner">
       <h3>Suite Runner</h3>
       <div class="at-runner-row">
-        <select id="atRunnerSuiteSel" style="flex:1" onchange="atLoadSuiteIntoRunner()">
-          <option value="">— select a suite —</option>
+        <select id="atRunnerSuiteSel" style="flex:1" aria-label="Select suite to run" onchange="atLoadSuiteIntoRunner()">
+          <option value="">&#x2014; select a suite &#x2014;</option>
         </select>
         <button class="btn btn-primary"   onclick="atRunSuite()">Run Suite</button>
         <button class="btn btn-secondary" onclick="atNewSuite()">New Suite</button>
@@ -680,29 +1449,63 @@
 
 </main>
 
+<footer class="status-bar" id="footerBar">
+  <span class="health-dot pending" id="healthDot" aria-label="Server health"></span>
+  <span id="healthLabel">Checking server&hellip;</span>
+</footer>
+
 <script>
-// ---------------------------------------------------------------------------
+// ===========================================================================
 // State
-// ---------------------------------------------------------------------------
+// ===========================================================================
 var primaryFile   = null;
 var secondaryFile = null;
 var compareMode   = false;
+var _autoRefreshTimer = null;
+var _runsData = [];
+var _runsSortCol = 'timestamp';
+var _runsSortDir = 'desc';
 
 // ---------------------------------------------------------------------------
-// Tab switching
+// Tab switching — animated panels + sliding underline indicator
 // ---------------------------------------------------------------------------
 function switchTab(name) {
   ['quick', 'runs', 'mapping', 'tester'].forEach(function(t) {
-    document.getElementById('panel-' + t).style.display = (t === name) ? '' : 'none';
-    var btn = document.getElementById('tab-' + t);
+    var panel = document.getElementById('panel-' + t);
+    var btn   = document.getElementById('tab-' + t);
+    if (t === name) {
+      panel.classList.remove('panel-hidden');
+      panel.classList.add('panel-entering');
+      // Remove entering class after animation completes
+      panel.addEventListener('animationend', function onEnd() {
+        panel.classList.remove('panel-entering');
+        panel.removeEventListener('animationend', onEnd);
+      });
+    } else {
+      panel.classList.add('panel-hidden');
+      panel.classList.remove('panel-entering');
+    }
     btn.classList.toggle('active', t === name);
     btn.setAttribute('aria-selected', String(t === name));
   });
+  updateTabIndicator();
 }
 
-// ---------------------------------------------------------------------------
+// Move the sliding underline indicator to the active tab button
+function updateTabIndicator() {
+  var activeBtn = document.querySelector('nav.tabs button.active');
+  var indicator = document.getElementById('tabIndicator');
+  var inner     = document.getElementById('tabsInner');
+  if (!activeBtn || !indicator || !inner) { return; }
+  var innerRect = inner.getBoundingClientRect();
+  var btnRect   = activeBtn.getBoundingClientRect();
+  indicator.style.left  = (btnRect.left - innerRect.left + inner.scrollLeft) + 'px';
+  indicator.style.width = btnRect.width + 'px';
+}
+
+// ===========================================================================
 // Status helpers — use textContent to avoid XSS
-// ---------------------------------------------------------------------------
+// ===========================================================================
 function clearStatus() {
   var el = document.getElementById('statusMsg');
   el.className = 'status-msg info';
@@ -792,16 +1595,48 @@ document.getElementById('fileInput2').addEventListener('change', function() {
   if (this.files.length) { setFile(this.files[0], 'secondary'); }
 });
 
+// Remove-file buttons
+document.getElementById('btnRemovePrimary').addEventListener('click', function(e) {
+  e.stopPropagation();
+  primaryFile = null;
+  document.getElementById('primaryFileCard').classList.remove('visible');
+  document.getElementById('fileInput').value = '';
+  updateButtons();
+});
+document.getElementById('btnRemoveSecondary').addEventListener('click', function(e) {
+  e.stopPropagation();
+  secondaryFile = null;
+  document.getElementById('secondaryFileCard').classList.remove('visible');
+  document.getElementById('fileInput2').value = '';
+  updateButtons();
+});
+
+function detectFormat(filename) {
+  var ext = (filename.split('.').pop() || '').toLowerCase();
+  var map = { txt: 'TXT', csv: 'CSV', dat: 'DAT', pipe: 'PIPE', tsv: 'TSV', xlsx: 'XLSX', xls: 'XLS' };
+  return map[ext] || ext.toUpperCase() || 'FILE';
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
 function setFile(file, slot) {
-  var nameEl;
   if (slot === 'primary') {
     primaryFile = file;
-    nameEl = document.getElementById('primaryFileName');
+    document.getElementById('primaryFileName').textContent = file.name;
+    document.getElementById('primaryFileMeta').textContent = formatBytes(file.size);
+    document.getElementById('primaryFormatBadge').textContent = detectFormat(file.name);
+    document.getElementById('primaryFileCard').classList.add('visible');
   } else {
     secondaryFile = file;
-    nameEl = document.getElementById('secondaryFileName');
+    document.getElementById('secondaryFileName').textContent = file.name;
+    document.getElementById('secondaryFileMeta').textContent = formatBytes(file.size);
+    document.getElementById('secondaryFormatBadge').textContent = detectFormat(file.name);
+    document.getElementById('secondaryFileCard').classList.add('visible');
   }
-  nameEl.textContent = file.name;
   updateButtons();
 }
 
@@ -813,24 +1648,49 @@ function updateButtons() {
   document.getElementById('btnCompare').disabled  = !(hasPrimary && hasMapping && hasSecondary);
 }
 
-// ---------------------------------------------------------------------------
+// ===========================================================================
 // Toggle compare
-// ---------------------------------------------------------------------------
+// ===========================================================================
 document.getElementById('btnToggleCompare').addEventListener('click', function() {
   compareMode = !compareMode;
   document.getElementById('compare-section').classList.toggle('visible', compareMode);
   this.classList.toggle('active', compareMode);
 });
 
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// Searchable mapping dropdown filter
+// ===========================================================================
+var _allMappingOptions = [];
+
+document.getElementById('mappingFilter').addEventListener('input', function() {
+  var q = this.value.toLowerCase();
+  var sel = document.getElementById('mappingSelect');
+  while (sel.firstChild) { sel.removeChild(sel.firstChild); }
+  var placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = q ? '— filtered results —' : '— select a mapping —';
+  sel.appendChild(placeholder);
+  _allMappingOptions.forEach(function(opt) {
+    if (!q || opt.label.toLowerCase().includes(q)) {
+      var o = document.createElement('option');
+      o.value = opt.value;
+      o.textContent = opt.label;
+      sel.appendChild(o);
+    }
+  });
+  updateButtons();
+});
+
+// ===========================================================================
 // Load mappings
-// ---------------------------------------------------------------------------
+// ===========================================================================
 async function loadMappings() {
   var sel = document.getElementById('mappingSelect');
   try {
     var resp = await fetch('/api/v1/mappings/');
     if (!resp.ok) { throw new Error('HTTP ' + resp.status); }
     var list = await resp.json();
+    _allMappingOptions = [];
     while (sel.firstChild) { sel.removeChild(sel.firstChild); }
     if (!list.length) {
       var opt = document.createElement('option');
@@ -843,9 +1703,11 @@ async function loadMappings() {
       placeholder.textContent = '— select a mapping —';
       sel.appendChild(placeholder);
       list.forEach(function(m) {
+        var label = m.mapping_name + ' (' + m.format + ')';
+        _allMappingOptions.push({ value: m.id, label: label });
         var o = document.createElement('option');
         o.value = m.id;
-        o.textContent = m.mapping_name + ' (' + m.format + ')';
+        o.textContent = label;
         sel.appendChild(o);
       });
     }
@@ -860,16 +1722,31 @@ async function loadMappings() {
   sel.addEventListener('change', updateButtons);
 }
 
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// Validate button loading state helper
+// ===========================================================================
+function setBtnLoading(btn, isLoading) {
+  if (isLoading) {
+    btn.disabled = true;
+    btn._origHTML = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner spinner-white"></span> Running\u2026';
+  } else {
+    if (btn._origHTML) { btn.innerHTML = btn._origHTML; }
+    btn.disabled = false;
+  }
+}
+
+// ===========================================================================
 // Validate
-// ---------------------------------------------------------------------------
+// ===========================================================================
 document.getElementById('btnValidate').addEventListener('click', async function() {
   if (!primaryFile) { setStatusText('Please select a file.', 'error'); return; }
   var mapping = document.getElementById('mappingSelect').value;
   if (!mapping) { setStatusText('Please select a mapping.', 'error'); return; }
 
-  setLoading('Validating…');
-  this.disabled = true;
+  setLoading('Validating\u2026');
+  setBtnLoading(this, true);
+  var btn = this;
 
   try {
     var fd = new FormData();
@@ -882,7 +1759,17 @@ document.getElementById('btnValidate').addEventListener('click', async function(
       throw new Error(errData.detail || resp.statusText);
     }
     var data = await resp.json();
-    var msg = 'Validated — ' + data.valid_rows + '/' + data.total_rows + ' rows valid'
+
+    // Populate metric cards
+    var totalRows = data.total_rows || 0;
+    var errors = data.invalid_rows || 0;
+    var quality = totalRows > 0 ? Math.round(((totalRows - errors) / totalRows) * 100) : 0;
+    document.getElementById('metricTotalRows').textContent = totalRows.toLocaleString();
+    document.getElementById('metricErrors').textContent = errors.toLocaleString();
+    document.getElementById('metricQuality').textContent = quality + '%';
+    document.getElementById('quickMetrics').style.display = '';
+
+    var msg = 'Validated \u2014 ' + data.valid_rows + '/' + data.total_rows + ' rows valid'
       + (data.invalid_rows ? ' (' + data.invalid_rows + ' errors)' : '') + '.';
     if (data.report_url) {
       setStatusWithLink(msg, data.valid ? 'success' : 'error', 'Open report', data.report_url);
@@ -893,6 +1780,7 @@ document.getElementById('btnValidate').addEventListener('click', async function(
   } catch (err) {
     setStatusText('Error: ' + err.message, 'error');
   } finally {
+    setBtnLoading(btn, false);
     updateButtons();
   }
 });
@@ -940,29 +1828,93 @@ document.getElementById('btnCompare').addEventListener('click', async function()
   }
 });
 
-// ---------------------------------------------------------------------------
-// Build run history table using DOM methods (no innerHTML with dynamic data)
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// Build run history table — DOM methods, sortable columns
+// ===========================================================================
 function buildRunsTable(rows) {
   var wrap = document.getElementById('runsTableWrap');
   while (wrap.firstChild) { wrap.removeChild(wrap.firstChild); }
 
+  // Update summary cards
+  var total = rows.length;
+  var passed = rows.filter(function(r) { return (r.status || '').toUpperCase() === 'PASS'; }).length;
+  var passRate = total > 0 ? Math.round((passed / total) * 100) : 0;
+  document.getElementById('cardTotalRuns').textContent = total || '\u2014';
+  document.getElementById('cardPassRate').textContent = total > 0 ? passRate + '%' : '\u2014';
+  document.getElementById('cardAvgQuality').textContent = '\u2014';
+  var lastRow = rows.length > 0 ? rows[rows.length - 1] : null;
+  if (lastRow && lastRow.timestamp) {
+    document.getElementById('cardLastRun').textContent = new Date(lastRow.timestamp).toLocaleDateString();
+  } else {
+    document.getElementById('cardLastRun').textContent = '\u2014';
+  }
+  var countEl = document.getElementById('runsCount');
+  if (countEl) { countEl.textContent = total + ' run' + (total !== 1 ? 's' : ''); }
+
   if (!rows.length) {
-    var empty = document.createElement('p');
-    empty.className = 'empty-msg';
-    empty.textContent = 'No run history found. Run a test suite to see results here.';
-    wrap.appendChild(empty);
+    var emptyDiv = document.createElement('div');
+    emptyDiv.className = 'empty-msg';
+    var iconDiv = document.createElement('div');
+    iconDiv.className = 'empty-icon';
+    iconDiv.textContent = '\uD83D\uDCC4';
+    var msgDiv = document.createElement('div');
+    msgDiv.textContent = 'No run history yet.';
+    var subDiv = document.createElement('div');
+    subDiv.style.marginTop = '6px';
+    var goLink = document.createElement('a');
+    goLink.textContent = 'Go to Quick Test \u2192';
+    goLink.href = '#';
+    goLink.addEventListener('click', function(e) { e.preventDefault(); switchTab('quick'); });
+    subDiv.appendChild(goLink);
+    emptyDiv.appendChild(iconDiv);
+    emptyDiv.appendChild(msgDiv);
+    emptyDiv.appendChild(subDiv);
+    wrap.appendChild(emptyDiv);
     return;
   }
 
+  var sortedRows = rows.slice().sort(function(a, b) {
+    var av = a[_runsSortCol] || '';
+    var bv = b[_runsSortCol] || '';
+    if (av < bv) return _runsSortDir === 'asc' ? -1 : 1;
+    if (av > bv) return _runsSortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
   var table = document.createElement('table');
 
-  // thead
+  // thead with sortable columns
   var thead = document.createElement('thead');
   var headerRow = document.createElement('tr');
-  ['Run ID', 'Suite Name', 'Environment', 'Date', 'Status', 'Tests', 'Report'].forEach(function(h) {
+  var cols = [
+    { label: 'Run ID',      key: 'run_id' },
+    { label: 'Suite Name',  key: 'suite_name' },
+    { label: 'Environment', key: 'environment' },
+    { label: 'Date',        key: 'timestamp' },
+    { label: 'Status',      key: 'status' },
+    { label: 'Tests',       key: 'pass_count' },
+    { label: 'Report',      key: null },
+  ];
+  cols.forEach(function(col) {
     var th = document.createElement('th');
-    th.textContent = h;
+    th.textContent = col.label;
+    if (col.key) {
+      var sortSpan = document.createElement('span');
+      sortSpan.className = 'sort-icon';
+      sortSpan.textContent = col.key === _runsSortCol
+        ? (_runsSortDir === 'asc' ? '\u25B2' : '\u25BC') : '\u25BC';
+      th.appendChild(sortSpan);
+      if (col.key === _runsSortCol) { th.classList.add('sort-' + _runsSortDir); }
+      th.addEventListener('click', (function(k) {
+        return function() {
+          if (_runsSortCol === k) { _runsSortDir = _runsSortDir === 'asc' ? 'desc' : 'asc'; }
+          else { _runsSortCol = k; _runsSortDir = 'asc'; }
+          buildRunsTable(_runsData);
+        };
+      })(col.key));
+    } else {
+      th.style.cursor = 'default';
+    }
     headerRow.appendChild(th);
   });
   thead.appendChild(headerRow);
@@ -970,12 +1922,12 @@ function buildRunsTable(rows) {
 
   // tbody
   var tbody = document.createElement('tbody');
-  rows.forEach(function(r) {
+  sortedRows.forEach(function(r) {
     var tr = document.createElement('tr');
 
     // Run ID
     var tdId = document.createElement('td');
-    tdId.textContent = r.run_id ? r.run_id.substring(0, 8) + '…' : '—';
+    tdId.textContent = r.run_id ? r.run_id.substring(0, 8) + '\u2026' : '\u2014';
     tdId.style.fontFamily = 'monospace';
     tdId.style.fontSize = '11px';
     tdId.setAttribute('data-tooltip', 'Unique identifier for this suite run');
@@ -983,26 +1935,30 @@ function buildRunsTable(rows) {
 
     // Suite name
     var tdName = document.createElement('td');
-    tdName.textContent = r.suite_name || '—';
+    tdName.textContent = r.suite_name || '\u2014';
     tr.appendChild(tdName);
 
     // Environment
     var tdEnv = document.createElement('td');
-    tdEnv.textContent = r.environment || '—';
+    tdEnv.textContent = r.environment || '\u2014';
     tr.appendChild(tdEnv);
 
     // Date
     var tdDate = document.createElement('td');
-    tdDate.textContent = r.timestamp ? new Date(r.timestamp).toLocaleString() : '—';
+    tdDate.textContent = r.timestamp ? new Date(r.timestamp).toLocaleString() : '\u2014';
     tdDate.setAttribute('data-tooltip', 'UTC time when the suite run completed');
     tr.appendChild(tdDate);
 
-    // Status badge
+    // Status badge with icon
     var tdStatus = document.createElement('td');
     var st  = (r.status || 'UNKNOWN').toUpperCase();
     var cls = st === 'PASS' ? 'pass' : st === 'FAIL' ? 'fail' : 'partial';
     var badge = document.createElement('span');
     badge.className = 'badge badge-' + cls;
+    var iconSpan = document.createElement('span');
+    iconSpan.textContent = cls === 'pass' ? '\u2713' : cls === 'fail' ? '\u2717' : '\u26A0';
+    badge.appendChild(iconSpan);
+    badge.appendChild(document.createTextNode(' ' + st));
     if (cls === 'pass') {
       badge.setAttribute('data-tooltip', 'All tests passed or were skipped');
     } else if (cls === 'fail') {
@@ -1010,7 +1966,6 @@ function buildRunsTable(rows) {
     } else {
       badge.setAttribute('data-tooltip', 'Some tests passed and some failed');
     }
-    badge.textContent = st;
     tdStatus.appendChild(badge);
     tr.appendChild(tdStatus);
 
@@ -1030,11 +1985,11 @@ function buildRunsTable(rows) {
       a.rel = 'noopener noreferrer';
       tdReport.appendChild(a);
     } else {
-      tdReport.textContent = '—';
+      tdReport.textContent = '\u2014';
     }
     if (r.archive_path) {
       var archiveIcon = document.createElement('span');
-      archiveIcon.textContent = ' 🔒';
+      archiveIcon.textContent = ' \uD83D\uDD12';
       archiveIcon.setAttribute('data-tooltip', 'This run is permanently archived with a tamper-evident SHA-256 manifest');
       tdReport.appendChild(archiveIcon);
     }
@@ -1048,11 +2003,16 @@ function buildRunsTable(rows) {
 
 async function loadRunHistory() {
   var wrap = document.getElementById('runsTableWrap');
+  while (wrap.firstChild) { wrap.removeChild(wrap.firstChild); }
+  var loadingP = document.createElement('p');
+  loadingP.className = 'empty-msg';
+  loadingP.textContent = 'Loading run history\u2026';
+  wrap.appendChild(loadingP);
   try {
     var resp = await fetch('/api/v1/runs/history');
     if (!resp.ok) { throw new Error('HTTP ' + resp.status); }
-    var rows = await resp.json();
-    buildRunsTable(rows);
+    _runsData = await resp.json();
+    buildRunsTable(_runsData);
   } catch (err) {
     while (wrap.firstChild) { wrap.removeChild(wrap.firstChild); }
     var p = document.createElement('p');
@@ -1062,15 +2022,115 @@ async function loadRunHistory() {
   }
 }
 
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// Auto-refresh toggle
+// ===========================================================================
+function toggleAutoRefresh() {
+  var toggle = document.getElementById('autoRefreshToggle');
+  var label  = document.getElementById('refreshToggleLabel');
+  if (_autoRefreshTimer) {
+    clearInterval(_autoRefreshTimer);
+    _autoRefreshTimer = null;
+    toggle.classList.remove('active');
+    label.textContent = 'Auto-refresh off';
+  } else {
+    _autoRefreshTimer = setInterval(loadRunHistory, 30000);
+    toggle.classList.add('active');
+    label.textContent = 'Auto-refresh on (30s)';
+  }
+}
+
+// ===========================================================================
 // Mapping Generator — state
-// ---------------------------------------------------------------------------
+// ===========================================================================
 var mapFile   = null;
 var rulesFile = null;
 
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// Mapping Generator — step progress
+// ===========================================================================
+function setMapStep(step) {
+  for (var i = 1; i <= 3; i++) {
+    var el = document.getElementById('mapStep' + i);
+    if (!el) continue;
+    el.classList.remove('active', 'done');
+    if (i < step) el.classList.add('done');
+    else if (i === step) el.classList.add('active');
+  }
+}
+
+// ===========================================================================
+// Copy JSON helper
+// ===========================================================================
+function copyJson(previewId, btnId) {
+  var pre = document.getElementById(previewId);
+  var btn = document.getElementById(btnId);
+  if (!pre || !btn) return;
+  var text = pre.textContent || pre.innerText || '';
+  if (!text || text === 'No mapping generated yet.' || text === 'No rules generated yet.') { return; }
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(function() {
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(function() {
+        btn.textContent = 'Copy JSON';
+        btn.classList.remove('copied');
+      }, 2000);
+    }).catch(function() {});
+  }
+}
+
+// ===========================================================================
+// JSON preview syntax highlighting (safe: & < > escaped before innerHTML)
+// ===========================================================================
+function highlightJsonPreview(str) {
+  return str.replace(
+    /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+    function(match) {
+      var safe = match.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      var cls  = 'jp-num';
+      if (/^"/.test(match))              { cls = /:$/.test(match) ? 'jp-key' : 'jp-str'; }
+      else if (/true|false/.test(match)) { cls = 'jp-bool'; }
+      else if (/null/.test(match))       { cls = 'jp-null'; }
+      return '<span class="' + cls + '">' + safe + '</span>';
+    }
+  );
+}
+
+function renderJsonPreview(previewId, jsonData) {
+  var pre = document.getElementById(previewId);
+  if (!pre) return;
+  try {
+    var pretty = JSON.stringify(jsonData, null, 2);
+    /* safe: highlightJsonPreview escapes & < > in every token before setting innerHTML */
+    pre.innerHTML = highlightJsonPreview(pretty); // safe-innerHTML: sanitized by highlightJsonPreview
+    pre.classList.add('has-content');
+  } catch (_) {
+    pre.textContent = String(jsonData);
+    pre.classList.remove('has-content');
+  }
+}
+
+function renderFieldSummary(fields) {
+  var container = document.getElementById('mapFieldSummary');
+  var tbody = document.getElementById('mapFieldSummaryBody');
+  if (!fields || !fields.length || !container || !tbody) { if (container) container.style.display = 'none'; return; }
+  while (tbody.firstChild) { tbody.removeChild(tbody.firstChild); }
+  fields.forEach(function(f) {
+    var tr = document.createElement('tr');
+    ['field_name','data_type','start_position','length'].forEach(function(key) {
+      var td = document.createElement('td');
+      td.textContent = f[key] !== undefined ? String(f[key]) : '\u2014';
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  container.style.display = '';
+}
+
+// ===========================================================================
 // Mapping Generator — result bar helper
-// ---------------------------------------------------------------------------
+// ===========================================================================
 function setGenResult(barId, type, msg, links) {
   var el = document.getElementById(barId);
   el.className = 'result-bar ' + type;
@@ -1096,7 +2156,9 @@ function setGenResult(barId, type, msg, links) {
 
 // ---------------------------------------------------------------------------
 // Mapping Generator — drop zones
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// Mapping Generator — drop zones
+// ===========================================================================
 function setupGenDrop(zoneId, inputId, slot) {
   var zone   = document.getElementById(zoneId);
   var input  = document.getElementById(inputId);
@@ -1118,7 +2180,7 @@ function setupGenDrop(zoneId, inputId, slot) {
 function setGenFile(file, slot, nameId, btnId) {
   document.getElementById(nameId).textContent = file.name;
   document.getElementById(btnId).disabled = false;
-  if (slot === 'map')   { mapFile   = file; }
+  if (slot === 'map')   { mapFile   = file; setMapStep(2); }
   if (slot === 'rules') { rulesFile = file; }
 }
 
@@ -1131,6 +2193,7 @@ setupGenDrop('rulesDropZone', 'rulesFileInput', 'rules');
 document.getElementById('btnGenMapping').addEventListener('click', async function() {
   if (!mapFile) { return; }
   setGenResult('mapResultBar', 'loading', 'Generating mapping\u2026', null);
+  setMapStep(3);
   this.disabled = true;
   try {
     var mappingName = document.getElementById('mapNameInput').value.trim();
@@ -1149,6 +2212,8 @@ document.getElementById('btnGenMapping').addEventListener('click', async functio
     }
     var data = await resp.json();
     var mid  = data.mapping_id;
+    if (data.mapping_content) { renderJsonPreview('mapJsonPreview', data.mapping_content); }
+    if (data.fields) { renderFieldSummary(data.fields); }
     setGenResult('mapResultBar', 'success', '\u2705 \u2018' + mid + '\u2019 created\u00a0\u00a0', [
       { text: 'Download JSON', href: '/api/v1/mappings/' + encodeURIComponent(mid), download: mid + '.json', tooltip: 'Download the generated JSON config to your machine' },
       { text: 'Use in Quick Test \u2192', tooltip: 'Load this config into the Quick Test tab and switch to it', onClick: function(e) {
@@ -1159,6 +2224,7 @@ document.getElementById('btnGenMapping').addEventListener('click', async functio
     ]);
   } catch (err) {
     setGenResult('mapResultBar', 'error', 'Error: ' + err.message, null);
+    setMapStep(2);
   } finally {
     document.getElementById('btnGenMapping').disabled = false;
   }
@@ -1185,6 +2251,7 @@ document.getElementById('btnGenRules').addEventListener('click', async function(
     }
     var data = await resp.json();
     var rid  = data.rules_id;
+    if (data.rules_content) { renderJsonPreview('rulesJsonPreview', data.rules_content); }
     setGenResult('rulesResultBar', 'success', '\u2705 \u2018' + rid + '\u2019 created\u00a0\u00a0', [
       { text: 'Download JSON', href: '/api/v1/rules/' + encodeURIComponent(rid) + '.json', download: rid + '.json', tooltip: 'Download the generated JSON config to your machine' }
     ]);
@@ -1194,6 +2261,51 @@ document.getElementById('btnGenRules').addEventListener('click', async function(
     document.getElementById('btnGenRules').disabled = false;
   }
 });
+
+// ---------------------------------------------------------------------------
+// Theme toggle
+// ---------------------------------------------------------------------------
+document.getElementById('btnTheme').addEventListener('click', function() {
+  var html = document.documentElement;
+  var next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  html.setAttribute('data-theme', next);
+  localStorage.setItem('cm3-theme', next);
+  this.textContent = next === 'dark' ? '\u2600' : '\u263D';  /* sun / crescent */
+  this.setAttribute('aria-label', next === 'dark' ? 'Switch to light theme' : 'Switch to dark theme');
+});
+
+// Set initial icon to match stored theme
+(function() {
+  var saved = localStorage.getItem('cm3-theme') || 'dark';
+  var btn = document.getElementById('btnTheme');
+  btn.textContent = saved === 'dark' ? '\u2600' : '\u263D';
+})();
+
+// ---------------------------------------------------------------------------
+// Footer health polling
+// ---------------------------------------------------------------------------
+var HEALTH_INTERVAL_MS = 30000;
+
+async function checkHealth() {
+  var dot   = document.getElementById('healthDot');
+  var label = document.getElementById('healthLabel');
+  try {
+    var resp = await fetch('/api/v1/system/health', { cache: 'no-store' });
+    if (resp.ok) {
+      dot.className = 'health-dot ok';
+      label.textContent = 'Server healthy';
+    } else {
+      dot.className = 'health-dot error';
+      label.textContent = 'Server returned ' + resp.status;
+    }
+  } catch (_) {
+    dot.className = 'health-dot error';
+    label.textContent = 'Server unreachable';
+  }
+}
+
+checkHealth();
+setInterval(checkHealth, HEALTH_INTERVAL_MS);
 
 // ---------------------------------------------------------------------------
 // Init
@@ -1212,10 +2324,19 @@ var _atDragSrcIdx      = -1;
 var _atCurrentResults  = [];
 var AT_PROXY_TIMEOUT = 30;
 
-// -- Section collapse ---------------------------------------------------------
-function atToggleSection(titleEl) {
-  titleEl.classList.toggle('collapsed');
-  titleEl.nextElementSibling.classList.toggle('hidden');
+// -- Method colour badge -------------------------------------------------------
+function atUpdateMethodColor(sel) {
+  sel.className = 'method-' + sel.value;
+}
+
+// -- Horizontal request tabs --------------------------------------------------
+function atReqTab(name, btn) {
+  ['Headers', 'Body', 'Assertions'].forEach(function(t) {
+    var panel = document.getElementById('atTab' + t);
+    if (panel) panel.classList.toggle('active', t === name);
+  });
+  btn.parentNode.querySelectorAll('button').forEach(function(b) { b.classList.remove('active'); });
+  btn.classList.add('active');
 }
 
 // -- Body type toggle ---------------------------------------------------------
@@ -1385,7 +2506,7 @@ async function atSend() {
 
   var respBody = document.getElementById('atRespBody');
   respBody.textContent = 'Sending\u2026';
-  document.getElementById('atRespHeader').style.display = 'none';
+  document.getElementById('atRespStatusLine').classList.remove('visible');
 
   try {
     var resp = await fetch('/api/v1/api-tester/proxy', {method: 'POST', body: fd});
@@ -1409,7 +2530,14 @@ function atRenderResponse(data) {
   badge.className = 'at-status-badge at-status-' +
     (code < 300 ? '2xx' : code < 400 ? '3xx' : code < 500 ? '4xx' : '5xx');
   document.getElementById('atElapsed').textContent = data.elapsed_ms.toFixed(1) + ' ms';
-  document.getElementById('atRespHeader').style.display = '';
+  var sizeEl = document.getElementById('atRespSize');
+  if (sizeEl && data.body) {
+    var bytes = new Blob([data.body]).size;
+    sizeEl.textContent = formatBytes(bytes);
+  } else if (sizeEl) {
+    sizeEl.textContent = '';
+  }
+  document.getElementById('atRespStatusLine').classList.add('visible');
 
   // Body tab -- JSON highlighter escapes all < and > tokens before innerHTML
   var bodyEl = document.getElementById('atRespBody');
@@ -1543,7 +2671,7 @@ function atRenderRunnerList(requests, results) {
     row.draggable = true;
 
     var methodSpan = document.createElement('span');
-    methodSpan.className = 'at-req-method';
+    methodSpan.className = 'at-req-method method-' + req.method;
     methodSpan.textContent = req.method;
 
     var nameSpan = document.createElement('span');
@@ -1693,6 +2821,123 @@ function atJsonPath(obj, path) {
 
 // Load suites when tab is opened
 document.getElementById('tab-tester').addEventListener('click', atLoadSuites);
+
+// ---------------------------------------------------------------------------
+// Indicator initialisation — run after layout is painted
+// ---------------------------------------------------------------------------
+window.addEventListener('load', function() {
+  updateTabIndicator();
+});
+// Also reposition on window resize (handles font scaling / zoom)
+window.addEventListener('resize', updateTabIndicator);
+
+// ===========================================================================
+// #125: System preference detection for theme
+// ===========================================================================
+(function() {
+  var stored = localStorage.getItem('cm3-theme');
+  if (!stored) {
+    // No stored preference — use system preference
+    var preferLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+    var systemTheme = preferLight ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', systemTheme);
+    var btn = document.getElementById('btnTheme');
+    if (btn) btn.textContent = systemTheme === 'dark' ? '\u2600' : '\u263D';
+  }
+  // Listen for live system preference changes when no stored preference
+  if (window.matchMedia) {
+    window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', function(e) {
+      if (localStorage.getItem('cm3-theme')) return; // user chose manually
+      var newTheme = e.matches ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', newTheme);
+      var btn = document.getElementById('btnTheme');
+      if (btn) {
+        btn.textContent = newTheme === 'dark' ? '\u2600' : '\u263D';
+        btn.setAttribute('aria-label', newTheme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme');
+      }
+    });
+  }
+})();
+
+// ===========================================================================
+// #126: Toast notification system
+// ===========================================================================
+function showToast(message, type, duration) {
+  type = type || 'info';
+  duration = duration || 4000;
+  var container = document.getElementById('toastContainer');
+  if (!container) return;
+
+  var toast = document.createElement('div');
+  toast.className = 'toast toast-' + type;
+  toast.textContent = message;
+
+  container.appendChild(toast);
+
+  // Trigger slide-in after DOM insertion
+  requestAnimationFrame(function() {
+    requestAnimationFrame(function() {
+      toast.classList.add('toast-visible');
+    });
+  });
+
+  // Auto-dismiss
+  var timer = setTimeout(function() {
+    dismissToast(toast);
+  }, duration);
+
+  // Allow click to dismiss
+  toast.addEventListener('click', function() {
+    clearTimeout(timer);
+    dismissToast(toast);
+  });
+}
+
+function dismissToast(toast) {
+  toast.classList.remove('toast-visible');
+  toast.classList.add('toast-exit');
+  toast.addEventListener('transitionend', function() {
+    if (toast.parentNode) toast.parentNode.removeChild(toast);
+  });
+}
+
+// ===========================================================================
+// #127: Keyboard support for collapsible/toggle elements
+// ===========================================================================
+// Auto-refresh toggle — Enter/Space
+(function() {
+  var toggle = document.getElementById('autoRefreshToggle');
+  if (toggle) {
+    toggle.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        toggleAutoRefresh();
+      }
+    });
+  }
+})();
+
+// Update aria-expanded when toggling auto-refresh
+var _origToggleAutoRefresh = toggleAutoRefresh;
+toggleAutoRefresh = function() {
+  _origToggleAutoRefresh();
+  var toggle = document.getElementById('autoRefreshToggle');
+  if (toggle) {
+    toggle.setAttribute('aria-expanded', String(!!_autoRefreshTimer));
+  }
+};
+
+// Compare toggle — add aria-expanded
+(function() {
+  var btn = document.getElementById('btnToggleCompare');
+  if (btn) {
+    btn.setAttribute('aria-expanded', 'false');
+    var origListener = null;
+    btn.addEventListener('click', function() {
+      btn.setAttribute('aria-expanded', String(compareMode));
+    });
+  }
+})();
 </script>
 </body>
 </html>

@@ -243,6 +243,85 @@ cm3-batch extract \
 - `-l, --limit`: Row limit (only for --table mode)
 - `-d, --delimiter`: Output delimiter (default: |)
 
+#### DB Extract → File Comparison (`db-compare`)
+
+Run an end-to-end workflow that extracts data from Oracle, writes it to a
+temporary file, and compares it against an actual batch file — all in one
+command.
+
+**Using a table name:**
+```bash
+cm3-batch db-compare \
+  --query-or-table SHAW_SRC_P327 \
+  --mapping config/mappings/p327_universal.json \
+  --actual-file outputs/actual/p327.txt \
+  --key-columns ACCT_NUM \
+  --output reports/db_compare_p327.json
+```
+
+**Using an inline SQL query:**
+```bash
+cm3-batch db-compare \
+  --query-or-table "SELECT ACCT_NUM, AMOUNT FROM SHAW_SRC_P327 WHERE STATUS = 'A'" \
+  --mapping config/mappings/p327_universal.json \
+  --actual-file outputs/actual/p327.txt \
+  --key-columns ACCT_NUM \
+  --output reports/db_compare_p327.json
+```
+
+**Options:**
+- `-q, --query-or-table`: SQL SELECT statement or bare Oracle table name (required)
+- `-m, --mapping`: JSON mapping config file (required)
+- `-f, --actual-file`: Actual batch file to compare against (required)
+- `-k, --key-columns`: Comma-separated key column names for row matching
+- `--output-format`: `json` (default) or `html`
+- `-o, --output`: File path to write the result report
+
+**Result summary printed to stdout:**
+```
+DB Extract → File Comparison Summary
+  Query / Table:      SHAW_SRC_P327
+  DB rows extracted:  5000
+  Actual file rows:   5000
+  Matching rows:      4998
+  Only in DB:         2
+  Only in file:       0
+  Rows with diffs:    0
+
+  FAIL
+```
+
+**API equivalent (`POST /api/v1/files/db-compare`):**
+```bash
+curl -X POST "http://localhost:8000/api/v1/files/db-compare" \
+  -F "query_or_table=SHAW_SRC_P327" \
+  -F "mapping_id=p327_universal" \
+  -F "key_columns=ACCT_NUM" \
+  -F "output_format=json" \
+  -F "actual_file=@outputs/actual/p327.txt"
+```
+
+Response shape:
+```json
+{
+  "workflow_status": "passed",
+  "db_rows_extracted": 5000,
+  "query_or_table": "SHAW_SRC_P327",
+  "total_rows_file1": 5000,
+  "total_rows_file2": 5000,
+  "matching_rows": 5000,
+  "only_in_file1": 0,
+  "only_in_file2": 0,
+  "differences": 0,
+  "structure_compatible": true
+}
+```
+
+> **Oracle credentials**: The `db-compare` command reads `ORACLE_USER`,
+> `ORACLE_PASSWORD`, and `ORACLE_DSN` from the `.env` file (same as all
+> other database commands). See [Oracle Connection Issues](#oracle-connection-issues)
+> for troubleshooting.
+
 ### 5. Business Rules (New!)
 
 Convert business rules from Excel template to JSON:
@@ -802,8 +881,23 @@ curl -X POST "http://localhost:8000/api/v1/files/parse" \
 curl -X POST "http://localhost:8000/api/v1/files/compare" \
   -F "file1=@data/samples/file1.txt" \
   -F "file2=@data/samples/file2.txt" \
-  -F 'request={"mapping_id": "p327_universal", "key_columns": ["ACCT-NUM"]}'
+  -F "mapping_id=p327_universal" \
+  -F "key_columns=ACCT-NUM" \
+  -F "output_format=html" \
+  -F "chunk_size=100000"
 ```
+
+**Form parameters (all match the CLI `compare` command):**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `file1` | file | required | First file to compare |
+| `file2` | file | required | Second file to compare |
+| `mapping_id` | string | required | Mapping config ID |
+| `key_columns` | string | `""` | Comma-separated key column names. Empty = row-by-row comparison |
+| `detailed` | bool | `true` | Include field-level diff analysis |
+| `output_format` | string | `"html"` | `"html"` returns a `report_url`; `"json"` writes a machine-readable file and returns a `download_url` |
+| `chunk_size` | int | `100000` | Row chunk size for large-file chunked processing (matches CLI `--chunk-size`) |
 
 **Response:**
 ```json
@@ -814,9 +908,21 @@ curl -X POST "http://localhost:8000/api/v1/files/compare" \
   "only_in_file1": 1,
   "only_in_file2": 1,
   "differences": 2,
-  "report_url": "/api/v1/reports/comparison_12345.html"
+  "report_url": "/uploads/compare_file1_file2.html",
+  "download_url": null,
+  "threshold_result": {
+    "passed": true,
+    "overall_result": "pass",
+    "metrics": {
+      "missing_rows": 1,
+      "extra_rows": 1,
+      "different_rows": 2
+    }
+  }
 }
 ```
+
+> `POST /compare-async` accepts the same parameters and returns a `job_id` for polling via `GET /compare-jobs/{job_id}`.
 
 ### 4. Using Python Requests
 
@@ -1130,6 +1236,8 @@ cm3-batch extract -t <table>            # Extract from DB
 cm3-batch reconcile -m <mapping>        # Reconcile mapping
 cm3-batch list-runs                     # List archived suite runs
 cm3-batch get-run <run_id>              # Inspect a specific run
+cm3-batch schedule list                 # List configured suites
+cm3-batch schedule run <suite-name>     # Run a suite immediately
 ```
 
 ### API Endpoints
@@ -1140,6 +1248,8 @@ GET  /api/v1/mappings/                  # List mappings
 POST /api/v1/files/detect               # Detect format
 POST /api/v1/files/parse                # Parse file
 POST /api/v1/files/compare              # Compare files
+GET  /api/v1/schedules                  # List configured suites
+POST /api/v1/schedules/run              # Trigger a suite run
 ```
 
 ### Python Usage
@@ -1191,6 +1301,95 @@ curl -X POST http://cm3-server:8000/api/v1/runs/trigger \
 ```
 
 Check status: `GET /api/v1/runs/{run_id}`
+
+---
+
+## Scheduled and Triggered Validation Runs
+
+Suite definitions live in `config/suites/` as YAML files.  Each file describes
+a named suite of `validate` steps that can be run on demand from the CLI or
+the API.
+
+### Suite YAML format
+
+```yaml
+name: daily-validation
+description: Daily validation suite for Shaw-to-C360 migration files
+steps:
+  - name: Validate customer file
+    type: validate
+    file_pattern: data/samples/customers.txt
+    mapping: config/mappings/customer_mapping.json
+    rules: null
+
+  - name: Validate transaction file
+    type: validate
+    file_pattern: data/samples/transactions.txt
+    mapping: config/mappings/transaction_mapping.json
+thresholds:
+  max_errors: 0
+```
+
+**Fields:**
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | yes | Unique suite identifier used as CLI argument and API key |
+| `description` | no | Human-readable summary shown in list views |
+| `steps` | yes | Ordered list of step definitions |
+| `thresholds` | no | Global threshold dict (e.g. `{max_errors: 0}`) |
+
+**Step fields:**
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | yes | Human-readable step label |
+| `type` | yes | `validate` or `compare` (compare is reserved for future use) |
+| `file_pattern` | yes | File path or glob pattern passed to the validate service |
+| `mapping` | no | Path to mapping JSON config |
+| `rules` | no | Path to rules config JSON |
+
+### CLI commands
+
+```bash
+# List all suites in config/suites/
+cm3-batch schedule list
+
+# List suites from a custom directory
+cm3-batch schedule list --suites-dir /path/to/suites
+
+# List suites as JSON (for scripting)
+cm3-batch schedule list --json-output
+
+# Run a suite by name (exits 1 on failure)
+cm3-batch schedule run daily-validation
+
+# Run from a custom suites directory and get JSON output
+cm3-batch schedule run daily-validation --suites-dir /path/to/suites --json-output
+```
+
+### API endpoints
+
+```
+GET  /api/v1/schedules              # List all configured suites
+POST /api/v1/schedules/run          # Run a suite immediately (synchronous)
+```
+
+**List suites:**
+
+```bash
+curl http://cm3-server:8000/api/v1/schedules
+# Returns: [{"name": "daily-validation", "description": "...", "step_count": 2}]
+```
+
+**Run a suite:**
+
+```bash
+curl -X POST http://cm3-server:8000/api/v1/schedules/run \
+  -H "Content-Type: application/json" \
+  -d '{"suite_name": "daily-validation"}'
+# Returns 202 with run_id, status, and step_results
+```
 
 ### Pipeline Templates
 

@@ -12,6 +12,7 @@ This is the **single source of truth** for docs navigation.
 - `docs/E2E_TESTING_GUIDE.md` — **end-to-end walkthrough** (CLI, Web UI, CI/CD triggers, api_check)
 - `docs/TESTING_GUIDE.md` — test strategy and unit/integration commands
 - `docs/CICD_GUIDE.md` — CI/CD setup and behavior
+- `docs/CI_INTEGRATION_GUIDE.md` — reusable CI templates (GitHub Actions, Azure DevOps, GitLab CI) and integration recipes
 - `docs/PIPELINE_REGRESSION_GUIDE.md` — pipeline regression flows
 - `docs/GREAT_EXPECTATIONS_CHECKPOINT1.md` — BA-friendly GE usage
 

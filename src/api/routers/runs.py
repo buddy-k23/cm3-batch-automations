@@ -1,13 +1,16 @@
-"""Run management API endpoints — trigger and status for test suite runs."""
+"""Run management API endpoints — trigger, status, and schedule suite runs."""
 
 import uuid
 import asyncio
 from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Optional
+from typing import Any, List, Optional
 
 router = APIRouter(prefix="/api/v1/runs", tags=["runs"])
+
+# Separate router for schedule endpoints mounted at /api/v1/schedules
+schedule_router = APIRouter(prefix="/api/v1/schedules", tags=["schedules"])
 
 # In-memory run status store (replace with file/DB in production)
 _run_store: dict[str, dict] = {}
@@ -95,3 +98,84 @@ async def get_run_status(run_id: str):
     if run_id not in _run_store:
         raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
     return _run_store[run_id]
+
+
+# ---------------------------------------------------------------------------
+# Schedule endpoints  (GET /api/v1/schedules, POST /api/v1/schedules/run)
+# ---------------------------------------------------------------------------
+
+
+class ScheduleRunRequest(BaseModel):
+    """Request body for POST /api/v1/schedules/run.
+
+    Attributes:
+        suite_name: Name of the suite to execute immediately.
+        suites_dir: Optional override for the YAML suites directory.
+    """
+
+    suite_name: str
+    suites_dir: Optional[str] = None
+
+
+class ScheduleRunResponse(BaseModel):
+    """Response body for POST /api/v1/schedules/run.
+
+    Attributes:
+        suite_name: Echoed from the request.
+        run_id: UUID string generated for this execution.
+        status: Execution result — ``"passed"``, ``"failed"``, or ``"error"``.
+        message: Human-readable summary or error detail.
+        step_results: List of per-step result dicts.
+    """
+
+    suite_name: str
+    run_id: str
+    status: str
+    message: str
+    step_results: List[Any]
+
+
+@schedule_router.get("", response_model=List[dict])
+async def list_schedules(suites_dir: Optional[str] = None):
+    """List all configured validation suites.
+
+    Reads YAML suite definitions from the suites directory and returns
+    lightweight metadata for each suite.
+
+    Args:
+        suites_dir: Optional query-parameter override for the suites directory.
+
+    Returns:
+        List of dicts, each with ``name``, ``description``, and ``step_count``.
+    """
+    from src.services.scheduler_service import list_suites
+
+    return list_suites(suites_dir=suites_dir)
+
+
+@schedule_router.post("/run", response_model=ScheduleRunResponse, status_code=202)
+async def run_schedule(request: ScheduleRunRequest):
+    """Trigger a named validation suite run immediately.
+
+    Executes the suite synchronously in the request thread and returns the
+    full result once complete.
+
+    Args:
+        request: Suite name and optional suites directory override.
+
+    Returns:
+        ScheduleRunResponse with run_id, status, and per-step results.
+    """
+    from src.services.scheduler_service import run_suite_by_name
+
+    result = run_suite_by_name(
+        suite_name=request.suite_name,
+        suites_dir=request.suites_dir,
+    )
+    return ScheduleRunResponse(
+        suite_name=result["suite_name"],
+        run_id=result.get("run_id", ""),
+        status=result["status"],
+        message=result.get("message", ""),
+        step_results=result.get("step_results", []),
+    )

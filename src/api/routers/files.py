@@ -22,9 +22,11 @@ from src.api.models.file import (
     FileValidationResult,
     FileCompareAsyncCreateResponse,
     FileCompareAsyncStatusResponse,
+    DbCompareResult,
 )
 from src.parsers.format_detector import FormatDetector
 from src.services.compare_service import run_compare_service
+from src.services.db_file_compare_service import compare_db_to_file
 from src.services.parse_service import run_parse_service
 from src.services.validate_service import run_validate_service
 from src.reports.renderers.comparison_renderer import HTMLReporter
@@ -32,6 +34,7 @@ from src.services.compare_job_store import CompareJobStore
 from src.services.retry_policy import execute_with_retries
 from src.services.metrics_registry import METRICS
 from src.utils.structured_logger import get_structured_logger, log_event
+from src.validators.threshold import ThresholdEvaluator
 
 router = APIRouter()
 
@@ -194,6 +197,55 @@ async def validate_file(
             upload_path.unlink()
 
 
+def _build_threshold_result(compare_result: dict) -> dict:
+    """Evaluate comparison results against default thresholds.
+
+    Adapts the raw service output to the format expected by
+    :class:`~src.validators.threshold.ThresholdEvaluator`, normalising the
+    ``only_in_file1`` and ``only_in_file2`` values so that
+    :meth:`~src.validators.threshold.ThresholdEvaluator.evaluate` can always
+    call ``len()`` on them.
+
+    Three shapes are handled:
+
+    - **Non-chunked**: values are ``pd.DataFrame`` objects — ``len()`` works
+      natively, no adaptation needed.
+    - **Chunked**: values may be empty lists (``[]``) with a separate
+      ``only_in_file1_count`` integer field — we substitute a synthetic list
+      of the correct length.
+    - **Structure-incompatible early-exit**: values are already ``0`` integers
+      — substituted with ``[]``.
+
+    Args:
+        compare_result: Raw dict returned by :func:`run_compare_service`.
+
+    Returns:
+        Dict with keys ``"passed"`` (bool) and ``"overall_result"`` (str)
+        at minimum, plus ``"metrics"`` entries.
+    """
+    adapted = dict(compare_result)
+    for field, count_key in (
+        ("only_in_file1", "only_in_file1_count"),
+        ("only_in_file2", "only_in_file2_count"),
+    ):
+        value = adapted.get(field)
+        # DataFrames and lists support len() already — skip adaptation.
+        try:
+            len(value)  # type: ignore[arg-type]
+        except TypeError:
+            # Value is an integer (chunked count or 0 from early-exit).
+            count = adapted.get(count_key, value or 0)
+            adapted[field] = [None] * int(count)
+
+    evaluator = ThresholdEvaluator()
+    evaluation = evaluator.evaluate(adapted)
+    return {
+        "passed": evaluation["passed"],
+        "overall_result": evaluation["overall_result"].value,
+        "metrics": evaluation.get("metrics", {}),
+    }
+
+
 def _run_compare_with_mapping(
     upload_path1: Path,
     upload_path2: Path,
@@ -202,9 +254,9 @@ def _run_compare_with_mapping(
     """Execute a synchronous file comparison and return the result model.
 
     Resolves the mapping file from ``request.mapping_id``, delegates to
-    :func:`run_compare_service`, generates an HTML report via
-    :class:`HTMLReporter`, and wraps the raw service output into a
-    :class:`FileCompareResult` response model.
+    :func:`run_compare_service`, generates a report (HTML or JSON) based on
+    ``request.output_format``, evaluates default thresholds, and wraps the
+    raw service output into a :class:`FileCompareResult` response model.
 
     Chunked processing is enabled automatically when ``request.key_columns``
     is non-empty **and** at least one of the two files meets the
@@ -214,12 +266,14 @@ def _run_compare_with_mapping(
         upload_path1: Filesystem path to the first uploaded file.
         upload_path2: Filesystem path to the second uploaded file.
         request: Parsed compare request containing ``mapping_id``,
-            optional ``key_columns``, and the ``detailed`` flag.
+            optional ``key_columns``, ``detailed`` flag, ``output_format``
+            (``"html"`` or ``"json"``), and ``chunk_size``.
 
     Returns:
         A :class:`FileCompareResult` containing row counts, match/difference
-        counts, an optional ``field_statistics`` mapping, and a
-        ``report_url`` pointing to the generated HTML report.
+        counts, an optional ``field_statistics`` mapping, a
+        ``threshold_result`` dict, and either a ``report_url`` (HTML) or
+        ``download_url`` (JSON) pointing to the generated report file.
 
     Raises:
         HTTPException: 404 if the mapping file for ``request.mapping_id``
@@ -241,11 +295,26 @@ def _run_compare_with_mapping(
         keys=keys,
         mapping=str(mapping_file),
         detailed=request.detailed,
+        chunk_size=request.chunk_size,
         use_chunked=use_chunked,
     )
 
-    report_path = UPLOADS_DIR / f"compare_{upload_path1.stem}_{upload_path2.stem}.html"
-    HTMLReporter().generate(compare_result, str(report_path))
+    report_stem = f"compare_{upload_path1.stem}_{upload_path2.stem}"
+    report_url: str | None = None
+    download_url: str | None = None
+
+    if request.output_format == "json":
+        import json as _json
+        report_path = UPLOADS_DIR / f"{report_stem}.json"
+        with open(report_path, "w", encoding="utf-8") as fh:
+            _json.dump(compare_result, fh, indent=2, default=str)
+        download_url = f"/uploads/{report_path.name}"
+    else:
+        report_path = UPLOADS_DIR / f"{report_stem}.html"
+        HTMLReporter().generate(compare_result, str(report_path))
+        report_url = f"/uploads/{report_path.name}"
+
+    threshold_result = _build_threshold_result(compare_result)
 
     return FileCompareResult(
         total_rows_file1=compare_result['total_rows_file1'],
@@ -254,8 +323,10 @@ def _run_compare_with_mapping(
         only_in_file1=compare_result.get('only_in_file1_count', len(compare_result.get('only_in_file1', []))),
         only_in_file2=compare_result.get('only_in_file2_count', len(compare_result.get('only_in_file2', []))),
         differences=compare_result.get('rows_with_differences', len(compare_result.get('differences', []))),
-        report_url=f"/uploads/{report_path.name}",
+        report_url=report_url,
+        download_url=download_url,
         field_statistics=compare_result.get('field_statistics'),
+        threshold_result=threshold_result,
     )
 
 
@@ -264,12 +335,32 @@ async def compare_files(
     file1: UploadFile = File(...),
     file2: UploadFile = File(...),
     mapping_id: str = Form(...),
-    key_columns: str = Form(""),
-    detailed: bool = Form(True),
+    key_columns: str = Form(
+        "",
+        description="Comma-separated key column names used for row matching. "
+        "When empty, row-by-row positional comparison is used.",
+    ),
+    detailed: bool = Form(True, description="Include field-level diff analysis."),
+    output_format: str = Form(
+        "html",
+        description="Report output format: ``html`` (default) or ``json``. "
+        "HTML produces a ``report_url``; JSON produces a ``download_url``.",
+    ),
+    chunk_size: int = Form(
+        100_000,
+        description="Row chunk size for large-file chunked processing. "
+        "Matches the CLI ``--chunk-size`` default of 100 000.",
+    ),
 ):
     """Compare two files and return a diff report.
 
-    Returns comparison results and report URL.
+    Accepts the same options as the CLI ``compare`` command, including
+    ``output_format`` (html/json), ``chunk_size``, and ``key_columns``.
+    The response always includes a ``threshold_result`` with pass/fail
+    evaluated against default thresholds.
+
+    Returns comparison results and either a ``report_url`` (HTML) or
+    ``download_url`` (JSON) pointing to the generated report.
     """
     upload_path1 = UPLOADS_DIR / f"file1_{file1.filename}"
     upload_path2 = UPLOADS_DIR / f"file2_{file2.filename}"
@@ -280,7 +371,13 @@ async def compare_files(
         shutil.copyfileobj(file2.file, buffer)
 
     keys_list = [k.strip() for k in key_columns.split(",") if k.strip()]
-    request = FileCompareRequest(mapping_id=mapping_id, key_columns=keys_list, detailed=detailed)
+    request = FileCompareRequest(
+        mapping_id=mapping_id,
+        key_columns=keys_list,
+        detailed=detailed,
+        output_format=output_format,
+        chunk_size=chunk_size,
+    )
 
     try:
         return _run_compare_with_mapping(upload_path1, upload_path2, request)
@@ -331,11 +428,25 @@ async def compare_files_async(
     file1: UploadFile = File(...),
     file2: UploadFile = File(...),
     mapping_id: str = Form(...),
-    key_columns: str = Form(""),
-    detailed: bool = Form(True),
+    key_columns: str = Form(
+        "",
+        description="Comma-separated key column names used for row matching. "
+        "When empty, row-by-row positional comparison is used.",
+    ),
+    detailed: bool = Form(True, description="Include field-level diff analysis."),
+    output_format: str = Form(
+        "html",
+        description="Report output format: ``html`` (default) or ``json``.",
+    ),
+    chunk_size: int = Form(
+        100_000,
+        description="Row chunk size for large-file chunked processing.",
+    ),
 ):
     """Create an async compare job and return the job ID.
 
+    Accepts the same parameters as ``POST /compare`` including
+    ``output_format`` and ``chunk_size`` for parity with the CLI.
     Poll ``GET /compare-jobs/{job_id}`` for status and result.
     """
     job_id = str(uuid.uuid4())
@@ -348,7 +459,13 @@ async def compare_files_async(
         shutil.copyfileobj(file2.file, buffer)
 
     keys_list = [k.strip() for k in key_columns.split(",") if k.strip()]
-    request = FileCompareRequest(mapping_id=mapping_id, key_columns=keys_list, detailed=detailed)
+    request = FileCompareRequest(
+        mapping_id=mapping_id,
+        key_columns=keys_list,
+        detailed=detailed,
+        output_format=output_format,
+        chunk_size=chunk_size,
+    )
 
     _COMPARE_JOB_STORE.create(job_id, status="queued")
     _COMPARE_JOB_STORE.update(job_id, status="running")
@@ -373,3 +490,86 @@ async def compare_job_status(job_id: str):
         result=result,
         error=job.get("error"),
     )
+
+
+@router.post("/db-compare", response_model=DbCompareResult)
+async def db_compare(
+    actual_file: UploadFile = File(...),
+    query_or_table: str = Form(...),
+    mapping_id: str = Form(...),
+    key_columns: str = Form(""),
+    output_format: str = Form("json"),
+):
+    """Extract data from Oracle and compare against an uploaded actual batch file.
+
+    Runs the full DB extract → temp file → compare pipeline and returns a
+    unified result containing workflow metadata and comparison statistics.
+
+    Args:
+        actual_file: The actual batch file to compare against.
+        query_or_table: SQL SELECT statement or bare Oracle table name.
+        mapping_id: ID of the JSON mapping config (must exist in MAPPINGS_DIR).
+        key_columns: Comma-separated key column names for row matching.
+        output_format: Desired output format (``"json"`` or ``"html"``).
+
+    Returns:
+        DbCompareResult with workflow status, row counts, and diff statistics.
+
+    Raises:
+        HTTPException: 404 if the mapping is not found.
+        HTTPException: 500 if DB extraction or comparison fails.
+    """
+    mapping_file = MAPPINGS_DIR / f"{mapping_id}.json"
+    if not mapping_file.exists():
+        raise HTTPException(status_code=404, detail=f"Mapping '{mapping_id}' not found")
+
+    import json as _json
+    mapping_config = _json.loads(mapping_file.read_text(encoding="utf-8"))
+
+    upload_path = UPLOADS_DIR / f"dbcompare_{actual_file.filename}"
+    with open(upload_path, "wb") as buffer:
+        shutil.copyfileobj(actual_file.file, buffer)
+
+    try:
+        key_columns_list = [k.strip() for k in key_columns.split(",") if k.strip()]
+
+        result = compare_db_to_file(
+            query_or_table=query_or_table,
+            mapping_config=mapping_config,
+            actual_file=str(upload_path),
+            output_format=output_format,
+            key_columns=key_columns_list or None,
+        )
+
+        workflow = result.get("workflow", {})
+        compare = result.get("compare", {})
+
+        rows_with_diffs = compare.get(
+            "rows_with_differences", compare.get("differences", 0)
+        )
+
+        return DbCompareResult(
+            workflow_status=workflow.get("status", "unknown"),
+            db_rows_extracted=workflow.get("db_rows_extracted", 0),
+            query_or_table=workflow.get("query_or_table", query_or_table),
+            total_rows_file1=compare.get("total_rows_file1", 0),
+            total_rows_file2=compare.get("total_rows_file2", 0),
+            matching_rows=compare.get("matching_rows", 0),
+            only_in_file1=compare.get("only_in_file1", 0),
+            only_in_file2=compare.get("only_in_file2", 0),
+            differences=rows_with_diffs,
+            structure_compatible=compare.get("structure_compatible"),
+            structure_errors=compare.get("structure_errors"),
+            field_statistics=compare.get("field_statistics"),
+        )
+
+    except HTTPException:
+        raise
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=f"DB extraction failed: {exc}")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Error running db-compare: {exc}")
+
+    finally:
+        if upload_path.exists():
+            upload_path.unlink()

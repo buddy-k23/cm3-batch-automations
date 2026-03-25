@@ -1,0 +1,153 @@
+name: 'CM3 Batch Validate'
+description: 'Validate a batch file against a mapping schema and business rules using CM3 Batch Automations.'
+branding:
+  icon: 'check-circle'
+  color: 'green'
+
+inputs:
+  file:
+    description: 'Path to the batch file to validate'
+    required: true
+  mapping:
+    description: 'Path to the mapping JSON file for schema validation'
+    required: true
+  rules:
+    description: 'Path to the business rules JSON file'
+    required: false
+    default: ''
+  threshold-max-errors:
+    description: 'Maximum number of errors before validation is considered failed'
+    required: false
+    default: ''
+  threshold-max-error-pct:
+    description: 'Maximum error percentage (0-100) before validation is considered failed'
+    required: false
+    default: ''
+  output-format:
+    description: 'Output report format: json or html'
+    required: false
+    default: 'json'
+  fail-on-threshold:
+    description: 'Fail the step if error thresholds are exceeded'
+    required: false
+    default: 'true'
+  python-version:
+    description: 'Python version to use'
+    required: false
+    default: '3.11'
+  cm3-version:
+    description: 'cm3-batch-automations package version (pip specifier)'
+    required: false
+    default: 'cm3-batch-automations'
+
+outputs:
+  valid:
+    description: 'Whether the file passed validation (true/false)'
+    value: ${{ steps.evaluate.outputs.valid }}
+  total-rows:
+    description: 'Total number of rows in the file'
+    value: ${{ steps.evaluate.outputs.total_rows }}
+  error-count:
+    description: 'Number of validation errors found'
+    value: ${{ steps.evaluate.outputs.error_count }}
+  report-path:
+    description: 'Path to the generated validation report'
+    value: ${{ steps.validate.outputs.report_path }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install CM3 Batch Automations
+      shell: bash
+      run: |
+        python -m pip install --upgrade pip
+        pip install "${{ inputs.cm3-version }}"
+
+    - name: Run validation
+      id: validate
+      shell: bash
+      run: |
+        REPORT_DIR="cm3-reports"
+        mkdir -p "$REPORT_DIR"
+        REPORT_FILE="$REPORT_DIR/validation-report.${{ inputs.output-format }}"
+        echo "report_path=$REPORT_FILE" >> "$GITHUB_OUTPUT"
+
+        CMD="cm3-batch validate"
+        CMD="$CMD --file '${{ inputs.file }}'"
+        CMD="$CMD --mapping '${{ inputs.mapping }}'"
+
+        if [ -n "${{ inputs.rules }}" ]; then
+          CMD="$CMD --rules '${{ inputs.rules }}'"
+        fi
+
+        CMD="$CMD --output '$REPORT_FILE'"
+        CMD="$CMD --no-progress"
+
+        echo "Running: $CMD"
+        eval "$CMD"
+
+    - name: Parse results and evaluate thresholds
+      id: evaluate
+      shell: bash
+      run: |
+        REPORT_FILE="${{ steps.validate.outputs.report_path }}"
+
+        if [ "${{ inputs.output-format }}" = "json" ] && [ -f "$REPORT_FILE" ]; then
+          TOTAL_ROWS=$(python3 -c "
+        import json, sys
+        with open('$REPORT_FILE') as f:
+            data = json.load(f)
+        summary = data.get('summary', data)
+        print(summary.get('total_rows', summary.get('total_records', 0)))
+        " 2>/dev/null || echo "0")
+
+          ERROR_COUNT=$(python3 -c "
+        import json, sys
+        with open('$REPORT_FILE') as f:
+            data = json.load(f)
+        summary = data.get('summary', data)
+        print(summary.get('error_count', summary.get('total_errors', 0)))
+        " 2>/dev/null || echo "0")
+        else
+          TOTAL_ROWS="0"
+          ERROR_COUNT="0"
+        fi
+
+        echo "total_rows=$TOTAL_ROWS" >> "$GITHUB_OUTPUT"
+        echo "error_count=$ERROR_COUNT" >> "$GITHUB_OUTPUT"
+
+        # Evaluate thresholds
+        VALID="true"
+
+        if [ -n "${{ inputs.threshold-max-errors }}" ] && [ "$ERROR_COUNT" -gt "${{ inputs.threshold-max-errors }}" ] 2>/dev/null; then
+          echo "::warning::Error count ($ERROR_COUNT) exceeds threshold (${{ inputs.threshold-max-errors }})"
+          VALID="false"
+        fi
+
+        if [ -n "${{ inputs.threshold-max-error-pct }}" ] && [ "$TOTAL_ROWS" -gt 0 ]; then
+          ERROR_PCT=$(python3 -c "print(round($ERROR_COUNT / $TOTAL_ROWS * 100, 2))")
+          if python3 -c "exit(0 if $ERROR_PCT > ${{ inputs.threshold-max-error-pct }} else 1)"; then
+            echo "::warning::Error percentage (${ERROR_PCT}%) exceeds threshold (${{ inputs.threshold-max-error-pct }}%)"
+            VALID="false"
+          fi
+        fi
+
+        echo "valid=$VALID" >> "$GITHUB_OUTPUT"
+
+        if [ "$VALID" = "false" ] && [ "${{ inputs.fail-on-threshold }}" = "true" ]; then
+          echo "::error::Validation failed: thresholds exceeded"
+          exit 1
+        fi
+
+    - name: Upload validation report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: cm3-validation-report
+        path: cm3-reports/
+        retention-days: 30

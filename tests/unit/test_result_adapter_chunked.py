@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from src.reporting.result_adapter_chunked import adapt_chunked_validation_result
+from src.reports.adapters.result_adapter_chunked import adapt_chunked_validation_result
 
 
 def test_adapt_chunked_validation_result_includes_required_sections():

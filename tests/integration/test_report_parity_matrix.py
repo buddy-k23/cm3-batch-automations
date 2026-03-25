@@ -2,8 +2,8 @@
 
 import pytest
 
-from src.reporting.result_adapter_chunked import adapt_chunked_validation_result
-from src.reporting.result_adapter_standard import adapt_standard_validation_result
+from src.reports.adapters.result_adapter_chunked import adapt_chunked_validation_result
+from src.reports.adapters.result_adapter_standard import adapt_standard_validation_result
 
 
 @pytest.mark.parametrize(

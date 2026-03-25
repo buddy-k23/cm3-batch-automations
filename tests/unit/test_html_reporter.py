@@ -3,7 +3,7 @@
 import pytest
 import tempfile
 import os
-from src.reporters.html_reporter import HTMLReporter
+from src.reports.renderers.comparison_renderer import HTMLReporter
 
 
 class TestHTMLReporter:

@@ -1,0 +1,135 @@
+# Azure DevOps step template for CM3 Batch file validation
+#
+# Usage in your pipeline:
+#
+#   steps:
+#     - template: ci/templates/azure-cm3-validate.yml
+#       parameters:
+#         file: data/batch/customers.txt
+#         mapping: config/mappings/customers.json
+#         rules: config/rules/customers_rules.json
+#
+# Publishes the validation report as a build artifact named 'cm3-validation-report'.
+
+parameters:
+  - name: file
+    type: string
+    displayName: 'Batch file to validate'
+  - name: mapping
+    type: string
+    displayName: 'Mapping JSON file'
+  - name: rules
+    type: string
+    default: ''
+    displayName: 'Business rules JSON file (optional)'
+  - name: thresholdMaxErrors
+    type: number
+    default: -1
+    displayName: 'Max errors before failure (-1 to disable)'
+  - name: thresholdMaxErrorPct
+    type: number
+    default: -1
+    displayName: 'Max error percentage before failure (-1 to disable)'
+  - name: outputFormat
+    type: string
+    default: 'json'
+    values:
+      - json
+      - html
+    displayName: 'Output report format'
+  - name: pythonVersion
+    type: string
+    default: '3.11'
+    displayName: 'Python version'
+  - name: cm3Version
+    type: string
+    default: 'cm3-batch-automations'
+    displayName: 'cm3-batch-automations pip specifier'
+
+steps:
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: '${{ parameters.pythonVersion }}'
+    displayName: 'Use Python ${{ parameters.pythonVersion }}'
+
+  - script: |
+      python -m pip install --upgrade pip
+      pip install "${{ parameters.cm3Version }}"
+    displayName: 'Install CM3 Batch Automations'
+
+  - script: |
+      set -euo pipefail
+      REPORT_DIR="cm3-reports"
+      mkdir -p "$REPORT_DIR"
+      REPORT_FILE="$REPORT_DIR/validation-report.${{ parameters.outputFormat }}"
+
+      CMD="cm3-batch validate"
+      CMD="$CMD --file '${{ parameters.file }}'"
+      CMD="$CMD --mapping '${{ parameters.mapping }}'"
+
+      if [ -n "${{ parameters.rules }}" ]; then
+        CMD="$CMD --rules '${{ parameters.rules }}'"
+      fi
+
+      CMD="$CMD --output '$REPORT_FILE'"
+      CMD="$CMD --no-progress"
+
+      echo "Running: $CMD"
+      eval "$CMD"
+
+      echo "##vso[task.setvariable variable=CM3_REPORT_PATH]$REPORT_FILE"
+    displayName: 'Run CM3 Validation'
+
+  - script: |
+      set -euo pipefail
+      REPORT_FILE="$(CM3_REPORT_PATH)"
+
+      if [ "${{ parameters.outputFormat }}" = "json" ] && [ -f "$REPORT_FILE" ]; then
+        TOTAL_ROWS=$(python3 -c "
+      import json
+      with open('$REPORT_FILE') as f:
+          data = json.load(f)
+      summary = data.get('summary', data)
+      print(summary.get('total_rows', summary.get('total_records', 0)))
+      " 2>/dev/null || echo "0")
+
+        ERROR_COUNT=$(python3 -c "
+      import json
+      with open('$REPORT_FILE') as f:
+          data = json.load(f)
+      summary = data.get('summary', data)
+      print(summary.get('error_count', summary.get('total_errors', 0)))
+      " 2>/dev/null || echo "0")
+
+        echo "##vso[task.setvariable variable=CM3_TOTAL_ROWS]$TOTAL_ROWS"
+        echo "##vso[task.setvariable variable=CM3_ERROR_COUNT]$ERROR_COUNT"
+
+        FAILED="false"
+
+        if [ "${{ parameters.thresholdMaxErrors }}" -ge 0 ] && [ "$ERROR_COUNT" -gt "${{ parameters.thresholdMaxErrors }}" ] 2>/dev/null; then
+          echo "##vso[task.logissue type=warning]Error count ($ERROR_COUNT) exceeds threshold (${{ parameters.thresholdMaxErrors }})"
+          FAILED="true"
+        fi
+
+        if [ "${{ parameters.thresholdMaxErrorPct }}" -ge 0 ] && [ "$TOTAL_ROWS" -gt 0 ]; then
+          ERROR_PCT=$(python3 -c "print(round($ERROR_COUNT / $TOTAL_ROWS * 100, 2))")
+          if python3 -c "exit(0 if $ERROR_PCT > ${{ parameters.thresholdMaxErrorPct }} else 1)"; then
+            echo "##vso[task.logissue type=warning]Error percentage (${ERROR_PCT}%) exceeds threshold (${{ parameters.thresholdMaxErrorPct }}%)"
+            FAILED="true"
+          fi
+        fi
+
+        if [ "$FAILED" = "true" ]; then
+          echo "##vso[task.logissue type=error]CM3 validation thresholds exceeded"
+          exit 1
+        fi
+      fi
+    displayName: 'Evaluate Thresholds'
+    condition: succeededOrFailed()
+
+  - task: PublishBuildArtifacts@1
+    condition: always()
+    inputs:
+      pathToPublish: 'cm3-reports'
+      artifactName: 'cm3-validation-report'
+    displayName: 'Publish Validation Report'

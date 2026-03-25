@@ -5,7 +5,7 @@ import os
 import tempfile
 
 from src.parsers.chunked_validator import ChunkedFileValidator
-from src.reporting.result_adapter_chunked import adapt_chunked_validation_result
+from src.reports.adapters.result_adapter_chunked import adapt_chunked_validation_result
 
 
 def _tmp_file(content: str, suffix: str) -> str:

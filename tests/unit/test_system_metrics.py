@@ -13,6 +13,10 @@ AUTH_HEADERS = {"X-API-Key": "test-key"}
 
 
 def test_metrics_and_slo_endpoints():
+    # Reset singleton state so assertions are deterministic regardless of test order
+    with METRICS._lock:
+        METRICS._counters.clear()
+        METRICS._latencies_ms.clear()
     METRICS.incr("tasks.submitted", amount=20)
     METRICS.incr("tasks.failed", amount=2)
     METRICS.observe_latency("compare.async", 6000)

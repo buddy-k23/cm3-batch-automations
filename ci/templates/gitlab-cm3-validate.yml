@@ -1,0 +1,102 @@
+# GitLab CI template for CM3 Batch file validation
+#
+# Usage in your .gitlab-ci.yml:
+#
+#   include:
+#     - project: 'your-group/cm3-batch-automations'
+#       file: 'ci/templates/gitlab-cm3-validate.yml'
+#
+#   validate-batch:
+#     extends: .cm3-validate
+#     variables:
+#       CM3_FILE: data/batch/customers.txt
+#       CM3_MAPPING: config/mappings/customers.json
+#       CM3_RULES: config/rules/customers_rules.json
+#       CM3_THRESHOLD_MAX_ERRORS: "100"
+
+.cm3-validate:
+  stage: validate
+  image: python:3.11-slim
+  variables:
+    CM3_FILE: ""
+    CM3_MAPPING: ""
+    CM3_RULES: ""
+    CM3_THRESHOLD_MAX_ERRORS: ""
+    CM3_THRESHOLD_MAX_ERROR_PCT: ""
+    CM3_OUTPUT_FORMAT: "json"
+    CM3_VERSION: "cm3-batch-automations"
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install "$CM3_VERSION"
+  script:
+    - |
+      set -euo pipefail
+
+      if [ -z "$CM3_FILE" ] || [ -z "$CM3_MAPPING" ]; then
+        echo "ERROR: CM3_FILE and CM3_MAPPING variables are required"
+        exit 1
+      fi
+
+      REPORT_DIR="cm3-reports"
+      mkdir -p "$REPORT_DIR"
+      REPORT_FILE="$REPORT_DIR/validation-report.$CM3_OUTPUT_FORMAT"
+
+      CMD="cm3-batch validate"
+      CMD="$CMD --file '$CM3_FILE'"
+      CMD="$CMD --mapping '$CM3_MAPPING'"
+
+      if [ -n "$CM3_RULES" ]; then
+        CMD="$CMD --rules '$CM3_RULES'"
+      fi
+
+      CMD="$CMD --output '$REPORT_FILE'"
+      CMD="$CMD --no-progress"
+
+      echo "Running: $CMD"
+      eval "$CMD"
+
+      # Parse results and evaluate thresholds (JSON only)
+      if [ "$CM3_OUTPUT_FORMAT" = "json" ] && [ -f "$REPORT_FILE" ]; then
+        TOTAL_ROWS=$(python3 -c "
+      import json
+      with open('$REPORT_FILE') as f:
+          data = json.load(f)
+      summary = data.get('summary', data)
+      print(summary.get('total_rows', summary.get('total_records', 0)))
+      " 2>/dev/null || echo "0")
+
+        ERROR_COUNT=$(python3 -c "
+      import json
+      with open('$REPORT_FILE') as f:
+          data = json.load(f)
+      summary = data.get('summary', data)
+      print(summary.get('error_count', summary.get('total_errors', 0)))
+      " 2>/dev/null || echo "0")
+
+        echo "CM3 Validation Results: $ERROR_COUNT errors in $TOTAL_ROWS rows"
+
+        FAILED="false"
+
+        if [ -n "$CM3_THRESHOLD_MAX_ERRORS" ] && [ "$ERROR_COUNT" -gt "$CM3_THRESHOLD_MAX_ERRORS" ] 2>/dev/null; then
+          echo "WARNING: Error count ($ERROR_COUNT) exceeds threshold ($CM3_THRESHOLD_MAX_ERRORS)"
+          FAILED="true"
+        fi
+
+        if [ -n "$CM3_THRESHOLD_MAX_ERROR_PCT" ] && [ "$TOTAL_ROWS" -gt 0 ]; then
+          ERROR_PCT=$(python3 -c "print(round($ERROR_COUNT / $TOTAL_ROWS * 100, 2))")
+          if python3 -c "exit(0 if $ERROR_PCT > $CM3_THRESHOLD_MAX_ERROR_PCT else 1)"; then
+            echo "WARNING: Error percentage (${ERROR_PCT}%) exceeds threshold (${CM3_THRESHOLD_MAX_ERROR_PCT}%)"
+            FAILED="true"
+          fi
+        fi
+
+        if [ "$FAILED" = "true" ]; then
+          echo "ERROR: CM3 validation thresholds exceeded"
+          exit 1
+        fi
+      fi
+  artifacts:
+    when: always
+    paths:
+      - cm3-reports/
+    expire_in: 30 days

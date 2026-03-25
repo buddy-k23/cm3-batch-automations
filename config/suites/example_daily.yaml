@@ -1,0 +1,16 @@
+name: daily-validation
+description: Daily validation suite for Shaw-to-C360 migration files
+steps:
+  - name: Validate customer file
+    type: validate
+    file_pattern: data/samples/customers.txt
+    mapping: config/mappings/customer_mapping.json
+    rules: null
+
+  - name: Validate transaction file
+    type: validate
+    file_pattern: data/samples/transactions.txt
+    mapping: config/mappings/transaction_mapping.json
+    rules: null
+thresholds:
+  max_errors: 0
