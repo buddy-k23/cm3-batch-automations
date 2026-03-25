@@ -5,12 +5,16 @@ import os
 import tempfile
 import threading
 
+os.environ.setdefault("API_KEYS", "test-key:admin")
+
 import pytest
 from fastapi.testclient import TestClient
 
 from src.api.main import app
 from src.services.validate_service import run_validate_service
 from src.services.compare_service import run_compare_service
+
+AUTH = {"X-API-Key": "test-key"}
 
 
 def _write_mapping(fields, delimiter="|"):
@@ -178,6 +182,7 @@ class TestExploratoryBoundaries:
                         "/api/v1/files/validate",
                         files={"file": (f"test_{index}.txt", content, "text/plain")},
                         data={"mapping_id": mapping_id, "output_html": "false"},
+                        headers=AUTH,
                     )
                     results[index] = r.status_code
                 finally:

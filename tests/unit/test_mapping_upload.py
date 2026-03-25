@@ -4,7 +4,10 @@ Covers CSV mapping upload, listing uploaded mappings, and CSV rules upload.
 """
 
 import json
+import os
 from pathlib import Path
+
+os.environ.setdefault("API_KEYS", "test-key:admin")
 
 import pytest
 from fastapi.testclient import TestClient
@@ -12,6 +15,7 @@ from fastapi.testclient import TestClient
 from src.api.main import app
 
 client = TestClient(app)
+AUTH = {"X-API-Key": "test-key"}
 
 
 class TestMappingUpload:
@@ -43,6 +47,7 @@ class TestMappingUpload:
         r = client.post(
             "/api/v1/mappings/upload?mapping_name=csv_upload_test&file_format=csv",
             files=files,
+            headers=AUTH,
         )
         assert r.status_code == 200
         payload = r.json()
@@ -64,7 +69,7 @@ class TestMappingUpload:
         )
         monkeypatch.setattr("src.api.routers.mappings.MAPPINGS_DIR", tmp_path)
 
-        r = client.get("/api/v1/mappings/")
+        r = client.get("/api/v1/mappings/", headers=AUTH)
         assert r.status_code == 200
         items = r.json()
         names = [item["mapping_name"] for item in items]
@@ -93,6 +98,7 @@ class TestMappingUpload:
         r = client.post(
             "/api/v1/rules/upload?rules_name=csv_rules&rules_type=ba_friendly",
             files=files,
+            headers=AUTH,
         )
         assert r.status_code == 200
         payload = r.json()

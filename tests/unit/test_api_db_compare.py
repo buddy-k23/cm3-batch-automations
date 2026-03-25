@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+os.environ.setdefault("API_KEYS", "test-key:admin")
+
 import pytest
 from fastapi.testclient import TestClient
+
+AUTH = {"X-API-Key": "test-key"}
 
 
 def _make_app():
@@ -24,7 +29,7 @@ class TestDbCompareEndpoint:
         client = TestClient(_make_app())
         # A missing route returns 405 or 404; a wrong payload returns 422
         # We confirm it's 422 (found but bad request) not 404
-        resp = client.post("/api/v1/files/db-compare")
+        resp = client.post("/api/v1/files/db-compare", headers=AUTH)
         assert resp.status_code != 404
 
     def test_returns_compare_result_on_success(self, tmp_path: Path) -> None:
@@ -67,6 +72,7 @@ class TestDbCompareEndpoint:
             client = TestClient(app)
             resp = client.post(
                 "/api/v1/files/db-compare",
+                headers=AUTH,
                 data={
                     "query_or_table": "SELECT * FROM FOO",
                     "mapping_id": "test_mapping",
@@ -93,6 +99,7 @@ class TestDbCompareEndpoint:
             client = TestClient(app)
             resp = client.post(
                 "/api/v1/files/db-compare",
+                headers=AUTH,
                 data={
                     "query_or_table": "SELECT * FROM FOO",
                     "mapping_id": "does_not_exist",
@@ -124,6 +131,7 @@ class TestDbCompareEndpoint:
             client = TestClient(app)
             resp = client.post(
                 "/api/v1/files/db-compare",
+                headers=AUTH,
                 data={
                     "query_or_table": "SELECT * FROM FOO",
                     "mapping_id": "test_mapping",
