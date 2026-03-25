@@ -881,8 +881,23 @@ curl -X POST "http://localhost:8000/api/v1/files/parse" \
 curl -X POST "http://localhost:8000/api/v1/files/compare" \
   -F "file1=@data/samples/file1.txt" \
   -F "file2=@data/samples/file2.txt" \
-  -F 'request={"mapping_id": "p327_universal", "key_columns": ["ACCT-NUM"]}'
+  -F "mapping_id=p327_universal" \
+  -F "key_columns=ACCT-NUM" \
+  -F "output_format=html" \
+  -F "chunk_size=100000"
 ```
+
+**Form parameters (all match the CLI `compare` command):**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `file1` | file | required | First file to compare |
+| `file2` | file | required | Second file to compare |
+| `mapping_id` | string | required | Mapping config ID |
+| `key_columns` | string | `""` | Comma-separated key column names. Empty = row-by-row comparison |
+| `detailed` | bool | `true` | Include field-level diff analysis |
+| `output_format` | string | `"html"` | `"html"` returns a `report_url`; `"json"` writes a machine-readable file and returns a `download_url` |
+| `chunk_size` | int | `100000` | Row chunk size for large-file chunked processing (matches CLI `--chunk-size`) |
 
 **Response:**
 ```json
@@ -893,9 +908,21 @@ curl -X POST "http://localhost:8000/api/v1/files/compare" \
   "only_in_file1": 1,
   "only_in_file2": 1,
   "differences": 2,
-  "report_url": "/api/v1/reports/comparison_12345.html"
+  "report_url": "/uploads/compare_file1_file2.html",
+  "download_url": null,
+  "threshold_result": {
+    "passed": true,
+    "overall_result": "pass",
+    "metrics": {
+      "missing_rows": 1,
+      "extra_rows": 1,
+      "different_rows": 2
+    }
+  }
 }
 ```
+
+> `POST /compare-async` accepts the same parameters and returns a `job_id` for polling via `GET /compare-jobs/{job_id}`.
 
 ### 4. Using Python Requests
 

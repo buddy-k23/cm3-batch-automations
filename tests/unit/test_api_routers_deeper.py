@@ -64,6 +64,8 @@ def test_files_router_detect_parse_compare_direct():
                 mapping_id=mapping_id,
                 key_columns="id",
                 detailed=True,
+                output_format="html",
+                chunk_size=100_000,
             )
         )
         assert cmp_res.total_rows_file1 == 2

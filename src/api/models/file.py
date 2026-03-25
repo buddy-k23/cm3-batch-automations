@@ -31,13 +31,21 @@ class FileParseResult(BaseModel):
 
 class FileCompareRequest(BaseModel):
     """Model for file comparison request."""
+
     mapping_id: str
     key_columns: List[str]
     detailed: bool = True
+    output_format: str = "html"
+    """Report output format. ``"html"`` generates an HTML report (default);
+    ``"json"`` writes a machine-readable JSON file instead."""
+    chunk_size: int = 100_000
+    """Row chunk size used when chunked processing is triggered. Defaults to
+    100 000 rows, matching the CLI default."""
 
 
 class FileCompareResult(BaseModel):
     """Model for file comparison result."""
+
     total_rows_file1: int
     total_rows_file2: int
     matching_rows: int
@@ -45,9 +53,16 @@ class FileCompareResult(BaseModel):
     only_in_file2: int
     differences: int
     report_url: Optional[str] = None
+    download_url: Optional[str] = None
+    """Download URL for a JSON report when ``output_format="json"`` was
+    requested. Mutually exclusive with ``report_url``."""
     field_statistics: Optional[Dict[str, Any]] = None
     structure_compatible: Optional[bool] = None
     structure_errors: Optional[List[Dict[str, Any]]] = None
+    threshold_result: Optional[Dict[str, Any]] = None
+    """Threshold evaluation result produced by
+    :class:`~src.validators.threshold.ThresholdEvaluator`. Contains at
+    minimum the keys ``"passed"`` (bool) and ``"overall_result"`` (str)."""
 
 
 class FileValidateRequest(BaseModel):
