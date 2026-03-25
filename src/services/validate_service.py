@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any, Optional
+
+_audit_logger = logging.getLogger(__name__)
 
 
 def run_validate_service(
@@ -14,6 +17,7 @@ def run_validate_service(
     strict_level: str = "format",
     use_chunked: bool = False,
     chunk_size: int = 100_000,
+    suppress_pii: bool = True,
 ) -> dict[str, Any]:
     """Shared validate workflow used by CLI and run-tests orchestrator.
 
@@ -34,10 +38,26 @@ def run_validate_service(
         use_chunked: Route to ChunkedFileValidator for memory-efficient
             processing. Ignored for fixed-width mappings.
         chunk_size: Rows per chunk when use_chunked=True. Default 100,000.
+        suppress_pii: When True (default), redact raw field values from
+            HTML reports and CSV sidecars.
     """
     from src.parsers.format_detector import FormatDetector
     from src.parsers.enhanced_validator import EnhancedFileValidator
     from src.parsers.fixed_width_parser import FixedWidthParser
+    from src.utils.audit_logger import get_audit_logger, file_hash as _file_hash
+
+    audit = get_audit_logger()
+    _audit_kwargs: dict[str, Any] = {"triggered_by": "service", "file": file}
+    try:
+        _audit_kwargs["file_hash"] = _file_hash(file)
+    except OSError:
+        pass
+    if mapping:
+        try:
+            _audit_kwargs["mapping_hash"] = _file_hash(mapping)
+        except OSError:
+            pass
+    audit.emit("test_run_started", **_audit_kwargs)
 
     mapping_config: Optional[dict] = None
     if mapping:
@@ -129,7 +149,17 @@ def run_validate_service(
             from src.reports.renderers.validation_renderer import ValidationReporter
 
             reporter = ValidationReporter()
-            reporter.generate(result, output)
+            reporter.generate(result, output, suppress_pii=suppress_pii)
+
+    audit.emit(
+        "test_run_completed",
+        triggered_by="service",
+        file=file,
+        valid=result.get("valid"),
+        error_count=result.get("error_count", 0),
+        warning_count=result.get("warning_count", 0),
+        total_rows=result.get("total_rows", 0),
+    )
 
     return result
 

@@ -213,6 +213,22 @@ class SuiteRunner:
             # Fire the "complete" callback unconditionally.
             self._fire_on_complete(step_result)
 
+            # Audit log for each step completion.
+            try:
+                from src.utils.audit_logger import get_audit_logger
+                get_audit_logger().emit(
+                    "suite_step_completed",
+                    triggered_by="suite_runner",
+                    suite=self._config.name,
+                    step=step_config.name,
+                    status=step_result.status.value,
+                    attempts=step_result.attempts,
+                    duration_seconds=step_result.duration_seconds,
+                    error=step_result.error,
+                )
+            except Exception:  # noqa: BLE001
+                self._log.debug("Audit emit failed for step '%s'", step_config.name)
+
             if step_result.status != StepStatus.PASSED:
                 any_failed = True
                 if self._config.fail_fast:

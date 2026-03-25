@@ -1,8 +1,13 @@
 """Centralised Oracle database configuration.
 
-Reads connection parameters from environment variables with sensible defaults
-for local development.  All database code should use :func:`get_db_config` or
-:func:`get_connection` instead of reading env vars directly.
+Reads connection parameters from environment variables (or a pluggable secrets
+provider) with sensible defaults for local development.  All database code
+should use :func:`get_db_config` or :func:`get_connection` instead of reading
+env vars directly.
+
+The password is resolved via :func:`~src.utils.secrets.get_secrets_provider`,
+which honours the ``SECRETS_PROVIDER`` env var (default ``env``).  See
+:mod:`src.utils.secrets` for supported backends (env, vault, azure).
 
 Environment variables
 ---------------------
@@ -10,11 +15,14 @@ Environment variables
     Database username.  Default: ``CM3INT``.
 ``ORACLE_PASSWORD``
     Database password.  **No default** -- must be set before connecting.
+    Resolved through the active secrets provider.
 ``ORACLE_DSN``
     Oracle Easy Connect string.  Default: ``localhost:1521/FREEPDB1``.
 ``ORACLE_SCHEMA``
     Schema prefix used in SQL statements (e.g. ``CM3INT.TABLE``).
     Default: value of ``ORACLE_USER`` (or ``CM3INT`` if unset).
+``SECRETS_PROVIDER``
+    Secrets backend: ``env`` (default), ``vault``, or ``azure``.
 """
 
 from __future__ import annotations
@@ -24,6 +32,8 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 import oracledb
+
+from src.utils.secrets import get_secrets_provider
 
 
 _DEFAULT_USER = "CM3INT"
@@ -61,10 +71,11 @@ def get_db_config() -> DbConfig:
         cfg = get_db_config()
         print(cfg.user, cfg.dsn)
     """
-    user = os.getenv("ORACLE_USER", _DEFAULT_USER)
-    password = os.getenv("ORACLE_PASSWORD", "")
-    dsn = os.getenv("ORACLE_DSN", _DEFAULT_DSN)
-    schema = os.getenv("ORACLE_SCHEMA", user)
+    secrets = get_secrets_provider()
+    user = secrets.get_secret("ORACLE_USER", default=_DEFAULT_USER)
+    password = secrets.get_secret("ORACLE_PASSWORD", default="")
+    dsn = secrets.get_secret("ORACLE_DSN", default=_DEFAULT_DSN)
+    schema = secrets.get_secret("ORACLE_SCHEMA", default=user)
     return DbConfig(user=user, password=password, dsn=dsn, schema=schema)
 
 

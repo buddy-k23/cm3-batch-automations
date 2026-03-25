@@ -1,0 +1,90 @@
+name: Validate Config Files
+
+on:
+  pull_request:
+    paths:
+      - 'config/**'
+
+jobs:
+  validate-config:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml
+
+      - name: Validate mapping JSON files
+        run: |
+          python -c "
+          import sys
+          from pathlib import Path
+          sys.path.insert(0, '.')
+          from src.utils.config_validator import validate_mapping_file
+
+          errors_found = False
+          for f in sorted(Path('config/mappings').glob('*.json')):
+              errs = validate_mapping_file(f)
+              if errs:
+                  errors_found = True
+                  print(f'::error file={f}::{f.name}: {chr(10).join(errs)}')
+              else:
+                  print(f'  OK  {f}')
+
+          if errors_found:
+              sys.exit(1)
+          print('All mapping files valid.')
+          "
+
+      - name: Validate rules JSON files
+        run: |
+          python -c "
+          import sys
+          from pathlib import Path
+          sys.path.insert(0, '.')
+          from src.utils.config_validator import validate_rules_file
+
+          errors_found = False
+          for f in sorted(Path('config/rules').glob('*.json')):
+              errs = validate_rules_file(f)
+              if errs:
+                  errors_found = True
+                  print(f'::error file={f}::{f.name}: {chr(10).join(errs)}')
+              else:
+                  print(f'  OK  {f}')
+
+          if errors_found:
+              sys.exit(1)
+          print('All rules files valid.')
+          "
+
+      - name: Validate suite YAML files
+        run: |
+          python -c "
+          import sys
+          from pathlib import Path
+          sys.path.insert(0, '.')
+          from src.utils.config_validator import validate_suite_file
+
+          errors_found = False
+          for f in sorted(Path('config/suites').glob('*.yaml')) + sorted(Path('config/suites').glob('*.yml')):
+              errs = validate_suite_file(f)
+              if errs:
+                  errors_found = True
+                  print(f'::error file={f}::{f.name}: {chr(10).join(errs)}')
+              else:
+                  print(f'  OK  {f}')
+
+          if errors_found:
+              sys.exit(1)
+          print('All suite files valid.')
+          "

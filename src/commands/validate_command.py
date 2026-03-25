@@ -80,6 +80,7 @@ def run_validate_command(
     strict_level='format',
     workers=1,
     logger=None,
+    suppress_pii=True,
 ):
     from src.parsers.format_detector import FormatDetector
     from src.parsers.enhanced_validator import EnhancedFileValidator
@@ -190,7 +191,7 @@ def run_validate_command(
             elif output.lower().endswith('.html') or output.lower().endswith('.htm'):
                 reporter = ValidationReporter()
                 adapted = adapt_chunked_validation_result(result, file_path=file, mapping=mapping)
-                reporter.generate(adapted, output)
+                reporter.generate(adapted, output, suppress_pii=suppress_pii)
                 click.echo(f"\n✓ Chunked validation HTML report generated: {output}")
             else:
                 click.echo(click.style("\nUnsupported output type for chunked validation. Use .json or .html", fg='yellow'))
@@ -238,7 +239,7 @@ def run_validate_command(
             click.echo(f"\n✓ Validation JSON report generated: {output}")
         elif output.lower().endswith('.html') or output.lower().endswith('.htm'):
             reporter = ValidationReporter()
-            reporter.generate(result, output)
+            reporter.generate(result, output, suppress_pii=suppress_pii)
             click.echo(f"\n✓ Validation HTML report generated: {output}")
         else:
             click.echo(click.style("\nUnsupported output type for validation. Use .json or .html", fg='yellow'))

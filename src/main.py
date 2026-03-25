@@ -75,8 +75,10 @@ def parse(file, mapping, format, output, use_chunked, chunk_size):
               help='Strict fixed-width validation depth')
 @click.option('--workers', default=1, type=int, show_default=True,
               help='Parallel worker processes for chunked validation (1 disables parallel mode)')
+@click.option('--suppress-pii/--no-suppress-pii', default=True, show_default=True,
+              help='Redact raw field values from HTML reports (default: enabled)')
 def validate(file, mapping, rules, output, detailed, use_chunked, chunk_size, progress,
-             strict_fixed_width, strict_level, workers):
+             strict_fixed_width, strict_level, workers, suppress_pii):
     """Validate file format and content."""
     logger = setup_logger('cm3-batch', log_to_file=False)
 
@@ -85,6 +87,7 @@ def validate(file, mapping, rules, output, detailed, use_chunked, chunk_size, pr
         run_validate_command(
             file, mapping, rules, output, detailed, use_chunked, chunk_size, progress,
             strict_fixed_width, strict_level, workers, logger,
+            suppress_pii=suppress_pii,
         )
     except Exception as e:
         logger.error(f"Error validating file: {e}")
@@ -204,6 +207,25 @@ def compare(file1, file2, keys, mapping, output, thresholds, detailed, chunk_siz
         sys.exit(1)
 
 
+@cli.command()
+@click.option('--file', '-f', required=True, help='Input batch file to mask')
+@click.option('--mapping', '-m', required=True, type=click.Path(exists=True),
+              help='Mapping JSON file (defines field positions)')
+@click.option('--rules', '-r', type=click.Path(exists=True),
+              help='Masking rules JSON file (strategy per field)')
+@click.option('--output', '-o', required=True, help='Output file path for masked data')
+def mask(file, mapping, rules, output):
+    """Mask PII fields to produce dev-safe batch files."""
+    logger = setup_logger('cm3-batch', log_to_file=False)
+
+    try:
+        from src.commands.mask_command import run_mask_command
+        run_mask_command(file, mapping, rules, output, logger)
+    except Exception as e:
+        logger.error(f"Error masking file: {e}")
+        sys.exit(1)
+
+
 @cli.command('db-compare')
 @click.option('--query-or-table', '-q', required=True,
               help='SQL SELECT statement or bare Oracle table name')
@@ -235,6 +257,26 @@ def db_compare(query_or_table, mapping, actual_file, key_columns, output_format,
         raise
     except Exception as e:
         logger.error(f"Error running db-compare: {e}")
+        sys.exit(1)
+
+
+@cli.command('infer-mapping')
+@click.option('--file', '-f', required=True, help='Sample data file to analyse')
+@click.option('--format', '-t', 'fmt',
+              type=click.Choice(['fixed_width', 'pipe_delimited', 'csv', 'tsv']),
+              help='Override format auto-detection')
+@click.option('--output', '-o', help='Output JSON path (default: stdout)')
+@click.option('--sample-lines', default=100, show_default=True, type=int,
+              help='Number of lines to analyse')
+def infer_mapping(file, fmt, output, sample_lines):
+    """Infer a draft mapping configuration from a sample data file."""
+    logger = setup_logger('cm3-batch', log_to_file=False)
+
+    try:
+        from src.commands.infer_mapping_command import run_infer_mapping_command
+        run_infer_mapping_command(file, fmt, output, sample_lines, logger)
+    except Exception as e:
+        logger.error(f"Error inferring mapping: {e}")
         sys.exit(1)
 
 

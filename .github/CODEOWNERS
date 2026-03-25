@@ -1,0 +1,7 @@
+# Configuration files require team review before merging.
+# See docs/CHANGE_MANAGEMENT.md for the full approval workflow.
+
+config/mappings/     @buddy-k23
+config/rules/        @buddy-k23
+config/suites/       @buddy-k23
+config/masking/      @buddy-k23

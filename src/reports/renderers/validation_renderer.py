@@ -23,13 +23,31 @@ class ValidationReporter:
     ERROR_DISPLAY_LIMIT = 10
     WARNING_DISPLAY_LIMIT = 100
 
-    def generate(self, validation_results: Dict[str, Any], output_path: str) -> None:
+    # Regex patterns for detecting PII-like values embedded in error messages.
+    # Matches patterns like: value 'SOMEVALUE' failed, value "SOMEVALUE" is invalid, etc.
+    _PII_VALUE_PATTERNS = [
+        re.compile(r"(value\s+)['\"]([^'\"]+)['\"]", re.IGNORECASE),
+        re.compile(r"(value\s+)(\S+)(\s+(?:failed|is invalid|does not match|not in|violates|expected))", re.IGNORECASE),
+        re.compile(r"(got\s+)['\"]([^'\"]+)['\"]", re.IGNORECASE),
+        re.compile(r"(got\s+)(\S+)(\s)", re.IGNORECASE),
+    ]
+
+    def generate(
+        self,
+        validation_results: Dict[str, Any],
+        output_path: str,
+        suppress_pii: bool = True,
+    ) -> None:
         """Generate HTML validation report.
-        
+
         Args:
-            validation_results: Validation results from EnhancedFileValidator
-            output_path: Path to save HTML report
+            validation_results: Validation results from EnhancedFileValidator.
+            output_path: Path to save HTML report.
+            suppress_pii: When True (default), redact raw field values from
+                error messages and affected-row details in the HTML report
+                and CSV sidecars. Row numbers and error codes are preserved.
         """
+        self._suppress_pii = suppress_pii
         html = self._generate_html(validation_results)
 
         with open(output_path, 'w', encoding='utf-8') as f:
@@ -38,6 +56,47 @@ class ValidationReporter:
         # Export full issue lists to CSV sidecars to keep HTML report concise.
         self._write_errors_csv(validation_results, output_path)
         self._write_warnings_csv(validation_results, output_path)
+
+    # ------------------------------------------------------------------
+    # PII redaction helpers
+    # ------------------------------------------------------------------
+
+    def _redact_message(self, message: str) -> str:
+        """Redact PII-like values from an error/warning message string.
+
+        Replaces embedded field values (e.g. ``value '123456789' failed regex``)
+        with ``[REDACTED]`` while preserving the surrounding context so the
+        error type remains understandable.
+
+        Args:
+            message: The original error or warning message.
+
+        Returns:
+            The message with values replaced by ``[REDACTED]`` when
+            ``self._suppress_pii`` is True; otherwise the original message.
+        """
+        if not self._suppress_pii:
+            return message
+        text = message
+        for pattern in self._PII_VALUE_PATTERNS:
+            text = pattern.sub(
+                lambda m: m.group(1) + "[REDACTED]" + (m.group(3) if m.lastindex >= 3 else ""),
+                text,
+            )
+        return text
+
+    def _redact_issue_text(self, issue_text: str) -> str:
+        """Redact a plain-text issue string used in affected-row listings.
+
+        Args:
+            issue_text: A single issue description string.
+
+        Returns:
+            Redacted string when ``self._suppress_pii`` is True.
+        """
+        if not self._suppress_pii:
+            return issue_text
+        return self._redact_message(issue_text)
 
     def _sort_issues(self, issues):
         """Sort issues by row (numeric), then field, then code/severity."""
@@ -77,14 +136,14 @@ class ValidationReporter:
                         'source_row': error.get('source_row', error.get('row', '')),
                         'index': idx,
                         'severity': error.get('severity', 'error'),
-                        'message': error.get('message', ''),
+                        'message': self._redact_message(error.get('message', '')),
                     })
                 else:
                     writer.writerow({
                         'source_row': '',
                         'index': idx,
                         'severity': 'error',
-                        'message': str(error),
+                        'message': self._redact_message(str(error)),
                     })
 
     def _write_warnings_csv(self, validation_results: Dict[str, Any], output_path: str) -> None:
@@ -110,14 +169,14 @@ class ValidationReporter:
                         'source_row': warning.get('source_row', warning.get('row', '')),
                         'index': idx,
                         'severity': warning.get('severity', 'warning'),
-                        'message': warning.get('message', ''),
+                        'message': self._redact_message(warning.get('message', '')),
                     })
                 else:
                     writer.writerow({
                         'source_row': '',
                         'index': idx,
                         'severity': 'warning',
-                        'message': str(warning),
+                        'message': self._redact_message(str(warning)),
                     })
 
     def _generate_html(self, results: Dict[str, Any]) -> str:
@@ -837,7 +896,8 @@ class ValidationReporter:
             html = []
             for item in items:
                 severity = item.get('severity', 'info') if isinstance(item, dict) else 'info'
-                message = item.get('message', '') if isinstance(item, dict) else str(item)
+                raw_message = item.get('message', '') if isinstance(item, dict) else str(item)
+                message = self._redact_message(raw_message)
                 # Surface source_row (physical line number) when available.
                 source_row = None
                 if isinstance(item, dict):
@@ -870,7 +930,7 @@ class ValidationReporter:
                 issue_count = row_info.get('issue_count', 0)
                 issues = row_info.get('issues', [])
 
-                issues_list = ''.join(f'<li>{issue}</li>' for issue in issues[:5])
+                issues_list = ''.join(f'<li>{self._redact_issue_text(issue)}</li>' for issue in issues[:5])
                 if len(issues) > 5:
                     issues_list += f'<li><em>... and {len(issues) - 5} more issues</em></li>'
 
@@ -1292,7 +1352,9 @@ class ValidationReporter:
             violations_by_rule[rule_id]['count'] += 1
             if len(violations_by_rule[rule_id]['samples']) < 5:
                 # Format: "Row 123: Message"
-                violations_by_rule[rule_id]['samples'].append(f"Row {v['row_number']}: {v['message']}")
+                violations_by_rule[rule_id]['samples'].append(
+                    f"Row {v['row_number']}: {self._redact_message(v['message'])}"
+                )
 
         # Build HTML
         html = f"""
