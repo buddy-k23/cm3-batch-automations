@@ -128,8 +128,17 @@ _REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/reports", StaticFiles(directory=str(_REPORTS_DIR)), name="reports")
 
 _TEMPLATES_DIR = Path(__file__).parent.parent / "reports" / "static" / "templates"
-_TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
-app.mount("/static/templates", StaticFiles(directory=str(_TEMPLATES_DIR)), name="templates")
+
+
+@app.get("/api/v1/templates/{filename}", tags=["Templates"])
+async def download_template(filename: str):
+    """Download a sample mapping or rules CSV template."""
+    from fastapi.responses import FileResponse
+    safe_name = Path(filename).name  # prevent path traversal
+    file_path = _TEMPLATES_DIR / safe_name
+    if not file_path.exists() or not file_path.suffix == ".csv":
+        return JSONResponse(status_code=404, content={"error": "Template not found"})
+    return FileResponse(file_path, filename=safe_name, media_type="text/csv")
 
 _DOCS_DIR = Path(__file__).parent.parent.parent / "docs"
 

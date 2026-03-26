@@ -1571,18 +1571,25 @@
     <h2>Mapping Generator</h2>
 
     <!-- Download Templates -->
-    <div style="margin-bottom:18px;padding:12px 16px;border:1px solid var(--border);border-radius:10px;background:var(--surface)">
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <a href="/static/templates/mapping_template.csv" download class="btn btn-secondary" style="font-size:12px;padding:6px 14px;text-decoration:none;display:inline-flex;align-items:center;gap:5px">
-          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m0 0l-4-4m4 4l4-4M4 19h16"/></svg>
-          Mapping Template (.csv)
+    <div style="margin-bottom:20px;padding:16px 18px;border:1px solid rgba(74,158,255,0.25);border-radius:12px;background:linear-gradient(135deg,rgba(37,99,235,0.08),rgba(124,58,237,0.06))">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-secondary);margin-bottom:10px">
+        Sample Templates
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <a href="/api/v1/templates/mapping_template.csv" download
+           style="display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;color:#fff;background:linear-gradient(135deg,#2563eb,#1d4ed8);box-shadow:0 2px 8px rgba(37,99,235,0.3);transition:all 0.2s">
+          <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m0 0l-4-4m4 4l4-4M4 19h16"/></svg>
+          Mapping Template
         </a>
-        <a href="/static/templates/rules_template.csv" download class="btn btn-secondary" style="font-size:12px;padding:6px 14px;text-decoration:none;display:inline-flex;align-items:center;gap:5px">
-          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m0 0l-4-4m4 4l4-4M4 19h16"/></svg>
-          Rules Template (.csv)
+        <a href="/api/v1/templates/rules_template.csv" download
+           style="display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;color:#fff;background:linear-gradient(135deg,#7c3aed,#6d28d9);box-shadow:0 2px 8px rgba(124,58,237,0.3);transition:all 0.2s">
+          <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m0 0l-4-4m4 4l4-4M4 19h16"/></svg>
+          Rules Template
         </a>
       </div>
-      <div style="margin-top:8px;font-size:12px;color:var(--muted)">Download a template, fill it in with your field definitions, then upload it above to generate a mapping.</div>
+      <div style="margin-top:10px;font-size:12px;color:var(--muted);line-height:1.5">
+        Download a template, fill in your field definitions, then upload it below to generate a mapping config.
+      </div>
     </div>
 
     <!-- Step indicators -->
