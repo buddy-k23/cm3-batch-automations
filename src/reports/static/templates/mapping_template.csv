@@ -1,13 +1,13 @@
-field_name,data_type,position,length,target_name,required,description
-RECORD_TYPE,String,1,2,record_type,Yes,Record type identifier (HD=Header DR=Detail TR=Trailer)
-ACCOUNT_NUM,String,3,18,account_number,Yes,Customer account number (unique identifier)
-FIRST_NAME,String,21,30,first_name,Yes,Customer first name
-LAST_NAME,String,51,30,last_name,Yes,Customer last name
-SSN,String,81,9,ssn,No,Social security number (9 digits no dashes)
-BALANCE,Numeric,90,12,balance,Yes,Account balance in cents (right-justified zero-padded)
-OPEN_DATE,Date,102,8,open_date,Yes,Account open date (CCYYMMDD format)
-CLOSE_DATE,Date,110,8,close_date,No,Account close date (CCYYMMDD or blank if active)
-STATUS,String,118,1,status,Yes,Account status: A=Active I=Inactive C=Closed
-BRANCH_CODE,String,119,4,branch_code,Yes,Branch identifier (4-digit code)
-CURRENCY,String,123,3,currency,No,ISO currency code (USD CAD GBP etc)
-FILLER,String,126,5,filler,No,Reserved for future use (spaces)
+field_name,data_type,position,length,target_name,required,format,transformation,valid_values,description
+RECORD_TYPE,String,1,2,record_type,Yes,,Default to 'DR' for detail records,,Record type identifier (HD=Header DR=Detail TR=Trailer)
+ACCOUNT_NUM,String,3,18,account_number,Yes,,ACCT_BR + ACCT_CUS + ACCT_LN,,Customer account number (composite key)
+FIRST_NAME,String,21,30,first_name,Yes,,Trim trailing spaces,,Customer first name
+LAST_NAME,String,51,30,last_name,Yes,,Trim trailing spaces,,Customer last name
+SSN,String,81,9,ssn,No,,Mask for non-prod environments,^\d{9}$,Social security number (9 digits no dashes)
+BALANCE,Numeric,90,12,balance,Yes,9(10)V99,Divide by 100 to get dollars,,Account balance in cents (right-justified zero-padded)
+OPEN_DATE,Date,102,8,open_date,Yes,CCYYMMDD,Convert to MM/DD/YYYY for target,,Account open date
+CLOSE_DATE,Date,110,8,close_date,No,CCYYMMDD,Convert to MM/DD/YYYY for target,,Account close date (blank if active)
+STATUS,String,118,1,status,Yes,,IF CLOSE_DATE not blank THEN 'C' ELSE pass as-is,A|I|C,Account status: A=Active I=Inactive C=Closed
+BRANCH_CODE,String,119,4,branch_code,Yes,,Map to target branch lookup table,,Branch identifier (4-digit code)
+CURRENCY,String,123,3,currency,No,,Default to 'USD' if blank,USD|CAD|GBP|EUR,ISO currency code
+FILLER,String,126,5,filler,No,,Initialize to spaces,,Reserved for future use
