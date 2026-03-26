@@ -8,13 +8,15 @@ across CLI, Web UI, REST API, and CI/CD environments.
 ## Table of Contents
 
 1. [Getting Started](#1-getting-started)
-2. [Web UI Guide](#2-web-ui-guide)
-3. [CLI Reference](#3-cli-reference)
-4. [API Reference](#4-api-reference)
-5. [Configuration Reference](#5-configuration-reference)
-6. [CI Pipeline Integration](#6-ci-pipeline-integration)
-7. [Operations Guide](#7-operations-guide)
-8. [Troubleshooting](#8-troubleshooting)
+2. [Key Concepts](#2-key-concepts)
+3. [Web UI Guide](#3-web-ui-guide)
+4. [CLI Reference](#4-cli-reference)
+5. [API Reference](#5-api-reference)
+6. [Configuration Reference](#6-configuration-reference)
+7. [CI Pipeline Integration](#7-ci-pipeline-integration)
+8. [Operations Guide](#8-operations-guide)
+9. [FAQ](#9-faq)
+10. [Troubleshooting](#10-troubleshooting)
 
 ---
 
@@ -75,9 +77,200 @@ valdo serve --port 8000
 
 Navigate to `http://localhost:8000/ui` in your browser.
 
+### Your First Validation in 5 Minutes
+
+This walkthrough takes you from zero to a validated file. No Oracle database or
+special configuration is needed.
+
+**Step 1: Install Valdo**
+
+```bash
+git clone https://github.com/your-org/valdo-automations.git
+cd valdo-automations
+pip install -e .
+```
+
+After installation finishes, verify it worked:
+
+```bash
+valdo --version
+```
+
+Expected output:
+
+```
+valdo-automations, version 1.0.0
+```
+
+**Step 2: Start the server**
+
+```bash
+valdo serve
+```
+
+Expected output:
+
+```
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     Started server process
+```
+
+Leave this terminal running. Open a new terminal (or browser) for the next step.
+
+**Step 3: Open the Web UI**
+
+Navigate to `http://localhost:8000/ui` in your browser. You should see the
+Quick Test tab with a file drop zone, a mapping dropdown, and Validate /
+Compare buttons.
+
+**Step 4: Upload a sample file**
+
+A "batch file" is simply a data file -- often a text file where each line
+represents one record (such as a customer, a transaction, or an account). The
+file might be fixed-width (every field occupies a set number of characters),
+pipe-delimited (`|` between fields), or comma-separated (CSV).
+
+Drag and drop any batch file onto the drop zone, or click the zone to browse
+for a file. If you do not have one handy, look in the `data/samples/` directory
+of this repository for example files.
+
+**Step 5: Select a mapping**
+
+A "mapping" tells Valdo how to read the file -- which columns exist, where each
+column starts and ends, and what data type it should contain. Think of it as a
+blueprint for the file's layout.
+
+Choose a mapping from the dropdown. The list is populated from the
+`config/mappings/` directory. Pick the mapping that matches your file (for
+example, `customer_mapping` for a customer batch file).
+
+**Step 6: Click Validate and read the results**
+
+Click the **Validate** button. After a moment, you will see metric cards:
+
+- **Total Rows** -- how many data rows were in the file.
+- **Valid Rows** -- how many rows passed all checks.
+- **Invalid Rows** -- how many rows had at least one error.
+- **Quality Score** -- the percentage of valid rows (e.g., 99.87 means 99.87%
+  of rows are clean).
+
+A green card means everything passed. Red means errors were found -- click the
+report link below the cards to see exactly which rows and fields failed and why.
+
 ---
 
-## 2. Web UI Guide
+## 2. Key Concepts
+
+If you are new to Valdo, this section explains the core ideas in plain language
+before you dive into the detailed reference sections.
+
+### What is a batch file?
+
+A batch file is a plain-text data file where each line is one record. The three
+most common formats are:
+
+**Fixed-width** -- every field occupies a fixed number of characters. There are
+no delimiters; position determines meaning.
+
+```
+CUST001   John Smith        2026-01-15ACTIVE
+CUST002   Jane Doe          2025-11-03INACTIVE
+CUST003   Bob Johnson       2026-03-20ACTIVE
+```
+
+In this example, the customer ID is always characters 1-10, the name is 11-28,
+the date is 29-38, and the status is 39-46.
+
+**Pipe-delimited** -- fields are separated by the `|` character.
+
+```
+CUST001|John Smith|2026-01-15|ACTIVE
+CUST002|Jane Doe|2025-11-03|INACTIVE
+CUST003|Bob Johnson|2026-03-20|ACTIVE
+```
+
+**CSV (comma-separated)** -- fields are separated by commas, with optional
+quoting.
+
+```
+CUST001,John Smith,2026-01-15,ACTIVE
+CUST002,Jane Doe,2025-11-03,INACTIVE
+CUST003,"Bob Johnson",2026-03-20,ACTIVE
+```
+
+Valdo also supports **TSV** (tab-separated) files. It can auto-detect which
+format a file uses, but you can specify it explicitly if auto-detection gets it
+wrong.
+
+### What is a mapping?
+
+A mapping is a JSON file that acts as a blueprint for a batch file's structure.
+It tells Valdo:
+
+- What format the file uses (fixed-width, pipe-delimited, CSV, etc.).
+- What fields (columns) exist.
+- Where each field starts and how wide it is (for fixed-width files).
+- What data type each field should contain (string, numeric, date, etc.).
+- Which fields are required (not nullable).
+
+For example, a mapping might say: "Column `CUST_ID` starts at position 1, is 10
+characters wide, must be a string, and cannot be blank." Without a mapping,
+Valdo would not know how to interpret the raw bytes of the file.
+
+### What are business rules?
+
+Business rules are extra validation checks that go beyond basic format and data
+type. They encode domain knowledge -- things that a data analyst or business
+user knows should be true about the data.
+
+Examples of business rules:
+
+- "The ACCOUNT_NUM field must start with the digit 1."
+- "The STATUS field can only contain A, I, or C."
+- "The BALANCE field must not be negative."
+- "The CUST_ID field must never be blank."
+
+Rules are defined in a separate JSON file and are optional. You can validate a
+file with just a mapping (checking format and types) or add rules for deeper
+business-logic checks.
+
+### What is validation?
+
+Validation is the process of checking every row in a batch file against a
+mapping (and optionally business rules). For each row, Valdo checks:
+
+1. **Structure** -- Does the row have the right length or number of fields?
+2. **Data types** -- Does each field contain the expected type (number, date, string)?
+3. **Business rules** -- Does each field satisfy any additional rules?
+
+The result is a report listing every error found, along with summary statistics
+(total rows, valid rows, invalid rows, and a quality score).
+
+### What is comparison?
+
+Comparison (or "diffing") takes two files and checks them row by row to find
+differences. This is useful when you have an "expected" file and an "actual"
+file and want to know exactly what changed.
+
+Valdo matches rows using key columns (such as a customer ID), then compares
+every field and reports mismatches, missing rows, and extra rows. The output is
+an HTML or JSON report with field-level statistics showing how many values
+matched and how many differed.
+
+### What is a test suite?
+
+A test suite is a YAML file that bundles multiple validation and comparison
+steps into a single run -- like a checklist. Instead of running five separate
+`valdo validate` commands, you define all five in one suite file and run them
+with a single `valdo run-tests` command.
+
+Suites also support thresholds (e.g., "fail if more than 10 errors total") and
+notifications (email, Slack, or Teams alerts on failure). They are commonly used
+in CI/CD pipelines to validate data files automatically on every build.
+
+---
+
+## 3. Web UI Guide
 
 The Web UI is served at `/ui` and provides four main tabs. It supports dark and
 light themes (toggled via the theme button) and respects your system preference
@@ -91,6 +284,25 @@ on first visit. All tabs are fully keyboard-accessible.
 
 The Quick Test tab is the primary interface for ad-hoc file validation and
 comparison.
+
+**How to use this tab:**
+
+1. Drag and drop your batch file onto the drop zone (or click the zone to
+   browse). The filename appears once the file is accepted.
+2. Select a mapping from the dropdown that matches your file. If you are
+   unsure which mapping to use, check with your team lead or look at the
+   mapping names in `config/mappings/` -- they are usually named after the
+   data source (e.g., `customer_mapping`, `p327_mapping`).
+3. (Optional) If you also want to apply business rules, select a rules file
+   from the rules dropdown.
+4. Click **Validate** to check the file. Wait a few seconds -- metric cards
+   will appear showing total rows, valid rows, invalid rows, and a quality
+   score. Green means the file is clean; red means errors were found.
+5. Click the report link below the metric cards to open a detailed HTML
+   report. The report shows exactly which rows failed and why.
+6. To compare two files instead, upload both files using the file selectors,
+   then click **Compare**. You will get a diff report showing matches,
+   mismatches, and missing rows.
 
 **Features:**
 
@@ -116,6 +328,21 @@ comparison.
 
 The Recent Runs tab shows a history of validation and comparison operations.
 
+**How to use this tab:**
+
+1. Click the **Recent Runs** tab in the navigation bar. The table loads
+   automatically with your most recent validation and comparison runs.
+2. Look at the status badges to get a quick overview: green means passed, red
+   means failed, amber means partial (some errors, but within threshold).
+3. Click any column header (Date, Status, File Name, Error Count) to sort
+   the table and find what you need.
+4. Click a row to expand it and see the full result summary, including
+   per-field error breakdowns. This is useful for diagnosing exactly where
+   problems occurred without re-running the validation.
+5. The table auto-refreshes, so if a colleague triggers a validation or an
+   async job finishes in the background, it will appear without you needing
+   to reload the page.
+
 **Features:**
 
 - **Status badges** -- Green (passed), red (failed), and amber (partial)
@@ -137,6 +364,25 @@ The Recent Runs tab shows a history of validation and comparison operations.
 
 The Mapping Generator provides a guided workflow for creating mapping JSON from
 Excel or CSV templates.
+
+**How to use this tab:**
+
+1. Click the **Mapping Generator** tab. You will see a two-panel layout: an
+   upload area on the left and a JSON preview on the right.
+2. Upload an Excel (.xlsx) or CSV file that describes your batch file's
+   layout. This is typically a spreadsheet where each row represents a field
+   and columns specify the field name, start position, length, and data
+   type.
+3. Valdo automatically detects the file format and extracts field
+   definitions. Watch the step indicators at the top to track your progress
+   through the workflow.
+4. Review the detected fields in the field editor. You can rename fields,
+   change data types, adjust positions, or correct lengths inline.
+5. Check the live JSON preview on the right -- it updates in real time as
+   you edit. This is the mapping JSON that will be generated.
+6. When everything looks correct, click **Save** to store the mapping on the
+   server (it goes into `config/mappings/`), or click **Download** to save
+   the JSON file locally.
 
 **Features:**
 
@@ -161,6 +407,25 @@ Excel or CSV templates.
 
 The API Tester provides an interactive REST client for testing CM3 endpoints
 without leaving the browser.
+
+**How to use this tab:**
+
+1. Click the **API Tester** tab. The interface resembles tools like Postman
+   or Insomnia, but runs directly in your browser.
+2. Select an HTTP method (GET, POST, PUT, DELETE) from the dropdown.
+3. Enter the endpoint URL. It is pre-populated with the current server
+   address, so you only need to type the path (e.g.,
+   `/api/v1/mappings/`).
+4. Add headers if needed. For authenticated endpoints, add an `X-API-Key`
+   header with your API key.
+5. For POST or PUT requests, type or paste the JSON request body into the
+   editor. If the endpoint accepts file uploads, use the file upload field
+   instead.
+6. Click **Send**. The response viewer below shows the status code, response
+   headers, timing, and the formatted JSON body.
+7. To run a batch of requests, use the **Suite runner** section: load a
+   saved suite of API requests, execute them in sequence, and review the
+   pass/fail result for each.
 
 **Features:**
 
@@ -192,7 +457,7 @@ bar and panels stack vertically on narrow screens.
 
 ---
 
-## 3. CLI Reference
+## 4. CLI Reference
 
 All commands are invoked through the `valdo` entry point.
 
@@ -229,6 +494,48 @@ valdo validate \
 | `--strict-fixed-width / --no-strict-fixed-width` | off | Strict fixed-width field checks |
 | `--strict-level` | `format` | Strict depth: `basic`, `format`, or `all` |
 
+#### Common examples
+
+**Basic validation with an HTML report:**
+
+```bash
+valdo validate -f data/batch/customers.txt -m config/mappings/customer_mapping.json -o report.html
+```
+
+Expected output:
+
+```
+Validating customers.txt against customer_mapping...
+Total rows: 15000 | Valid: 14980 | Invalid: 20 | Quality: 99.87%
+Report saved to report.html
+```
+
+**Validation with business rules and JSON output (useful for CI):**
+
+```bash
+valdo validate \
+  -f data/batch/customers.txt \
+  -m config/mappings/customer_mapping.json \
+  -r config/rules/customer_rules.json \
+  -o results.json
+```
+
+**Validate a large file using chunked processing with 4 parallel workers:**
+
+```bash
+valdo validate \
+  -f data/batch/large_transactions.txt \
+  -m config/mappings/transaction_mapping.json \
+  --use-chunked --chunk-size 50000 --workers 4 \
+  -o report.html
+```
+
+**Quick validation with only basic checks (faster, less strict):**
+
+```bash
+valdo validate -f data/batch/customers.txt -m config/mappings/customer_mapping.json --strict-level basic
+```
+
 ### compare
 
 Compare two files and generate a diff report.
@@ -254,6 +561,49 @@ valdo compare \
 | `--chunk-size` | 100000 | Rows per chunk |
 | `--use-chunked` | off | Chunked processing |
 | `--progress / --no-progress` | `--progress` | Show progress bar |
+
+#### Common examples
+
+**Compare expected vs. actual output, matching rows by customer ID:**
+
+```bash
+valdo compare \
+  -f1 data/expected/customers.txt \
+  -f2 data/actual/customers.txt \
+  -m config/mappings/customer_mapping.json \
+  -k "CUST_ID" \
+  -o comparison.html
+```
+
+Expected output:
+
+```
+Comparing expected/customers.txt vs actual/customers.txt...
+Rows in file 1: 15000 | Rows in file 2: 15000
+Matching: 14950 | Only in file 1: 25 | Only in file 2: 25 | Differences: 50
+Report saved to comparison.html
+```
+
+**Compare using multiple key columns:**
+
+```bash
+valdo compare \
+  -f1 data/expected/transactions.txt \
+  -f2 data/actual/transactions.txt \
+  -m config/mappings/transaction_mapping.json \
+  -k "ACCOUNT_NUM,TRANS_DATE,TRANS_SEQ" \
+  -o txn_diff.html
+```
+
+**Compare large files with chunked processing:**
+
+```bash
+valdo compare \
+  -f1 expected_large.txt -f2 actual_large.txt \
+  -m config/mappings/large_mapping.json \
+  -k "ID" --use-chunked --chunk-size 100000 \
+  -o diff_report.html
+```
 
 ### db-compare
 
@@ -351,6 +701,34 @@ valdo serve --host 0.0.0.0 --port 8000
 | `--host` | `0.0.0.0` | Bind address |
 | `--port` | `8000` | Listen port |
 
+#### Common examples
+
+**Start the server with default settings (port 8000, all interfaces):**
+
+```bash
+valdo serve
+```
+
+**Start on a custom port (useful if 8000 is already in use):**
+
+```bash
+valdo serve --port 9000
+```
+
+Then open `http://localhost:9000/ui` in your browser.
+
+**Bind to localhost only (reject external connections):**
+
+```bash
+valdo serve --host 127.0.0.1 --port 8000
+```
+
+**Start with debug logging (helpful for troubleshooting):**
+
+```bash
+LOG_LEVEL=DEBUG valdo serve
+```
+
 ### submit-task
 
 Submit a canonical task request from the CLI.
@@ -394,7 +772,7 @@ valdo submit-task \
 
 ---
 
-## 4. API Reference
+## 5. API Reference
 
 The REST API is served at `http://localhost:8000` by default. Interactive
 documentation is available at `/docs` (Swagger UI) and `/redoc` (ReDoc).
@@ -760,7 +1138,7 @@ curl -H "X-API-Key: key-admin-secret:admin" \
 
 ---
 
-## 5. Configuration Reference
+## 6. Configuration Reference
 
 ### Mapping JSON Schema
 
@@ -926,7 +1304,7 @@ cp .env.example .env
 
 ---
 
-## 6. CI Pipeline Integration
+## 7. CI Pipeline Integration
 
 Valdo provides ready-made templates for the three most common
 CI platforms, plus generic approaches for any Docker-capable system.
@@ -1087,7 +1465,7 @@ fi
 
 ---
 
-## 7. Operations Guide
+## 8. Operations Guide
 
 ### Docker Deployment
 
@@ -1235,7 +1613,105 @@ Control retention with `FILE_RETENTION_HOURS` (default: 24 hours).
 
 ---
 
-## 8. Troubleshooting
+## 9. FAQ
+
+### What file formats does Valdo support?
+
+Valdo supports four text-based batch file formats:
+
+- **Fixed-width** -- each field occupies a fixed number of characters per line.
+- **Pipe-delimited** -- fields separated by the `|` character.
+- **CSV** -- comma-separated values, with optional quoting.
+- **TSV** -- tab-separated values.
+
+Valdo auto-detects the format in most cases. You can override detection with the
+`--format` flag on the CLI or the `file_format` parameter in the API. Binary
+files (Excel, Parquet, etc.) are not supported as input data files, though Excel
+files are used as mapping and rules templates.
+
+### Do I need Oracle installed?
+
+No. Oracle is only required for the database-related commands (`db-compare`,
+`extract`, `reconcile`, `generate-oracle-expected`). All file validation,
+comparison, and parsing features work without any database.
+
+When you do need Oracle, Valdo uses the `oracledb` Python package in thin mode,
+which means you do not need to install Oracle Instant Client or any native
+libraries. Just set the `ORACLE_USER`, `ORACLE_PASSWORD`, and `ORACLE_DSN`
+environment variables in your `.env` file.
+
+### How do I create a mapping for a new file?
+
+There are three ways:
+
+1. **Web UI (easiest)** -- Go to the Mapping Generator tab, upload an Excel or
+   CSV template that describes the file layout, review the detected fields,
+   and click Save.
+2. **CLI** -- Use `valdo convert-mappings` to convert an Excel/CSV template to
+   a mapping JSON file in batch.
+3. **By hand** -- Copy an existing mapping JSON from `config/mappings/`, rename
+   it, and edit the fields to match your new file. See the
+   [Mapping JSON Schema](#mapping-json-schema) section for the expected
+   structure.
+
+### Can I run Valdo without the web UI?
+
+Yes. The CLI provides full functionality without starting the server. For
+example:
+
+```bash
+# Validate a file
+valdo validate -f myfile.txt -m mapping.json -o report.html
+
+# Compare two files
+valdo compare -f1 expected.txt -f2 actual.txt -m mapping.json -o diff.html
+
+# Run a full test suite
+valdo run-tests --suite config/suites/daily.yaml
+```
+
+The Web UI is a convenience layer built on top of the same API. Everything the
+UI can do, the CLI can do too.
+
+### How do I add custom validation rules?
+
+Create a rules JSON file (or use the API/CLI to convert from an Excel
+template):
+
+1. **From Excel/CSV** -- Prepare a spreadsheet with columns for rule name,
+   type, field, and expected values, then run:
+
+   ```bash
+   valdo convert-rules --file my_rules_template.xlsx --output config/rules/my_rules.json
+   ```
+
+2. **By hand** -- Create a JSON file following the
+   [Rules JSON Schema](#rules-json-schema) format. Supported rule types
+   include `not_blank`, `data_type`, `allowed_values`, `regex`, `range`,
+   and more.
+
+Then pass the rules file when validating:
+
+```bash
+valdo validate -f myfile.txt -m mapping.json -r config/rules/my_rules.json -o report.html
+```
+
+### What does the quality score mean?
+
+The quality score is the percentage of rows that passed all validation checks:
+
+```
+quality_score = (valid_rows / total_rows) * 100
+```
+
+A score of 100.0 means every row is clean. A score of 99.87 means 99.87% of
+rows passed and 0.13% had at least one error. The score gives you a quick
+at-a-glance measure of file quality. For detailed information about which rows
+failed and why, open the full HTML or JSON report.
+
+---
+
+## 10. Troubleshooting
 
 ### Common Errors
 
