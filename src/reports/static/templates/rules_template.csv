@@ -1,6 +1,16 @@
 Rule ID,Rule Name,Field,Type,Severity,Enabled,Message,Value
 R001,account_not_empty,ACCOUNT_NUM,not_empty,error,Yes,Account number must not be empty,
-R002,balance_positive,BALANCE,min_value,warning,Yes,Balance should be positive,0
-R003,status_valid,STATUS,valid_values,error,Yes,Status must be A I or C,A|I|C
-R004,date_format,OPEN_DATE,date_format,error,Yes,Date must be CCYYMMDD,CCYYMMDD
-R005,name_not_empty,FIRST_NAME,not_empty,error,Yes,First name must not be empty,
+R002,account_length,ACCOUNT_NUM,exact_length,error,Yes,Account number must be exactly 18 characters,18
+R003,account_pattern,ACCOUNT_NUM,regex,error,Yes,Account number must start with 1 or 2 followed by digits,^[12]\d+$
+R004,balance_positive,BALANCE,min_value,warning,Yes,Balance should be positive,0
+R005,balance_max,BALANCE,max_value,error,Yes,Balance must not exceed 999999999,999999999
+R006,balance_numeric,BALANCE,numeric,error,Yes,Balance must be a valid number,
+R007,status_valid,STATUS,valid_values,error,Yes,Status must be A (Active) I (Inactive) or C (Closed),A|I|C
+R008,date_format,OPEN_DATE,date_format,error,Yes,Open date must be in CCYYMMDD format,CCYYMMDD
+R009,date_not_future,OPEN_DATE,max_value,warning,Yes,Open date should not be in the future,TODAY
+R010,name_not_empty,FIRST_NAME,not_empty,error,Yes,First name must not be empty,
+R011,name_alpha_only,FIRST_NAME,regex,warning,Yes,First name should contain only letters and spaces,^[A-Za-z\s]+$
+R012,name_min_length,FIRST_NAME,min_length,error,Yes,First name must be at least 2 characters,2
+R013,ssn_format,SSN,regex,error,Yes,SSN must be 9 digits (no dashes),^\d{9}$
+R014,ssn_not_all_zeros,SSN,regex,error,Yes,SSN must not be all zeros,^(?!000000000)\d{9}$
+R015,cross_field_active_balance,STATUS|BALANCE,cross_field,warning,Yes,Active accounts should have a positive balance,STATUS=A AND BALANCE>0

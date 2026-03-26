@@ -32,7 +32,7 @@
     --fail:         #e74c3c;
     --partial:      #f39c12;
     --text-primary: #e0e0e0;
-    --text-secondary: #8899aa;
+    --text-secondary: #a8b8cc; /* WCAG AA: contrast ≥4.5:1 on #1a1a2e */
     --border:       #2a3a5e;
     --radius:       6px;
     --blue:         #4a9eff;
@@ -40,7 +40,7 @@
     --bg:           #1a1a2e;
     --panel:        #16213e;
     --text:         #e0e0e0;
-    --muted:        #8899aa;
+    --muted:        #a8b8cc; /* was #8899aa — raised for WCAG AA contrast */
   }
 
   /* ── Light theme overrides ───────────────────────────────────────────── */
@@ -51,14 +51,14 @@
     --accent:       #e8edf5;
     --accent2:      #d0d9ec;
     --text-primary: #1a1a2e;
-    --text-secondary: #6b7280;
+    --text-secondary: #4b5563; /* WCAG AA: contrast ≥4.5:1 on #f8f9fc */
     --border:       #e5e7eb;
-    --blue:         #4a9eff;
+    --blue:         #1d4ed8; /* darker blue for WCAG AA on white backgrounds */
     /* legacy aliases */
     --bg:           #f8f9fc;
     --panel:        #fff;
     --text:         #1a1a2e;
-    --muted:        #6b7280;
+    --muted:        #4b5563; /* was #6b7280 — raised for WCAG AA contrast */
   }
 
   body {
@@ -1003,9 +1003,10 @@
   [data-theme="light"] .at-req-row { background: #f3f4f6; }
   [data-theme="light"] tbody tr:hover { background: rgba(0,0,0,0.04); }
   [data-theme="light"] .at-req-row.drag-over { background: rgba(37,99,235,0.08); }
-  [data-theme="light"] .badge-pass { background: rgba(5,150,105,0.1); }
-  [data-theme="light"] .badge-fail { background: rgba(220,38,38,0.1); }
-  [data-theme="light"] .badge-partial { background: rgba(180,83,9,0.1); }
+  /* Light-theme badge contrast fixes — WCAG AA */
+  [data-theme="light"] .badge-pass    { background: rgba(5,150,105,0.12);  color: #065f46; border-color: rgba(5,150,105,0.4); }
+  [data-theme="light"] .badge-fail    { background: rgba(220,38,38,0.1);   color: #b91c1c; border-color: rgba(220,38,38,0.4); }
+  [data-theme="light"] .badge-partial { background: rgba(180,83,9,0.1);    color: #92400e; border-color: rgba(180,83,9,0.4); }
   [data-theme="light"] .at-textarea { background: #f3f4f6; }
   [data-theme="light"] .btn-secondary { background: var(--accent2); color: var(--text-primary); }
   [data-theme="light"] .btn-secondary:hover:not(:disabled) { background: #c0cde4; }
@@ -1320,7 +1321,9 @@
     cursor: pointer;
     font-size: 14px;
     font-weight: 700;
-    width: 32px; height: 32px;
+    /* WCAG 2.5.5: minimum 44×44px touch target */
+    width: 44px; height: 44px;
+    min-width: 44px; min-height: 44px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1333,6 +1336,90 @@
     background: rgba(37,99,235,0.08);
   }
   .header-right { display: flex; align-items: center; gap: 8px; }
+
+  /* WCAG 2.5.5: theme toggle — 44×44px touch target */
+  .btn-theme {
+    min-width: 44px;
+    min-height: 44px;
+    height: 44px;
+    width: 44px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* WCAG 2.5.5: file-card-remove — 44×44px touch target */
+  .file-card-remove {
+    min-width: 44px;
+    min-height: 44px;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    font-size: 22px;
+  }
+
+  /* ── Reduced motion: disable all animations for users who prefer it ─── */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+    /* Explicitly stop infinite animations */
+    .drop-zone .dz-icon {
+      animation: none !important;
+    }
+    .spinner {
+      animation: none !important;
+      border-top-color: var(--blue);
+      opacity: 0.7;
+    }
+    .skeleton {
+      animation: none !important;
+      opacity: 0.5;
+    }
+    .refresh-toggle.active .refresh-dot {
+      animation: none !important;
+      opacity: 1;
+    }
+    .tab-indicator {
+      transition: none !important;
+    }
+    .panel.panel-entering {
+      animation: none !important;
+      opacity: 1;
+      transform: none;
+    }
+    .drop-zone:hover, .drop-zone.dragover {
+      transform: none !important;
+    }
+    button.btn:hover:not(:disabled) {
+      transform: none !important;
+    }
+    .btn-theme:hover,
+    .btn-copy:hover {
+      transform: none !important;
+    }
+    .metric-card {
+      animation: none !important;
+    }
+    .file-card.visible {
+      animation: none !important;
+    }
+    .toast {
+      transition: none !important;
+    }
+    .help-sidebar,
+    .help-overlay {
+      transition: none !important;
+    }
+  }
 </style>
 </head>
 <body>
@@ -1344,7 +1431,23 @@
 
 <header>
   <div class="header-left">
-    <h1>Valdo</h1>
+    <h1>
+      <svg aria-hidden="true" focusable="false"
+           width="20" height="20" viewBox="0 0 24 24" fill="none"
+           stroke="url(#valdo-icon-grad)" stroke-width="2.2"
+           stroke-linecap="round" stroke-linejoin="round"
+           style="display:inline-block;vertical-align:middle;margin-right:6px;flex-shrink:0">
+        <defs>
+          <linearGradient id="valdo-icon-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%"   stop-color="#60a5fa"/>
+            <stop offset="100%" stop-color="#a78bfa"/>
+          </linearGradient>
+        </defs>
+        <circle cx="11" cy="11" r="7.5"/>
+        <line x1="17" y1="17" x2="22" y2="22"/>
+        <line x1="9"  y1="11" x2="13" y2="11"/>
+        <line x1="11" y1="9"  x2="11" y2="13"/>
+      </svg>Valdo</h1>
     <span class="version-badge">v2.0</span>
   </div>
   <div class="header-right">
@@ -1360,7 +1463,7 @@
 <aside class="help-sidebar" id="helpSidebar" role="dialog" aria-label="Usage Guide">
   <div class="help-sidebar-header">
     <h3>
-      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <svg aria-hidden="true" focusable="false" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/>
       </svg>
       Usage Guide
@@ -1369,7 +1472,7 @@
   </div>
   <div class="help-sidebar-search">
     <div class="help-sidebar-search-wrap">
-      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <svg aria-hidden="true" focusable="false" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
         <circle cx="11" cy="11" r="8"/><path stroke-linecap="round" d="m21 21-4.35-4.35"/>
       </svg>
       <input type="text" id="helpSearch" placeholder="Search guide..." aria-label="Search usage guide">
@@ -1397,14 +1500,14 @@
 <main>
 
   <!-- QUICK TEST PANEL -->
-  <div id="panel-quick" class="panel" role="tabpanel" aria-labelledby="tab-quick">
+  <div id="panel-quick" class="panel" role="tabpanel" aria-labelledby="tab-quick" tabindex="-1">
     <h2>Quick Test</h2>
 
     <!-- Primary drop zone -->
     <div class="drop-zone" id="dropZone" tabindex="0"
          role="button" aria-label="Click or drag a file here"
          data-tooltip="Drop a batch file here, or click to browse (.txt, .csv, .dat, .pipe)">
-      <svg class="dz-icon" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.4" viewBox="0 0 24 24">
+      <svg class="dz-icon" aria-hidden="true" focusable="false" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.4" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round"
           d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
       </svg>
@@ -1415,7 +1518,7 @@
 
     <!-- Primary file preview card -->
     <div class="file-card" id="primaryFileCard">
-      <svg class="file-card-icon" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+      <svg class="file-card-icon" aria-hidden="true" focusable="false" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round"
           d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
       </svg>
@@ -1431,7 +1534,8 @@
     <div class="mapping-search-wrap">
       <label class="mapping-search-label" for="mappingFilter">Mapping</label>
       <div style="position:relative">
-        <svg style="position:absolute;left:9px;top:50%;transform:translateY(-50%);width:14px;height:14px;pointer-events:none;color:var(--muted)"
+        <svg aria-hidden="true" focusable="false"
+             style="position:absolute;left:9px;top:50%;transform:translateY(-50%);width:14px;height:14px;pointer-events:none;color:var(--muted)"
              fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <circle cx="11" cy="11" r="8"/><path stroke-linecap="round" d="m21 21-4.35-4.35"/>
         </svg>
@@ -1448,14 +1552,15 @@
     <div class="btn-row">
       <button class="btn btn-primary btn-lg" id="btnValidate" disabled
               data-tooltip="Run structural validation against the selected mapping and rules">
-        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <svg aria-hidden="true" focusable="false" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>
         Validate
       </button>
       <button class="btn btn-toggle" id="btnToggleCompare"
+              aria-expanded="false"
               data-tooltip="Compare two batch files row-by-row and highlight differences">
-        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <svg aria-hidden="true" focusable="false" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/>
         </svg>
         Compare Mode
@@ -1485,7 +1590,7 @@
           <div class="compare-card-label">Second File</div>
           <div class="drop-zone" id="dropZone2" tabindex="0"
                role="button" aria-label="Click or drag the second file here">
-            <svg class="dz-icon" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.4" viewBox="0 0 24 24">
+            <svg class="dz-icon" aria-hidden="true" focusable="false" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.4" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round"
                 d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
             </svg>
@@ -1493,7 +1598,7 @@
             <span class="dz-sub">or click to browse</span>
           </div>
           <div class="file-card" id="secondaryFileCard">
-            <svg class="file-card-icon" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+            <svg class="file-card-icon" aria-hidden="true" focusable="false" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round"
                 d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
             </svg>
@@ -1513,7 +1618,8 @@
       </div>
     </div>
 
-    <div class="status-msg info" id="statusMsg">Select a file and mapping to get started.</div>
+    <div class="status-msg info" id="statusMsg"
+         role="status" aria-live="polite" aria-atomic="true">Select a file and mapping to get started.</div>
 
     <div id="reportPanel">
       <div class="report-panel-bar">
@@ -1578,12 +1684,12 @@
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
         <a href="/api/v1/templates/mapping_template.csv" download
            style="display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;color:#fff;background:linear-gradient(135deg,#2563eb,#1d4ed8);box-shadow:0 2px 8px rgba(37,99,235,0.3);transition:all 0.2s">
-          <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m0 0l-4-4m4 4l4-4M4 19h16"/></svg>
+          <svg aria-hidden="true" focusable="false" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m0 0l-4-4m4 4l4-4M4 19h16"/></svg>
           Mapping Template
         </a>
         <a href="/api/v1/templates/rules_template.csv" download
            style="display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;color:#fff;background:linear-gradient(135deg,#7c3aed,#6d28d9);box-shadow:0 2px 8px rgba(124,58,237,0.3);transition:all 0.2s">
-          <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m0 0l-4-4m4 4l4-4M4 19h16"/></svg>
+          <svg aria-hidden="true" focusable="false" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m0 0l-4-4m4 4l4-4M4 19h16"/></svg>
           Rules Template
         </a>
       </div>
@@ -1619,7 +1725,7 @@
           <div class="drop-zone" id="mapDropZone" tabindex="0"
                role="button" aria-label="Click or drag a mapping template here"
                data-tooltip="Upload an Excel or CSV template to generate a mapping JSON config">
-            <svg class="dz-icon" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.4" viewBox="0 0 24 24">
+            <svg class="dz-icon" aria-hidden="true" focusable="false" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.4" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round"
                 d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
             </svg>
@@ -1686,7 +1792,7 @@
           <div class="drop-zone" id="rulesDropZone" tabindex="0"
                role="button" aria-label="Click or drag a rules template here"
                data-tooltip="Upload an Excel or CSV template to generate a rules JSON config">
-            <svg class="dz-icon" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.4" viewBox="0 0 24 24">
+            <svg class="dz-icon" aria-hidden="true" focusable="false" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.4" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round"
                 d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
             </svg>
@@ -1748,25 +1854,25 @@
         </div>
 
         <!-- Horizontal tabs: Headers / Body / Assertions -->
-        <div class="at-req-tabs" role="tablist">
-          <button class="active" onclick="atReqTab('Headers', this)">Headers</button>
-          <button onclick="atReqTab('Body', this)">Body</button>
-          <button onclick="atReqTab('Assertions', this)">Assertions</button>
+        <div class="at-req-tabs" role="tablist" aria-label="Request configuration">
+          <button class="active" role="tab" aria-selected="true"  aria-controls="atTabHeaders" onclick="atReqTab('Headers', this)">Headers</button>
+          <button role="tab" aria-selected="false" aria-controls="atTabBody"       onclick="atReqTab('Body', this)">Body</button>
+          <button role="tab" aria-selected="false" aria-controls="atTabAssertions" onclick="atReqTab('Assertions', this)">Assertions</button>
         </div>
 
-        <div class="at-tab-panel active" id="atTabHeaders">
+        <div class="at-tab-panel active" id="atTabHeaders" role="tabpanel" aria-label="Request headers">
           <div id="atHeaderRows"></div>
           <button class="at-add-row" onclick="atAddHeader()">+ Add Header</button>
         </div>
 
-        <div class="at-tab-panel" id="atTabBody">
-          <div class="at-body-toggle">
-            <button id="atBodyNone" class="active" onclick="atSetBodyType('none')">None</button>
-            <button id="atBodyJson"                onclick="atSetBodyType('json')">JSON</button>
-            <button id="atBodyForm"                onclick="atSetBodyType('form')">Form Data</button>
+        <div class="at-tab-panel" id="atTabBody" role="tabpanel" aria-label="Request body">
+          <div class="at-body-toggle" role="group" aria-label="Body type">
+            <button id="atBodyNone" class="active" aria-pressed="true"  onclick="atSetBodyType('none')">None</button>
+            <button id="atBodyJson"                aria-pressed="false" onclick="atSetBodyType('json')">JSON</button>
+            <button id="atBodyForm"                aria-pressed="false" onclick="atSetBodyType('form')">Form Data</button>
           </div>
           <div id="atBodyJsonArea" style="display:none">
-            <textarea id="atBodyJsonText" class="at-textarea" placeholder='{"key": "value"}'></textarea>
+            <textarea id="atBodyJsonText" class="at-textarea" placeholder='{"key": "value"}' aria-label="Request body JSON"></textarea>
           </div>
           <div id="atBodyFormArea" style="display:none">
             <div id="atFormRows"></div>
@@ -1775,7 +1881,7 @@
           </div>
         </div>
 
-        <div class="at-tab-panel" id="atTabAssertions">
+        <div class="at-tab-panel" id="atTabAssertions" role="tabpanel" aria-label="Request assertions">
           <div id="atAssertionRows"></div>
           <button class="at-add-row" onclick="atAddAssertion()">+ Add Assertion</button>
         </div>
@@ -1799,16 +1905,16 @@
           <span class="at-elapsed"      id="atElapsed"></span>
           <span class="at-resp-size"    id="atRespSize"></span>
         </div>
-        <div class="at-resp-tabs">
-          <button class="active" onclick="atRespTab('Body',    this)">Body</button>
-          <button                onclick="atRespTab('Headers', this)">Headers</button>
-          <button                onclick="atRespTab('Raw',     this)">Raw</button>
+        <div class="at-resp-tabs" role="tablist" aria-label="Response view">
+          <button class="active" role="tab" aria-selected="true"  aria-controls="atRespBody"    onclick="atRespTab('Body',    this)">Body</button>
+          <button                role="tab" aria-selected="false" aria-controls="atRespHeaders" onclick="atRespTab('Headers', this)">Headers</button>
+          <button                role="tab" aria-selected="false" aria-controls="atRespRaw"     onclick="atRespTab('Raw',     this)">Raw</button>
         </div>
-        <div class="at-resp-body" id="atRespBody">
+        <div class="at-resp-body" id="atRespBody" role="tabpanel" aria-label="Response body" aria-live="polite">
           <span class="at-resp-placeholder">Send a request to see the response.</span>
         </div>
-        <div class="at-resp-body" id="atRespHeaders" style="display:none"></div>
-        <div class="at-resp-body" id="atRespRaw"     style="display:none"></div>
+        <div class="at-resp-body" id="atRespHeaders" role="tabpanel" aria-label="Response headers" style="display:none"></div>
+        <div class="at-resp-body" id="atRespRaw"     role="tabpanel" aria-label="Raw response"     style="display:none"></div>
       </div>
 
     </div><!-- /.at-layout -->
@@ -1833,8 +1939,8 @@
 
 </main>
 
-<footer class="status-bar" id="footerBar">
-  <span class="health-dot pending" id="healthDot" aria-label="Server health"></span>
+<footer class="status-bar" id="footerBar" aria-live="polite" aria-atomic="true">
+  <span class="health-dot pending" id="healthDot" role="img" aria-label="Server health: checking"></span>
   <span id="healthLabel">Checking server&hellip;</span>
 </footer>
 
@@ -2677,13 +2783,16 @@ async function checkHealth() {
     var resp = await fetch('/api/v1/system/health', { cache: 'no-store' });
     if (resp.ok) {
       dot.className = 'health-dot ok';
+      dot.setAttribute('aria-label', 'Server health: healthy');
       label.textContent = 'Server healthy';
     } else {
       dot.className = 'health-dot error';
+      dot.setAttribute('aria-label', 'Server health: error ' + resp.status);
       label.textContent = 'Server returned ' + resp.status;
     }
   } catch (_) {
     dot.className = 'health-dot error';
+    dot.setAttribute('aria-label', 'Server health: unreachable');
     label.textContent = 'Server unreachable';
   }
 }
@@ -2719,8 +2828,12 @@ function atReqTab(name, btn) {
     var panel = document.getElementById('atTab' + t);
     if (panel) panel.classList.toggle('active', t === name);
   });
-  btn.parentNode.querySelectorAll('button').forEach(function(b) { b.classList.remove('active'); });
+  btn.parentNode.querySelectorAll('button').forEach(function(b) {
+    b.classList.remove('active');
+    b.setAttribute('aria-selected', 'false');
+  });
   btn.classList.add('active');
+  btn.setAttribute('aria-selected', 'true');
 }
 
 // -- Body type toggle ---------------------------------------------------------
@@ -2728,7 +2841,11 @@ function atSetBodyType(type) {
   _atBodyType = type;
   ['none','json','form'].forEach(function(t) {
     var id = 'atBody' + t.charAt(0).toUpperCase() + t.slice(1);
-    document.getElementById(id).classList.toggle('active', t === type);
+    var el = document.getElementById(id);
+    if (el) {
+      el.classList.toggle('active', t === type);
+      el.setAttribute('aria-pressed', String(t === type));
+    }
   });
   document.getElementById('atBodyJsonArea').style.display = (type === 'json') ? '' : 'none';
   document.getElementById('atBodyFormArea').style.display = (type === 'form') ? '' : 'none';
@@ -2747,6 +2864,7 @@ function atMakeKvRow(keyVal, valVal, isFile) {
   var rmBtn = document.createElement('button');
   rmBtn.className = 'at-kv-remove';
   rmBtn.title = 'Remove';
+  rmBtn.setAttribute('aria-label', 'Remove row');
   rmBtn.textContent = '\u00d7';
   rmBtn.addEventListener('click', function() { row.remove(); });
 
@@ -2839,6 +2957,7 @@ function atAddAssertion(field, op, expected) {
 
   var rmBtn = document.createElement('button');
   rmBtn.className = 'at-kv-remove';
+  rmBtn.setAttribute('aria-label', 'Remove assertion');
   rmBtn.textContent = '\u00d7';
   rmBtn.addEventListener('click', function() { row.remove(); });
 
@@ -2945,8 +3064,12 @@ function atRespTab(name, btn) {
   ['Body','Headers','Raw'].forEach(function(t) {
     document.getElementById('atResp' + t).style.display = (t === name) ? '' : 'none';
   });
-  btn.parentNode.querySelectorAll('button').forEach(function(b) { b.classList.remove('active'); });
+  btn.parentNode.querySelectorAll('button').forEach(function(b) {
+    b.classList.remove('active');
+    b.setAttribute('aria-selected', 'false');
+  });
   btn.classList.add('active');
+  btn.setAttribute('aria-selected', 'true');
 }
 
 // JSON syntax highlighter -- safe: escapes & < > in every matched token before innerHTML

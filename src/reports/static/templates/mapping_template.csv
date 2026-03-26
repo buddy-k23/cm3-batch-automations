@@ -1,8 +1,13 @@
 field_name,data_type,position,length,target_name,required,description
-ACCOUNT_NUM,String,1,18,account_number,Yes,Customer account number
-FIRST_NAME,String,19,30,first_name,Yes,Customer first name
-LAST_NAME,String,49,30,last_name,Yes,Customer last name
-SSN,String,79,9,ssn,No,Social security number
-BALANCE,Numeric,88,12,balance,Yes,Account balance
-OPEN_DATE,Date,100,8,open_date,Yes,Account open date (CCYYMMDD)
-STATUS,String,108,1,status,Yes,Account status (A/I/C)
+RECORD_TYPE,String,1,2,record_type,Yes,Record type identifier (HD=Header DR=Detail TR=Trailer)
+ACCOUNT_NUM,String,3,18,account_number,Yes,Customer account number (unique identifier)
+FIRST_NAME,String,21,30,first_name,Yes,Customer first name
+LAST_NAME,String,51,30,last_name,Yes,Customer last name
+SSN,String,81,9,ssn,No,Social security number (9 digits no dashes)
+BALANCE,Numeric,90,12,balance,Yes,Account balance in cents (right-justified zero-padded)
+OPEN_DATE,Date,102,8,open_date,Yes,Account open date (CCYYMMDD format)
+CLOSE_DATE,Date,110,8,close_date,No,Account close date (CCYYMMDD or blank if active)
+STATUS,String,118,1,status,Yes,Account status: A=Active I=Inactive C=Closed
+BRANCH_CODE,String,119,4,branch_code,Yes,Branch identifier (4-digit code)
+CURRENCY,String,123,3,currency,No,ISO currency code (USD CAD GBP etc)
+FILLER,String,126,5,filler,No,Reserved for future use (spaces)
