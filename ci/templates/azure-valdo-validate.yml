@@ -3,7 +3,7 @@
 # Usage in your pipeline:
 #
 #   steps:
-#     - template: ci/templates/azure-cm3-validate.yml
+#     - template: ci/templates/azure-valdo-validate.yml
 #       parameters:
 #         file: data/batch/customers.txt
 #         mapping: config/mappings/customers.json
@@ -77,12 +77,12 @@ steps:
       echo "Running: $CMD"
       eval "$CMD"
 
-      echo "##vso[task.setvariable variable=CM3_REPORT_PATH]$REPORT_FILE"
+      echo "##vso[task.setvariable variable=VALDO_REPORT_PATH]$REPORT_FILE"
     displayName: 'Run Valdo Validation'
 
   - script: |
       set -euo pipefail
-      REPORT_FILE="$(CM3_REPORT_PATH)"
+      REPORT_FILE="$(VALDO_REPORT_PATH)"
 
       if [ "${{ parameters.outputFormat }}" = "json" ] && [ -f "$REPORT_FILE" ]; then
         TOTAL_ROWS=$(python3 -c "
@@ -101,8 +101,8 @@ steps:
       print(summary.get('error_count', summary.get('total_errors', 0)))
       " 2>/dev/null || echo "0")
 
-        echo "##vso[task.setvariable variable=CM3_TOTAL_ROWS]$TOTAL_ROWS"
-        echo "##vso[task.setvariable variable=CM3_ERROR_COUNT]$ERROR_COUNT"
+        echo "##vso[task.setvariable variable=VALDO_TOTAL_ROWS]$TOTAL_ROWS"
+        echo "##vso[task.setvariable variable=VALDO_ERROR_COUNT]$ERROR_COUNT"
 
         FAILED="false"
 

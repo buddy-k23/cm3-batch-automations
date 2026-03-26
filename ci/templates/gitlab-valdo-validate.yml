@@ -3,27 +3,27 @@
 # Usage in your .gitlab-ci.yml:
 #
 #   include:
-#     - project: 'your-group/cm3-batch-automations'
-#       file: 'ci/templates/gitlab-cm3-validate.yml'
+#     - project: 'your-group/valdo'
+#       file: 'ci/templates/gitlab-valdo-validate.yml'
 #
 #   validate-batch:
-#     extends: .cm3-validate
+#     extends: .valdo-validate
 #     variables:
-#       CM3_FILE: data/batch/customers.txt
-#       CM3_MAPPING: config/mappings/customers.json
-#       CM3_RULES: config/rules/customers_rules.json
-#       CM3_THRESHOLD_MAX_ERRORS: "100"
+#       VALDO_FILE: data/batch/customers.txt
+#       VALDO_MAPPING: config/mappings/customers.json
+#       VALDO_RULES: config/rules/customers_rules.json
+#       VALDO_THRESHOLD_MAX_ERRORS: "100"
 
-.cm3-validate:
+.valdo-validate:
   stage: validate
   image: python:3.11-slim
   variables:
-    CM3_FILE: ""
-    CM3_MAPPING: ""
-    CM3_RULES: ""
-    CM3_THRESHOLD_MAX_ERRORS: ""
-    CM3_THRESHOLD_MAX_ERROR_PCT: ""
-    CM3_OUTPUT_FORMAT: "json"
+    VALDO_FILE: ""
+    VALDO_MAPPING: ""
+    VALDO_RULES: ""
+    VALDO_THRESHOLD_MAX_ERRORS: ""
+    VALDO_THRESHOLD_MAX_ERROR_PCT: ""
+    VALDO_OUTPUT_FORMAT: "json"
     VALDO_VERSION: "cm3-batch-automations"
   before_script:
     - python -m pip install --upgrade pip
@@ -32,21 +32,21 @@
     - |
       set -euo pipefail
 
-      if [ -z "$CM3_FILE" ] || [ -z "$CM3_MAPPING" ]; then
-        echo "ERROR: CM3_FILE and CM3_MAPPING variables are required"
+      if [ -z "$VALDO_FILE" ] || [ -z "$VALDO_MAPPING" ]; then
+        echo "ERROR: VALDO_FILE and VALDO_MAPPING variables are required"
         exit 1
       fi
 
       REPORT_DIR="valdo-reports"
       mkdir -p "$REPORT_DIR"
-      REPORT_FILE="$REPORT_DIR/validation-report.$CM3_OUTPUT_FORMAT"
+      REPORT_FILE="$REPORT_DIR/validation-report.$VALDO_OUTPUT_FORMAT"
 
       CMD="valdo validate"
-      CMD="$CMD --file '$CM3_FILE'"
-      CMD="$CMD --mapping '$CM3_MAPPING'"
+      CMD="$CMD --file '$VALDO_FILE'"
+      CMD="$CMD --mapping '$VALDO_MAPPING'"
 
-      if [ -n "$CM3_RULES" ]; then
-        CMD="$CMD --rules '$CM3_RULES'"
+      if [ -n "$VALDO_RULES" ]; then
+        CMD="$CMD --rules '$VALDO_RULES'"
       fi
 
       CMD="$CMD --output '$REPORT_FILE'"
@@ -56,7 +56,7 @@
       eval "$CMD"
 
       # Parse results and evaluate thresholds (JSON only)
-      if [ "$CM3_OUTPUT_FORMAT" = "json" ] && [ -f "$REPORT_FILE" ]; then
+      if [ "$VALDO_OUTPUT_FORMAT" = "json" ] && [ -f "$REPORT_FILE" ]; then
         TOTAL_ROWS=$(python3 -c "
       import json
       with open('$REPORT_FILE') as f:
@@ -77,15 +77,15 @@
 
         FAILED="false"
 
-        if [ -n "$CM3_THRESHOLD_MAX_ERRORS" ] && [ "$ERROR_COUNT" -gt "$CM3_THRESHOLD_MAX_ERRORS" ] 2>/dev/null; then
-          echo "WARNING: Error count ($ERROR_COUNT) exceeds threshold ($CM3_THRESHOLD_MAX_ERRORS)"
+        if [ -n "$VALDO_THRESHOLD_MAX_ERRORS" ] && [ "$ERROR_COUNT" -gt "$VALDO_THRESHOLD_MAX_ERRORS" ] 2>/dev/null; then
+          echo "WARNING: Error count ($ERROR_COUNT) exceeds threshold ($VALDO_THRESHOLD_MAX_ERRORS)"
           FAILED="true"
         fi
 
-        if [ -n "$CM3_THRESHOLD_MAX_ERROR_PCT" ] && [ "$TOTAL_ROWS" -gt 0 ]; then
+        if [ -n "$VALDO_THRESHOLD_MAX_ERROR_PCT" ] && [ "$TOTAL_ROWS" -gt 0 ]; then
           ERROR_PCT=$(python3 -c "print(round($ERROR_COUNT / $TOTAL_ROWS * 100, 2))")
-          if python3 -c "exit(0 if $ERROR_PCT > $CM3_THRESHOLD_MAX_ERROR_PCT else 1)"; then
-            echo "WARNING: Error percentage (${ERROR_PCT}%) exceeds threshold (${CM3_THRESHOLD_MAX_ERROR_PCT}%)"
+          if python3 -c "exit(0 if $ERROR_PCT > $VALDO_THRESHOLD_MAX_ERROR_PCT else 1)"; then
+            echo "WARNING: Error percentage (${ERROR_PCT}%) exceeds threshold (${VALDO_THRESHOLD_MAX_ERROR_PCT}%)"
             FAILED="true"
           fi
         fi

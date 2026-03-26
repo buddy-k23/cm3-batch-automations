@@ -985,7 +985,7 @@ The report is automatically uploaded as a build artifact retained for 30 days.
 
 ### Azure DevOps
 
-Use the step template at `ci/templates/azure-cm3-validate.yml`:
+Use the step template at `ci/templates/azure-valdo-validate.yml`:
 
 ```yaml
 # azure-pipelines.yml
@@ -996,7 +996,7 @@ pool:
   vmImage: ubuntu-latest
 
 steps:
-  - template: ci/templates/azure-cm3-validate.yml
+  - template: ci/templates/azure-valdo-validate.yml
     parameters:
       file: data/batch/customers.txt
       mapping: config/mappings/customer_mapping.json
@@ -1012,22 +1012,22 @@ The template publishes the report as a build artifact named
 ### GitLab CI
 
 Include the template and extend the hidden job at
-`ci/templates/gitlab-cm3-validate.yml`:
+`ci/templates/gitlab-valdo-validate.yml`:
 
 ```yaml
 # .gitlab-ci.yml
 include:
   - project: 'your-group/valdo-automations'
-    file: 'ci/templates/gitlab-cm3-validate.yml'
+    file: 'ci/templates/gitlab-valdo-validate.yml'
 
 validate-customers:
-  extends: .cm3-validate
+  extends: .valdo-validate
   variables:
-    CM3_FILE: data/batch/customers.txt
-    CM3_MAPPING: config/mappings/customer_mapping.json
-    CM3_RULES: config/rules/customer_rules.json
-    CM3_THRESHOLD_MAX_ERRORS: "50"
-    CM3_THRESHOLD_MAX_ERROR_PCT: "5"
+    VALDO_FILE: data/batch/customers.txt
+    VALDO_MAPPING: config/mappings/customer_mapping.json
+    VALDO_RULES: config/rules/customer_rules.json
+    VALDO_THRESHOLD_MAX_ERRORS: "50"
+    VALDO_THRESHOLD_MAX_ERROR_PCT: "5"
 ```
 
 Reports are stored as GitLab CI artifacts for 30 days.

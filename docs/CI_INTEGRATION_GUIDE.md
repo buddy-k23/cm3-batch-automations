@@ -168,11 +168,11 @@ jobs:
 
 ### Pattern 5: Azure DevOps Template
 
-Use the step template in `ci/templates/azure-cm3-validate.yml`:
+Use the step template in `ci/templates/azure-valdo-validate.yml`:
 
 ```yaml
 steps:
-  - template: ci/templates/azure-cm3-validate.yml
+  - template: ci/templates/azure-valdo-validate.yml
     parameters:
       file: data/batch/customers.txt
       mapping: config/mappings/customers.json
@@ -184,20 +184,20 @@ steps:
 
 ### Pattern 6: GitLab CI Template
 
-Include the template from `ci/templates/gitlab-cm3-validate.yml`:
+Include the template from `ci/templates/gitlab-valdo-validate.yml`:
 
 ```yaml
 include:
-  - local: 'ci/templates/gitlab-cm3-validate.yml'
+  - local: 'ci/templates/gitlab-valdo-validate.yml'
 
 validate-customers:
-  extends: .cm3-validate
+  extends: .valdo-validate
   variables:
-    CM3_FILE: data/batch/customers.txt
-    CM3_MAPPING: config/mappings/customers.json
-    CM3_RULES: config/rules/customers_rules.json
-    CM3_THRESHOLD_MAX_ERRORS: "50"
-    CM3_THRESHOLD_MAX_ERROR_PCT: "5"
+    VALDO_FILE: data/batch/customers.txt
+    VALDO_MAPPING: config/mappings/customers.json
+    VALDO_RULES: config/rules/customers_rules.json
+    VALDO_THRESHOLD_MAX_ERRORS: "50"
+    VALDO_THRESHOLD_MAX_ERROR_PCT: "5"
 ```
 
 ---
@@ -224,12 +224,12 @@ validate-customers:
 
 | CLI Flag | GitHub Action Input | Azure Parameter | GitLab Variable |
 |----------|-------------------|-----------------|-----------------|
-| `--file` | `file` | `file` | `CM3_FILE` |
-| `--mapping` | `mapping` | `mapping` | `CM3_MAPPING` |
-| `--rules` | `rules` | `rules` | `CM3_RULES` |
-| `--output` format | `output-format` | `outputFormat` | `CM3_OUTPUT_FORMAT` |
-| (threshold) | `threshold-max-errors` | `thresholdMaxErrors` | `CM3_THRESHOLD_MAX_ERRORS` |
-| (threshold) | `threshold-max-error-pct` | `thresholdMaxErrorPct` | `CM3_THRESHOLD_MAX_ERROR_PCT` |
+| `--file` | `file` | `file` | `VALDO_FILE` |
+| `--mapping` | `mapping` | `mapping` | `VALDO_MAPPING` |
+| `--rules` | `rules` | `rules` | `VALDO_RULES` |
+| `--output` format | `output-format` | `outputFormat` | `VALDO_OUTPUT_FORMAT` |
+| (threshold) | `threshold-max-errors` | `thresholdMaxErrors` | `VALDO_THRESHOLD_MAX_ERRORS` |
+| (threshold) | `threshold-max-error-pct` | `thresholdMaxErrorPct` | `VALDO_THRESHOLD_MAX_ERROR_PCT` |
 | (fail gate) | `fail-on-threshold` | (always fails) | (always fails) |
 | Python version | `python-version` | `pythonVersion` | (image-based) |
 | Package version | `cm3-version` | `cm3Version` | `CM3_VERSION` |
