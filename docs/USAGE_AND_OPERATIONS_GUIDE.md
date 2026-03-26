@@ -14,9 +14,10 @@ across CLI, Web UI, REST API, and CI/CD environments.
 5. [API Reference](#5-api-reference)
 6. [Configuration Reference](#6-configuration-reference)
 7. [CI Pipeline Integration](#7-ci-pipeline-integration)
-8. [Operations Guide](#8-operations-guide)
-9. [FAQ](#9-faq)
-10. [Troubleshooting](#10-troubleshooting)
+8. [Database Integration](#8-database-integration)
+9. [Operations Guide](#9-operations-guide)
+10. [FAQ](#10-faq)
+11. [Troubleshooting](#11-troubleshooting)
 
 ---
 
@@ -1593,7 +1594,569 @@ fi
 
 ---
 
-## 8. Operations Guide
+## 8. Database Integration
+
+This section covers Valdo's Oracle database features: connecting to a database,
+comparing DB data against batch files, extracting tables to flat files,
+reconciling mapping schemas, generating expected output files, and tracking
+run history.
+
+### 8.1 Connection Setup
+
+Valdo connects to Oracle using the `oracledb` Python driver in **thin mode**.
+Thin mode communicates directly over the network -- you do **not** need to
+install Oracle Instant Client or set `ORACLE_HOME`.
+
+#### Environment Variables
+
+Set these variables in a `.env` file at the project root or export them in your
+shell before running any database command:
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `ORACLE_USER` | No | `CM3INT` | Database username |
+| `ORACLE_PASSWORD` | **Yes** | *(none)* | Database password |
+| `ORACLE_DSN` | No | `localhost:1521/FREEPDB1` | Oracle Easy Connect string (`host:port/service`) |
+| `ORACLE_SCHEMA` | No | Value of `ORACLE_USER` | Schema prefix for SQL table references (e.g. `CM3INT.TABLE`) |
+| `SECRETS_PROVIDER` | No | `env` | How the password is resolved: `env`, `vault`, or `azure` |
+
+Example `.env` file:
+
+```bash
+ORACLE_USER=CM3INT
+ORACLE_PASSWORD=my_secret_pw
+ORACLE_DSN=db-host.example.com:1521/FREEPDB1
+ORACLE_SCHEMA=CM3INT
+```
+
+#### Testing Connectivity
+
+Run `valdo info` to verify that the `oracledb` driver is available and thin
+mode is active:
+
+```bash
+valdo info
+```
+
+Expected output (when oracledb is installed):
+
+```
+Valdo v0.1.0
+Python version: 3.11.x
+Working directory: /path/to/project
+oracledb version: 2.x.x
+Oracle connectivity available (thin mode)
+```
+
+If you see "oracledb not available", install it:
+
+```bash
+pip install oracledb
+```
+
+#### Thin Mode vs Thick Mode
+
+Valdo defaults to **thin mode**, which requires no native libraries. If you need
+thick mode (e.g. for advanced Oracle features like Kerberos authentication),
+install Oracle Instant Client separately and call `oracledb.init_oracle_client()`
+before connecting. For most batch validation workflows, thin mode is sufficient.
+
+#### Using a Secrets Provider for Passwords
+
+By default, `ORACLE_PASSWORD` is read from the environment (`SECRETS_PROVIDER=env`).
+For production environments, you can use HashiCorp Vault or Azure Key Vault:
+
+```bash
+export SECRETS_PROVIDER=vault
+# Valdo will resolve ORACLE_PASSWORD through the Vault backend
+```
+
+Supported backends: `env` (default), `vault`, `azure`. See the
+`src/utils/secrets` module for configuration details on each provider.
+
+---
+
+### 8.2 DB-to-File Comparison (`db-compare`)
+
+The `db-compare` command extracts data from an Oracle table (or SQL query),
+writes the result to a temporary pipe-delimited file, and compares it against
+an actual batch file. This lets you verify that a batch file matches the
+current state of the database.
+
+#### How It Works
+
+1. Valdo connects to Oracle using your environment variables.
+2. It runs your SQL query (or `SELECT *` on the specified table).
+3. The extracted rows are written to a temporary pipe-delimited file.
+4. The standard comparison engine diffs the temp file against your actual file.
+5. A unified result is returned with workflow metadata and comparison statistics.
+
+#### CLI Usage
+
+```bash
+# Compare a table against a batch file
+valdo db-compare \
+  --query-or-table "SHAW_SRC_P327" \
+  --mapping config/mappings/p327_mapping.json \
+  --actual-file data/actual/p327_output.txt \
+  --key-columns "ACCOUNT_ID,TRANS_DATE" \
+  --output-format json \
+  --output reports/db_compare_p327.json
+```
+
+```bash
+# Compare using a SQL query instead of a bare table name
+valdo db-compare \
+  --query-or-table "SELECT ACCOUNT_ID, NAME, BALANCE FROM CM3INT.CUSTOMERS WHERE STATUS = 'ACTIVE'" \
+  --mapping config/mappings/customer_mapping.json \
+  --actual-file data/actual/customers.txt \
+  --output-format html \
+  --output reports/db_compare_customers.html
+```
+
+**Options reference:**
+
+| Option | Short | Required | Description |
+|---|---|---|---|
+| `--query-or-table` | `-q` | Yes | A SQL SELECT statement or bare Oracle table name |
+| `--mapping` | `-m` | Yes | Path to the JSON mapping config file |
+| `--actual-file` | `-f` | Yes | Path to the actual batch file to compare against |
+| `--key-columns` | `-k` | No | Comma-separated column names used as join keys for row matching |
+| `--output-format` | | No | `json` (default) or `html` |
+| `--output` | `-o` | No | File path for the written report |
+
+#### API Usage
+
+The same workflow is available through the REST API:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/db-compare \
+  -F "actual_file=@data/actual/p327_output.txt" \
+  -F "query_or_table=SHAW_SRC_P327" \
+  -F "mapping_id=p327_mapping" \
+  -F "key_columns=ACCOUNT_ID,TRANS_DATE" \
+  -F "output_format=json"
+```
+
+The `mapping_id` is the filename stem of a mapping JSON file in the configured
+mappings directory (e.g. `p327_mapping` resolves to `config/mappings/p327_mapping.json`).
+
+#### How Key Columns Work
+
+When you provide `--key-columns`, Valdo uses those columns as join keys to match
+rows between the DB extract and the actual file. This is essential when rows may
+appear in a different order. Without key columns, comparison is done row-by-row
+in file order.
+
+**Tip:** Choose columns that together form a unique identifier for each row
+(e.g. a composite primary key like `ACCOUNT_ID,TRANS_DATE`).
+
+#### Reading the Comparison Report
+
+The JSON output contains two sections:
+
+- **`workflow`** -- metadata about the extraction step:
+  - `status`: `"passed"` or `"failed"`
+  - `db_rows_extracted`: number of rows pulled from Oracle
+  - `query_or_table`: the query or table that was used
+- **`compare`** -- the full comparison output:
+  - `total_rows_file1` / `total_rows_file2`: row counts
+  - `matching_rows`: rows that match exactly
+  - `only_in_file1` / `only_in_file2`: rows present in only one source
+  - `differences`: number of rows with field-level differences
+  - `structure_compatible`: whether column structures match
+  - `field_statistics`: per-field match/mismatch counts
+
+A `workflow.status` of `"passed"` means zero differences and zero
+unmatched rows.
+
+---
+
+### 8.3 Data Extraction (`extract`)
+
+The `extract` command pulls data from Oracle and writes it to a flat file.
+It supports three modes: table extraction, inline SQL query, and SQL file.
+
+#### Extract a Table
+
+```bash
+valdo extract \
+  --table SHAW_SRC_P327 \
+  --output data/extracts/p327_full.txt
+```
+
+This runs `SELECT *` on the table and writes all rows as a pipe-delimited file.
+
+#### Extract with a Custom SQL Query
+
+```bash
+valdo extract \
+  --query "SELECT ACCOUNT_ID, NAME, BALANCE FROM CM3INT.CUSTOMERS WHERE STATUS = 'ACTIVE'" \
+  --output data/extracts/active_customers.txt
+```
+
+#### Extract with a SQL File
+
+For complex queries, save your SQL in a `.sql` file and reference it:
+
+```bash
+valdo extract \
+  --sql-file config/queries/monthly_transactions.sql \
+  --output data/extracts/monthly_trans.txt
+```
+
+#### Limiting Rows for Testing
+
+When you only need a sample (e.g. during development), use `--limit`:
+
+```bash
+valdo extract \
+  --table SHAW_SRC_P327 \
+  --limit 100 \
+  --output data/extracts/p327_sample.txt
+```
+
+**Note:** `--limit` only works with `--table` mode, not with `--query` or
+`--sql-file`. For SQL-based extraction, add `FETCH FIRST N ROWS ONLY` to
+your query.
+
+#### Choosing a Delimiter
+
+The default delimiter is pipe (`|`). Use `--delimiter` to change it:
+
+```bash
+valdo extract \
+  --table SHAW_SRC_P327 \
+  --delimiter "," \
+  --output data/extracts/p327.csv
+```
+
+**Options reference:**
+
+| Option | Short | Required | Description |
+|---|---|---|---|
+| `--table` | `-t` | One of three | Table name to extract |
+| `--query` | `-q` | One of three | SQL query to execute |
+| `--sql-file` | `-s` | One of three | Path to a `.sql` file |
+| `--output` | `-o` | Yes | Output file path |
+| `--limit` | `-l` | No | Limit rows (only for `--table`) |
+| `--delimiter` | `-d` | No | Output delimiter (default: `\|`) |
+
+You must provide exactly one of `--table`, `--query`, or `--sql-file`.
+
+---
+
+### 8.4 Schema Reconciliation (`reconcile`)
+
+Schema reconciliation validates that your mapping document matches the actual
+database schema. It catches configuration errors early -- before you run a
+full comparison -- by checking that the tables, columns, types, and lengths
+in your mapping correspond to what exists in Oracle.
+
+#### Checks Performed
+
+| Check | What it verifies |
+|---|---|
+| Table exists | The target table specified in the mapping exists in the schema |
+| Columns exist | Every mapped column exists in the database table |
+| Types compatible | Mapping data types are compatible with the Oracle column types |
+| Length sufficient | Oracle column lengths can hold the data described by the mapping |
+
+#### CLI Usage
+
+```bash
+valdo reconcile \
+  --mapping config/mappings/p327_mapping.json \
+  --output reports/reconcile_p327.json
+```
+
+Sample output:
+
+```
+Reconciling mapping: P327 Customer Mapping
+Target table: SHAW_SRC_P327
+
+Mapping is valid
+
+Mapped columns: 12
+Database columns: 15
+Report written to: reports/reconcile_p327.json
+```
+
+If errors are found:
+
+```
+Mapping validation failed
+  ERROR: Column ACCT_BALANCE not found in table SHAW_SRC_P327
+  ERROR: Column TYPE has incompatible type: mapping says VARCHAR(10), DB has NUMBER(5)
+
+Warnings:
+  DB column CREATED_DATE is not referenced in mapping
+```
+
+Use `--fail-on-warnings` to make the command return a non-zero exit code when
+warnings are found (useful in CI pipelines):
+
+```bash
+valdo reconcile \
+  --mapping config/mappings/p327_mapping.json \
+  --fail-on-warnings
+```
+
+#### Bulk Reconciliation with `reconcile-all`
+
+When you have many mapping files, use `reconcile-all` to validate them all at
+once:
+
+```bash
+valdo reconcile-all \
+  --mappings-dir config/mappings \
+  --pattern "*.json" \
+  --output reports/reconcile_all.json
+```
+
+This produces an aggregate report with per-mapping results and a summary of
+total errors and warnings.
+
+#### Drift Detection with `--baseline`
+
+Compare the current reconciliation results against a previous run to detect
+schema drift:
+
+```bash
+# First, create a baseline
+valdo reconcile-all \
+  --mappings-dir config/mappings \
+  --output reports/reconcile_baseline.json
+
+# Later, check for drift against the baseline
+valdo reconcile-all \
+  --mappings-dir config/mappings \
+  --baseline reports/reconcile_baseline.json \
+  --fail-on-drift \
+  --output reports/reconcile_current.json
+```
+
+The `--fail-on-drift` flag causes the command to return a non-zero exit code
+when new errors or warnings appear that were not present in the baseline.
+This is ideal for CI/CD gates where you want to catch regressions.
+
+**`reconcile-all` options reference:**
+
+| Option | Short | Required | Description |
+|---|---|---|---|
+| `--mappings-dir` | `-d` | No | Directory containing mapping files (default: `config/mappings`) |
+| `--pattern` | | No | Glob pattern for mapping files (default: `*.json`) |
+| `--output` | `-o` | No | Write aggregate report to this file (`.json` recommended) |
+| `--baseline` | `-b` | No | Baseline JSON report to compare drift against |
+| `--fail-on-warnings` | | No | Non-zero exit code if any warnings found |
+| `--fail-on-drift` | | No | Non-zero exit code if new issues vs baseline |
+
+---
+
+### 8.5 Generate Expected Files (`generate-oracle-expected`)
+
+This command runs SQL queries defined in a manifest file against Oracle and
+writes the results to output files. Use it to generate baseline "expected"
+files for comparison tests.
+
+#### When to Use
+
+- Creating golden files for regression tests
+- Generating expected output from transformation SQL in `CM3INT`
+- Automating baseline refresh as part of a CI pipeline
+
+#### Manifest Format
+
+Create a JSON manifest that lists each extraction job:
+
+```json
+{
+  "schema": "cm3int",
+  "jobs": [
+    {
+      "name": "SRC_A_P327",
+      "query_file": "config/queries/cm3int/SRC_A_p327_transform.sql",
+      "output_file": "outputs/expected/SRC_A/p327.txt",
+      "delimiter": "|"
+    },
+    {
+      "name": "SRC_B_EAC",
+      "query_file": "config/queries/cm3int/SRC_B_eac_transform.sql",
+      "output_file": "outputs/expected/SRC_B/eac.txt",
+      "delimiter": "|"
+    }
+  ]
+}
+```
+
+Each job requires:
+- `name`: A human-readable label for the job
+- `query_file`: Path to a `.sql` file containing the SELECT statement
+- `output_file`: Where to write the extracted data
+- `delimiter`: Column separator in the output (default: `|`)
+
+#### CLI Usage
+
+By default the command runs in **dry-run** mode, which validates the manifest
+without executing any queries:
+
+```bash
+# Dry run (default) -- validate the manifest
+valdo generate-oracle-expected \
+  --manifest config/oracle_expected_manifest.json
+
+# Execute for real
+valdo generate-oracle-expected \
+  --manifest config/oracle_expected_manifest.json \
+  --run \
+  --output reports/oracle_expected_summary.json
+```
+
+The `--output` flag writes a JSON summary of all jobs with their pass/fail
+status.
+
+---
+
+### 8.6 Run History in Database
+
+Valdo can automatically store test run results in Oracle tables, giving you a
+persistent, queryable history of all validation and comparison runs.
+
+#### Schema
+
+Two tables are used (created under your configured `ORACLE_SCHEMA`):
+
+**`CM3_RUN_HISTORY`** -- one row per test suite run:
+
+| Column | Type | Description |
+|---|---|---|
+| `RUN_ID` | VARCHAR | Unique run identifier (UUID) |
+| `SUITE_NAME` | VARCHAR | Name of the test suite |
+| `ENVIRONMENT` | VARCHAR | Environment label (e.g. `dev`, `staging`) |
+| `RUN_TIMESTAMP` | TIMESTAMP | When the run started (UTC) |
+| `STATUS` | VARCHAR | Overall status (`passed`, `failed`) |
+| `PASS_COUNT` | NUMBER | Number of passing tests |
+| `FAIL_COUNT` | NUMBER | Number of failing tests |
+| `SKIP_COUNT` | NUMBER | Number of skipped tests |
+| `TOTAL_COUNT` | NUMBER | Total tests in the run |
+| `REPORT_URL` | VARCHAR | URL to the HTML report |
+| `ARCHIVE_PATH` | VARCHAR | Path to the archived report |
+
+**`CM3_RUN_TESTS`** -- one row per individual test within a run:
+
+| Column | Type | Description |
+|---|---|---|
+| `RUN_ID` | VARCHAR | Foreign key to `CM3_RUN_HISTORY` |
+| `TEST_NAME` | VARCHAR | Name of the individual test |
+| `TEST_TYPE` | VARCHAR | Type of test (validate, compare, etc.) |
+| `STATUS` | VARCHAR | Test result status |
+| `ROW_COUNT` | NUMBER | Rows processed |
+| `ERROR_COUNT` | NUMBER | Errors found |
+| `DURATION_SECS` | NUMBER | Test duration in seconds |
+| `REPORT_PATH` | VARCHAR | Path to the individual test report |
+
+#### Querying Run History via API
+
+The REST API exposes run history for dashboards and integrations:
+
+```bash
+# Fetch the 20 most recent runs
+curl http://localhost:8000/api/v1/runs/history
+
+# Fetch with a custom limit
+curl http://localhost:8000/api/v1/runs/history?limit=50
+```
+
+The response is a JSON array of run summary objects, ordered newest first.
+
+#### Querying via CLI
+
+Use the `list-runs` command to view recent run history from the terminal:
+
+```bash
+valdo list-runs
+```
+
+---
+
+### 8.7 Cross-Row Validation with DB Data
+
+When you extract data from Oracle using `extract` or `db-compare`, you can
+apply cross-row business rules to the extracted data just as you would with
+any batch file. Cross-row rules validate relationships *across* rows rather
+than checking individual fields.
+
+#### Supported Cross-Row Rule Types
+
+| Rule | Description |
+|---|---|
+| `unique` | Values in a column must not repeat |
+| `consistent` | When key columns match, dependent columns must also match |
+| `sequential` | Values must follow a sequential order (e.g. line numbers) |
+| `sum` | Column values must sum to an expected total |
+| `referential` | Values must exist in a reference set |
+
+#### Example: Validate Extracted Transaction Records
+
+```bash
+# Step 1: Extract transaction data
+valdo extract \
+  --table SHAW_SRC_ATOCTRAN \
+  --output data/extracts/transactions.txt
+
+# Step 2: Validate with cross-row rules
+valdo validate \
+  --file data/extracts/transactions.txt \
+  --mapping config/mappings/atoctran_mapping.json \
+  --rules config/rules/transaction_rules.json \
+  --output reports/transaction_validation.html
+```
+
+The rules file can define cross-row checks like:
+
+```json
+{
+  "cross_row_rules": [
+    {
+      "type": "unique",
+      "columns": ["TRANSACTION_ID"],
+      "description": "Transaction IDs must be unique"
+    },
+    {
+      "type": "consistent",
+      "key_columns": ["ACCOUNT_ID"],
+      "check_columns": ["ACCOUNT_NAME"],
+      "description": "Same account ID must always have the same name"
+    }
+  ]
+}
+```
+
+---
+
+### 8.8 Database Support Roadmap
+
+**Current support:** Oracle only, via the `oracledb` Python driver in thin mode.
+
+**Planned database support** (tracked in issue #151):
+
+| Database | Status | Driver |
+|---|---|---|
+| Oracle | Supported | `oracledb` (thin mode) |
+| PostgreSQL | Planned | `psycopg2` / `asyncpg` |
+| SQL Server | Planned | `pyodbc` |
+| MySQL | Planned | `mysql-connector-python` |
+| SQLite | Planned | `sqlite3` (stdlib) |
+
+The architecture uses a pluggable `DatabaseAdapter` interface. Each database
+backend implements the same extraction and connection contract, so switching
+databases requires only a configuration change -- your mapping files, rules,
+and comparison workflows remain the same.
+
+---
+
+## 9. Operations Guide
 
 ### Docker Deployment
 
@@ -1741,7 +2304,7 @@ Control retention with `FILE_RETENTION_HOURS` (default: 24 hours).
 
 ---
 
-## 9. FAQ
+## 10. FAQ
 
 ### What file formats does Valdo support?
 
@@ -1839,7 +2402,7 @@ failed and why, open the full HTML or JSON report.
 
 ---
 
-## 10. Troubleshooting
+## 11. Troubleshooting
 
 ### Common Errors
 
