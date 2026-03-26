@@ -1,6 +1,6 @@
 # Great Expectations (GE) - Checkpoint 1 Guide (BA / Non-Developer Friendly)
 
-This guide explains how to run **Great Expectations Checkpoint 1** in CM3 Batch Automations with minimal/no coding.
+This guide explains how to run **Great Expectations Checkpoint 1** in Valdo with minimal/no coding.
 
 Checkpoint 1 focuses on practical regression controls:
 

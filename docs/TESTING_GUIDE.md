@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide explains how to run tests for CM3 Batch Automations, including **unit tests**, **integration tests**, and **API tests** for the new REST API.
+This guide explains how to run tests for Valdo, including **unit tests**, **integration tests**, and **API tests** for the new REST API.
 
 ## Test Structure
 
@@ -432,7 +432,7 @@ pytest tests/api/test_api_mappings.py::test_upload_template -v
 For BA-configurable regression checks without Python coding, use:
 
 ```bash
-cm3-batch gx-checkpoint1 \
+valdo gx-checkpoint1 \
   --targets config/gx/targets.sample.csv \
   --expectations config/gx/expectations.sample.csv \
   --output reports/gx_checkpoint1_summary.json

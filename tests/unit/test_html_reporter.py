@@ -40,7 +40,7 @@ class TestHTMLReporter:
             # Check content
             with open(temp_file, 'r') as f:
                 content = f.read()
-                assert 'CM3 Batch Comparison Report' in content
+                assert 'Valdo Comparison Report' in content
                 assert 'Total Rows (File 1)' in content
                 assert '100' in content
         finally:
@@ -68,6 +68,6 @@ class TestHTMLReporter:
             
             with open(temp_file, 'r') as f:
                 content = f.read()
-                assert 'CM3 Batch Comparison Report' in content
+                assert 'Valdo Comparison Report' in content
         finally:
             os.unlink(temp_file)

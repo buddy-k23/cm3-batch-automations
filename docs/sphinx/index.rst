@@ -1,5 +1,5 @@
-CM3 Batch Automations Documentation
-===================================
+Valdo Documentation
+===================
 
 This Sphinx documentation is generated from source code and configuration assets.
 It includes API-level documentation for functions/classes/constants and a

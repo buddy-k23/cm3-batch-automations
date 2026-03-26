@@ -346,7 +346,7 @@ python src/config/universal_mapping_parser.py \
 ### 2. Reconcile with Database
 
 ```bash
-cm3-batch reconcile -m config/mappings/your_mapping.json
+valdo reconcile -m config/mappings/your_mapping.json
 ```
 
 This will check:
@@ -359,7 +359,7 @@ This will check:
 
 ```bash
 # Parse a file using the mapping
-cm3-batch parse -f data/your_file.txt -o output.csv
+valdo parse -f data/your_file.txt -o output.csv
 ```
 
 ---
@@ -428,7 +428,7 @@ A: Yes, as long as the files have the same structure.
 1. **Copy an example**: `cp config/mappings/transaction_mapping.json config/mappings/my_mapping.json`
 2. **Edit for your needs**: Update table name, columns, validations
 3. **Validate**: `python src/config/universal_mapping_parser.py config/mappings/my_mapping.json`
-4. **Reconcile**: `cm3-batch reconcile -m config/mappings/my_mapping.json`
-5. **Use it**: `cm3-batch parse -f your_file.txt`
+4. **Reconcile**: `valdo reconcile -m config/mappings/my_mapping.json`
+5. **Use it**: `valdo parse -f your_file.txt`
 
 For detailed information, see the [Universal Mapping Guide](UNIVERSAL_MAPPING_GUIDE.md).

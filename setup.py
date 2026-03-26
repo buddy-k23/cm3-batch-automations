@@ -1,4 +1,4 @@
-"""Setup configuration for CM3 Batch Automations."""
+"""Setup configuration for Valdo."""
 
 from setuptools import setup, find_packages
 
@@ -12,7 +12,7 @@ setup(
     name="cm3-batch-automations",
     version="0.1.0",
     author="Development Team",
-    description="Automated file parsing, validation, and comparison tool for CM3 batch processing",
+    description="Automated file parsing, validation, and comparison tool for batch processing",
     long_description=long_description,
     long_description_content_type="text/markdown",
     packages=find_packages(exclude=["tests", "tests.*"]),
@@ -41,7 +41,7 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "cm3-batch=src.main:main",
+            "valdo=src.main:main",
         ],
     },
 )

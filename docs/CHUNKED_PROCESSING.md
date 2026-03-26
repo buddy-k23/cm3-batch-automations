@@ -2,7 +2,7 @@
 
 ## Overview
 
-Chunked processing enables CM3 Batch Automations to handle files with 10M+ rows using minimal memory (<1GB RAM). This guide explains how to use chunked processing effectively.
+Chunked processing enables Valdo to handle files with 10M+ rows using minimal memory (<1GB RAM). This guide explains how to use chunked processing effectively.
 
 ---
 
@@ -26,7 +26,7 @@ Chunked processing enables CM3 Batch Automations to handle files with 10M+ rows 
 ### File Comparison (Chunked)
 
 ```bash
-cm3-batch compare \
+valdo compare \
   -f1 large_file1.txt \
   -f2 large_file2.txt \
   -k customer_id \
@@ -107,7 +107,7 @@ chunk_size = int((available_ram_gb * 1000000) / (num_columns * 2))
 
 ```bash
 # Compare two 5M row files
-cm3-batch compare \
+valdo compare \
   -f1 source_5m.txt \
   -f2 target_5m.txt \
   -k id,account \

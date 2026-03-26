@@ -1,6 +1,6 @@
-# CM3 Batch Automations
+# Valdo
 
-Automated file parsing, validation, and comparison tool for CM3 batch processing with Oracle database integration and REST API.
+Automated file parsing, validation, and comparison tool for batch processing with Oracle database integration and REST API.
 
 ## Features
 

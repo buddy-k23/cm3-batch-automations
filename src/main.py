@@ -1,4 +1,4 @@
-"""Main entry point for CM3 Batch Automations."""
+"""Main entry point for Valdo."""
 
 import sys
 import json
@@ -10,7 +10,7 @@ from src.utils.logger import setup_logger
 @click.group()
 @click.version_option(version='0.1.0')
 def cli():
-    """CM3 Batch Automations - File parsing, validation, and comparison tool."""
+    """Valdo - File parsing, validation, and comparison tool."""
     pass
 
 
@@ -18,7 +18,7 @@ def cli():
 @click.option('--file', '-f', required=True, help='File to detect format')
 def detect(file):
     """Detect file format automatically."""
-    logger = setup_logger('cm3-batch', log_to_file=False)
+    logger = setup_logger('valdo', log_to_file=False)
     
     try:
         from src.parsers.format_detector import FormatDetector
@@ -50,7 +50,7 @@ def detect(file):
 @click.option('--chunk-size', default=100000, help='Chunk size for large files (default: 100000)')
 def parse(file, mapping, format, output, use_chunked, chunk_size):
     """Parse file and display contents."""
-    logger = setup_logger('cm3-batch', log_to_file=False)
+    logger = setup_logger('valdo', log_to_file=False)
 
     try:
         from src.commands.parse_command import run_parse_command
@@ -80,7 +80,7 @@ def parse(file, mapping, format, output, use_chunked, chunk_size):
 def validate(file, mapping, rules, output, detailed, use_chunked, chunk_size, progress,
              strict_fixed_width, strict_level, workers, suppress_pii):
     """Validate file format and content."""
-    logger = setup_logger('cm3-batch', log_to_file=False)
+    logger = setup_logger('valdo', log_to_file=False)
 
     try:
         from src.commands.validate_command import run_validate_command
@@ -108,7 +108,7 @@ def validate(file, mapping, rules, output, detailed, use_chunked, chunk_size, pr
               show_default=True, help='Directory to write strict validation error reports')
 def convert_mappings(input_dir, output_dir, file_format, error_report_dir):
     """Bulk convert mapping CSV/Excel templates to JSON mapping files."""
-    logger = setup_logger('cm3-batch', log_to_file=False)
+    logger = setup_logger('valdo', log_to_file=False)
 
     try:
         from src.commands.convert_mappings_command import run_convert_mappings_command
@@ -137,7 +137,7 @@ def convert_mappings(input_dir, output_dir, file_format, error_report_dir):
 @click.option('--sheet', '-s', help='Sheet name (for Excel files)')
 def convert_rules(template, output, sheet):
     """Convert Excel/CSV template to JSON rules configuration."""
-    logger = setup_logger('cm3-batch', log_to_file=False)
+    logger = setup_logger('valdo', log_to_file=False)
     
     try:
         from src.config.rules_template_converter import RulesTemplateConverter
@@ -197,7 +197,7 @@ def convert_rules(template, output, sheet):
 @click.option('--use-chunked', is_flag=True, help='Use chunked processing for large files')
 def compare(file1, file2, keys, mapping, output, thresholds, detailed, chunk_size, progress, use_chunked):
     """Compare two files and generate report."""
-    logger = setup_logger('cm3-batch', log_to_file=False)
+    logger = setup_logger('valdo', log_to_file=False)
 
     try:
         from src.commands.compare_command import run_compare_command
@@ -216,7 +216,7 @@ def compare(file1, file2, keys, mapping, output, thresholds, detailed, chunk_siz
 @click.option('--output', '-o', required=True, help='Output file path for masked data')
 def mask(file, mapping, rules, output):
     """Mask PII fields to produce dev-safe batch files."""
-    logger = setup_logger('cm3-batch', log_to_file=False)
+    logger = setup_logger('valdo', log_to_file=False)
 
     try:
         from src.commands.mask_command import run_mask_command
@@ -240,7 +240,7 @@ def mask(file, mapping, rules, output):
 @click.option('--output', '-o', help='File path for the written report')
 def db_compare(query_or_table, mapping, actual_file, key_columns, output_format, output):
     """Extract data from Oracle and compare against an actual batch file."""
-    logger = setup_logger('cm3-batch', log_to_file=False)
+    logger = setup_logger('valdo', log_to_file=False)
 
     try:
         from src.commands.db_compare import run_db_compare_command
@@ -270,7 +270,7 @@ def db_compare(query_or_table, mapping, actual_file, key_columns, output_format,
               help='Number of lines to analyse')
 def infer_mapping(file, fmt, output, sample_lines):
     """Infer a draft mapping configuration from a sample data file."""
-    logger = setup_logger('cm3-batch', log_to_file=False)
+    logger = setup_logger('valdo', log_to_file=False)
 
     try:
         from src.commands.infer_mapping_command import run_infer_mapping_command
@@ -283,9 +283,9 @@ def infer_mapping(file, fmt, output, sample_lines):
 @cli.command()
 def info():
     """Display system information and check dependencies."""
-    logger = setup_logger('cm3-batch', log_to_file=False)
+    logger = setup_logger('valdo', log_to_file=False)
     
-    click.echo("CM3 Batch Automations v0.1.0")
+    click.echo("Valdo v0.1.0")
     click.echo(f"Python version: {sys.version}")
     click.echo(f"Working directory: {os.getcwd()}")
     
@@ -312,7 +312,7 @@ def info():
 @click.option('--fail-on-warnings', is_flag=True, help='Return non-zero exit code if warnings are found')
 def reconcile(mapping, output, fail_on_warnings):
     """Reconcile mapping document with database schema."""
-    logger = setup_logger('cm3-batch', log_to_file=False)
+    logger = setup_logger('valdo', log_to_file=False)
 
     try:
         import json
@@ -381,7 +381,7 @@ def reconcile(mapping, output, fail_on_warnings):
 @click.option('--fail-on-drift', is_flag=True, help='Return non-zero exit code if new errors/warnings appear vs baseline')
 def reconcile_all(mappings_dir, pattern, output, baseline, fail_on_warnings, fail_on_drift):
     """Reconcile all mapping documents in a directory against database schema."""
-    logger = setup_logger('cm3-batch', log_to_file=False)
+    logger = setup_logger('valdo', log_to_file=False)
 
     try:
         import json
@@ -572,7 +572,7 @@ def extract(table, query, sql_file, output, limit, delimiter):
     2. Direct query: --query "SELECT ..."
     3. SQL file: --sql-file path/to/query.sql
     """
-    logger = setup_logger('cm3-batch', log_to_file=False)
+    logger = setup_logger('valdo', log_to_file=False)
     
     # Validate input options
     options_provided = sum([bool(table), bool(query), bool(sql_file)])
@@ -635,7 +635,7 @@ def extract(table, query, sql_file, output, limit, delimiter):
 @click.option('--output', '-o', help='Optional output JSON summary file')
 def generate_oracle_expected(manifest_path, dry_run, output):
     """Generate expected target files from Oracle transformation SQL (cm3int)."""
-    logger = setup_logger('cm3-batch', log_to_file=False)
+    logger = setup_logger('valdo', log_to_file=False)
     try:
         import json
         from src.pipeline.oracle_expected_generator import load_oracle_manifest, generate_expected_from_oracle
@@ -668,7 +668,7 @@ def generate_oracle_expected(manifest_path, dry_run, output):
 @click.option('--summary-md', help='Optional output Markdown summary file')
 def run_pipeline(config_path, dry_run, output, summary_md):
     """Run source-system orchestration profile (scaffold)."""
-    logger = setup_logger('cm3-batch', log_to_file=False)
+    logger = setup_logger('valdo', log_to_file=False)
     try:
         from src.pipeline.runner import PipelineRunner
         from src.pipeline.run_summary_reporter import write_pipeline_summary_json, write_pipeline_summary_markdown
@@ -711,7 +711,7 @@ def run_pipeline(config_path, dry_run, output, summary_md):
               help='Optional Great Expectations data docs directory.')
 def gx_checkpoint1(targets_csv, expectations_csv, output_json, csv_output, html_output, data_docs_dir):
     """Run Great Expectations Checkpoint 1 (schema/null/uniqueness/allowed values/range/row-count)."""
-    logger = setup_logger('cm3-batch', log_to_file=False)
+    logger = setup_logger('valdo', log_to_file=False)
 
     try:
         from src.quality.gx_checkpoint1 import run_checkpoint_1
@@ -752,8 +752,8 @@ def gx_checkpoint1(targets_csv, expectations_csv, output_json, csv_output, html_
 @click.option('--template', 'template_path', default=None,
               type=click.Path(), help='Write an empty Excel template to this path and exit')
 def convert_suite(input_path, output_dir, template_path):
-    """Convert an Excel test suite template to a YAML file for cm3-batch run-tests."""
-    logger = setup_logger('cm3-batch', log_to_file=False)
+    """Convert an Excel test suite template to a YAML file for valdo run-tests."""
+    logger = setup_logger('valdo', log_to_file=False)
 
     try:
         from src.config.suite_template_converter import SuiteTemplateConverter

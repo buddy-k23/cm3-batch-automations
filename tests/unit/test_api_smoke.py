@@ -17,7 +17,7 @@ def test_root_endpoint():
     r = client.get("/")
     assert r.status_code == 200
     payload = r.json()
-    assert payload["name"] == "CM3 Batch Automations API"
+    assert payload["name"] == "Valdo API"
     assert payload["docs"] == "/docs"
 
 

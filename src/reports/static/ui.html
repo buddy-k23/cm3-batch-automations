@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CM3 Batch Validator</title>
+<title>Valdo</title>
 <script>
   /* Apply saved theme before first paint to avoid flash */
   (function() {
-    var t = localStorage.getItem('cm3-theme');
+    var t = localStorage.getItem('valdo-theme');
     if (t === 'light' || t === 'dark') {
       document.documentElement.setAttribute('data-theme', t);
     } else {
@@ -1147,7 +1147,7 @@
 
 <header>
   <div class="header-left">
-    <h1>CM3 Batch Validator</h1>
+    <h1>Valdo</h1>
     <span class="version-badge">v2.0</span>
   </div>
   <button class="btn-theme" id="btnTheme" aria-label="Toggle light/dark theme"
@@ -2405,14 +2405,14 @@ document.getElementById('btnTheme').addEventListener('click', function() {
   var html = document.documentElement;
   var next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
   html.setAttribute('data-theme', next);
-  localStorage.setItem('cm3-theme', next);
+  localStorage.setItem('valdo-theme', next);
   this.textContent = next === 'dark' ? '\u2600' : '\u263D';  /* sun / crescent */
   this.setAttribute('aria-label', next === 'dark' ? 'Switch to light theme' : 'Switch to dark theme');
 });
 
 // Set initial icon to match stored theme
 (function() {
-  var saved = localStorage.getItem('cm3-theme') || 'dark';
+  var saved = localStorage.getItem('valdo-theme') || 'dark';
   var btn = document.getElementById('btnTheme');
   btn.textContent = saved === 'dark' ? '\u2600' : '\u263D';
 })();
@@ -2971,7 +2971,7 @@ window.addEventListener('resize', updateTabIndicator);
 // #125: System preference detection for theme
 // ===========================================================================
 (function() {
-  var stored = localStorage.getItem('cm3-theme');
+  var stored = localStorage.getItem('valdo-theme');
   if (!stored) {
     // No stored preference — use system preference
     var preferLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
@@ -2983,7 +2983,7 @@ window.addEventListener('resize', updateTabIndicator);
   // Listen for live system preference changes when no stored preference
   if (window.matchMedia) {
     window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', function(e) {
-      if (localStorage.getItem('cm3-theme')) return; // user chose manually
+      if (localStorage.getItem('valdo-theme')) return; // user chose manually
       var newTheme = e.matches ? 'light' : 'dark';
       document.documentElement.setAttribute('data-theme', newTheme);
       var btn = document.getElementById('btnTheme');

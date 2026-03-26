@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide covers all deployment options for CM3 Batch Automations on RHEL 8.9 **without using Docker**. The system now includes a **REST API with Swagger UI** and **universal mapping structure**.
+This guide covers all deployment options for Valdo on RHEL 8.9 **without using Docker**. The system now includes a **REST API with Swagger UI** and **universal mapping structure**.
 
 ## Deployment Modes
 
@@ -70,8 +70,8 @@ cp .env.example .env
 vim .env  # Set credentials
 
 # Run as systemd service
-sudo systemctl enable cm3-batch.service
-sudo systemctl start cm3-batch.service
+sudo systemctl enable valdo.service
+sudo systemctl start valdo.service
 ```
 
 ---
@@ -96,12 +96,12 @@ See **docs/PEX_DEPLOYMENT.md** for complete instructions.
 ./build_pex.sh
 
 # Deploy to server
-scp dist/cm3-batch.pex server:/opt/cm3-batch-automations/
+scp dist/valdo.pex server:/opt/cm3-batch-automations/
 scp -r config server:/opt/cm3-batch-automations/
 
 # On server
-chmod +x /opt/cm3-batch-automations/cm3-batch.pex
-./cm3-batch.pex
+chmod +x /opt/cm3-batch-automations/valdo.pex
+./valdo.pex
 ```
 
 ---
@@ -130,11 +130,11 @@ See **docs/RPM_DEPLOYMENT.md** for complete instructions.
 sudo yum install -y cm3-batch-automations-0.1.0-1.el8.noarch.rpm
 
 # Configure
-sudo vim /etc/cm3-batch/config.json
+sudo vim /etc/valdo/config.json
 
 # Start service
-sudo systemctl enable cm3-batch
-sudo systemctl start cm3-batch
+sudo systemctl enable valdo
+sudo systemctl start valdo
 ```
 
 ---
@@ -156,10 +156,10 @@ sudo systemctl start cm3-batch
 
 **2. Create systemd service:**
 
-`/etc/systemd/system/cm3-batch.service`:
+`/etc/systemd/system/valdo.service`:
 ````ini
 [Unit]
-Description=CM3 Batch Automations API
+Description=Valdo API
 After=network.target
 
 [Service]
@@ -203,9 +203,9 @@ WantedBy=multi-user.target
 **3. Enable and start:**
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable cm3-batch.service
-sudo systemctl start cm3-batch.service
-sudo systemctl status cm3-batch.service
+sudo systemctl enable valdo.service
+sudo systemctl start valdo.service
+sudo systemctl status valdo.service
 ```
 
 ---
@@ -236,26 +236,26 @@ sudo yum install -y podman
 
 **2. Build image:**
 ```bash
-podman build -t cm3-batch:latest .
+podman build -t valdo:latest .
 ```
 
 **3. Run container:**
 ```bash
 podman run -d \
-  --name cm3-batch \
+  --name valdo \
   -v /opt/cm3-batch-automations/config:/app/config:ro \
   -v /opt/cm3-batch-automations/data:/app/data \
   -v /opt/cm3-batch-automations/logs:/app/logs \
   --env-file /opt/cm3-batch-automations/.env \
-  cm3-batch:latest
+  valdo:latest
 ```
 
 **4. Generate systemd service:**
 ```bash
-podman generate systemd --new --name cm3-batch > /etc/systemd/system/cm3-batch-podman.service
+podman generate systemd --new --name valdo > /etc/systemd/system/valdo-podman.service
 sudo systemctl daemon-reload
-sudo systemctl enable cm3-batch-podman.service
-sudo systemctl start cm3-batch-podman.service
+sudo systemctl enable valdo-podman.service
+sudo systemctl start valdo-podman.service
 ```
 
 ---
@@ -304,13 +304,13 @@ http://localhost:8000/docs
 
 **4. Create systemd service for API:**
 ```bash
-sudo vim /etc/systemd/system/cm3-batch-api.service
+sudo vim /etc/systemd/system/valdo-api.service
 ```
 
 Add:
 ```ini
 [Unit]
-Description=CM3 Batch Automations REST API
+Description=Valdo REST API
 After=network.target
 
 [Service]
@@ -337,8 +337,8 @@ ReadWritePaths=/opt/cm3-batch-automations/logs /opt/cm3-batch-automations/upload
 **5. Enable and start:**
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable cm3-batch-api.service
-sudo systemctl start cm3-batch-api.service
+sudo systemctl enable valdo-api.service
+sudo systemctl start valdo-api.service
 ```
 
 **6. Configure firewall:**
@@ -440,11 +440,11 @@ gunicorn src.api.main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8
 ./build_pex.sh
 
 # Update systemd service
-sudo vim /etc/systemd/system/cm3-batch.service
-# Change ExecStart to: /opt/cm3-batch-automations/cm3-batch.pex
+sudo vim /etc/systemd/system/valdo.service
+# Change ExecStart to: /opt/cm3-batch-automations/valdo.pex
 
 sudo systemctl daemon-reload
-sudo systemctl restart cm3-batch.service
+sudo systemctl restart valdo.service
 ```
 
 ### From venv to RPM
@@ -453,38 +453,38 @@ sudo systemctl restart cm3-batch.service
 ./build_rpm.sh
 
 # Stop current service
-sudo systemctl stop cm3-batch.service
+sudo systemctl stop valdo.service
 
 # Install RPM
 sudo yum install -y dist/cm3-batch-automations-*.rpm
 
 # Migrate config
-sudo cp /opt/cm3-batch-automations/.env /etc/cm3-batch/
+sudo cp /opt/cm3-batch-automations/.env /etc/valdo/
 
 # Start new service
-sudo systemctl start cm3-batch
+sudo systemctl start valdo
 ```
 
 ### From venv to Podman
 ```bash
 # Build image
-podman build -t cm3-batch:latest .
+podman build -t valdo:latest .
 
 # Stop current service
-sudo systemctl stop cm3-batch.service
+sudo systemctl stop valdo.service
 
 # Run with Podman
-podman run -d --name cm3-batch \
+podman run -d --name valdo \
   -v /opt/cm3-batch-automations/config:/app/config:ro \
   -v /opt/cm3-batch-automations/data:/app/data \
   -v /opt/cm3-batch-automations/logs:/app/logs \
   --env-file /opt/cm3-batch-automations/.env \
-  cm3-batch:latest
+  valdo:latest
 
 # Generate systemd service
-podman generate systemd --new --name cm3-batch > /etc/systemd/system/cm3-batch-podman.service
+podman generate systemd --new --name valdo > /etc/systemd/system/valdo-podman.service
 sudo systemctl daemon-reload
-sudo systemctl enable cm3-batch-podman.service
+sudo systemctl enable valdo-podman.service
 ```
 
 ---
@@ -494,10 +494,10 @@ sudo systemctl enable cm3-batch-podman.service
 ### Service Won't Start
 ```bash
 # Check service status
-sudo systemctl status cm3-batch.service
+sudo systemctl status valdo.service
 
 # View logs
-sudo journalctl -u cm3-batch.service -xe
+sudo journalctl -u valdo.service -xe
 
 # Test manual start
 sudo su - cm3app
@@ -574,7 +574,7 @@ sudo firewall-cmd --reload
 ### Health Checks
 ```bash
 # Service status
-sudo systemctl status cm3-batch.service
+sudo systemctl status valdo.service
 
 # Resource usage
 top -u cm3app
@@ -588,7 +588,7 @@ du -sh /opt/cm3-batch-automations/logs
 
 ### Log Rotation
 ```bash
-sudo vim /etc/logrotate.d/cm3-batch
+sudo vim /etc/logrotate.d/valdo
 ```
 
 ```
@@ -601,7 +601,7 @@ sudo vim /etc/logrotate.d/cm3-batch
     create 0640 cm3app cm3app
     sharedscripts
     postrotate
-        systemctl reload cm3-batch.service > /dev/null 2>&1 || true
+        systemctl reload valdo.service > /dev/null 2>&1 || true
     endscript
 }
 ```
@@ -609,7 +609,7 @@ sudo vim /etc/logrotate.d/cm3-batch
 ### Backup
 ```bash
 # Backup script
-sudo tar -czf /backup/cm3-batch-$(date +%Y%m%d).tar.gz \
+sudo tar -czf /backup/valdo-$(date +%Y%m%d).tar.gz \
     /opt/cm3-batch-automations/config \
     /opt/cm3-batch-automations/.env \
     /opt/cm3-batch-automations/data

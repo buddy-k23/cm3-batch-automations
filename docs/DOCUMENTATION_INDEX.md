@@ -19,7 +19,7 @@ This is the **single source of truth** for docs navigation.
 
 ## Test Suites
 - `docs/INSTALL.md` — setup guide for first-time users
-- See `cm3-batch run-tests --help` and `cm3-batch convert-suite --help` for CLI reference
+- See `valdorun-tests --help` and `valdoconvert-suite --help` for CLI reference
 - Example suite YAML: `config/test_suites/` directory
 
 ## Data & Mapping

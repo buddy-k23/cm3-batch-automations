@@ -1,7 +1,7 @@
 # Configuration Change Management
 
 This document describes the approval workflow for configuration file changes
-in the CM3 Batch Automations project.
+in the Valdo project.
 
 ## Overview
 

@@ -49,7 +49,7 @@ This project uses GitLab CI/CD for automated testing, building, and deployment.
 - Build API container image
 
 **Artifacts:**
-- `dist/cm3-batch.pex` - PEX executable (30 days)
+- `dist/valdo.pex` - PEX executable (30 days)
 - RPM package (30 days)
 - Docker image (registry)
 

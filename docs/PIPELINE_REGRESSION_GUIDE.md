@@ -1,6 +1,6 @@
 # Pipeline Regression Testing Guide (Java ETL + CM3 Validator)
 
-This guide shows how to use CM3 Batch Automations as a regression framework around an existing multi-step Java batch process.
+This guide shows how to use Valdo as a regression framework around an existing multi-step Java batch process.
 
 ## 1) Target Architecture
 

@@ -1,4 +1,4 @@
-"""Sphinx configuration for CM3 Batch Automations."""
+"""Sphinx configuration for Valdo."""
 
 from pathlib import Path
 import sys
@@ -9,7 +9,7 @@ SRC = ROOT / "src"
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(SRC))
 
-project = "CM3 Batch Automations"
+project = "Valdo"
 copyright = "2026, CM3 Development Team"
 author = "CM3 Development Team"
 release = "0.1.0"

@@ -1,8 +1,8 @@
-# Splunk Integration for CM3 Batch Automations
+# Splunk Integration for Valdo
 
 ## Overview
 
-CM3 emits structured JSON audit events to a JSONL file (`logs/audit.jsonl`
+Valdo emits structured JSON audit events to a JSONL file (`logs/audit.jsonl`
 by default). These events are designed for ingestion by Splunk Universal
 Forwarder with zero transformation.
 

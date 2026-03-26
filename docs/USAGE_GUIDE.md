@@ -1,8 +1,8 @@
-# CM3 Batch Automations - Usage Guide
+# Valdo - Usage Guide
 
 ## Overview
 
-This guide provides practical examples for using CM3 Batch Automations in both **CLI mode** and **API mode**.
+This guide provides practical examples for using Valdo in both **CLI mode** and **API mode**.
 
 > **Offline-capable reports**: All HTML reports (validation, comparison, suite summary) embed Chart.js inline.
 > No internet access is required to view reports.
@@ -39,16 +39,16 @@ open http://localhost:8000/docs
 
 ```bash
 # Detect file format
-cm3-batch detect -f data/samples/customers.txt
+valdo detect -f data/samples/customers.txt
 
 # Parse file
-cm3-batch parse -f data/samples/customers.txt
+valdo parse -f data/samples/customers.txt
 
 # Compare files
-cm3-batch compare -f1 file1.txt -f2 file2.txt -k customer_id
+valdo compare -f1 file1.txt -f2 file2.txt -k customer_id
 
 # Parse/validate/compare with chunked processing for large files
-cm3-batch parse -f data/samples/customers.txt --use-chunked --chunk-size 50000 -o reports/parsed.csv
+valdo parse -f data/samples/customers.txt --use-chunked --chunk-size 50000 -o reports/parsed.csv
 
 # End-to-end regression workflow (config-driven)
 ./scripts/run_regression_workflow.sh config/pipeline/regression_workflow.sample.json
@@ -63,7 +63,7 @@ cm3-batch parse -f data/samples/customers.txt --use-chunked --chunk-size 50000 -
 Automatically detect the format of a file:
 
 ```bash
-cm3-batch detect -f data/samples/p327_test_data.txt
+valdo detect -f data/samples/p327_test_data.txt
 ```
 
 **Output:**
@@ -80,7 +80,7 @@ Parse a file using a mapping:
 
 ```bash
 # Parse with universal mapping
-cm3-batch parse -f data/samples/p327_test_data.txt \
+valdo parse -f data/samples/p327_test_data.txt \
   -m config/mappings/p327_universal.json \
   -o output.csv
 ```
@@ -94,7 +94,7 @@ cm3-batch parse -f data/samples/p327_test_data.txt \
 #### Chunk-based parsing (large files)
 
 ```bash
-cm3-batch parse -f data/samples/p327_test_data.txt \
+valdo parse -f data/samples/p327_test_data.txt \
   -m config/mappings/p327_universal.json \
   --use-chunked \
   --chunk-size 50000 \
@@ -108,7 +108,7 @@ cm3-batch parse -f data/samples/p327_test_data.txt \
 Compare two files and generate a report:
 
 ```bash
-cm3-batch compare \
+valdo compare \
   -f1 data/samples/file1.txt \
   -f2 data/samples/file2.txt \
   -k ACCT-NUM \
@@ -127,7 +127,7 @@ cm3-batch compare \
 #### Chunk-based comparison (large files)
 
 ```bash
-cm3-batch compare \
+valdo compare \
   -f1 data/samples/file1.txt \
   -f2 data/samples/file2.txt \
   -k ACCT-NUM \
@@ -166,7 +166,7 @@ No data diff is performed when `structure_compatible` is `false`. Structurally c
 Extract data from Oracle database:
 
 ```bash
-cm3-batch extract \
+valdo extract \
   -t CUSTOMER_TABLE \
   -o output.txt \
   -l 1000 \
@@ -182,7 +182,7 @@ cm3-batch extract \
 Reconcile mapping with database schema:
 
 ```bash
-cm3-batch reconcile \
+valdo reconcile \
   -m config/mappings/customer_mapping.json \
   -t CUSTOMER_TABLE
 ```
@@ -193,7 +193,7 @@ Validate generated files against their source data using custom SQL queries.
 
 **Extract from SQL File:**
 ```bash
-cm3-batch extract \
+valdo extract \
   --sql-file config/queries/p327_source.sql \
   -o trusted_p327.txt \
   -d "|"
@@ -201,7 +201,7 @@ cm3-batch extract \
 
 **Extract with Inline Query:**
 ```bash
-cm3-batch extract \
+valdo extract \
   --query "SELECT l.location_code, a.account_number FROM accounts a JOIN locations l ON a.location_id = l.id WHERE a.status = 'ACTIVE'" \
   -o trusted_data.txt
 ```
@@ -223,12 +223,12 @@ cm3-batch extract \
 
 2. **Extract Trusted Source:**
    ```bash
-   cm3-batch extract --sql-file config/queries/p327_source.sql -o trusted.txt
+   valdo extract --sql-file config/queries/p327_source.sql -o trusted.txt
    ```
 
 3. **Compare with Generated File:**
    ```bash
-   cm3-batch compare \
+   valdo compare \
      -f1 generated_p327.txt \
      -f2 trusted.txt \
      -k account_number \
@@ -251,7 +251,7 @@ command.
 
 **Using a table name:**
 ```bash
-cm3-batch db-compare \
+valdo db-compare \
   --query-or-table SHAW_SRC_P327 \
   --mapping config/mappings/p327_universal.json \
   --actual-file outputs/actual/p327.txt \
@@ -261,7 +261,7 @@ cm3-batch db-compare \
 
 **Using an inline SQL query:**
 ```bash
-cm3-batch db-compare \
+valdo db-compare \
   --query-or-table "SELECT ACCT_NUM, AMOUNT FROM SHAW_SRC_P327 WHERE STATUS = 'A'" \
   --mapping config/mappings/p327_universal.json \
   --actual-file outputs/actual/p327.txt \
@@ -327,7 +327,7 @@ Response shape:
 Convert business rules from Excel template to JSON:
 
 ```bash
-cm3-batch convert-rules \
+valdo convert-rules \
   -t config/templates/rules_template.xlsx \
   -o config/rules/business_rules.json
 ```
@@ -346,7 +346,7 @@ Validate a file against mapping rules and generate comprehensive HTML reports:
 #### Basic Validation
 
 ```bash
-cm3-batch validate \
+valdo validate \
   -f data/samples/customers.txt \
   -m config/mappings/customer_mapping.json
 ```
@@ -365,7 +365,7 @@ Data Quality Score: 95.5%
 #### Generate HTML Report
 
 ```bash
-cm3-batch validate \
+valdo validate \
   -f data/samples/p327_test_data.txt \
   -m config/mappings/p327_universal.json \
   -o reports/validation_report.html \
@@ -386,7 +386,7 @@ cm3-batch validate \
 #### Strict field-level validation (fixed-width)
 
 ```bash
-cm3-batch validate \
+valdo validate \
   -f data/files/p327_sample_errored.txt \
   -m config/mappings/p327_mapping.json \
   --strict-fixed-width --strict-level format --detailed \
@@ -396,7 +396,7 @@ cm3-batch validate \
 #### Chunk-based validation (large files)
 
 ```bash
-cm3-batch validate \
+valdo validate \
   -f data/samples/p327_test_data.txt \
   -m config/mappings/p327_universal.json \
   --use-chunked \
@@ -408,7 +408,7 @@ cm3-batch validate \
 #### Chunk-based strict fixed-width validation
 
 ```bash
-cm3-batch validate \
+valdo validate \
   -f data/files/p327_sample_errored.txt \
   -m config/mappings/p327_mapping.json \
   --use-chunked --strict-fixed-width --strict-level format \
@@ -423,7 +423,7 @@ cm3-batch validate \
 #### Parallel chunked validation
 
 ```bash
-cm3-batch validate \
+valdo validate \
   -f data/files/p327_sample_errored.txt \
   -m config/mappings/p327_mapping.json \
   --use-chunked --chunk-size 50000 --workers 3 \
@@ -530,7 +530,7 @@ The generated HTML report includes:
 
 ```bash
 # Validate P327 file with detailed analysis
-cm3-batch validate \
+valdo validate \
   -f data/samples/p327_test_data_a_20000.txt \
   -m config/mappings/p327_universal.json \
   -o reports/p327_validation.html \
@@ -568,7 +568,7 @@ Run configurable, no-code/low-code data quality checks using CSV config files.
 ### Command
 
 ```bash
-cm3-batch gx-checkpoint1 \
+valdo gx-checkpoint1 \
   --targets config/gx/targets.sample.csv \
   --expectations config/gx/expectations.sample.csv \
   --output reports/gx_checkpoint1_summary.json \
@@ -597,20 +597,20 @@ Run multiple tests in one command using a YAML suite file.
 
 ```bash
 # Write an empty Excel template
-cm3-batch convert-suite --template config/test_suites/my_suite.xlsx
+valdo convert-suite --template config/test_suites/my_suite.xlsx
 
 # Convert a filled-in Excel to YAML
-cm3-batch convert-suite --input config/test_suites/my_suite.xlsx --output-dir config/test_suites
+valdo convert-suite --input config/test_suites/my_suite.xlsx --output-dir config/test_suites
 ```
 
 ### Run a test suite
 
 ```bash
 # Dry-run (shows what would run without executing)
-cm3-batch run-tests --suite config/test_suites/p327_uat.yaml --dry-run
+valdo run-tests --suite config/test_suites/p327_uat.yaml --dry-run
 
 # Run with a specific date parameter
-cm3-batch run-tests --suite config/test_suites/p327_uat.yaml \
+valdo run-tests --suite config/test_suites/p327_uat.yaml \
   --params "run_date=20260301" \
   --env dev \
   --output-dir reports
@@ -654,8 +654,8 @@ tests:
 ### Listing archived runs
 
 ```bash
-cm3-batch list-runs            # show latest 20 runs
-cm3-batch list-runs --limit 5  # show latest 5 runs
+valdo list-runs            # show latest 20 runs
+valdo list-runs --limit 5  # show latest 5 runs
 ```
 
 Lists all archived suite runs, newest first. Runs older than `REPORT_RETENTION_DAYS` (default 365) are purged automatically on each call.
@@ -663,7 +663,7 @@ Lists all archived suite runs, newest first. Runs older than `REPORT_RETENTION_D
 ### Inspecting a specific run
 
 ```bash
-cm3-batch get-run <run_id>
+valdo get-run <run_id>
 ```
 
 Prints the SHA-256 manifest for the given run and lists all archived file paths. Exits with code 1 if the run ID is not found.
@@ -1052,7 +1052,7 @@ python src/config/template_converter.py \
   fixed_width
 
 # 2. Compare files
-cm3-batch compare \
+valdo compare \
   -f1 file1.txt \
   -f2 file2.txt \
   -k ACCT-NUM \
@@ -1067,18 +1067,18 @@ open reports/comparison.html
 
 ```bash
 # 1. Extract from database
-cm3-batch extract \
+valdo extract \
   -t CUSTOMER_TABLE \
   -o extracted_data.txt \
   --format fixed_width
 
 # 2. Validate against mapping
-cm3-batch validate \
+valdo validate \
   -f extracted_data.txt \
   -m config/mappings/customer_mapping.json
 
 # 3. Generate report
-cm3-batch parse \
+valdo parse \
   -f extracted_data.txt \
   -m config/mappings/customer_mapping.json \
   -o validated_data.csv
@@ -1250,17 +1250,17 @@ python -c "from src.config.db_config import get_connection; c = get_connection()
 
 ### CLI Commands
 ```bash
-cm3-batch detect -f <file>              # Detect format
-cm3-batch parse -f <file> -m <mapping>  # Parse file
-cm3-batch compare -f1 <f1> -f2 <f2>     # Compare files
-cm3-batch validate -f <file>            # Validate file
-cm3-batch convert-rules -t <template>   # Convert rules
-cm3-batch extract -t <table>            # Extract from DB
-cm3-batch reconcile -m <mapping>        # Reconcile mapping
-cm3-batch list-runs                     # List archived suite runs
-cm3-batch get-run <run_id>              # Inspect a specific run
-cm3-batch schedule list                 # List configured suites
-cm3-batch schedule run <suite-name>     # Run a suite immediately
+valdo detect -f <file>              # Detect format
+valdo parse -f <file> -m <mapping>  # Parse file
+valdo compare -f1 <f1> -f2 <f2>     # Compare files
+valdo validate -f <file>            # Validate file
+valdo convert-rules -t <template>   # Convert rules
+valdo extract -t <table>            # Extract from DB
+valdo reconcile -m <mapping>        # Reconcile mapping
+valdo list-runs                     # List archived suite runs
+valdo get-run <run_id>              # Inspect a specific run
+valdo schedule list                 # List configured suites
+valdo schedule run <suite-name>     # Run a suite immediately
 ```
 
 ### API Endpoints
@@ -1305,7 +1305,7 @@ Drop a file named `batch_complete_YYYYMMDD.trigger` in your watch directory when
 batch job completes. The watcher picks it up, runs the matching suite, and deletes the trigger.
 
 ```bash
-cm3-batch watch \
+valdo watch \
   --dir /batch/triggers \
   --suites config/test_suites/ \
   --env dev \
@@ -1421,19 +1421,19 @@ Notification failures are logged as warnings but never crash the suite run.
 
 ```bash
 # List all suites in config/suites/
-cm3-batch schedule list
+valdo schedule list
 
 # List suites from a custom directory
-cm3-batch schedule list --suites-dir /path/to/suites
+valdo schedule list --suites-dir /path/to/suites
 
 # List suites as JSON (for scripting)
-cm3-batch schedule list --json-output
+valdo schedule list --json-output
 
 # Run a suite by name (exits 1 on failure)
-cm3-batch schedule run daily-validation
+valdo schedule run daily-validation
 
 # Run from a custom suites directory and get JSON output
-cm3-batch schedule run daily-validation --suites-dir /path/to/suites --json-output
+valdo schedule run daily-validation --suites-dir /path/to/suites --json-output
 ```
 
 ### API endpoints

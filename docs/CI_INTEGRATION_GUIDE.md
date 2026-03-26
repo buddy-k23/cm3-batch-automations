@@ -1,6 +1,6 @@
 # CI Integration Guide
 
-This guide covers integrating CM3 Batch Automations into your continuous integration pipelines. Whether you use GitHub Actions, Azure DevOps, GitLab CI, or another platform, CM3 provides reusable templates and a CLI interface designed for automation.
+This guide covers integrating Valdo into your continuous integration pipelines. Whether you use GitHub Actions, Azure DevOps, GitLab CI, or another platform, Valdo provides reusable templates and a CLI interface designed for automation.
 
 ---
 
@@ -17,9 +17,9 @@ This guide covers integrating CM3 Batch Automations into your continuous integra
 
 ## Overview
 
-### What CM3 Provides
+### What Valdo Provides
 
-CM3 Batch Automations validates, parses, and compares batch data files against mapping schemas and business rules. In a CI context it answers the question: **does this batch file conform to the expected schema and pass all business rules?**
+Valdo validates, parses, and compares batch data files against mapping schemas and business rules. In a CI context it answers the question: **does this batch file conform to the expected schema and pass all business rules?**
 
 Key capabilities available in CI:
 
@@ -59,9 +59,9 @@ Key capabilities available in CI:
 ### Docker (3 lines)
 
 ```bash
-docker build -t cm3-batch .
-docker run --rm -v "$(pwd)/data:/data" -v "$(pwd)/config:/config" cm3-batch \
-  cm3-batch validate -f /data/customers.txt -m /config/mappings/customers.json -o /data/report.json
+docker build -t valdo .
+docker run --rm -v "$(pwd)/data:/data" -v "$(pwd)/config:/config" valdo \
+  valdo validate -f /data/customers.txt -m /config/mappings/customers.json -o /data/report.json
 ```
 
 ### curl (API smoke test)
@@ -86,9 +86,9 @@ Install the package and run the CLI directly. This is the most flexible approach
 ```yaml
 # Generic CI steps (adapt to your platform)
 steps:
-  - run: pip install cm3-batch-automations
+  - run: pip install valdo-automations
   - run: |
-      cm3-batch validate \
+      valdo validate \
         --file data/customers.txt \
         --mapping config/mappings/customers.json \
         --rules config/rules/customers_rules.json \
@@ -109,8 +109,8 @@ steps:
         -v "${{ github.workspace }}/data:/data" \
         -v "${{ github.workspace }}/config:/config" \
         -v "${{ github.workspace }}/reports:/reports" \
-        cm3-batch:latest \
-        cm3-batch validate \
+        valdo:latest \
+        valdo validate \
           -f /data/customers.txt \
           -m /config/mappings/customers.json \
           -o /reports/validation.json \
@@ -335,24 +335,24 @@ post-deploy:
 
 ## Troubleshooting
 
-### "cm3-batch: command not found"
+### "valdo: command not found"
 
 The CLI entry point is registered by pip during installation. Ensure:
 
-1. You installed the package: `pip install cm3-batch-automations` or `pip install -e .`
+1. You installed the package: `pip install valdo-automations` or `pip install -e .`
 2. The pip scripts directory is on `PATH`. In CI this is usually handled automatically.
 3. If using a virtual environment, it is activated before running commands.
 
 ### "No mapping file specified"
 
-The `--mapping` / `-m` flag is required for schema validation. If you only want format detection, use `cm3-batch detect` instead.
+The `--mapping` / `-m` flag is required for schema validation. If you only want format detection, use `valdo detect` instead.
 
 ### Large file timeouts
 
 For files with millions of rows, enable chunked processing:
 
 ```bash
-cm3-batch validate -f large_file.txt -m mapping.json --use-chunked --chunk-size 50000 --workers 4
+valdo validate -f large_file.txt -m mapping.json --use-chunked --chunk-size 50000 --workers 4
 ```
 
 In CI, increase the job timeout accordingly. GitHub Actions default is 6 hours; Azure DevOps default is 60 minutes.
@@ -379,7 +379,7 @@ Ensure the report output directory exists and is writable:
 
 ```bash
 mkdir -p cm3-reports
-cm3-batch validate -f data.txt -m mapping.json -o cm3-reports/report.json
+valdo validate -f data.txt -m mapping.json -o cm3-reports/report.json
 ```
 
 The reusable templates create this directory automatically.

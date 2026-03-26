@@ -5,5 +5,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 RUN pip install --no-cache-dir -e .
 EXPOSE 8000
-ENTRYPOINT ["cm3-batch"]
+ENTRYPOINT ["valdo"]
 CMD ["--help"]

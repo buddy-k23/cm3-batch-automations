@@ -1,7 +1,7 @@
-# CM3 Batch Automations -- Usage and Operations Guide
+# Valdo -- Usage and Operations Guide
 
-Comprehensive reference for installing, configuring, and operating CM3 Batch
-Automations across CLI, Web UI, REST API, and CI/CD environments.
+Comprehensive reference for installing, configuring, and operating Valdo
+across CLI, Web UI, REST API, and CI/CD environments.
 
 ---
 
@@ -36,22 +36,22 @@ Oracle Instant Client is **not** required -- the tool uses `oracledb` thin mode.
 #### From pip (recommended)
 
 ```bash
-pip install cm3-batch-automations
+pip install valdo-automations
 ```
 
 #### From source
 
 ```bash
-git clone https://github.com/your-org/cm3-batch-automations.git
-cd cm3-batch-automations
+git clone https://github.com/your-org/valdo-automations.git
+cd valdo-automations
 pip install -e .
 ```
 
 #### Docker
 
 ```bash
-docker build -t cm3-batch .
-docker run --rm cm3-batch --help
+docker build -t valdo .
+docker run --rm valdo --help
 ```
 
 ### Quick Start
@@ -59,7 +59,7 @@ docker run --rm cm3-batch --help
 **Validate a file from the CLI:**
 
 ```bash
-cm3-batch validate \
+valdo validate \
   --file data/samples/customers.txt \
   --mapping config/mappings/customer_mapping.json \
   --output report.html
@@ -68,7 +68,7 @@ cm3-batch validate \
 **Start the API server:**
 
 ```bash
-cm3-batch serve --port 8000
+valdo serve --port 8000
 ```
 
 **Open the Web UI:**
@@ -194,11 +194,11 @@ bar and panels stack vertically on narrow screens.
 
 ## 3. CLI Reference
 
-All commands are invoked through the `cm3-batch` entry point.
+All commands are invoked through the `valdo` entry point.
 
 ```bash
-cm3-batch --version
-cm3-batch --help
+valdo --version
+valdo --help
 ```
 
 ### validate
@@ -206,7 +206,7 @@ cm3-batch --help
 Validate a file against a mapping schema and optional business rules.
 
 ```bash
-cm3-batch validate \
+valdo validate \
   --file data/batch/customers.txt \
   --mapping config/mappings/customer_mapping.json \
   --rules config/rules/customer_rules.json \
@@ -234,7 +234,7 @@ cm3-batch validate \
 Compare two files and generate a diff report.
 
 ```bash
-cm3-batch compare \
+valdo compare \
   --file1 data/expected/customers.txt \
   --file2 data/actual/customers.txt \
   --mapping config/mappings/customer_mapping.json \
@@ -260,7 +260,7 @@ cm3-batch compare \
 Extract data from Oracle and compare against a batch file.
 
 ```bash
-cm3-batch db-compare \
+valdo db-compare \
   --query-or-table "SELECT * FROM SHAW_SRC_P327" \
   --mapping config/mappings/p327_mapping.json \
   --actual-file data/batch/p327_output.txt \
@@ -283,7 +283,7 @@ cm3-batch db-compare \
 Parse a file and display or export its contents.
 
 ```bash
-cm3-batch parse \
+valdo parse \
   --file data/batch/customers.txt \
   --mapping config/mappings/customer_mapping.json \
   --output parsed_output.csv
@@ -303,7 +303,7 @@ cm3-batch parse \
 Auto-detect file format.
 
 ```bash
-cm3-batch detect --file data/batch/unknown_file.dat
+valdo detect --file data/batch/unknown_file.dat
 ```
 
 ### run-tests
@@ -311,7 +311,7 @@ cm3-batch detect --file data/batch/unknown_file.dat
 Run a complete test suite defined in YAML.
 
 ```bash
-cm3-batch run-tests \
+valdo run-tests \
   --suite config/suites/example_daily.yaml \
   --params "run_date=2026-03-25" \
   --env prod \
@@ -332,10 +332,10 @@ Manage scheduled validation suites.
 
 ```bash
 # List configured suites
-cm3-batch schedule list
+valdo schedule list
 
 # Run a suite immediately
-cm3-batch schedule run --suite-name daily-validation
+valdo schedule run --suite-name daily-validation
 ```
 
 ### serve
@@ -343,7 +343,7 @@ cm3-batch schedule run --suite-name daily-validation
 Start the FastAPI server.
 
 ```bash
-cm3-batch serve --host 0.0.0.0 --port 8000
+valdo serve --host 0.0.0.0 --port 8000
 ```
 
 | Option | Default | Description |
@@ -356,7 +356,7 @@ cm3-batch serve --host 0.0.0.0 --port 8000
 Submit a canonical task request from the CLI.
 
 ```bash
-cm3-batch submit-task \
+valdo submit-task \
   --intent validate \
   --payload '{"file": "data/batch/customers.txt", "mapping": "customer_mapping"}' \
   --priority normal \
@@ -928,7 +928,7 @@ cp .env.example .env
 
 ## 6. CI Pipeline Integration
 
-CM3 Batch Automations provides ready-made templates for the three most common
+Valdo provides ready-made templates for the three most common
 CI platforms, plus generic approaches for any Docker-capable system.
 
 ### GitHub Actions
@@ -977,7 +977,7 @@ jobs:
 | `output-format` | no | `json` | Report format: `json` or `html` |
 | `fail-on-threshold` | no | `true` | Fail the step on threshold breach |
 | `python-version` | no | `3.11` | Python version |
-| `cm3-version` | no | `cm3-batch-automations` | pip specifier |
+| `cm3-version` | no | `valdo-automations` | pip specifier |
 
 **Action outputs:** `valid`, `total-rows`, `error-count`, `report-path`.
 
@@ -1017,7 +1017,7 @@ Include the template and extend the hidden job at
 ```yaml
 # .gitlab-ci.yml
 include:
-  - project: 'your-group/cm3-batch-automations'
+  - project: 'your-group/valdo-automations'
     file: 'ci/templates/gitlab-cm3-validate.yml'
 
 validate-customers:
@@ -1040,7 +1040,7 @@ For Jenkins, CircleCI, Buildkite, or any Docker-capable CI:
 docker run --rm \
   -v "$(pwd)/data:/app/data" \
   -v "$(pwd)/config:/app/config" \
-  cm3-batch validate \
+  valdo validate \
     --file data/batch/customers.txt \
     --mapping config/mappings/customer_mapping.json \
     --output /app/data/report.json \
@@ -1094,7 +1094,7 @@ fi
 #### Build the image
 
 ```bash
-docker build -t cm3-batch:latest .
+docker build -t valdo:latest .
 ```
 
 #### Run the API server
@@ -1110,7 +1110,7 @@ docker run -d \
   -e FILE_RETENTION_HOURS=12 \
   -v /data/uploads:/app/uploads \
   -v /data/reports:/app/reports \
-  cm3-batch:latest serve --host 0.0.0.0 --port 8000
+  valdo:latest serve --host 0.0.0.0 --port 8000
 ```
 
 #### Docker Compose
@@ -1208,11 +1208,11 @@ On the CLI, use the `--use-chunked` flag explicitly.
 
 ```bash
 # Smaller chunks use less memory
-cm3-batch validate --file large_file.txt --mapping mapping.json \
+valdo validate --file large_file.txt --mapping mapping.json \
   --use-chunked --chunk-size 50000
 
 # Larger chunks reduce overhead on fast machines
-cm3-batch validate --file large_file.txt --mapping mapping.json \
+valdo validate --file large_file.txt --mapping mapping.json \
   --use-chunked --chunk-size 200000
 ```
 
@@ -1221,7 +1221,7 @@ cm3-batch validate --file large_file.txt --mapping mapping.json \
 Chunked validation supports parallel worker processes:
 
 ```bash
-cm3-batch validate --file large_file.txt --mapping mapping.json \
+valdo validate --file large_file.txt --mapping mapping.json \
   --use-chunked --workers 4
 ```
 
@@ -1290,5 +1290,5 @@ If format detection returns unexpected results:
 
 ---
 
-*This document covers CM3 Batch Automations v1.0.0. For the full API schema,
+*This document covers Valdo v1.0.0. For the full API schema,
 visit `/docs` (Swagger UI) or `/redoc` when the server is running.*

@@ -1,1 +1,1 @@
-"""Test suite for CM3 Batch Automations."""
+"""Test suite for Valdo."""

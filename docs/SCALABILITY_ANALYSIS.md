@@ -211,7 +211,7 @@ async def upload_file(file: UploadFile):
 **Option 1: Use Extraction Only**
 ```bash
 # Extract from Oracle (works great)
-cm3-batch extract -t LARGE_TABLE -o output.txt
+valdo extract -t LARGE_TABLE -o output.txt
 
 # Don't use comparison on 2M rows
 ```
@@ -227,7 +227,7 @@ cm3-batch extract -t LARGE_TABLE -o output.txt
 split -l 500000 large_file.txt chunk_
 
 # Process each chunk separately
-cm3-batch compare -f1 chunk_aa -f2 target_chunk_aa -k id
+valdo compare -f1 chunk_aa -f2 target_chunk_aa -k id
 ```
 
 ### Long-Term Solutions (Code Improvements Needed)

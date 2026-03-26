@@ -80,7 +80,7 @@ test:integration:
 build:pex:
   - Builds PEX executable
   - Only on main and tags
-  - Artifacts: dist/cm3-batch.pex (30 days)
+  - Artifacts: dist/valdo.pex (30 days)
 
 build:rpm:
   - Builds RPM package
@@ -210,7 +210,7 @@ test:unit
 build:pex
   Building PEX executable...
   ✓ PEX build complete!
-  Output: dist/cm3-batch.pex (15.2M)
+  Output: dist/valdo.pex (15.2M)
   Job succeeded
   
 build:rpm

@@ -12,7 +12,7 @@ class HTMLReporter:
 <!DOCTYPE html>
 <html>
 <head>
-    <title>CM3 Batch Comparison Report</title>
+    <title>Valdo Comparison Report</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
         h1 { color: #333; }
@@ -28,7 +28,7 @@ class HTMLReporter:
     </style>
 </head>
 <body>
-    <h1>CM3 Batch Comparison Report</h1>
+    <h1>Valdo Comparison Report</h1>
     <p class="timestamp">Generated: {{ timestamp }}</p>
 
     <div class="summary">

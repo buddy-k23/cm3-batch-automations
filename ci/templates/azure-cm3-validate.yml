@@ -1,4 +1,4 @@
-# Azure DevOps step template for CM3 Batch file validation
+# Azure DevOps step template for Valdo file validation
 #
 # Usage in your pipeline:
 #
@@ -9,7 +9,7 @@
 #         mapping: config/mappings/customers.json
 #         rules: config/rules/customers_rules.json
 #
-# Publishes the validation report as a build artifact named 'cm3-validation-report'.
+# Publishes the validation report as a build artifact named 'valdo-validation-report'.
 
 parameters:
   - name: file
@@ -41,10 +41,10 @@ parameters:
     type: string
     default: '3.11'
     displayName: 'Python version'
-  - name: cm3Version
+  - name: valdoVersion
     type: string
     default: 'cm3-batch-automations'
-    displayName: 'cm3-batch-automations pip specifier'
+    displayName: 'Valdo pip specifier'
 
 steps:
   - task: UsePythonVersion@0
@@ -54,16 +54,16 @@ steps:
 
   - script: |
       python -m pip install --upgrade pip
-      pip install "${{ parameters.cm3Version }}"
-    displayName: 'Install CM3 Batch Automations'
+      pip install "${{ parameters.valdoVersion }}"
+    displayName: 'Install Valdo'
 
   - script: |
       set -euo pipefail
-      REPORT_DIR="cm3-reports"
+      REPORT_DIR="valdo-reports"
       mkdir -p "$REPORT_DIR"
       REPORT_FILE="$REPORT_DIR/validation-report.${{ parameters.outputFormat }}"
 
-      CMD="cm3-batch validate"
+      CMD="valdo validate"
       CMD="$CMD --file '${{ parameters.file }}'"
       CMD="$CMD --mapping '${{ parameters.mapping }}'"
 
@@ -78,7 +78,7 @@ steps:
       eval "$CMD"
 
       echo "##vso[task.setvariable variable=CM3_REPORT_PATH]$REPORT_FILE"
-    displayName: 'Run CM3 Validation'
+    displayName: 'Run Valdo Validation'
 
   - script: |
       set -euo pipefail
@@ -120,7 +120,7 @@ steps:
         fi
 
         if [ "$FAILED" = "true" ]; then
-          echo "##vso[task.logissue type=error]CM3 validation thresholds exceeded"
+          echo "##vso[task.logissue type=error]Valdo validation thresholds exceeded"
           exit 1
         fi
       fi
@@ -130,6 +130,6 @@ steps:
   - task: PublishBuildArtifacts@1
     condition: always()
     inputs:
-      pathToPublish: 'cm3-reports'
-      artifactName: 'cm3-validation-report'
+      pathToPublish: 'valdo-reports'
+      artifactName: 'valdo-validation-report'
     displayName: 'Publish Validation Report'

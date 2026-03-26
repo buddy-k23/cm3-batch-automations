@@ -214,7 +214,7 @@ The UI has two tabs:
 **Recent Runs tab**
 - Shows the last 20 suite runs from `reports/run_history.json`
 - Columns: Suite name, Run date, Status badge (PASS / FAIL / PARTIAL), Report link
-- Runs `cm3-batch run-tests` first (Section 2.3) to populate this table
+- Runs `valdo run-tests` first (Section 2.3) to populate this table
 
 ### 3.3 API docs
 

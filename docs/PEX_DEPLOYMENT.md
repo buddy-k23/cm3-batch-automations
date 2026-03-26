@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide explains how to deploy CM3 Batch Automations as a PEX (Python EXecutable) file on RHEL 8.9.
+This guide explains how to deploy Valdo as a PEX (Python EXecutable) file on RHEL 8.9.
 
 ## Prerequisites
 
@@ -72,7 +72,7 @@ Or manually:
 pex . \
   --requirement requirements.txt \
   --entry-point src.main:main \
-  --output-file dist/cm3-batch.pex \
+  --output-file dist/valdo.pex \
   --python-shebang="/usr/bin/env python3.9" \
   --inherit-path=prefer
 ```
@@ -81,7 +81,7 @@ pex . \
 
 - `--requirement requirements.txt`: Include all dependencies
 - `--entry-point src.main:main`: Entry point function
-- `--output-file dist/cm3-batch.pex`: Output PEX file
+- `--output-file dist/valdo.pex`: Output PEX file
 - `--python-shebang`: Python interpreter to use
 - `--inherit-path=prefer`: Allow system packages (for cx_Oracle)
 
@@ -89,7 +89,7 @@ pex . \
 
 ```
 /opt/cm3-batch-automations/
-├── cm3-batch.pex           # PEX executable
+├── valdo.pex           # PEX executable
 ├── config/                 # Configuration files
 │   ├── dev.json
 │   ├── staging.json
@@ -115,8 +115,8 @@ sudo chown -R cm3app:cm3app /opt/cm3-batch-automations
 
 ```bash
 # Copy PEX file
-sudo cp dist/cm3-batch.pex /opt/cm3-batch-automations/
-sudo chmod +x /opt/cm3-batch-automations/cm3-batch.pex
+sudo cp dist/valdo.pex /opt/cm3-batch-automations/
+sudo chmod +x /opt/cm3-batch-automations/valdo.pex
 
 # Copy configuration files
 sudo cp -r config/* /opt/cm3-batch-automations/config/
@@ -148,7 +148,7 @@ LD_LIBRARY_PATH=/opt/oracle/instantclient_19_23
 
 ```bash
 cd /opt/cm3-batch-automations
-./cm3-batch.pex --help
+./valdo.pex --help
 ```
 
 ### With Environment Variables
@@ -157,16 +157,16 @@ cd /opt/cm3-batch-automations
 cd /opt/cm3-batch-automations
 source .env
 export LD_LIBRARY_PATH=$ORACLE_HOME:$LD_LIBRARY_PATH
-./cm3-batch.pex
+./valdo.pex
 ```
 
 ## systemd Service Configuration
 
-Create `/etc/systemd/system/cm3-batch.service`:
+Create `/etc/systemd/system/valdo.service`:
 
 ```ini
 [Unit]
-Description=CM3 Batch Automations (PEX)
+Description=Valdo (PEX)
 After=network.target
 
 [Service]
@@ -178,7 +178,7 @@ EnvironmentFile=/opt/cm3-batch-automations/.env
 Environment="PATH=/usr/local/bin:/usr/bin:/bin"
 Environment="ORACLE_HOME=/opt/oracle/instantclient_19_23"
 Environment="LD_LIBRARY_PATH=/opt/oracle/instantclient_19_23"
-ExecStart=/opt/cm3-batch-automations/cm3-batch.pex
+ExecStart=/opt/cm3-batch-automations/valdo.pex
 Restart=on-failure
 RestartSec=10
 
@@ -190,9 +190,9 @@ Enable and start:
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable cm3-batch.service
-sudo systemctl start cm3-batch.service
-sudo systemctl status cm3-batch.service
+sudo systemctl enable valdo.service
+sudo systemctl start valdo.service
+sudo systemctl status valdo.service
 ```
 
 ## Advantages of PEX Deployment
@@ -217,15 +217,15 @@ sudo systemctl status cm3-batch.service
 ./build_pex.sh
 
 # Stop service
-sudo systemctl stop cm3-batch.service
+sudo systemctl stop valdo.service
 
 # Replace PEX file
-sudo cp dist/cm3-batch.pex /opt/cm3-batch-automations/
-sudo chown cm3app:cm3app /opt/cm3-batch-automations/cm3-batch.pex
-sudo chmod +x /opt/cm3-batch-automations/cm3-batch.pex
+sudo cp dist/valdo.pex /opt/cm3-batch-automations/
+sudo chown cm3app:cm3app /opt/cm3-batch-automations/valdo.pex
+sudo chmod +x /opt/cm3-batch-automations/valdo.pex
 
 # Start service
-sudo systemctl start cm3-batch.service
+sudo systemctl start valdo.service
 ```
 
 ## Troubleshooting
@@ -234,13 +234,13 @@ sudo systemctl start cm3-batch.service
 
 ```bash
 # Check shebang
-head -1 /opt/cm3-batch-automations/cm3-batch.pex
+head -1 /opt/cm3-batch-automations/valdo.pex
 
 # Verify Python version
 python3.9 --version
 
 # Check permissions
-ls -la /opt/cm3-batch-automations/cm3-batch.pex
+ls -la /opt/cm3-batch-automations/valdo.pex
 ```
 
 ### Oracle Client Not Found
@@ -260,10 +260,10 @@ python3.9 -c "import cx_Oracle; print(cx_Oracle.clientversion())"
 
 ```bash
 # Run with verbose output
-PEX_VERBOSE=1 ./cm3-batch.pex
+PEX_VERBOSE=1 ./valdo.pex
 
 # Check PEX contents
-unzip -l cm3-batch.pex | grep -i oracle
+unzip -l valdo.pex | grep -i oracle
 ```
 
 ## Alternative: Shiv (PEX Alternative)
@@ -273,8 +273,8 @@ If you encounter issues with PEX, consider using Shiv:
 ```bash
 pip install shiv
 
-shiv -c cm3-batch \
-  -o dist/cm3-batch.pyz \
+shiv -c valdo \
+  -o dist/valdo.pyz \
   -p "/usr/bin/env python3.9" \
   --site-packages /opt/oracle/instantclient_19_23 \
   .
@@ -325,6 +325,6 @@ build-pex:
     - ./build_pex.sh
   artifacts:
     paths:
-      - dist/cm3-batch.pex
+      - dist/valdo.pex
     expire_in: 30 days
 ```

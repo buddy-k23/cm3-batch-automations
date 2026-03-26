@@ -1,5 +1,5 @@
-name: 'CM3 Batch Validate'
-description: 'Validate a batch file against a mapping schema and business rules using CM3 Batch Automations.'
+name: 'Valdo Validate'
+description: 'Validate a batch file against a mapping schema and business rules using Valdo.'
 branding:
   icon: 'check-circle'
   color: 'green'
@@ -35,8 +35,8 @@ inputs:
     description: 'Python version to use'
     required: false
     default: '3.11'
-  cm3-version:
-    description: 'cm3-batch-automations package version (pip specifier)'
+  valdo-version:
+    description: 'valdo package version (pip specifier)'
     required: false
     default: 'cm3-batch-automations'
 
@@ -62,22 +62,22 @@ runs:
       with:
         python-version: ${{ inputs.python-version }}
 
-    - name: Install CM3 Batch Automations
+    - name: Install Valdo
       shell: bash
       run: |
         python -m pip install --upgrade pip
-        pip install "${{ inputs.cm3-version }}"
+        pip install "${{ inputs.valdo-version }}"
 
     - name: Run validation
       id: validate
       shell: bash
       run: |
-        REPORT_DIR="cm3-reports"
+        REPORT_DIR="valdo-reports"
         mkdir -p "$REPORT_DIR"
         REPORT_FILE="$REPORT_DIR/validation-report.${{ inputs.output-format }}"
         echo "report_path=$REPORT_FILE" >> "$GITHUB_OUTPUT"
 
-        CMD="cm3-batch validate"
+        CMD="valdo validate"
         CMD="$CMD --file '${{ inputs.file }}'"
         CMD="$CMD --mapping '${{ inputs.mapping }}'"
 
@@ -148,6 +148,6 @@ runs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: cm3-validation-report
-        path: cm3-reports/
+        name: valdo-validation-report
+        path: valdo-reports/
         retention-days: 30

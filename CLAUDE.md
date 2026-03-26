@@ -1,4 +1,4 @@
-# CM3 Batch Automations — Claude Instructions
+# Valdo — Claude Instructions
 
 ## Project Overview
 

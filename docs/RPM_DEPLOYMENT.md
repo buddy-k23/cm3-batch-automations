@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide explains how to build and deploy CM3 Batch Automations as an RPM package for RHEL 8.9.
+This guide explains how to build and deploy Valdo as an RPM package for RHEL 8.9.
 
 ## Why RPM?
 
@@ -76,18 +76,18 @@ rpmbuild -ba ~/rpmbuild/SPECS/cm3-batch-automations.spec
 ├── setup.py
 └── README.md
 
-/etc/cm3-batch/
+/etc/valdo/
 ├── config.json             # Configuration
 └── .env.example            # Environment template
 
-/var/log/cm3-batch/         # Log directory
-/var/lib/cm3-batch/         # Data directory
+/var/log/valdo/         # Log directory
+/var/lib/valdo/         # Data directory
 
 /usr/lib/systemd/system/
-└── cm3-batch.service       # Systemd service
+└── valdo.service       # Systemd service
 
 /usr/bin/
-└── cm3-batch               # Command-line wrapper
+└── valdo               # Command-line wrapper
 ```
 
 ## Installation
@@ -102,7 +102,7 @@ sudo yum install -y ~/rpmbuild/RPMS/noarch/cm3-batch-automations-0.1.0-1.el8.noa
 
 ```bash
 # Add repository (if using internal repo)
-sudo yum-config-manager --add-repo http://your-repo/cm3-batch.repo
+sudo yum-config-manager --add-repo http://your-repo/valdo.repo
 
 # Install
 sudo yum install -y cm3-batch-automations
@@ -114,10 +114,10 @@ sudo yum install -y cm3-batch-automations
 
 ```bash
 # Copy environment template
-sudo cp /etc/cm3-batch/.env.example /etc/cm3-batch/.env
+sudo cp /etc/valdo/.env.example /etc/valdo/.env
 
 # Edit configuration
-sudo vim /etc/cm3-batch/.env
+sudo vim /etc/valdo/.env
 ```
 
 Set:
@@ -132,8 +132,8 @@ LD_LIBRARY_PATH=/opt/oracle/instantclient_19_23
 ### 2. Secure Configuration
 
 ```bash
-sudo chmod 600 /etc/cm3-batch/.env
-sudo chown cm3app:cm3app /etc/cm3-batch/.env
+sudo chmod 600 /etc/valdo/.env
+sudo chown cm3app:cm3app /etc/valdo/.env
 ```
 
 ### 3. Install Oracle Instant Client
@@ -154,13 +154,13 @@ sudo ldconfig
 
 ```bash
 # Enable service
-sudo systemctl enable cm3-batch.service
+sudo systemctl enable valdo.service
 
 # Start service
-sudo systemctl start cm3-batch.service
+sudo systemctl start valdo.service
 
 # Check status
-sudo systemctl status cm3-batch.service
+sudo systemctl status valdo.service
 ```
 
 ## RPM Management
@@ -203,9 +203,9 @@ sudo yum downgrade cm3-batch-automations-0.1.0-1.el8.noarch.rpm
 # Remove package
 sudo yum remove cm3-batch-automations
 
-# Configuration files in /etc/cm3-batch/ are preserved
+# Configuration files in /etc/valdo/ are preserved
 # To remove completely:
-sudo rm -rf /etc/cm3-batch
+sudo rm -rf /etc/valdo
 ```
 
 ## Creating Internal Repository
@@ -217,26 +217,26 @@ sudo rm -rf /etc/cm3-batch
 sudo yum install -y createrepo
 
 # Create repository directory
-sudo mkdir -p /var/www/html/repos/cm3-batch/el8/x86_64
+sudo mkdir -p /var/www/html/repos/valdo/el8/x86_64
 
 # Copy RPM files
-sudo cp ~/rpmbuild/RPMS/noarch/*.rpm /var/www/html/repos/cm3-batch/el8/x86_64/
+sudo cp ~/rpmbuild/RPMS/noarch/*.rpm /var/www/html/repos/valdo/el8/x86_64/
 
 # Create repository metadata
-sudo createrepo /var/www/html/repos/cm3-batch/el8/x86_64/
+sudo createrepo /var/www/html/repos/valdo/el8/x86_64/
 
 # Update metadata when adding new RPMs
-sudo createrepo --update /var/www/html/repos/cm3-batch/el8/x86_64/
+sudo createrepo --update /var/www/html/repos/valdo/el8/x86_64/
 ```
 
 ### Configure Clients
 
-On client servers, create `/etc/yum.repos.d/cm3-batch.repo`:
+On client servers, create `/etc/yum.repos.d/valdo.repo`:
 
 ```ini
-[cm3-batch]
-name=CM3 Batch Automations Repository
-baseurl=http://your-repo-server/repos/cm3-batch/el8/x86_64/
+[valdo]
+name=Valdo Repository
+baseurl=http://your-repo-server/repos/valdo/el8/x86_64/
 enabled=1
 gpgcheck=0
 ```
@@ -296,8 +296,8 @@ build-rpm:
 deploy-to-repo:
   stage: deploy
   script:
-    - scp rpmbuild/RPMS/noarch/*.rpm repo-server:/var/www/html/repos/cm3-batch/el8/x86_64/
-    - ssh repo-server "createrepo --update /var/www/html/repos/cm3-batch/el8/x86_64/"
+    - scp rpmbuild/RPMS/noarch/*.rpm repo-server:/var/www/html/repos/valdo/el8/x86_64/
+    - ssh repo-server "createrepo --update /var/www/html/repos/valdo/el8/x86_64/"
   only:
     - main
 ```
@@ -334,10 +334,10 @@ rpm -qp --conflicts ~/rpmbuild/RPMS/noarch/cm3-batch-automations-0.1.0-1.el8.noa
 
 ```bash
 # Check service status
-sudo systemctl status cm3-batch.service
+sudo systemctl status valdo.service
 
 # View logs
-sudo journalctl -u cm3-batch.service -xe
+sudo journalctl -u valdo.service -xe
 
 # Verify installation
 rpm -V cm3-batch-automations

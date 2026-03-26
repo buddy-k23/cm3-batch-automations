@@ -1,4 +1,4 @@
-# CM3 Batch Automations — Installation Guide
+# Valdo — Installation Guide
 
 ## Prerequisites
 
@@ -24,7 +24,7 @@ python -m venv .venv
 pip install -e .
 
 # 3. Verify
-cm3-batch --help
+valdo --help
 ```
 
 ---
@@ -64,7 +64,7 @@ Your prompt will change to show `(.venv)` at the start.
 pip install -e .
 ```
 
-This installs all dependencies from `requirements.txt` and registers the `cm3-batch` command. If your organisation uses an internal PyPI mirror:
+This installs all dependencies from `requirements.txt` and registers the `valdo` command. If your organisation uses an internal PyPI mirror:
 
 ```cmd
 pip install -e . --index-url http://your-internal-pypi/simple/
@@ -81,7 +81,7 @@ Open `.env` in Notepad and fill in your Oracle credentials (see the [Configurati
 ### Step 7 — Verify the installation
 
 ```cmd
-cm3-batch --help
+valdo --help
 ```
 
 ### Step 8 — Start the API server (optional)
@@ -134,16 +134,16 @@ Set `ORACLE_DSN` in the format `host:port/service_name` (e.g. `db-server.corp:15
 ### Step 5 — Verify
 
 ```bash
-cm3-batch --help
+valdo --help
 ```
 
 ### Running as a systemd service (optional)
 
-Create `/etc/systemd/system/cm3-batch-api.service`:
+Create `/etc/systemd/system/valdo-api.service`:
 
 ```ini
 [Unit]
-Description=CM3 Batch Automations API
+Description=Valdo API
 After=network.target
 
 [Service]
@@ -163,9 +163,9 @@ Then enable and start:
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable cm3-batch-api
-sudo systemctl start cm3-batch-api
-sudo systemctl status cm3-batch-api
+sudo systemctl enable valdo-api
+sudo systemctl start valdo-api
+sudo systemctl status valdo-api
 ```
 
 > **Tip**: Use `setup-linux.sh` to automate steps 2–4.
@@ -275,7 +275,7 @@ The 17 Shaw source tables (`SHAW_SRC_P327`, `SHAW_SRC_ATOCTRAN`, `SHAW_SRC_EAC`,
 To verify connectivity and confirm the expected tables are present:
 
 ```bash
-cm3-batch db-check
+valdo db-check
 ```
 
 ### Run history tables (optional)
@@ -331,10 +331,10 @@ Run these commands after installation. All should succeed.
 
 ```bash
 # CLI is reachable
-cm3-batch --help
+valdo --help
 
 # Validate sub-command is available
-cm3-batch validate --help
+valdo validate --help
 
 # Unit tests pass (200+ tests expected)
 python3 -m pytest tests/unit/ -q

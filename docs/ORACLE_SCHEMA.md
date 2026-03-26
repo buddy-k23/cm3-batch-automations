@@ -2,7 +2,7 @@
 
 ## Overview
 
-The CM3 Batch Automations application is designed to work with **your existing Oracle tables**. It does **NOT** require you to create specific tables to function. The application's primary purpose is to:
+The Valdo application is designed to work with **your existing Oracle tables**. It does **NOT** require you to create specific tables to function. The application's primary purpose is to:
 
 - Extract data from your existing Oracle tables
 - Compare data between files or tables
@@ -49,7 +49,7 @@ CREATE INDEX idx_transaction_log_table ON TRANSACTION_LOG(table_name);
 CREATE INDEX idx_transaction_log_status ON TRANSACTION_LOG(status);
 
 -- Optional: Add comments
-COMMENT ON TABLE TRANSACTION_LOG IS 'Audit trail for CM3 Batch Automations operations';
+COMMENT ON TABLE TRANSACTION_LOG IS 'Audit trail for Valdo operations';
 COMMENT ON COLUMN TRANSACTION_LOG.operation IS 'Type of operation: INSERT, UPDATE, DELETE, EXTRACT, etc.';
 COMMENT ON COLUMN TRANSACTION_LOG.status IS 'Operation status: SUCCESS, FAILED, ROLLED_BACK';
 ```
@@ -156,7 +156,7 @@ CREATE TABLE CUSTOMER_DATA (
 
 ```bash
 # Extract data from your table
-cm3-batch extract -t CUSTOMER_DATA -o customers.txt -l 1000
+valdo extract -t CUSTOMER_DATA -o customers.txt -l 1000
 
 # Get table statistics
 python -c "
@@ -188,7 +188,7 @@ CREATE TABLE TRANSACTIONS (
 
 ```bash
 # Extract with filter
-cm3-batch extract \
+valdo extract \
   -t TRANSACTIONS \
   -o recent_transactions.txt \
   --where "transaction_date >= SYSDATE - 30"
@@ -294,7 +294,7 @@ print(df)
 
 ```bash
 # Extract from your existing table
-cm3-batch extract -t YOUR_TABLE_NAME -o output.txt -l 100
+valdo extract -t YOUR_TABLE_NAME -o output.txt -l 100
 ```
 
 ---

@@ -1,4 +1,4 @@
-# GitLab CI template for CM3 Batch file validation
+# GitLab CI template for Valdo file validation
 #
 # Usage in your .gitlab-ci.yml:
 #
@@ -24,10 +24,10 @@
     CM3_THRESHOLD_MAX_ERRORS: ""
     CM3_THRESHOLD_MAX_ERROR_PCT: ""
     CM3_OUTPUT_FORMAT: "json"
-    CM3_VERSION: "cm3-batch-automations"
+    VALDO_VERSION: "cm3-batch-automations"
   before_script:
     - python -m pip install --upgrade pip
-    - pip install "$CM3_VERSION"
+    - pip install "$VALDO_VERSION"
   script:
     - |
       set -euo pipefail
@@ -37,11 +37,11 @@
         exit 1
       fi
 
-      REPORT_DIR="cm3-reports"
+      REPORT_DIR="valdo-reports"
       mkdir -p "$REPORT_DIR"
       REPORT_FILE="$REPORT_DIR/validation-report.$CM3_OUTPUT_FORMAT"
 
-      CMD="cm3-batch validate"
+      CMD="valdo validate"
       CMD="$CMD --file '$CM3_FILE'"
       CMD="$CMD --mapping '$CM3_MAPPING'"
 
@@ -73,7 +73,7 @@
       print(summary.get('error_count', summary.get('total_errors', 0)))
       " 2>/dev/null || echo "0")
 
-        echo "CM3 Validation Results: $ERROR_COUNT errors in $TOTAL_ROWS rows"
+        echo "Valdo Validation Results: $ERROR_COUNT errors in $TOTAL_ROWS rows"
 
         FAILED="false"
 
@@ -91,12 +91,12 @@
         fi
 
         if [ "$FAILED" = "true" ]; then
-          echo "ERROR: CM3 validation thresholds exceeded"
+          echo "ERROR: Valdo validation thresholds exceeded"
           exit 1
         fi
       fi
   artifacts:
     when: always
     paths:
-      - cm3-reports/
+      - valdo-reports/
     expire_in: 30 days

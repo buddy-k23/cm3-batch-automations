@@ -692,7 +692,7 @@ Validate relationships between fields:
 
 **Convert to JSON:**
 ```bash
-cm3-batch convert-rules \
+valdo convert-rules \
   -t config/templates/rules.xlsx \
   -o config/rules/rules.json
 ```
@@ -700,7 +700,7 @@ cm3-batch convert-rules \
 ### Using Business Rules
 
 ```bash
-cm3-batch validate \
+valdo validate \
   -f data/file.txt \
   -m config/mappings/mapping.json \
   -r config/rules/rules.json \

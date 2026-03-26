@@ -54,8 +54,8 @@ Use this before running strict validation on fixed-width files.
 
 ```bash
 # 1) Convert mapping templates with strict checks
-cm3-batch convert-mappings --input-dir mappings/csv --output-dir config/mappings --format fixed_width
+valdo convert-mappings --input-dir mappings/csv --output-dir config/mappings --format fixed_width
 
 # 2) Run strict validation (chunked)
-cm3-batch validate -f <data.txt> -m <mapping.json> --use-chunked --strict-fixed-width --strict-level format -o reports/validation.html
+valdo validate -f <data.txt> -m <mapping.json> --use-chunked --strict-fixed-width --strict-level format -o reports/validation.html
 ```

@@ -1,7 +1,7 @@
 CLI Reference
 =============
 
-The CLI entrypoint is ``cm3-batch`` (implemented in ``src.main``).
+The CLI entrypoint is ``valdo`` (implemented in ``src.main``).
 
 Commands
 --------
@@ -21,5 +21,5 @@ For command-specific details run:
 
 .. code-block:: bash
 
-   cm3-batch --help
-   cm3-batch <command> --help
+   valdo --help
+   valdo <command> --help

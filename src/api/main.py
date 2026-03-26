@@ -46,9 +46,9 @@ async def lifespan(app: FastAPI):
 # Create FastAPI application
 app = FastAPI(
     lifespan=lifespan,
-    title="CM3 Batch Automations API",
+    title="Valdo API",
     description="""
-    REST API for CM3 Batch Automations - File parsing, validation, and comparison tool.
+    REST API for Valdo - File parsing, validation, and comparison tool.
     
     ## Features
     
@@ -132,7 +132,7 @@ app.mount("/reports", StaticFiles(directory=str(_REPORTS_DIR)), name="reports")
 async def root():
     """Root endpoint - API information."""
     return {
-        "name": "CM3 Batch Automations API",
+        "name": "Valdo API",
         "version": "1.0.0",
         "docs": "/docs",
         "health": "/api/v1/system/health"

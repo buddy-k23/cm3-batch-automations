@@ -1,26 +1,26 @@
 # Functionality Matrix
 
-Comprehensive matrix of what CM3 Batch Automations provides.
+Comprehensive matrix of what Valdo provides.
 
 ## CLI Capabilities
 
 | Capability | Command | Input(s) | Output(s) | Notes |
 |---|---|---|---|---|
-| System info | `cm3-batch info` | env/system | console | validates runtime deps |
-| Format detect | `cm3-batch detect -f <file>` | file | console | auto-detect fixed/delimited |
-| Parse | `cm3-batch parse -f ... -m ...` | data file + optional mapping | console/CSV | supports fixed-width and delimited |
-| Parse (chunked) | `cm3-batch parse --use-chunked` | large file | CSV/console | memory-efficient |
-| Validate | `cm3-batch validate -f ... -m ...` | file + mapping | HTML/JSON + console | quality metrics + issues |
-| Validate with rules | `cm3-batch validate ... -r <rules.json>` | file + mapping + rules | HTML/JSON + console | fails with non-zero on invalid |
-| Validate strict fixed-width | `cm3-batch validate ... --strict-fixed-width --strict-level format|all` | fixed-width file + mapping | HTML/JSON + console | field-level required/format/value checks |
-| Validate (chunked) | `cm3-batch validate --use-chunked` | large file | JSON or HTML + sidecar CSVs | supports failure reports + progress bar |
-| Validate (chunked strict) | `cm3-batch validate --use-chunked --strict-fixed-width` | large fixed-width file + mapping | JSON/HTML + sidecar CSVs | includes row + field-level defects |
-| Compare | `cm3-batch compare -f1 ... -f2 ... -k ...` | two files + keys | HTML/console | fixed-width compare supports `--mapping` |
-| Extract | `cm3-batch extract -t/-q/-s ...` | Oracle table/query/sql-file | delimited file | streaming mode for large extracts |
-| Reconcile | `cm3-batch reconcile -m ...` | mapping + Oracle schema | console/report | schema compatibility |
-| Reconcile all | `cm3-batch reconcile-all` | mapping directory + Oracle schema | JSON/report | drift detection supported |
-| Convert rules | `cm3-batch convert-rules -t ... -o ...` | Excel/CSV rules template | rules JSON | BA-friendly templates supported |
-| GE checkpoint | `cm3-batch gx-checkpoint1 ...` | targets CSV + expectations CSV | JSON/CSV/HTML | BA config-first data quality checks |
+| System info | `valdo info` | env/system | console | validates runtime deps |
+| Format detect | `valdo detect -f <file>` | file | console | auto-detect fixed/delimited |
+| Parse | `valdo parse -f ... -m ...` | data file + optional mapping | console/CSV | supports fixed-width and delimited |
+| Parse (chunked) | `valdo parse --use-chunked` | large file | CSV/console | memory-efficient |
+| Validate | `valdo validate -f ... -m ...` | file + mapping | HTML/JSON + console | quality metrics + issues |
+| Validate with rules | `valdo validate ... -r <rules.json>` | file + mapping + rules | HTML/JSON + console | fails with non-zero on invalid |
+| Validate strict fixed-width | `valdo validate ... --strict-fixed-width --strict-level format|all` | fixed-width file + mapping | HTML/JSON + console | field-level required/format/value checks |
+| Validate (chunked) | `valdo validate --use-chunked` | large file | JSON or HTML + sidecar CSVs | supports failure reports + progress bar |
+| Validate (chunked strict) | `valdo validate --use-chunked --strict-fixed-width` | large fixed-width file + mapping | JSON/HTML + sidecar CSVs | includes row + field-level defects |
+| Compare | `valdo compare -f1 ... -f2 ... -k ...` | two files + keys | HTML/console | fixed-width compare supports `--mapping` |
+| Extract | `valdo extract -t/-q/-s ...` | Oracle table/query/sql-file | delimited file | streaming mode for large extracts |
+| Reconcile | `valdo reconcile -m ...` | mapping + Oracle schema | console/report | schema compatibility |
+| Reconcile all | `valdo reconcile-all` | mapping directory + Oracle schema | JSON/report | drift detection supported |
+| Convert rules | `valdo convert-rules -t ... -o ...` | Excel/CSV rules template | rules JSON | BA-friendly templates supported |
+| GE checkpoint | `valdo gx-checkpoint1 ...` | targets CSV + expectations CSV | JSON/CSV/HTML | BA config-first data quality checks |
 
 ## API Capabilities
 

@@ -4,12 +4,12 @@
 
 ```mermaid
 flowchart TD
-    U[Users / CI / Schedulers] --> C[CLI: cm3-batch]
+    U[Users / CI / Schedulers] --> C[CLI: valdo]
     U --> A[REST API: FastAPI]
     U --> WEB[Web UI\n/ui single-page app]
     WEB --> A
 
-    BATCH[Java Batch Process] -->|trigger file| WATCH[cm3-batch watch]
+    BATCH[Java Batch Process] -->|trigger file| WATCH[valdo watch]
     BATCH -->|webhook| RUNS[/api/v1/runs/trigger]
 
     C --> CMDS[Command Layer\nsrc/commands/*]
@@ -46,7 +46,7 @@ flowchart TD
 ```mermaid
 sequenceDiagram
     participant User
-    participant CLI as cm3-batch validate
+    participant CLI as valdo validate
     participant Parser
     participant Validator
     participant Rules as RuleEngine
@@ -84,7 +84,7 @@ sequenceDiagram
 
 **API Check Testing**: `api_check` test type in YAML suites calls external HTTP endpoints via `httpx` and asserts on status code and JSON response. Integration tests in `tests/integration/` cover all FastAPI endpoints using `TestClient`.
 
-**CI/CD Integration**: `cm3-batch watch` polls a trigger directory for `.trigger` files dropped by the Java batch process and runs the matching suite automatically. `POST /api/v1/runs/trigger` provides a webhook for pipeline-based triggering. Templates in `ci/` for GitLab CI and Azure DevOps.
+**CI/CD Integration**: `valdo watch` polls a trigger directory for `.trigger` files dropped by the Java batch process and runs the matching suite automatically. `POST /api/v1/runs/trigger` provides a webhook for pipeline-based triggering. Templates in `ci/` for GitLab CI and Azure DevOps.
 
 **Row tracking**: All parsers append `__source_row__` (1-indexed physical line number) to output DataFrames. This column is preserved through the comparison and reporting layers and stripped before Oracle operations.
 

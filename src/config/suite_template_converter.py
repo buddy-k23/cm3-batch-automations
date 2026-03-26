@@ -54,7 +54,7 @@ def _cell_value(cell_val: Any) -> Any:
 
 
 class SuiteTemplateConverter:
-    """Convert an Excel test-suite template to a YAML file consumed by cm3-batch run-tests."""
+    """Convert an Excel test-suite template to a YAML file consumed by valdo run-tests."""
 
     # ------------------------------------------------------------------ #
     # Public API                                                           #

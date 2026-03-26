@@ -2,8 +2,8 @@
 
 Commands
 --------
-cm3-batch schedule list   — list all configured suites
-cm3-batch schedule run    — run a named suite immediately
+valdo schedule list   — list all configured suites
+valdo schedule run    — run a named suite immediately
 """
 from __future__ import annotations
 

@@ -116,14 +116,14 @@ pytest -v
 ### Create systemd Service File
 
 ```bash
-sudo vim /etc/systemd/system/cm3-batch.service
+sudo vim /etc/systemd/system/valdo.service
 ```
 
 Add the following content:
 
 ```ini
 [Unit]
-Description=CM3 Batch Automations Service
+Description=Valdo Service
 After=network.target
 
 [Service]
@@ -156,16 +156,16 @@ WantedBy=multi-user.target
 sudo systemctl daemon-reload
 
 # Enable service to start on boot
-sudo systemctl enable cm3-batch.service
+sudo systemctl enable valdo.service
 
 # Start service
-sudo systemctl start cm3-batch.service
+sudo systemctl start valdo.service
 
 # Check status
-sudo systemctl status cm3-batch.service
+sudo systemctl status valdo.service
 
 # View logs
-sudo journalctl -u cm3-batch.service -f
+sudo journalctl -u valdo.service -f
 ```
 
 ## Firewall Configuration
@@ -217,7 +217,7 @@ sudo restorecon -Rv /opt/cm3-batch-automations
 Create log rotation configuration:
 
 ```bash
-sudo vim /etc/logrotate.d/cm3-batch
+sudo vim /etc/logrotate.d/valdo
 ```
 
 Add:
@@ -232,7 +232,7 @@ Add:
     create 0640 cm3app cm3app
     sharedscripts
     postrotate
-        systemctl reload cm3-batch.service > /dev/null 2>&1 || true
+        systemctl reload valdo.service > /dev/null 2>&1 || true
     endscript
 }
 ```
@@ -243,10 +243,10 @@ Add:
 
 ```bash
 # Check service status
-sudo systemctl status cm3-batch.service
+sudo systemctl status valdo.service
 
 # View recent logs
-sudo journalctl -u cm3-batch.service -n 100
+sudo journalctl -u valdo.service -n 100
 
 # Check application logs
 tail -f /opt/cm3-batch-automations/logs/*.log
@@ -268,7 +268,7 @@ df -h /opt/cm3-batch-automations
 
 ```bash
 # Backup configuration files
-sudo tar -czf /backup/cm3-batch-config-$(date +%Y%m%d).tar.gz \
+sudo tar -czf /backup/valdo-config-$(date +%Y%m%d).tar.gz \
     /opt/cm3-batch-automations/config \
     /opt/cm3-batch-automations/.env
 ```
@@ -290,7 +290,7 @@ git pull origin main
 pip install -r requirements.txt --upgrade
 
 # Restart service
-sudo systemctl restart cm3-batch.service
+sudo systemctl restart valdo.service
 ```
 
 ## Troubleshooting
@@ -323,7 +323,7 @@ sudo chmod 600 /opt/cm3-batch-automations/.env
 
 ```bash
 # Check service logs
-sudo journalctl -u cm3-batch.service -xe
+sudo journalctl -u valdo.service -xe
 
 # Verify Python path
 which python
