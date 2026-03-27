@@ -65,7 +65,17 @@ class TemplateConverter:
         
         # Clean column names
         df.columns = df.columns.str.strip()
-        
+
+        # Normalize snake_case columns to Title Case (e.g. field_name → Field Name)
+        col_map = {
+            'field_name': 'Field Name', 'data_type': 'Data Type',
+            'position': 'Position', 'length': 'Length', 'format': 'Format',
+            'required': 'Required', 'description': 'Description',
+            'default_value': 'Default Value', 'target_name': 'Target Name',
+            'valid_values': 'Valid Values', 'transformation': 'Transformation',
+        }
+        df.columns = [col_map.get(c.lower().replace(' ', '_'), c) for c in df.columns]
+
         # Validate required columns
         missing_cols = [col for col in self.REQUIRED_COLUMNS if col not in df.columns]
         if missing_cols:
