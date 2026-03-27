@@ -71,11 +71,19 @@ async def upload_rules_template(
         output_path = RULES_DIR / f"{rules_id}.json"
         converter.save(str(output_path))
 
+        # Read back generated JSON for preview
+        rules_content = None
+        if output_path.exists():
+            import json as _json
+            with open(output_path) as _f:
+                rules_content = _json.load(_f)
+
         return {
             "rules_id": rules_id,
             "filename": file.filename,
             "size": upload_path.stat().st_size,
             "message": f"Rules template converted and created successfully. Rules saved as '{rules_id}'",
+            "rules_content": rules_content,
         }
 
     except Exception as e:

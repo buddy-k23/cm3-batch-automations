@@ -82,12 +82,21 @@ async def upload_template(
         output_path = MAPPINGS_DIR / f"{mapping_id}.json"
         converter.save(str(output_path))
         
-        return UploadResponse(
-            filename=file.filename,
-            size=upload_path.stat().st_size,
-            mapping_id=mapping_id,
-            message=f"Template converted successfully. Mapping saved as '{mapping_id}'"
-        )
+        # Read back the generated JSON for preview
+        mapping_content = None
+        if output_path.exists():
+            import json as _json
+            with open(output_path) as _f:
+                mapping_content = _json.load(_f)
+
+        response = {
+            "filename": file.filename,
+            "size": upload_path.stat().st_size,
+            "mapping_id": mapping_id,
+            "message": f"Template converted successfully. Mapping saved as '{mapping_id}'",
+            "mapping_content": mapping_content,
+        }
+        return response
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error converting template: {str(e)}")
