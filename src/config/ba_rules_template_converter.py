@@ -26,6 +26,22 @@ class BARulesTemplateConverter:
         'regex': ('field_validation', 'regex'),
         'date format': ('field_validation', 'regex'),
         'compare fields': ('cross_field', None),
+        # Valdo native rule types (passthrough — stored as-is in JSON)
+        'not_empty': ('field_validation', 'not_empty'),
+        'numeric': ('field_validation', 'numeric'),
+        'date_format': ('field_validation', 'date_format'),
+        'valid_values': ('field_validation', 'valid_values'),
+        'min_value': ('field_validation', 'min_value'),
+        'max_value': ('field_validation', 'max_value'),
+        'exact_length': ('field_validation', 'exact_length'),
+        'min_length': ('field_validation', 'min_length'),
+        'cross_field': ('cross_field', None),
+        'cross_row:unique': ('cross_row', 'unique'),
+        'cross_row:unique_composite': ('cross_row', 'unique_composite'),
+        'cross_row:consistent': ('cross_row', 'consistent'),
+        'cross_row:sequential': ('cross_row', 'sequential'),
+        'cross_row:group_count': ('cross_row', 'group_count'),
+        'cross_row:group_sum': ('cross_row', 'group_sum'),
     }
 
     def __init__(self):
@@ -41,6 +57,25 @@ class BARulesTemplateConverter:
 
     def _convert_dataframe(self, df: pd.DataFrame, template_path: str) -> Dict[str, Any]:
         df.columns = df.columns.str.strip()
+
+        # Normalize alternate column names to expected names
+        col_aliases = {
+            'type': 'Rule Type',
+            'value': 'Expected / Values',
+            'message': 'Message',
+            'enabled': 'Enabled',
+            'rule id': 'Rule ID',
+            'rule name': 'Rule Name',
+            'field': 'Field',
+            'severity': 'Severity',
+            'rule_id': 'Rule ID',
+            'rule_name': 'Rule Name',
+            'rule_type': 'Rule Type',
+            'expected_values': 'Expected / Values',
+            'expected / values': 'Expected / Values',
+        }
+        df.columns = [col_aliases.get(c.lower(), c) for c in df.columns]
+
         missing = [c for c in self.REQUIRED_COLUMNS if c not in df.columns]
         if missing:
             raise ValueError(f"Missing required columns: {missing}")
@@ -152,6 +187,51 @@ class BARulesTemplateConverter:
             }
             rule['pattern'] = fmt_regex.get(fmt, r'^\d+$')
             rule['expected_format'] = fmt
+            return rule
+
+        # Valdo native rule types — passthrough with value mapping
+        native_types = {
+            'not_empty', 'numeric', 'date_format', 'valid_values',
+            'min_value', 'max_value', 'exact_length', 'min_length',
+        }
+        if rule_type_text in native_types:
+            if expected:
+                if rule_type_text == 'valid_values':
+                    delim = '|' if '|' in expected else ','
+                    rule['values'] = [v.strip() for v in expected.split(delim) if v.strip()]
+                elif rule_type_text in ('min_value', 'max_value', 'exact_length', 'min_length'):
+                    try:
+                        rule['value'] = float(expected) if '.' in expected else int(expected)
+                    except ValueError:
+                        rule['value'] = expected
+                elif rule_type_text == 'date_format':
+                    rule['format'] = expected
+                else:
+                    rule['value'] = expected
+            if 'Message' in row.index and pd.notna(row.get('Message')):
+                rule['message'] = str(row['Message']).strip()
+            return rule
+
+        # Cross-row rule types
+        if rule_type_text.startswith('cross_row:'):
+            check = rule_type_text.split(':', 1)[1]
+            rule['check'] = check
+            # Parse field syntax: KEY>TARGET or FIELD1|FIELD2
+            if '>' in field:
+                parts = field.split('>', 1)
+                rule['key_field'] = parts[0].strip()
+                rule['target_field'] = parts[1].strip()
+            elif '|' in field:
+                rule['fields'] = [f.strip() for f in field.split('|')]
+            else:
+                rule['field'] = field
+            if expected:
+                try:
+                    rule['value'] = float(expected) if '.' in expected else int(expected)
+                except ValueError:
+                    rule['value'] = expected
+            if 'Message' in row.index and pd.notna(row.get('Message')):
+                rule['message'] = str(row['Message']).strip()
             return rule
 
         return rule
