@@ -77,12 +77,19 @@ def parse(file, mapping, format, output, use_chunked, chunk_size):
               help='Parallel worker processes for chunked validation (1 disables parallel mode)')
 @click.option('--suppress-pii/--no-suppress-pii', default=True, show_default=True,
               help='Redact raw field values from HTML reports (default: enabled)')
+@click.option('--multi-record', default=None, type=click.Path(exists=True),
+              help='Multi-record YAML config for files with multiple record types')
 def validate(file, mapping, rules, output, detailed, use_chunked, chunk_size, progress,
-             strict_fixed_width, strict_level, workers, suppress_pii):
+             strict_fixed_width, strict_level, workers, suppress_pii, multi_record):
     """Validate file format and content."""
     logger = setup_logger('valdo', log_to_file=False)
 
     try:
+        if multi_record:
+            from src.commands.multi_record_command import run_multi_record_command
+            run_multi_record_command(file, multi_record, output, logger)
+            return
+
         from src.commands.validate_command import run_validate_command
         run_validate_command(
             file, mapping, rules, output, detailed, use_chunked, chunk_size, progress,
