@@ -155,6 +155,10 @@ Configuration & Validators
    :members:
    :undoc-members:
 
+.. automodule:: src.config.multi_record_config
+   :members:
+   :undoc-members:
+
 .. automodule:: src.validators.mapping_validator
    :members:
    :undoc-members:
@@ -168,6 +172,14 @@ Configuration & Validators
    :undoc-members:
 
 .. automodule:: src.validators.cross_row_validator
+   :members:
+   :undoc-members:
+
+.. automodule:: src.validators.multi_record_validator
+   :members:
+   :undoc-members:
+
+.. automodule:: src.validators.cross_type_validator
    :members:
    :undoc-members:
 
@@ -269,6 +281,10 @@ Pipeline
    :undoc-members:
 
 .. automodule:: src.commands.etl_pipeline_command
+   :members:
+   :undoc-members:
+
+.. automodule:: src.commands.multi_record_command
    :members:
    :undoc-members:
 

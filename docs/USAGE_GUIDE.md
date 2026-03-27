@@ -1185,6 +1185,138 @@ with open("data.txt", "rb") as f:
 
 ---
 
+## Multi-Record-Type File Validation
+
+Some batch files contain multiple record types in a single file (e.g. a header row, one or more detail rows, and a trailer row) distinguished by a fixed-position discriminator field.  Use the `--multi-record` option on the `validate` command to validate these files.
+
+### How It Works
+
+1. A YAML config file describes the discriminator (position + length), each record type (discriminator value, mapping, rules, expected count), and optional cross-type rules.
+2. Valdo reads every line, extracts the discriminator value, and routes each line to the appropriate record type group.
+3. Per-type schema/rules validation runs using each type's mapping and rules files (if provided).
+4. Cross-type rules check relationships across groups (count consistency, sum checks, sequence order, etc.).
+5. The aggregate result is printed to stdout and optionally saved as JSON.
+
+### CLI Usage
+
+```bash
+# Basic usage
+python -m src.main validate \
+  --file data/batch_file.txt \
+  --multi-record config/multi-record/example_atoctran.yaml
+
+# Save the result to a JSON report
+python -m src.main validate \
+  --file data/batch_file.txt \
+  --multi-record config/multi-record/example_atoctran.yaml \
+  --output reports/batch_validation.json
+```
+
+### Config File Structure
+
+```yaml
+discriminator:
+  field: REC_TYPE      # Logical name (used in violation messages)
+  position: 1          # 1-indexed start column of discriminator
+  length: 3            # Character width of discriminator value
+
+record_types:
+  header:
+    match: "HDR"       # Discriminator value for this type
+    mapping: "config/mappings/header_mapping.json"
+    expect: exactly_one   # exactly_one | at_least_one | any
+
+  detail:
+    match: "DTL"
+    mapping: "config/mappings/detail_mapping.json"
+    rules: "config/rules/detail_rules.json"
+    expect: at_least_one
+
+  trailer:
+    match: "TRL"
+    mapping: "config/mappings/trailer_mapping.json"
+    expect: exactly_one
+
+# Optional: positional overrides (first/last row gets assigned regardless of value)
+# header:
+#   position: first
+#   mapping: ...
+
+cross_type_rules:
+  - check: required_companion
+    when_type: header
+    requires_type: detail
+    message: "No detail rows found."
+
+  - check: header_trailer_count
+    record_type: trailer
+    trailer_field: RECORD_COUNT
+    count_of: detail
+
+  - check: header_trailer_sum
+    record_type: trailer
+    trailer_field: TOTAL_AMOUNT
+    sum_of: [AMOUNT]
+    count_of: detail
+
+  - check: header_trailer_match
+    header_field: BATCH_ID
+    trailer_field: BATCH_ID
+
+  - check: header_detail_consistent
+    header_field: BATCH_ID
+    detail_field: BATCH_ID
+
+  - check: type_sequence
+    expected_order: [header, detail, trailer]
+
+  - check: expect_count
+    record_type: header
+    exactly: 1
+
+default_action: warn   # warn | error | skip for unrecognized record types
+```
+
+### Cross-Type Rule Reference
+
+| `check`                   | Required fields                              | Description |
+|---------------------------|----------------------------------------------|-------------|
+| `required_companion`      | `when_type`, `requires_type`                 | If `when_type` rows exist, `requires_type` rows must also exist. |
+| `header_trailer_count`    | `record_type`, `trailer_field`, `count_of`   | Count field in `record_type` must equal number of `count_of` rows. |
+| `header_trailer_sum`      | `record_type`, `trailer_field`, `sum_of`, `count_of` | Sum field in `record_type` must equal sum of `sum_of` fields in `count_of` rows. |
+| `header_detail_consistent`| `header_field`, `detail_field`               | All detail row values of `detail_field` must match the header's `header_field`. |
+| `header_trailer_match`    | `header_field`, `trailer_field`              | Header and trailer field values must be equal. |
+| `type_sequence`           | `expected_order`                             | Record types must appear in the declared order. |
+| `expect_count`            | `record_type`, `exactly`                     | Record type group must contain exactly `exactly` rows. |
+
+### API: Generate Config File
+
+```
+POST /api/v1/multi-record/generate
+Content-Type: application/json
+
+{
+  "discriminator": {"field": "REC_TYPE", "position": 1, "length": 3},
+  "record_types": {
+    "header":  {"match": "HDR", "mapping": "config/mappings/hdr.json", "expect": "exactly_one"},
+    "detail":  {"match": "DTL", "mapping": "config/mappings/dtl.json", "expect": "at_least_one"},
+    "trailer": {"match": "TRL", "mapping": "config/mappings/trl.json", "expect": "exactly_one"}
+  },
+  "cross_type_rules": [
+    {"check": "required_companion", "when_type": "header", "requires_type": "detail"}
+  ],
+  "default_action": "warn"
+}
+```
+
+Returns a `.yaml` file download ready to use with `--multi-record`.
+
+### Example Config
+
+See `config/multi-record/example_atoctran.yaml` for a fully commented example.
+
+---
+
 ## Troubleshooting
 
 ### API Server Won't Start
