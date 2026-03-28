@@ -2751,9 +2751,13 @@ document.getElementById('btnGenMapping').addEventListener('click', async functio
     if (data.fields) { renderFieldSummary(data.fields); }
     setGenResult('mapResultBar', 'success', '\u2705 \u2018' + mid + '\u2019 created\u00a0\u00a0', [
       { text: 'Download JSON', href: '/api/v1/mappings/' + encodeURIComponent(mid), download: mid + '.json', tooltip: 'Download the generated JSON config to your machine' },
-      { text: 'Use in Quick Test \u2192', tooltip: 'Load this config into the Quick Test tab and switch to it', onClick: function(e) {
+      { text: 'Use in Quick Test \u2192', tooltip: 'Load this config into the Quick Test tab and switch to it', onClick: async function(e) {
           e.preventDefault();
-          loadMappings();
+          await loadMappings();
+          var sel = document.getElementById('mappingSelect');
+          for (var i = 0; i < sel.options.length; i++) {
+            if (sel.options[i].value === mid) { sel.selectedIndex = i; break; }
+          }
           switchTab('quick');
       }}
     ]);
@@ -2789,15 +2793,13 @@ document.getElementById('btnGenRules').addEventListener('click', async function(
     if (data.rules_content) { renderJsonPreview('rulesJsonPreview', data.rules_content); }
     setGenResult('rulesResultBar', 'success', '\u2705 \u2018' + rid + '\u2019 created\u00a0\u00a0', [
       { text: 'Download JSON', href: '/api/v1/rules/' + encodeURIComponent(rid) + '.json', download: rid + '.json', tooltip: 'Download the generated JSON config to your machine' },
-      { text: 'Use in Quick Test \u2192', tooltip: 'Load these rules into the Quick Test tab and switch to it', onClick: function(e) {
+      { text: 'Use in Quick Test \u2192', tooltip: 'Load these rules into the Quick Test tab and switch to it', onClick: async function(e) {
           e.preventDefault();
-          loadRules();
-          setTimeout(function() {
-            var sel = document.getElementById('rulesSelect');
-            for (var i = 0; i < sel.options.length; i++) {
-              if (sel.options[i].value === rid) { sel.selectedIndex = i; break; }
-            }
-          }, 500);
+          await loadRules();
+          var sel = document.getElementById('rulesSelect');
+          for (var i = 0; i < sel.options.length; i++) {
+            if (sel.options[i].value === rid) { sel.selectedIndex = i; break; }
+          }
           switchTab('quick');
       }}
     ]);
