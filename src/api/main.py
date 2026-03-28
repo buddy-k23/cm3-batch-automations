@@ -134,7 +134,10 @@ _REPORTS_DIR = Path(__file__).parent.parent.parent / "reports"
 _REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/reports", StaticFiles(directory=str(_REPORTS_DIR)), name="reports")
 
-_TEMPLATES_DIR = Path(__file__).parent.parent / "reports" / "static" / "templates"
+_STATIC_DIR = Path(__file__).parent.parent / "reports" / "static"
+app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static-assets")
+
+_TEMPLATES_DIR = _STATIC_DIR / "templates"
 
 
 @app.get("/api/v1/templates/{filename}", tags=["Templates"])

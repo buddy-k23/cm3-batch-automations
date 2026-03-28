@@ -192,9 +192,16 @@ def test_ui_contains_rules_type_dropdown(client):
 # ---------------------------------------------------------------------------
 
 def _load_ui_html() -> str:
-    """Read ui.html directly (not via HTTP) for structural checks."""
-    ui_path = Path(__file__).resolve().parent.parent.parent / "src" / "reports" / "static" / "ui.html"
-    return ui_path.read_text(encoding="utf-8")
+    """Read ui.html + ui.css + ui.js for structural checks."""
+    static_dir = Path(__file__).resolve().parent.parent.parent / "src" / "reports" / "static"
+    content = (static_dir / "ui.html").read_text(encoding="utf-8")
+    css_path = static_dir / "ui.css"
+    js_path = static_dir / "ui.js"
+    if css_path.exists():
+        content += "\n" + css_path.read_text(encoding="utf-8")
+    if js_path.exists():
+        content += "\n" + js_path.read_text(encoding="utf-8")
+    return content
 
 
 class TestTooltips:
