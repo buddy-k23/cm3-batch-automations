@@ -113,6 +113,12 @@ Follow these 12 steps in order for every feature or bug fix:
 
 5. **No hardcoded paths** — Use `Path(__file__).parent` for relative paths. Config-driven directories (uploads, reports, mappings, rules) must come from settings, not string literals.
 
+6. **Manageable file sizes** — Keep individual files under 500 lines where practical. Split large files:
+   - `ui.html` (HTML only) + `ui.css` (styles) + `ui.js` (JavaScript) — never combine back
+   - Python files: one class/concern per file, new commands go in `src/commands/`, not inline in `src/main.py`
+   - `src/main.py` is a thin CLI registration layer — all logic must be in `src/commands/` or `src/services/`
+   - Before modifying a file, check if the change belongs in an existing split file (e.g. CSS changes go in `ui.css`, not `ui.html`)
+
 ---
 
 ## Test Commands

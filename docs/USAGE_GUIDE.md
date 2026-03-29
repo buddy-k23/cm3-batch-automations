@@ -1317,6 +1317,78 @@ See `config/multi-record/example_atoctran.yaml` for a fully commented example.
 
 ---
 
+## Generating a Multi-Record YAML Config (`generate-multi-record`)
+
+The `generate-multi-record` command writes a ready-to-use YAML config without
+requiring manual editing.  It supports two modes.
+
+### Non-interactive mode
+
+Supply all parameters on the command line:
+
+```bash
+python -m src.main generate-multi-record \
+  --output config/multi-record/my_batch.yaml \
+  --discriminator REC_TYPE:1:3 \
+  --type HDR=header_mapping \
+  --type DTL=detail_mapping \
+  --type TRL=trailer_mapping \
+  --mappings-dir config/mappings \
+  --rules-dir config/rules
+```
+
+**`--discriminator` format:** `FIELD_NAME:START_POSITION:LENGTH`
+
+| Part | Example | Meaning |
+|------|---------|---------|
+| `FIELD_NAME` | `REC_TYPE` | Logical name used in violation messages |
+| `START_POSITION` | `1` | 1-indexed column where the discriminator starts |
+| `LENGTH` | `3` | Number of characters to read |
+
+**`--type` format:** `CODE=MAPPING_NAME` (repeatable)
+
+```bash
+--type HDR=header_mapping        # Match literal "HDR" → header_mapping.json
+--type header:first=hdr_mapping  # Position-based: first row → hdr_mapping.json
+--type header:last=trl_mapping   # Position-based: last row → trl_mapping.json
+```
+
+If a rules file matching `MAPPING_NAME` is found in `--rules-dir` it is
+automatically included in the generated config.  Two naming patterns are
+tried:
+
+1. `{mapping_name}_rules.json`
+2. `{mapping_name_without__mapping}_rules.json`  (e.g. `detail_rules.json` for `detail_mapping`)
+
+### Interactive mode
+
+Omit `--discriminator` or `--type` and the wizard will guide you:
+
+```bash
+python -m src.main generate-multi-record --output config/multi-record/my_batch.yaml
+```
+
+Steps:
+1. Lists all mapping files found in `--mappings-dir`.
+2. Asks which to include (comma-separated numbers or `all`).
+3. Prompts for the discriminator field name, start position, and length.
+4. For each selected mapping, asks for the discriminator code (or `first`/`last`).
+5. Offers to include any auto-matched rules file.
+6. Optionally adds a `required_companion` cross-type rule.
+7. Writes the YAML file.
+
+### Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--output`, `-o` | *(required)* | Output YAML file path |
+| `--discriminator` | *(interactive)* | `FIELD:POSITION:LENGTH` string |
+| `--type` | *(interactive)* | `CODE=MAPPING_NAME` — repeatable |
+| `--mappings-dir` | `config/mappings` | Directory containing mapping JSON files |
+| `--rules-dir` | `config/rules` | Directory to search for rules files |
+
+---
+
 ## Troubleshooting
 
 ### API Server Won't Start

@@ -288,6 +288,10 @@ Pipeline
    :members:
    :undoc-members:
 
+.. automodule:: src.commands.generate_multi_record_command
+   :members:
+   :undoc-members:
+
 Reporting & Utilities
 ---------------------
 

@@ -287,6 +287,32 @@ def infer_mapping(file, fmt, output, sample_lines):
         sys.exit(1)
 
 
+@cli.command('generate-multi-record')
+@click.option('--output', '-o', required=True, help='Output YAML path')
+@click.option('--discriminator', default=None,
+              help='Discriminator as FIELD:POSITION:LENGTH (e.g. REC_TYPE:1:3)')
+@click.option('--type', 'types', multiple=True,
+              help='Type mapping as CODE=MAPPING_NAME (repeatable)')
+@click.option('--mappings-dir', default='config/mappings', show_default=True,
+              help='Directory containing mapping JSON files')
+@click.option('--rules-dir', default='config/rules', show_default=True,
+              help='Directory to search for matching rules files')
+def generate_multi_record(output, discriminator, types, mappings_dir, rules_dir):
+    """Generate a multi-record YAML config interactively or from parameters."""
+    try:
+        from src.commands.generate_multi_record_command import run_generate_multi_record_command
+        run_generate_multi_record_command(
+            output=output,
+            discriminator=discriminator,
+            types=list(types),
+            mappings_dir=mappings_dir,
+            rules_dir=rules_dir,
+        )
+    except Exception as e:
+        click.echo(click.style(f"Error: {e}", fg="red"))
+        sys.exit(1)
+
+
 @cli.command()
 def info():
     """Display system information and check dependencies."""
