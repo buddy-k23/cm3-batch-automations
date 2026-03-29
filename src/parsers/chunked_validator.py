@@ -31,6 +31,24 @@ def _is_float(value: str) -> bool:
 
 
 def _is_value_valid_for_format(value: str, fmt: str) -> bool:
+    """Check whether *value* matches the COBOL-style format specifier *fmt*.
+
+    Supported format codes include:
+    - ``XXX`` — exactly three alphabetic characters.
+    - ``CCYYMMDD`` / ``YYYYMMDD`` — eight-digit date string.
+    - ``S9(n)`` — signed numeric with *n* digits.
+    - ``9(n)`` — unsigned numeric with *n* digits.
+    - ``[+S]9(n)V9(m)`` — signed/unsigned fixed-decimal with *n* integer and
+      *m* fractional digits.
+    Unrecognised format codes always return True (no constraint applied).
+
+    Args:
+        value: The string value extracted from the data file.
+        fmt: COBOL-style format specifier (case-insensitive).
+
+    Returns:
+        True if the value conforms to *fmt*, or if *fmt* is unrecognised.
+    """
     import re
 
     v = str(value).strip()
@@ -73,6 +91,31 @@ def _validate_chunk_worker(
     strict_fields: list[dict],
     strict_level: str,
 ) -> dict:
+    """Validate a single DataFrame chunk and return an aggregated result dict.
+
+    Designed to run in a subprocess via :class:`concurrent.futures.ProcessPoolExecutor`.
+    Collects null counts, empty-string counts, duplicate row flags, and
+    (optionally) strict field-level format/type violations.
+
+    Args:
+        chunk: The DataFrame slice to validate.
+        chunk_num: 1-based chunk index, used to compute absolute row numbers.
+        chunk_size: Configured rows-per-chunk (used to derive global row offset).
+        strict_fixed_width: When True, enable format-code validation for
+            fields that declare a ``format`` attribute.
+        strict_fields: Field definitions from the mapping config; each dict
+            may contain ``name``, ``data_type``, ``required``, and ``format``.
+        strict_level: Strictness tier — ``'format'`` only checks format codes;
+            ``'all'`` also checks data type compatibility.
+
+    Returns:
+        Dict with keys:
+        - ``errors``: list of error message strings.
+        - ``warnings``: list of warning message strings.
+        - ``stats``: dict with ``duplicates`` count, ``nulls`` per column, and
+          ``empty_strings`` per column.
+        - ``rows``: number of rows processed in this chunk.
+    """
     errors = []
     warnings = []
     stats = {'duplicates': 0, 'nulls': {}, 'empty_strings': {}}

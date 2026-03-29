@@ -13,6 +13,15 @@ SUPPORTED_EXTS = {".csv", ".xlsx", ".xls"}
 
 
 def _load_template_df(template_path: Path) -> pd.DataFrame:
+    """Load a mapping template file into a DataFrame with all values as strings.
+
+    Args:
+        template_path: Path to a ``.csv``, ``.xlsx``, or ``.xls`` template file.
+
+    Returns:
+        DataFrame with every column read as ``str`` (preserves leading zeros,
+        avoids numeric inference artefacts).
+    """
     if template_path.suffix.lower() == ".csv":
         return pd.read_csv(template_path, dtype=str)
     return pd.read_excel(template_path, dtype=str)
@@ -119,6 +128,17 @@ def _write_error_report(report_dir: Path, template_path: Path, issues: list[dict
 
 
 def _convert_file(template_path: Path, output_dir: Path, file_format: Optional[str] = None) -> Path:
+    """Convert a single mapping template file to a universal mapping JSON.
+
+    Args:
+        template_path: Path to the source ``.csv`` / ``.xlsx`` / ``.xls`` template.
+        output_dir: Directory where the resulting ``<stem>.json`` will be written.
+        file_format: Explicit format override (e.g. ``'fixed_width'``,
+            ``'pipe_delimited'``).  When None the format is auto-detected.
+
+    Returns:
+        Path to the generated JSON mapping file.
+    """
     converter = TemplateConverter()
     mapping_name = template_path.stem
 

@@ -12,6 +12,11 @@ var _runsSortDir = 'desc';
 // ---------------------------------------------------------------------------
 // Tab switching — animated panels + sliding underline indicator
 // ---------------------------------------------------------------------------
+/**
+ * Switch the active tab panel and update the sliding underline indicator.
+ *
+ * @param {string} name - Tab identifier: 'quick', 'runs', 'mapping', or 'tester'.
+ */
 function switchTab(name) {
   ['quick', 'runs', 'mapping', 'tester'].forEach(function(t) {
     var panel = document.getElementById('panel-' + t);
@@ -34,6 +39,10 @@ function switchTab(name) {
   updateTabIndicator();
 }
 
+/**
+ * Reposition the sliding underline indicator under the currently active tab button.
+ * Safe to call at any time; no-op when the required DOM elements are absent.
+ */
 // Move the sliding underline indicator to the active tab button
 function updateTabIndicator() {
   var activeBtn = document.querySelector('nav.tabs button.active');
@@ -49,12 +58,19 @@ function updateTabIndicator() {
 // ===========================================================================
 // Status helpers — use textContent to avoid XSS
 // ===========================================================================
+/** Reset the status message element to a blank info state. */
 function clearStatus() {
   var el = document.getElementById('statusMsg');
   el.className = 'status-msg info';
   while (el.firstChild) { el.removeChild(el.firstChild); }
 }
 
+/**
+ * Display a plain-text status message.  Uses textContent to prevent XSS.
+ *
+ * @param {string} msg  - Message to display.
+ * @param {string} type - CSS modifier class: 'info', 'success', 'error', or 'loading'.
+ */
 function setStatusText(msg, type) {
   var el = document.getElementById('statusMsg');
   el.className = 'status-msg ' + type;
@@ -62,6 +78,14 @@ function setStatusText(msg, type) {
   el.textContent = msg;
 }
 
+/**
+ * Display a status message followed by an optional hyperlink.
+ *
+ * @param {string} msg      - Text portion of the message.
+ * @param {string} type     - CSS modifier class ('info', 'success', 'error', 'loading').
+ * @param {string} linkText - Visible anchor text.
+ * @param {string} linkHref - URL for the anchor href.
+ */
 function setStatusWithLink(msg, type, linkText, linkHref) {
   var el = document.getElementById('statusMsg');
   el.className = 'status-msg ' + type;
@@ -78,17 +102,29 @@ function setStatusWithLink(msg, type, linkText, linkHref) {
   }
 }
 
+/**
+ * Load a report URL into the inline iframe panel and make it visible.
+ *
+ * @param {string} url - URL of the HTML report to display.
+ */
 function showInlineReport(url) {
   document.getElementById('reportFrame').src = url;
   document.getElementById('reportOpenLink').href = url;
   document.getElementById('reportPanel').classList.add('visible');
 }
 
+/** Hide the inline report iframe panel and clear its src. */
 function hideInlineReport() {
   document.getElementById('reportPanel').classList.remove('visible');
   document.getElementById('reportFrame').src = '';
 }
 
+/**
+ * Show a spinner alongside a loading message in the status area.
+ * Also hides any currently displayed inline report.
+ *
+ * @param {string} msg - Text to show next to the spinner.
+ */
 function setLoading(msg) {
   hideInlineReport();
   var el = document.getElementById('statusMsg');
@@ -103,6 +139,12 @@ function setLoading(msg) {
 // ---------------------------------------------------------------------------
 // Drag-and-drop
 // ---------------------------------------------------------------------------
+/**
+ * Attach drag-and-drop and click-to-browse handlers to a drop zone element.
+ *
+ * @param {string} zoneId - DOM id of the drop zone container.
+ * @param {string} slot   - File slot identifier: 'primary' or 'secondary'.
+ */
 function setupDrop(zoneId, slot) {
   var zone = document.getElementById(zoneId);
   zone.addEventListener('dragover', function(e) {
@@ -154,18 +196,36 @@ document.getElementById('btnRemoveSecondary').addEventListener('click', function
   updateButtons();
 });
 
+/**
+ * Derive a short display-format label from a filename extension.
+ *
+ * @param {string} filename - File name (e.g. 'data.txt', 'export.csv').
+ * @returns {string} Upper-case format badge text (e.g. 'CSV', 'TXT').
+ */
 function detectFormat(filename) {
   var ext = (filename.split('.').pop() || '').toLowerCase();
   var map = { txt: 'TXT', csv: 'CSV', dat: 'DAT', pipe: 'PIPE', tsv: 'TSV', xlsx: 'XLSX', xls: 'XLS' };
   return map[ext] || ext.toUpperCase() || 'FILE';
 }
 
+/**
+ * Format a byte count as a human-readable string.
+ *
+ * @param {number} bytes - Raw byte count.
+ * @returns {string} Formatted string such as '1.4 KB' or '3.2 MB'.
+ */
 function formatBytes(bytes) {
   if (bytes < 1024) return bytes + ' B';
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
+/**
+ * Store a selected file and update the corresponding file card UI.
+ *
+ * @param {File}   file - The File object selected by the user.
+ * @param {string} slot - 'primary' or 'secondary'.
+ */
 function setFile(file, slot) {
   if (slot === 'primary') {
     primaryFile = file;
@@ -183,6 +243,10 @@ function setFile(file, slot) {
   updateButtons();
 }
 
+/**
+ * Enable or disable the Validate and Compare action buttons based on
+ * whether the required files and a mapping selection are present.
+ */
 function updateButtons() {
   var hasPrimary   = !!primaryFile;
   var hasMapping   = !!document.getElementById('mappingSelect').value;
@@ -227,6 +291,12 @@ document.getElementById('mappingFilter').addEventListener('input', function() {
 // ===========================================================================
 // Load mappings
 // ===========================================================================
+/**
+ * Fetch the list of available mappings from the API and populate the mapping
+ * dropdown.  Caches options in `_allMappingOptions` for client-side filtering.
+ *
+ * @returns {Promise<void>}
+ */
 async function loadMappings() {
   var sel = document.getElementById('mappingSelect');
   try {
@@ -265,6 +335,12 @@ async function loadMappings() {
   sel.addEventListener('change', updateButtons);
 }
 
+/**
+ * Fetch the list of available rules configs from the API and populate the
+ * rules dropdown.
+ *
+ * @returns {Promise<void>}
+ */
 async function loadRules() {
   var sel = document.getElementById('rulesSelect');
   try {
@@ -288,6 +364,13 @@ async function loadRules() {
 // ===========================================================================
 // Validate button loading state helper
 // ===========================================================================
+/**
+ * Toggle a button's loading state by replacing its content with a spinner or
+ * restoring the original HTML.
+ *
+ * @param {HTMLButtonElement} btn       - The button element to update.
+ * @param {boolean}           isLoading - True to show spinner; false to restore.
+ */
 function setBtnLoading(btn, isLoading) {
   if (isLoading) {
     btn.disabled = true;
@@ -397,6 +480,15 @@ document.getElementById('btnCompare').addEventListener('click', async function()
 // ===========================================================================
 // Build run history table — DOM methods, sortable columns
 // ===========================================================================
+/**
+ * Render (or re-render) the run history table and summary cards.
+ *
+ * Clears the existing table DOM, sorts rows according to the current
+ * ``_runsSortCol`` / ``_runsSortDir`` state, and builds a new sortable table
+ * with column-click handlers.  Also updates the four summary metric cards.
+ *
+ * @param {Array<Object>} rows - Run history records from the API.
+ */
 function buildRunsTable(rows) {
   var wrap = document.getElementById('runsTableWrap');
   while (wrap.firstChild) { wrap.removeChild(wrap.firstChild); }
@@ -567,6 +659,13 @@ function buildRunsTable(rows) {
   wrap.appendChild(table);
 }
 
+/**
+ * Fetch run history from the API and render it into the runs table.
+ * Displays a loading message while the request is in-flight and an error
+ * message if the request fails.
+ *
+ * @returns {Promise<void>}
+ */
 async function loadRunHistory() {
   var wrap = document.getElementById('runsTableWrap');
   while (wrap.firstChild) { wrap.removeChild(wrap.firstChild); }
@@ -591,6 +690,10 @@ async function loadRunHistory() {
 // ===========================================================================
 // Auto-refresh toggle
 // ===========================================================================
+/**
+ * Toggle the auto-refresh interval for the run history table on or off.
+ * When enabled, reloads the table every 30 seconds.
+ */
 function toggleAutoRefresh() {
   var toggle = document.getElementById('autoRefreshToggle');
   var label  = document.getElementById('refreshToggleLabel');
@@ -615,6 +718,14 @@ var rulesFile = null;
 // ===========================================================================
 // Mapping Generator — step progress
 // ===========================================================================
+/**
+ * Update the mapping generator step-progress indicator.
+ *
+ * Steps 1–3 map to: (1) upload, (2) configure, (3) done.
+ * Steps before *step* are marked 'done'; the current step is marked 'active'.
+ *
+ * @param {number} step - Active step number (1, 2, or 3).
+ */
 function setMapStep(step) {
   for (var i = 1; i <= 3; i++) {
     var el = document.getElementById('mapStep' + i);
@@ -628,6 +739,13 @@ function setMapStep(step) {
 // ===========================================================================
 // Copy JSON helper
 // ===========================================================================
+/**
+ * Copy the JSON content of a preview element to the clipboard.
+ * Briefly shows 'Copied!' feedback on the trigger button.
+ *
+ * @param {string} previewId - DOM id of the `<pre>` element containing JSON text.
+ * @param {string} btnId     - DOM id of the copy button to update with feedback.
+ */
 function copyJson(previewId, btnId) {
   var pre = document.getElementById(previewId);
   var btn = document.getElementById(btnId);
@@ -649,6 +767,15 @@ function copyJson(previewId, btnId) {
 // ===========================================================================
 // JSON preview syntax highlighting (safe: & < > escaped before innerHTML)
 // ===========================================================================
+/**
+ * Apply syntax-highlight span tags to a JSON string for the mapping preview.
+ * All token content is HTML-escaped before being wrapped in `<span>` tags
+ * to prevent XSS when the result is written to innerHTML.
+ *
+ * @param {string} str - Pretty-printed JSON string.
+ * @returns {string} HTML string with colour spans for keys, strings, numbers,
+ *     booleans, and null values.
+ */
 function highlightJsonPreview(str) {
   return str.replace(
     /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
@@ -663,6 +790,12 @@ function highlightJsonPreview(str) {
   );
 }
 
+/**
+ * Pretty-print and syntax-highlight a JSON value into a preview `<pre>` element.
+ *
+ * @param {string} previewId - DOM id of the target `<pre>` element.
+ * @param {*}      jsonData  - Value to serialise and display.
+ */
 function renderJsonPreview(previewId, jsonData) {
   var pre = document.getElementById(previewId);
   if (!pre) return;
@@ -677,6 +810,13 @@ function renderJsonPreview(previewId, jsonData) {
   }
 }
 
+/**
+ * Render a field-summary table for the mapping generator results panel.
+ * Hides the container if no fields are provided.
+ *
+ * @param {Array<Object>} fields - Field objects from the mapping response,
+ *     expected to have `field_name`, `data_type`, `start_position`, `length`.
+ */
 function renderFieldSummary(fields) {
   var container = document.getElementById('mapFieldSummary');
   var tbody = document.getElementById('mapFieldSummaryBody');
@@ -697,6 +837,15 @@ function renderFieldSummary(fields) {
 // ===========================================================================
 // Mapping Generator — result bar helper
 // ===========================================================================
+/**
+ * Update a generator result bar with a status message and optional action links.
+ *
+ * @param {string}          barId - DOM id of the result bar element.
+ * @param {string}          type  - CSS modifier: 'loading', 'success', or 'error'.
+ * @param {string}          msg   - Text message to display.
+ * @param {Array<Object>|null} links - Optional array of link config objects, each
+ *     with { text, href?, download?, onClick?, tooltip? }.
+ */
 function setGenResult(barId, type, msg, links) {
   var el = document.getElementById(barId);
   el.className = 'result-bar ' + type;
@@ -725,6 +874,14 @@ function setGenResult(barId, type, msg, links) {
 // ===========================================================================
 // Mapping Generator — drop zones
 // ===========================================================================
+/**
+ * Attach drag-and-drop and click-to-browse handlers for a Mapping Generator
+ * upload zone.
+ *
+ * @param {string} zoneId  - DOM id of the drop zone container.
+ * @param {string} inputId - DOM id of the hidden `<input type="file">` element.
+ * @param {string} slot    - File slot identifier: 'map' or 'rules'.
+ */
 function setupGenDrop(zoneId, inputId, slot) {
   var zone   = document.getElementById(zoneId);
   var input  = document.getElementById(inputId);
@@ -743,6 +900,15 @@ function setupGenDrop(zoneId, inputId, slot) {
   input.addEventListener('change', function()  { if (this.files.length) { setGenFile(this.files[0], slot, nameId, btnId); } });
 }
 
+/**
+ * Store a selected generator file and update the associated filename label and
+ * generate button state.
+ *
+ * @param {File}   file   - The selected File object.
+ * @param {string} slot   - 'map' or 'rules'.
+ * @param {string} nameId - DOM id of the filename label element.
+ * @param {string} btnId  - DOM id of the generate button to enable.
+ */
 function setGenFile(file, slot, nameId, btnId) {
   document.getElementById(nameId).textContent = file.name;
   document.getElementById(btnId).disabled = false;
@@ -865,6 +1031,12 @@ document.getElementById('btnTheme').addEventListener('click', function() {
 // ---------------------------------------------------------------------------
 var HEALTH_INTERVAL_MS = 30000;
 
+/**
+ * Poll the server health endpoint and update the footer health indicator.
+ * Sets the dot to green on HTTP 200, red on error or non-200 response.
+ *
+ * @returns {Promise<void>}
+ */
 async function checkHealth() {
   var dot   = document.getElementById('healthDot');
   var label = document.getElementById('healthLabel');
@@ -908,11 +1080,22 @@ var _atCurrentResults  = [];
 var AT_PROXY_TIMEOUT = 30;
 
 // -- Method colour badge -------------------------------------------------------
+/**
+ * Apply a CSS class to a method `<select>` element based on its current value.
+ *
+ * @param {HTMLSelectElement} sel - The HTTP method selector element.
+ */
 function atUpdateMethodColor(sel) {
   sel.className = 'method-' + sel.value;
 }
 
 // -- Horizontal request tabs --------------------------------------------------
+/**
+ * Switch the active request sub-tab (Headers, Body, or Assertions).
+ *
+ * @param {string}          name - Tab name: 'Headers', 'Body', or 'Assertions'.
+ * @param {HTMLButtonElement} btn - The tab button that was clicked.
+ */
 function atReqTab(name, btn) {
   ['Headers', 'Body', 'Assertions'].forEach(function(t) {
     var panel = document.getElementById('atTab' + t);
@@ -927,6 +1110,11 @@ function atReqTab(name, btn) {
 }
 
 // -- Body type toggle ---------------------------------------------------------
+/**
+ * Set the active request body type and show/hide the corresponding editor.
+ *
+ * @param {string} type - Body type: 'none', 'json', or 'form'.
+ */
 function atSetBodyType(type) {
   _atBodyType = type;
   ['none','json','form'].forEach(function(t) {
@@ -942,6 +1130,14 @@ function atSetBodyType(type) {
 }
 
 // -- Header rows (DOM-only, no innerHTML with user data) ----------------------
+/**
+ * Create a key-value (or key-file) row DOM element for headers or form fields.
+ *
+ * @param {string}  keyVal - Initial value for the key input.
+ * @param {string}  valVal - Initial value for the value input (ignored when isFile is true).
+ * @param {boolean} isFile - When true, renders a file picker instead of a value input.
+ * @returns {HTMLDivElement} The constructed row element (not yet appended to the DOM).
+ */
 function atMakeKvRow(keyVal, valVal, isFile) {
   var row = document.createElement('div');
   row.className = 'at-kv-row';
@@ -977,10 +1173,21 @@ function atMakeKvRow(keyVal, valVal, isFile) {
   return row;
 }
 
+/**
+ * Append a new header key-value row to the headers panel.
+ *
+ * @param {string} key - Initial key value (may be empty string).
+ * @param {string} val - Initial value (may be empty string).
+ */
 function atAddHeader(key, val) {
   document.getElementById('atHeaderRows').appendChild(atMakeKvRow(key, val, false));
 }
 
+/**
+ * Collect all non-empty header rows from the headers panel.
+ *
+ * @returns {Array<{key: string, value: string}>} Array of header objects.
+ */
 function atGetHeaders() {
   var rows = document.getElementById('atHeaderRows').querySelectorAll('.at-kv-row');
   var result = [];
@@ -992,10 +1199,24 @@ function atGetHeaders() {
   return result;
 }
 
+/**
+ * Append a new form-data row (text field or file picker) to the form body panel.
+ *
+ * @param {boolean} isFile - When true, renders a file picker input.
+ * @param {string}  key    - Initial key value.
+ * @param {string}  val    - Initial value (ignored when isFile is true).
+ */
 function atAddFormField(isFile, key, val) {
   document.getElementById('atFormRows').appendChild(atMakeKvRow(key, val, isFile));
 }
 
+/**
+ * Collect all non-empty form-data rows and separate file inputs from text fields.
+ *
+ * @returns {{ fields: Array<{key: string, value: string, is_file: boolean}>, files: Array<File> }}
+ *     `fields` contains the structured form field descriptors; `files` contains
+ *     the actual File objects for multipart upload (parallel-indexed with file fields).
+ */
 function atGetFormFields() {
   var rows = document.getElementById('atFormRows').querySelectorAll('.at-kv-row');
   var fields = []; var files = [];
@@ -1018,6 +1239,13 @@ function atGetFormFields() {
 }
 
 // -- Assertion rows (DOM-only) ------------------------------------------------
+/**
+ * Append a new assertion row to the Assertions panel.
+ *
+ * @param {string} field    - JSONPath or 'status_code' target (e.g. '$.id').
+ * @param {string} op       - Operator: 'equals', 'contains', or 'exists'.
+ * @param {string} expected - Expected value string.
+ */
 function atAddAssertion(field, op, expected) {
   var row = document.createElement('div');
   row.className = 'at-kv-row';
@@ -1058,6 +1286,11 @@ function atAddAssertion(field, op, expected) {
   document.getElementById('atAssertionRows').appendChild(row);
 }
 
+/**
+ * Collect all non-empty assertion rows from the Assertions panel.
+ *
+ * @returns {Array<{field: string, operator: string, expected: string}>}
+ */
 function atGetAssertions() {
   var rows = document.getElementById('atAssertionRows').querySelectorAll('.at-kv-row');
   var result = [];
@@ -1070,6 +1303,12 @@ function atGetAssertions() {
 }
 
 // -- Send ---------------------------------------------------------------------
+/**
+ * Collect the current request configuration and send it through the API-tester
+ * proxy endpoint, then render the response.
+ *
+ * @returns {Promise<void>}
+ */
 async function atSend() {
   var method  = document.getElementById('atMethod').value;
   var baseUrl = document.getElementById('atBaseUrl').value.trim().replace(/\/$/, '');
@@ -1116,6 +1355,16 @@ async function atSend() {
 }
 
 // -- Response render ----------------------------------------------------------
+/**
+ * Populate the response pane (status badge, elapsed time, body, headers, raw)
+ * with data returned by the proxy endpoint.
+ *
+ * @param {Object} data             - Proxy response payload.
+ * @param {number} data.status_code - HTTP status code.
+ * @param {number} data.elapsed_ms  - Round-trip time in milliseconds.
+ * @param {string} data.body        - Raw response body string.
+ * @param {Object} data.headers     - Response header key-value pairs.
+ */
 function atRenderResponse(data) {
   var code  = data.status_code;
   var badge = document.getElementById('atStatusBadge');
@@ -1150,6 +1399,12 @@ function atRenderResponse(data) {
   document.getElementById('atRespRaw').textContent = data.body;
 }
 
+/**
+ * Switch the active response sub-tab (Body, Headers, or Raw).
+ *
+ * @param {string}           name - Tab name: 'Body', 'Headers', or 'Raw'.
+ * @param {HTMLButtonElement} btn  - The tab button that was clicked.
+ */
 function atRespTab(name, btn) {
   ['Body','Headers','Raw'].forEach(function(t) {
     document.getElementById('atResp' + t).style.display = (t === name) ? '' : 'none';
@@ -1162,6 +1417,15 @@ function atRespTab(name, btn) {
   btn.setAttribute('aria-selected', 'true');
 }
 
+/**
+ * Apply syntax-highlight span tags to a JSON string for the response body panel.
+ * All token content is HTML-escaped before being wrapped in `<span>` tags
+ * to prevent XSS when the result is written to innerHTML.
+ *
+ * @param {string} str - Pretty-printed JSON string.
+ * @returns {string} HTML string with colour spans for keys, strings, numbers,
+ *     booleans, and null values.
+ */
 // JSON syntax highlighter -- safe: escapes & < > in every matched token before innerHTML
 function atHighlightJson(str) {
   return str.replace(
@@ -1178,6 +1442,12 @@ function atHighlightJson(str) {
 }
 
 // -- Suite selector -----------------------------------------------------------
+/**
+ * Fetch all test suites from the API and populate both the request-builder
+ * suite selector and the runner suite selector.
+ *
+ * @returns {Promise<void>}
+ */
 async function atLoadSuites() {
   try {
     var resp = await fetch('/api/v1/api-tester/suites');
@@ -1196,6 +1466,11 @@ async function atLoadSuites() {
 }
 
 // -- Save request into a suite ------------------------------------------------
+/**
+ * Save the current request builder form as a new request inside the selected suite.
+ *
+ * @returns {Promise<void>}
+ */
 async function atSaveRequest() {
   var suiteId = document.getElementById('atSuiteSel').value;
   var name    = document.getElementById('atReqName').value.trim() || 'Unnamed';
@@ -1233,6 +1508,11 @@ async function atSaveRequest() {
 }
 
 // -- New suite ----------------------------------------------------------------
+/**
+ * Prompt the user for a suite name and create a new empty suite via the API.
+ *
+ * @returns {Promise<void>}
+ */
 async function atNewSuite() {
   var name = prompt('Suite name:');
   if (!name) return;
@@ -1246,6 +1526,11 @@ async function atNewSuite() {
 }
 
 // -- Suite Runner -------------------------------------------------------------
+/**
+ * Load the selected suite into the runner panel and render its request list.
+ *
+ * @returns {Promise<void>}
+ */
 async function atLoadSuiteIntoRunner() {
   var suiteId = document.getElementById('atRunnerSuiteSel').value;
   document.getElementById('atRunnerReqList').textContent = '';
@@ -1259,6 +1544,14 @@ async function atLoadSuiteIntoRunner() {
   atRenderRunnerList(_atCurrentSuite.requests, []);
 }
 
+/**
+ * Render the runner request list with drag-and-drop reorder support and
+ * inline assertion result badges (when results are available).
+ *
+ * @param {Array<Object>} requests - Request config objects for the loaded suite.
+ * @param {Array<Object>} results  - Assertion result arrays (parallel-indexed with requests);
+ *     empty array before a run.
+ */
 function atRenderRunnerList(requests, results) {
   var list = document.getElementById('atRunnerReqList');
   list.textContent = '';
@@ -1326,6 +1619,11 @@ function atRenderRunnerList(requests, results) {
   });
 }
 
+/**
+ * Persist the current request order for the loaded suite to the API.
+ *
+ * @returns {Promise<void>}
+ */
 async function atSaveOrder() {
   if (!_atCurrentSuite) return;
   var btn = document.getElementById('btnSaveOrder');
@@ -1342,6 +1640,12 @@ async function atSaveOrder() {
   }
 }
 
+/**
+ * Execute all requests in the loaded suite sequentially through the proxy and
+ * evaluate their assertions, then display a summary of pass/fail counts.
+ *
+ * @returns {Promise<void>}
+ */
 async function atRunSuite() {
   if (!_atCurrentSuite) { alert('Select a suite first.'); return; }
   var requests = _atCurrentSuite.requests;
@@ -1390,6 +1694,16 @@ async function atRunSuite() {
   summary.style.color = totalFail > 0 ? 'var(--fail)' : 'var(--pass)';
 }
 
+/**
+ * Evaluate a single assertion against a proxy response.
+ *
+ * Supports ``status_code`` as a literal field and ``$.field.path`` JSONPath
+ * expressions for response body fields.
+ *
+ * @param {{ field: string, operator: string, expected: string }} assertion - Assertion config.
+ * @param {{ status_code: number, body: string }}                 proxyResp - Proxy response.
+ * @returns {boolean} True if the assertion passes.
+ */
 function atEvaluateAssertion(assertion, proxyResp) {
   var field = assertion.field, operator = assertion.operator, expected = String(assertion.expected);
   var actual;
@@ -1408,6 +1722,14 @@ function atEvaluateAssertion(assertion, proxyResp) {
   return false;
 }
 
+/**
+ * Resolve a simple dot-notation JSONPath expression against an object.
+ * Supports array index notation (e.g. ``items[0].name``).
+ *
+ * @param {Object} obj  - The root object to traverse.
+ * @param {string} path - Dot-separated path string (e.g. 'data.items[0].id').
+ * @returns {*} The value at the path, or ``undefined`` if not found.
+ */
 function atJsonPath(obj, path) {
   return path.split('.').reduce(function(cur, part) {
     if (cur === undefined || cur === null) return undefined;
@@ -1459,6 +1781,13 @@ window.addEventListener('resize', updateTabIndicator);
 // ===========================================================================
 // #126: Toast notification system
 // ===========================================================================
+/**
+ * Display an auto-dismissing toast notification.
+ *
+ * @param {string} message  - Message text to show.
+ * @param {string} [type='info'] - Visual type: 'info', 'success', 'error', or 'warning'.
+ * @param {number} [duration=4000] - Auto-dismiss delay in milliseconds.
+ */
 function showToast(message, type, duration) {
   type = type || 'info';
   duration = duration || 4000;
@@ -1490,6 +1819,11 @@ function showToast(message, type, duration) {
   });
 }
 
+/**
+ * Animate a toast out and remove it from the DOM after the transition ends.
+ *
+ * @param {HTMLElement} toast - The toast element to dismiss.
+ */
 function dismissToast(toast) {
   toast.classList.remove('toast-visible');
   toast.classList.add('toast-exit');
@@ -1549,6 +1883,7 @@ toggleAutoRefresh = function() {
   var guideHtml = '';
   var loaded = false;
 
+  /** Open the help sidebar and load the usage guide on first open. */
   function openHelp() {
     overlay.classList.add('open');
     sidebar.classList.add('open');
@@ -1557,6 +1892,7 @@ toggleAutoRefresh = function() {
     setTimeout(function() { searchInput.focus(); }, 350);
   }
 
+  /** Close the help sidebar overlay. */
   function closeHelp() {
     overlay.classList.remove('open');
     sidebar.classList.remove('open');
@@ -1571,10 +1907,25 @@ toggleAutoRefresh = function() {
     if (e.key === 'Escape' && sidebar.classList.contains('open')) closeHelp();
   });
 
+  /**
+   * Escape HTML special characters in a string.
+   *
+   * @param {string} s - Raw string to escape.
+   * @returns {string} HTML-safe string.
+   */
   function escHtml(s) {
     return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+  /**
+   * Convert a Markdown string to safe DOM elements and append them to a container.
+   * Supports headings (h1-h3), paragraphs, unordered lists, horizontal rules,
+   * fenced code blocks, and inline bold/code/links.
+   * Does NOT use innerHTML with untrusted content.
+   *
+   * @param {string}      md        - Markdown source text.
+   * @param {HTMLElement} container - Container element to populate.
+   */
   // Simple markdown to safe DOM elements (no innerHTML with untrusted content)
   function renderMarkdownToDOM(md, container) {
     while (container.firstChild) container.removeChild(container.firstChild);
@@ -1657,6 +2008,13 @@ toggleAutoRefresh = function() {
     if (listEl) container.appendChild(listEl);
   }
 
+  /**
+   * Parse and append inline Markdown tokens (backtick code, **bold**, and
+   * [text](url) links) as safe DOM child nodes.
+   *
+   * @param {HTMLElement} parent - Element to append child nodes to.
+   * @param {string}      text   - Inline Markdown text to parse.
+   */
   // Render inline markdown (bold, code, links) as safe DOM nodes
   function appendInlineContent(parent, text) {
     // Split on patterns: `code`, **bold**, [text](url)
@@ -1701,6 +2059,10 @@ toggleAutoRefresh = function() {
     }
   }
 
+  /**
+   * Fetch the usage guide from the API in Markdown format and render it into
+   * the help sidebar body.  Shows loading and error states as needed.
+   */
   function loadGuide() {
     body.textContent = '';
     var loadMsg = document.createElement('div');

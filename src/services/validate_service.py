@@ -176,6 +176,17 @@ def _is_fixed_width_mapping(cfg: dict) -> bool:
 
 
 def _build_fixed_width_specs(cfg: dict) -> list[tuple[str, int, int]]:
+    """Build (name, start, end) byte-offset tuples from a fixed-width mapping config.
+
+    Args:
+        cfg: Universal mapping dict containing a ``fields`` list.  Each field
+            entry must have a ``length`` key; ``position`` is optional (1-based).
+            When ``position`` is absent the fields are assumed to be contiguous.
+
+    Returns:
+        Ordered list of ``(field_name, start_offset, end_offset)`` tuples where
+        offsets are 0-based and ``end_offset`` is exclusive.
+    """
     field_specs = []
     current_pos = 0
     for field in cfg.get("fields", []):

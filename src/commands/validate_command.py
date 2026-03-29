@@ -54,6 +54,14 @@ def _build_fixed_width_field_specs(fields):
 
 
 def _json_default(obj):
+    """JSON serialisation fallback for NumPy scalar types and other non-serialisable objects.
+
+    Args:
+        obj: The object that ``json.dumps`` could not serialise.
+
+    Returns:
+        A JSON-serialisable Python primitive (int, float, bool, or str).
+    """
     try:
         import numpy as np
         if isinstance(obj, (np.integer,)):
@@ -82,6 +90,31 @@ def run_validate_command(
     logger=None,
     suppress_pii=True,
 ):
+    """Validate a batch data file against a mapping and optional rules config.
+
+    Thin CLI command handler; delegates heavy lifting to
+    :mod:`src.parsers.enhanced_validator` or
+    :mod:`src.parsers.chunked_validator` as appropriate.
+
+    Args:
+        file: Path to the data file to validate.
+        mapping: Path to the universal mapping JSON file.
+        rules: Path to the rules config JSON file, or None.
+        output: Output path for the report (.json or .html), or None for
+            stdout-only output.
+        detailed: If True, include per-field analysis in the report.
+        use_chunked: Route to the chunked validator for large files.
+        chunk_size: Number of rows per chunk when use_chunked is True.
+        progress: Display a progress bar while processing.
+        strict_fixed_width: Enable strict position/length checking for
+            fixed-width files.
+        strict_level: Strictness tier — ``'format'`` or ``'all'``.
+        workers: Number of parallel worker processes for chunked validation.
+        logger: Pre-configured logger instance, or None to use the module
+            logger.
+        suppress_pii: When True, redact raw field values from HTML reports
+            and CSV sidecars.
+    """
     from src.parsers.format_detector import FormatDetector
     from src.parsers.enhanced_validator import EnhancedFileValidator
     from src.parsers.fixed_width_parser import FixedWidthParser
