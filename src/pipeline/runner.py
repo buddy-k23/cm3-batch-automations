@@ -17,6 +17,15 @@ from typing import Any, Dict, List
 
 @dataclass
 class StepResult:
+    """Result of a single pipeline stage execution.
+
+    Attributes:
+        name: Stage name (e.g. 'ingest', 'sqlloader').
+        status: Outcome string — 'passed', 'failed', 'skipped', or 'dry_run'.
+        message: Human-readable detail or error description.
+        exit_code: Process exit code (0 = success).
+    """
+
     name: str
     status: str
     message: str = ""
@@ -39,6 +48,19 @@ class PipelineRunner:
         self.profile: Dict[str, Any] = {}
 
     def load(self) -> Dict[str, Any]:
+        """Load and validate the pipeline profile from disk.
+
+        Reads the JSON profile, validates it against ``PipelineProfile``, and
+        then runs structural validation via ``_validate_profile``.
+
+        Returns:
+            The validated profile as a plain dict.
+
+        Raises:
+            ValueError: If the profile is missing required keys or fails
+                structural validation.
+            json.JSONDecodeError: If the file is not valid JSON.
+        """
         raw = json.loads(self.profile_path.read_text())
         try:
             self.profile = PipelineProfile.model_validate(raw).model_dump()
@@ -50,6 +72,14 @@ class PipelineRunner:
         return self.profile
 
     def _validate_profile(self, profile: Dict[str, Any]) -> None:
+        """Validate profile structure and back-fill missing stage defaults.
+
+        Args:
+            profile: Parsed profile dict to validate in-place.
+
+        Raises:
+            ValueError: If ``validate_source_profile`` reports any issues.
+        """
         issues = validate_source_profile(profile)
         if issues:
             raise ValueError("; ".join(issues))
@@ -59,6 +89,25 @@ class PipelineRunner:
             stages.setdefault(key, {"enabled": False})
 
     def run(self, dry_run: bool = True) -> Dict[str, Any]:
+        """Execute (or dry-run) the pipeline stages defined in the profile.
+
+        Stages are processed in the fixed order: ingest → sqlloader →
+        java_batch → output_validation.  Execution halts on the first
+        failing stage.
+
+        Args:
+            dry_run: When True (default), no commands are executed; each
+                enabled stage reports what it *would* do.
+
+        Returns:
+            Summary dict containing:
+                - ``source_system`` — value from the profile.
+                - ``profile`` — file path string.
+                - ``timestamp`` — ISO-8601 UTC completion time.
+                - ``dry_run`` — whether this was a dry run.
+                - ``status`` — ``'passed'`` or ``'failed'``.
+                - ``steps`` — list of :class:`StepResult` dicts.
+        """
         if not self.profile:
             self.load()
 

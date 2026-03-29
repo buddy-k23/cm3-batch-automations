@@ -87,14 +87,56 @@ class BARulesTemplateConverter:
         self.rules_config: Dict[str, Any] | None = None
 
     def from_csv(self, csv_path: str) -> Dict[str, Any]:
+        """Convert a BA-friendly rules CSV template to rule-engine JSON config.
+
+        Args:
+            csv_path: Path to the CSV rules template file.
+
+        Returns:
+            Rules configuration dict with ``metadata`` and ``rules`` keys.
+
+        Raises:
+            ValueError: If required columns are missing or a row contains an
+                unsupported rule type.
+        """
         df = pd.read_csv(csv_path)
         return self._convert_dataframe(df, csv_path)
 
     def from_excel(self, excel_path: str, sheet_name: str | None = None) -> Dict[str, Any]:
+        """Convert a BA-friendly rules Excel template to rule-engine JSON config.
+
+        Args:
+            excel_path: Path to the ``.xlsx`` or ``.xls`` rules template file.
+            sheet_name: Worksheet name to read.  Defaults to the first sheet
+                when None.
+
+        Returns:
+            Rules configuration dict with ``metadata`` and ``rules`` keys.
+
+        Raises:
+            ValueError: If required columns are missing or a row contains an
+                unsupported rule type.
+        """
         df = pd.read_excel(excel_path, sheet_name=sheet_name or 0)
         return self._convert_dataframe(df, excel_path)
 
     def _convert_dataframe(self, df: pd.DataFrame, template_path: str) -> Dict[str, Any]:
+        """Convert a loaded DataFrame of rules into rule-engine JSON config.
+
+        Normalises column aliases, validates required headers, and converts
+        each non-empty row via :meth:`_convert_row`.
+
+        Args:
+            df: DataFrame loaded from a CSV or Excel rules template.
+            template_path: Original file path; used for metadata fields.
+
+        Returns:
+            Rules configuration dict with ``metadata`` and ``rules`` keys.
+            Also stored on ``self.rules_config``.
+
+        Raises:
+            ValueError: If required columns are missing.
+        """
         df.columns = df.columns.str.strip()
 
         # Normalize alternate column names to expected names
@@ -139,6 +181,21 @@ class BARulesTemplateConverter:
         return self.rules_config
 
     def _convert_row(self, row: pd.Series) -> Dict[str, Any]:
+        """Convert a single template row to a rule-engine rule dict.
+
+        Args:
+            row: A pandas Series representing one rule row with columns
+                matching :attr:`REQUIRED_COLUMNS` plus optional extras.
+
+        Returns:
+            Rule dict ready for inclusion in the ``rules`` list of the output
+            config.  Fields vary by rule type (e.g. ``values``, ``min``/``max``,
+            ``pattern``).
+
+        Raises:
+            ValueError: If the Rule Type is not in :attr:`RULE_TYPE_MAP` or
+                if required value formats are invalid for the type.
+        """
         rule_id = str(row['Rule ID']).strip()
         rule_name = str(row['Rule Name']).strip()
         field = str(row['Field']).strip()
@@ -281,6 +338,16 @@ class BARulesTemplateConverter:
         return rule
 
     def save(self, output_path: str):
+        """Persist the converted rules configuration to a JSON file.
+
+        Args:
+            output_path: Destination file path.  Parent directories are
+                created automatically.
+
+        Raises:
+            ValueError: If no conversion has been run yet (``rules_config``
+                is None).
+        """
         if not self.rules_config:
             raise ValueError('No rules configuration to save. Run from_csv() or from_excel() first.')
 
