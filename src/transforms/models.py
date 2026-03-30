@@ -71,3 +71,52 @@ class ConstantTransform(Transform):
 
     def __post_init__(self) -> None:
         self.type = "constant"
+
+
+@dataclass
+class ConcatPart:
+    """One field reference within a :class:`ConcatTransform`.
+
+    Attributes:
+        field_name: Name of the source row field to read.
+        lpad_width: Left-pad the field value to this width before concatenating.
+            ``0`` means no padding.
+        lpad_char: Character used for left-padding.  Defaults to ``' '``.
+    """
+
+    field_name: str
+    lpad_width: int = 0
+    lpad_char: str = " "
+
+
+@dataclass
+class ConcatTransform(Transform):
+    """Concatenate multiple source fields, with optional per-field LPAD.
+
+    Attributes:
+        parts: Ordered list of :class:`ConcatPart` objects describing each
+            field to include in the concatenation.
+        type: Always ``'concat'``.
+    """
+
+    parts: list = field(default_factory=list)  # list[ConcatPart]
+    type: str = field(default="concat", init=False)
+
+    def __post_init__(self) -> None:
+        self.type = "concat"
+
+
+@dataclass
+class FieldMapTransform(Transform):
+    """Map a named source field directly to the target field.
+
+    Attributes:
+        source_field: Name of the source row field whose value should be used.
+        type: Always ``'field_map'``.
+    """
+
+    source_field: str = ""
+    type: str = field(default="field_map", init=False)
+
+    def __post_init__(self) -> None:
+        self.type = "field_map"

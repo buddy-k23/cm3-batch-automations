@@ -9,6 +9,9 @@ Recognises patterns found in real Shaw→C360 mapping spreadsheets:
 - ``Initialize to spaces``
 - ``Pass 'VALUE'``
 - ``Hard-code to 'VALUE'`` / ``Hard-Code to 'VALUE'`` / ``Hardcode to 'VALUE'``
+- ``FIELD1 + FIELD2 + FIELD3`` (concatenation)
+- ``LPAD(FIELD,N) + FIELD2`` (left-padded concatenation)
+- ``FIELD_NAME`` (bare uppercase identifier — direct field map)
 
 Anything else — including complex conditional expressions — returns a noop
 ``Transform`` so that downstream code can safely fall back to a direct
@@ -22,8 +25,11 @@ from typing import Optional
 
 from src.transforms.models import (
     BlankTransform,
+    ConcatPart,
+    ConcatTransform,
     ConstantTransform,
     DefaultTransform,
+    FieldMapTransform,
     Transform,
 )
 
@@ -76,6 +82,51 @@ _DEFAULT_QUOTED_RE = re.compile(
     r"^default\s*(?:to|=)\s*['\"]([^'\"]+)['\"]",
     re.IGNORECASE,
 )
+
+# ---------------------------------------------------------------------------
+# Phase 2: concatenation and field-map patterns
+# ---------------------------------------------------------------------------
+
+# One LPAD token: LPAD(FIELD,N) or LPAD(FIELD,N,'C') or LPAD(FIELD,N,"C")
+_LPAD_PART_RE = re.compile(
+    r"^LPAD\(\s*([A-Z][A-Z0-9_\-]*)\s*,\s*(\d+)(?:\s*,\s*['\"]?(.)(?:['\"])?)?\s*\)$",
+    re.IGNORECASE,
+)
+
+# One bare field name token: uppercase letters, digits, underscore, hyphen
+_BARE_FIELD_RE = re.compile(r"^[A-Z][A-Z0-9_\-]*$", re.IGNORECASE)
+
+# Full concat expression: two or more tokens separated by " + "
+# Must NOT contain "=" (which would indicate a target-field assignment formula).
+_CONCAT_EXPR_RE = re.compile(
+    r"^((?:LPAD\([^)]+\)|[A-Z][A-Z0-9_\-]*))"
+    r"(?:\s*\+\s*((?:LPAD\([^)]+\)|[A-Z][A-Z0-9_\-]*)))+$",
+    re.IGNORECASE,
+)
+
+# A single bare uppercase identifier (field name direct map)
+# Matches only strings with uppercase letters (and digits/underscore/hyphen),
+# no whitespace, at least 2 chars to avoid false positives on short acronyms
+# that look like constants.
+_FIELD_MAP_RE = re.compile(r"^[A-Z][A-Z0-9_\-]+$")
+
+
+def _parse_concat_part(token: str) -> ConcatPart:
+    """Parse a single token into a :class:`ConcatPart`.
+
+    Args:
+        token: A stripped token such as ``"LPAD(BR,3,'0')"`` or ``"CUS"``.
+
+    Returns:
+        A :class:`ConcatPart` with optional lpad settings populated.
+    """
+    m = _LPAD_PART_RE.match(token.strip())
+    if m:
+        field_name = m.group(1).upper()
+        lpad_width = int(m.group(2))
+        lpad_char = m.group(3) if m.group(3) else " "
+        return ConcatPart(field_name=field_name, lpad_width=lpad_width, lpad_char=lpad_char)
+    return ConcatPart(field_name=token.strip().upper())
 
 
 def parse_transform(text: Optional[str]) -> Transform:
@@ -147,5 +198,19 @@ def parse_transform(text: Optional[str]) -> Transform:
     m = _DEFAULT_UNQUOTED_RE.match(t)
     if m:
         return DefaultTransform(value=m.group(1).strip())
+
+    # --- Phase 2: concatenation (two or more fields joined by +) ---
+
+    # Reject assignment formulas like "TARGET = FIELD1 + FIELD2"
+    if "=" not in t and _CONCAT_EXPR_RE.match(t):
+        tokens = [tok.strip() for tok in t.split("+")]
+        parts = [_parse_concat_part(tok) for tok in tokens if tok.strip()]
+        if len(parts) >= 2:
+            return ConcatTransform(parts=parts)
+
+    # --- Phase 2: direct field map (bare uppercase identifier) ---
+
+    if _FIELD_MAP_RE.match(t):
+        return FieldMapTransform(source_field=t.upper())
 
     return Transform(type="noop")

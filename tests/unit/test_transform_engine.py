@@ -11,6 +11,9 @@ from src.transforms.models import (
     DefaultTransform,
     BlankTransform,
     ConstantTransform,
+    ConcatTransform,
+    ConcatPart,
+    FieldMapTransform,
 )
 
 
@@ -195,3 +198,110 @@ class TestFieldLengthEdgeCases:
         """Value with exactly field_length chars is unchanged."""
         result = apply_transform("ABC", Transform(type="noop"), field_length=3)
         assert result == "ABC"
+
+
+# ---------------------------------------------------------------------------
+# ConcatTransform
+# ---------------------------------------------------------------------------
+
+class TestConcatTransformEngine:
+    def test_concat_three_fields(self):
+        transform = ConcatTransform(parts=[
+            ConcatPart(field_name="BR"),
+            ConcatPart(field_name="CUS"),
+            ConcatPart(field_name="LN"),
+        ])
+        row = {"BR": "100", "CUS": "1234567", "LN": "4321"}
+        result = apply_transform(None, transform, row=row)
+        assert result == "10012345674321"
+
+    def test_concat_with_lpad_space(self):
+        transform = ConcatTransform(parts=[
+            ConcatPart(field_name="BR", lpad_width=3),
+            ConcatPart(field_name="CUS"),
+            ConcatPart(field_name="LN"),
+        ])
+        row = {"BR": "10", "CUS": "1234567", "LN": "4321"}
+        result = apply_transform(None, transform, row=row)
+        assert result == " 1012345674321"
+
+    def test_concat_with_lpad_zero_char(self):
+        transform = ConcatTransform(parts=[
+            ConcatPart(field_name="BR", lpad_width=3, lpad_char="0"),
+        ])
+        row = {"BR": "10"}
+        result = apply_transform(None, transform, row=row)
+        assert result == "010"
+
+    def test_concat_missing_field_uses_empty_string(self):
+        transform = ConcatTransform(parts=[
+            ConcatPart(field_name="MISSING"),
+            ConcatPart(field_name="CUS"),
+        ])
+        row = {"CUS": "ABC"}
+        result = apply_transform(None, transform, row=row)
+        assert result == "ABC"
+
+    def test_concat_no_row_uses_empty_strings(self):
+        transform = ConcatTransform(parts=[
+            ConcatPart(field_name="BR"),
+            ConcatPart(field_name="CUS"),
+        ])
+        result = apply_transform(None, transform)
+        assert result == ""
+
+    def test_concat_fitted_to_field_length(self):
+        transform = ConcatTransform(parts=[
+            ConcatPart(field_name="A"),
+            ConcatPart(field_name="B"),
+        ])
+        row = {"A": "10", "B": "20"}
+        result = apply_transform(None, transform, field_length=6, row=row)
+        assert result == "1020  "
+        assert len(result) == 6
+
+    def test_concat_lpad_exceeds_width_not_truncated(self):
+        """LPAD only pads; it never truncates the source value."""
+        transform = ConcatTransform(parts=[
+            ConcatPart(field_name="BR", lpad_width=2),
+        ])
+        row = {"BR": "12345"}
+        result = apply_transform(None, transform, row=row)
+        assert result == "12345"
+
+
+# ---------------------------------------------------------------------------
+# FieldMapTransform
+# ---------------------------------------------------------------------------
+
+class TestFieldMapTransformEngine:
+    def test_field_map_returns_named_field(self):
+        transform = FieldMapTransform(source_field="CUST_ID")
+        row = {"CUST_ID": "ABC123"}
+        result = apply_transform(None, transform, row=row)
+        assert result == "ABC123"
+
+    def test_field_map_missing_field_returns_empty(self):
+        transform = FieldMapTransform(source_field="MISSING")
+        row = {"CUST_ID": "ABC123"}
+        result = apply_transform(None, transform, row=row)
+        assert result == ""
+
+    def test_field_map_no_row_returns_empty(self):
+        transform = FieldMapTransform(source_field="CUST_ID")
+        result = apply_transform(None, transform)
+        assert result == ""
+
+    def test_field_map_fitted_to_field_length(self):
+        transform = FieldMapTransform(source_field="CODE")
+        row = {"CODE": "AB"}
+        result = apply_transform(None, transform, field_length=4, row=row)
+        assert result == "AB  "
+        assert len(result) == 4
+
+    def test_field_map_source_value_ignored(self):
+        """source_value param is ignored; value comes from row."""
+        transform = FieldMapTransform(source_field="CODE")
+        row = {"CODE": "XYZ"}
+        result = apply_transform("IGNORED", transform, row=row)
+        assert result == "XYZ"

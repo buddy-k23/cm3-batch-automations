@@ -11,6 +11,8 @@ from src.transforms.models import (
     DefaultTransform,
     BlankTransform,
     ConstantTransform,
+    ConcatTransform,
+    FieldMapTransform,
 )
 
 
@@ -187,3 +189,84 @@ class TestNoopTransform:
     def test_ilmast_key_formula(self):
         result = parse_transform("ILMAST-KEY = BR + CUS + LN")
         assert result.type == "noop"
+
+
+# ---------------------------------------------------------------------------
+# ConcatTransform patterns
+# ---------------------------------------------------------------------------
+
+class TestConcatTransformParser:
+    def test_simple_three_field_concat(self):
+        result = parse_transform("BR + CUS + LN")
+        assert isinstance(result, ConcatTransform)
+        assert len(result.parts) == 3
+        assert result.parts[0].field_name == "BR"
+        assert result.parts[1].field_name == "CUS"
+        assert result.parts[2].field_name == "LN"
+
+    def test_two_field_concat(self):
+        result = parse_transform("FIELD_A + FIELD_B")
+        assert isinstance(result, ConcatTransform)
+        assert len(result.parts) == 2
+        assert result.parts[0].field_name == "FIELD_A"
+        assert result.parts[1].field_name == "FIELD_B"
+
+    def test_concat_with_lpad_default_space(self):
+        result = parse_transform("LPAD(BR,3) + CUS + LN")
+        assert isinstance(result, ConcatTransform)
+        assert len(result.parts) == 3
+        assert result.parts[0].field_name == "BR"
+        assert result.parts[0].lpad_width == 3
+        assert result.parts[0].lpad_char == " "
+        assert result.parts[1].field_name == "CUS"
+        assert result.parts[1].lpad_width == 0
+
+    def test_concat_with_lpad_zero_char(self):
+        result = parse_transform("LPAD(BR,3,'0') + CUS")
+        assert isinstance(result, ConcatTransform)
+        assert result.parts[0].field_name == "BR"
+        assert result.parts[0].lpad_width == 3
+        assert result.parts[0].lpad_char == "0"
+
+    def test_concat_parts_have_zero_lpad_by_default(self):
+        result = parse_transform("ACCT_NBR + SEQ_NUM")
+        assert isinstance(result, ConcatTransform)
+        for part in result.parts:
+            assert part.lpad_width == 0
+
+    def test_concat_assignment_formula_remains_noop(self):
+        """Formula with target = expression is not a concat."""
+        result = parse_transform("ILMAST-KEY = BR + CUS + LN")
+        assert result.type == "noop"
+
+
+# ---------------------------------------------------------------------------
+# FieldMapTransform patterns
+# ---------------------------------------------------------------------------
+
+class TestFieldMapTransformParser:
+    def test_bare_uppercase_field_name(self):
+        result = parse_transform("CUST_ID")
+        assert isinstance(result, FieldMapTransform)
+        assert result.source_field == "CUST_ID"
+
+    def test_field_name_with_hyphen(self):
+        result = parse_transform("ACCT-NUM")
+        assert isinstance(result, FieldMapTransform)
+        assert result.source_field == "ACCT-NUM"
+
+    def test_field_name_with_digits(self):
+        result = parse_transform("FIELD1")
+        assert isinstance(result, FieldMapTransform)
+        assert result.source_field == "FIELD1"
+
+    def test_lowercase_text_not_field_map(self):
+        """Multi-word or lowercase text is not a field map."""
+        result = parse_transform("Pass as is")
+        assert not isinstance(result, FieldMapTransform)
+
+    def test_single_concat_field_is_field_map_not_concat(self):
+        """A single bare token produces FieldMapTransform, not ConcatTransform."""
+        result = parse_transform("LOAN_NUM")
+        assert isinstance(result, FieldMapTransform)
+        assert not isinstance(result, ConcatTransform)

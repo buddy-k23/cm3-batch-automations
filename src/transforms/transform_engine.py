@@ -21,8 +21,10 @@ from typing import Optional
 
 from src.transforms.models import (
     BlankTransform,
+    ConcatTransform,
     ConstantTransform,
     DefaultTransform,
+    FieldMapTransform,
     Transform,
 )
 
@@ -55,10 +57,30 @@ def _fit(value: str, field_length: int, pad_char: str = " ") -> str:
     return value + pad_char * (field_length - len(value))
 
 
+def _lpad(value: str, width: int, pad_char: str = " ") -> str:
+    """Left-pad *value* to *width* characters using *pad_char*.
+
+    LPAD never truncates: values already at or exceeding *width* are returned
+    unchanged.
+
+    Args:
+        value: String to pad.
+        width: Desired minimum width.  ``0`` or negative disables padding.
+        pad_char: Character used for left-padding.  Defaults to ``' '``.
+
+    Returns:
+        Left-padded string.
+    """
+    if width <= 0 or len(value) >= width:
+        return value
+    return pad_char * (width - len(value)) + value
+
+
 def apply_transform(
     source_value: Optional[str],
     transform: Transform,
     field_length: int = 0,
+    row: Optional[dict] = None,
 ) -> str:
     """Apply *transform* to *source_value* and return the output string.
 
@@ -69,6 +91,9 @@ def apply_transform(
             ``parse_transform``.
         field_length: Target output field width.  ``0`` means no constraint.
             Positive values trigger right-padding / right-truncation.
+        row: Optional mapping of field names to values for transforms that
+            reference other fields (e.g. :class:`ConcatTransform`,
+            :class:`FieldMapTransform`).
 
     Returns:
         The transformed string, fitted to ``field_length`` when positive.
@@ -87,6 +112,7 @@ def apply_transform(
         'AB   '
     """
     raw_source = "" if source_value is None else source_value
+    safe_row: dict = row if row is not None else {}
 
     if isinstance(transform, ConstantTransform):
         result = transform.value
@@ -104,6 +130,18 @@ def apply_transform(
         else:
             # No explicit fill_value: produce fill_char * field_length, or ""
             result = transform.fill_char * field_length if field_length > 0 else ""
+
+    elif isinstance(transform, ConcatTransform):
+        pieces = []
+        for part in transform.parts:
+            value = safe_row.get(part.field_name, "")
+            if part.lpad_width > 0:
+                value = _lpad(value, part.lpad_width, part.lpad_char)
+            pieces.append(value)
+        result = "".join(pieces)
+
+    elif isinstance(transform, FieldMapTransform):
+        result = safe_row.get(transform.source_field, "")
 
     else:
         # Noop — pass through.

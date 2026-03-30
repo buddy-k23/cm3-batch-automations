@@ -14,6 +14,12 @@ Exported names
     Always output blank / space-filled value.
 ``ConstantTransform``
     Always output a fixed constant, ignoring the source.
+``ConcatPart``
+    Single field reference (with optional LPAD) inside a ``ConcatTransform``.
+``ConcatTransform``
+    Concatenate multiple source fields, with optional per-field left-padding.
+``FieldMapTransform``
+    Map a named source field directly to the target field.
 ``parse_transform``
     Parse a free-text transform description into a typed ``Transform``.
 ``apply_transform``
@@ -22,8 +28,11 @@ Exported names
 
 from src.transforms.models import (
     BlankTransform,
+    ConcatPart,
+    ConcatTransform,
     ConstantTransform,
     DefaultTransform,
+    FieldMapTransform,
     Transform,
 )
 from src.transforms.transform_engine import apply_transform
@@ -34,6 +43,9 @@ __all__ = [
     "DefaultTransform",
     "BlankTransform",
     "ConstantTransform",
+    "ConcatPart",
+    "ConcatTransform",
+    "FieldMapTransform",
     "parse_transform",
     "apply_transform",
 ]
