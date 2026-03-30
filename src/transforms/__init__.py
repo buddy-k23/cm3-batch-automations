@@ -84,6 +84,7 @@ from src.transforms.models import (
 )
 from src.transforms.sequential_counter import SequentialCounter
 from src.transforms.transform_engine import apply_transform
+from src.transforms.transform_orchestrator import TransformEngine
 from src.transforms.transform_parser import parse_transform
 
 __all__ = [
@@ -105,6 +106,7 @@ __all__ = [
     "ScaleTransform",
     "PadTransform",
     "TruncateTransform",
+    "TransformEngine",
     "parse_transform",
     "apply_transform",
     "evaluate_condition",
