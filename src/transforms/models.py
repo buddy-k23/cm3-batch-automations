@@ -143,3 +143,75 @@ class NullCheckCondition:
 
     def __post_init__(self) -> None:
         self.type = "null_check"
+
+
+@dataclass
+class EqualityCondition:
+    """Condition that tests whether a named field equals a given value.
+
+    Both the field value and the comparison value are stripped of leading and
+    trailing whitespace before comparison.  Matching is case-sensitive.  A
+    field that is absent from the row dict is treated as an empty string.
+
+    Set ``negate=True`` to invert the test to *field != value*.
+
+    Attributes:
+        field: The row field name to inspect.
+        value: The string to compare against.
+        negate: When ``False`` (default) the condition is *field == value*;
+            when ``True`` the condition is *field != value*.
+        type: Always ``'equality'``.
+
+    Example::
+
+        cond = EqualityCondition(field="status", value="ACTIVE")
+        evaluate_condition(cond, {"status": "ACTIVE"})   # True
+        evaluate_condition(cond, {"status": "INACTIVE"}) # False
+
+        neg = EqualityCondition(field="status", value="ACTIVE", negate=True)
+        evaluate_condition(neg, {"status": "INACTIVE"})  # True
+    """
+
+    field: str
+    value: str = ""
+    negate: bool = False
+    type: str = field(default="equality", init=False)
+
+    def __post_init__(self) -> None:
+        self.type = "equality"
+
+
+@dataclass
+class InCondition:
+    """Condition that tests whether a named field's value is in a list.
+
+    The field value and every entry in *values* are stripped of leading and
+    trailing whitespace before the membership test.  A field absent from the
+    row dict is treated as an empty string.
+
+    Set ``negate=True`` to invert the test to *field NOT IN values*.
+
+    Attributes:
+        field: The row field name to inspect.
+        values: The list of candidate strings to check membership against.
+        negate: When ``False`` (default) the condition is *field IN values*;
+            when ``True`` the condition is *field NOT IN values*.
+        type: Always ``'in_condition'``.
+
+    Example::
+
+        cond = InCondition(field="type", values=["A", "B", "C"])
+        evaluate_condition(cond, {"type": "B"})  # True
+        evaluate_condition(cond, {"type": "D"})  # False
+
+        neg = InCondition(field="type", values=["A", "B"], negate=True)
+        evaluate_condition(neg, {"type": "D"})   # True
+    """
+
+    field: str
+    values: list = field(default_factory=list)  # list[str]
+    negate: bool = False
+    type: str = field(default="in_condition", init=False)
+
+    def __post_init__(self) -> None:
+        self.type = "in_condition"

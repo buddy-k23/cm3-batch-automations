@@ -2,8 +2,8 @@
 
 Provides a parser that converts free-text mapping descriptions into typed
 ``Transform`` objects, and an engine that applies those objects to source
-field values.  Phase 3a adds condition models and an evaluator that will
-power conditional IF/ELSE transforms in later phases.
+field values.  Phase 3a adds condition models and an evaluator; Phase 3b
+extends conditions with equality and multi-value (IN) checks.
 
 Exported names
 --------------
@@ -24,6 +24,12 @@ Exported names
 ``NullCheckCondition``
     Condition that tests whether a named field is null/blank (or IS NOT NULL
     when ``negate=True``).
+``EqualityCondition``
+    Condition that tests whether a named field equals a given value (or !=
+    when ``negate=True``).
+``InCondition``
+    Condition that tests whether a named field's value is a member of a list
+    (or NOT IN when ``negate=True``).
 ``parse_transform``
     Parse a free-text transform description into a typed ``Transform``.
 ``apply_transform``
@@ -39,7 +45,9 @@ from src.transforms.models import (
     ConcatTransform,
     ConstantTransform,
     DefaultTransform,
+    EqualityCondition,
     FieldMapTransform,
+    InCondition,
     NullCheckCondition,
     Transform,
 )
@@ -55,6 +63,8 @@ __all__ = [
     "ConcatTransform",
     "FieldMapTransform",
     "NullCheckCondition",
+    "EqualityCondition",
+    "InCondition",
     "parse_transform",
     "apply_transform",
     "evaluate_condition",
