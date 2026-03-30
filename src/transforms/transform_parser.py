@@ -45,6 +45,7 @@ from src.transforms.models import (
     FieldMapTransform,
     InCondition,
     NullCheckCondition,
+    NumericFormatTransform,
     SequentialNumberTransform,
     Transform,
 )
@@ -135,6 +136,28 @@ _SEQUENTIAL_RE = re.compile(
     r"^(?:sequential(?:\s+number)?|sequence)$",
     re.IGNORECASE,
 )
+
+# ---------------------------------------------------------------------------
+# Phase 4b: numeric format patterns
+# ---------------------------------------------------------------------------
+
+# "+9(N)" — signed COBOL picture clause (e.g. "+9(12)" → length=13, signed=True)
+_SIGNED_PICTURE_RE = re.compile(r"^\+9\((\d+)\)$", re.IGNORECASE)
+
+# "9(N)" — unsigned COBOL picture clause (e.g. "9(8)" → length=8, signed=False)
+_UNSIGNED_PICTURE_RE = re.compile(r"^9\((\d+)\)$", re.IGNORECASE)
+
+# "Signed numeric, length N" → length=N, signed=True
+_SIGNED_NUMERIC_RE = re.compile(
+    r"^signed\s+numeric\s*,\s*length\s+(\d+)$",
+    re.IGNORECASE,
+)
+
+# "Zero-pad to N" → length=N, signed=False
+_ZERO_PAD_RE = re.compile(r"^zero-?pad\s+to\s+(\d+)$", re.IGNORECASE)
+
+# "Pad to N digits" → length=N, signed=False
+_PAD_TO_DIGITS_RE = re.compile(r"^pad\s+to\s+(\d+)\s+digits$", re.IGNORECASE)
 
 # ---------------------------------------------------------------------------
 # Phase 3d: conditional IF/THEN/ELSE patterns
@@ -365,6 +388,30 @@ def parse_transform(text: Optional[str]) -> Transform:
     conditional = _parse_conditional(t)
     if conditional is not None:
         return conditional
+
+    # --- Phase 4b: numeric format patterns ---
+
+    m = _SIGNED_PICTURE_RE.match(t)
+    if m:
+        n = int(m.group(1))
+        return NumericFormatTransform(length=n + 1, signed=True)
+
+    m = _UNSIGNED_PICTURE_RE.match(t)
+    if m:
+        n = int(m.group(1))
+        return NumericFormatTransform(length=n, signed=False)
+
+    m = _SIGNED_NUMERIC_RE.match(t)
+    if m:
+        return NumericFormatTransform(length=int(m.group(1)), signed=True)
+
+    m = _ZERO_PAD_RE.match(t)
+    if m:
+        return NumericFormatTransform(length=int(m.group(1)), signed=False)
+
+    m = _PAD_TO_DIGITS_RE.match(t)
+    if m:
+        return NumericFormatTransform(length=int(m.group(1)), signed=False)
 
     # --- Phase 3e: sequential numbering ---
 

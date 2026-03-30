@@ -528,3 +528,107 @@ class TestSequentialTransformEngine:
         t = SequentialNumberTransform(start=1, pad_length=5)
         assert _apply(None, t, counter=counter) == "00001"
         assert _apply(None, t, counter=counter) == "00002"
+
+
+# ---------------------------------------------------------------------------
+# NumericFormatTransform
+# ---------------------------------------------------------------------------
+
+class TestNumericFormatTransformEngine:
+    """NumericFormatTransform zero-pads integer values with optional sign."""
+
+    def test_integer_zero_padded_to_length(self):
+        """Integer source is zero-padded to the specified length."""
+        from src.transforms.models import NumericFormatTransform
+
+        t = NumericFormatTransform(length=8, signed=False)
+        result = apply_transform("42", t)
+        assert result == "00000042"
+
+    def test_signed_positive_gets_plus_prefix(self):
+        """Positive value receives '+' prefix when signed=True."""
+        from src.transforms.models import NumericFormatTransform
+
+        t = NumericFormatTransform(length=13, signed=True)
+        result = apply_transform("12345", t)
+        assert result == "+000000012345"
+
+    def test_signed_negative_gets_minus_prefix(self):
+        """Negative value receives '-' prefix when signed=True."""
+        from src.transforms.models import NumericFormatTransform
+
+        t = NumericFormatTransform(length=13, signed=True)
+        result = apply_transform("-12345", t)
+        assert result == "-000000012345"
+
+    def test_decimal_places_multiplies_before_padding(self):
+        """decimal_places=2 multiplies value by 100 then zero-pads."""
+        from src.transforms.models import NumericFormatTransform
+
+        t = NumericFormatTransform(length=13, signed=True, decimal_places=2)
+        result = apply_transform("123.45", t)
+        assert result == "+000000012345"
+
+    def test_absent_value_returns_default(self):
+        """Absent (empty) source returns default_value."""
+        from src.transforms.models import NumericFormatTransform
+
+        t = NumericFormatTransform(length=8, signed=False, default_value="00000000")
+        result = apply_transform("", t)
+        assert result == "00000000"
+
+    def test_blank_source_returns_default(self):
+        """Whitespace-only source returns default_value."""
+        from src.transforms.models import NumericFormatTransform
+
+        t = NumericFormatTransform(length=8, signed=False, default_value="00000000")
+        result = apply_transform("   ", t)
+        assert result == "00000000"
+
+    def test_unparseable_source_returns_default(self):
+        """Non-numeric source returns default_value instead of raising."""
+        from src.transforms.models import NumericFormatTransform
+
+        t = NumericFormatTransform(length=8, signed=False, default_value="00000000")
+        result = apply_transform("ABC", t)
+        assert result == "00000000"
+
+    def test_exact_length_no_truncation_needed(self):
+        """Value that exactly fills length is returned without truncation."""
+        from src.transforms.models import NumericFormatTransform
+
+        t = NumericFormatTransform(length=5, signed=False)
+        result = apply_transform("99999", t)
+        assert result == "99999"
+
+    def test_zero_value_signed(self):
+        """Zero gets '+' prefix when signed=True."""
+        from src.transforms.models import NumericFormatTransform
+
+        t = NumericFormatTransform(length=5, signed=True)
+        result = apply_transform("0", t)
+        assert result == "+0000"
+
+    def test_none_source_returns_default(self):
+        """None source returns default_value."""
+        from src.transforms.models import NumericFormatTransform
+
+        t = NumericFormatTransform(length=8, signed=False, default_value="00000000")
+        result = apply_transform(None, t)
+        assert result == "00000000"
+
+    def test_decimal_input_rounded_to_int_when_decimal_places_zero(self):
+        """Float with decimal_places=0 is rounded to nearest integer."""
+        from src.transforms.models import NumericFormatTransform
+
+        t = NumericFormatTransform(length=13, signed=True)
+        result = apply_transform("12345.67", t)
+        assert result == "+000000012346"
+
+    def test_unsigned_with_negative_input(self):
+        """Unsigned transform with negative input still pads the digits."""
+        from src.transforms.models import NumericFormatTransform
+
+        t = NumericFormatTransform(length=8, signed=False)
+        result = apply_transform("42", t)
+        assert result == "00000042"

@@ -494,3 +494,73 @@ class TestSequentialTransformParser:
         result = parse_transform("sequence")
         assert isinstance(result, SequentialNumberTransform)
         assert result.type == "sequential"
+
+
+# ---------------------------------------------------------------------------
+# NumericFormatTransform patterns
+# ---------------------------------------------------------------------------
+
+class TestNumericFormatTransformParser:
+    """Parsing patterns that produce NumericFormatTransform."""
+
+    def test_signed_picture_clause_plus_n12(self):
+        """+9(12) maps to NumericFormatTransform(length=13, signed=True)."""
+        from src.transforms.models import NumericFormatTransform
+
+        result = parse_transform("+9(12)")
+        assert isinstance(result, NumericFormatTransform)
+        assert result.length == 13
+        assert result.signed is True
+
+    def test_unsigned_picture_clause_n8(self):
+        """9(8) maps to NumericFormatTransform(length=8, signed=False)."""
+        from src.transforms.models import NumericFormatTransform
+
+        result = parse_transform("9(8)")
+        assert isinstance(result, NumericFormatTransform)
+        assert result.length == 8
+        assert result.signed is False
+
+    def test_signed_picture_clause_case_insensitive(self):
+        """+9(5) is recognised regardless of surrounding whitespace."""
+        from src.transforms.models import NumericFormatTransform
+
+        result = parse_transform("  +9(5)  ")
+        assert isinstance(result, NumericFormatTransform)
+        assert result.length == 6
+        assert result.signed is True
+
+    def test_signed_numeric_length_phrase(self):
+        """'Signed numeric, length 13' maps to NumericFormatTransform(length=13, signed=True)."""
+        from src.transforms.models import NumericFormatTransform
+
+        result = parse_transform("Signed numeric, length 13")
+        assert isinstance(result, NumericFormatTransform)
+        assert result.length == 13
+        assert result.signed is True
+
+    def test_zero_pad_to_n_phrase(self):
+        """'Zero-pad to 8' maps to NumericFormatTransform(length=8, signed=False)."""
+        from src.transforms.models import NumericFormatTransform
+
+        result = parse_transform("Zero-pad to 8")
+        assert isinstance(result, NumericFormatTransform)
+        assert result.length == 8
+        assert result.signed is False
+
+    def test_pad_to_n_digits_phrase(self):
+        """'Pad to 10 digits' maps to NumericFormatTransform(length=10, signed=False)."""
+        from src.transforms.models import NumericFormatTransform
+
+        result = parse_transform("Pad to 10 digits")
+        assert isinstance(result, NumericFormatTransform)
+        assert result.length == 10
+        assert result.signed is False
+
+    def test_numeric_format_type_attribute(self):
+        """Parsed NumericFormatTransform has type='numeric_format'."""
+        from src.transforms.models import NumericFormatTransform
+
+        result = parse_transform("9(8)")
+        assert isinstance(result, NumericFormatTransform)
+        assert result.type == "numeric_format"

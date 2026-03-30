@@ -252,6 +252,49 @@ class SequentialNumberTransform(Transform):
 
 
 @dataclass
+class NumericFormatTransform(Transform):
+    """Zero-pad a numeric value to a fixed width, with optional sign prefix.
+
+    The source value is parsed as a float, optionally scaled by
+    ``10 ** decimal_places`` (moving the implied decimal point), rounded to
+    an integer, and then zero-padded to ``length`` characters.  When
+    ``signed=True`` one character of ``length`` is consumed by a leading
+    ``'+'`` or ``'-'``.
+
+    Attributes:
+        length: Total output width including the sign character (when
+            ``signed=True``).  A value of ``0`` disables padding entirely.
+        signed: When ``True``, prepend ``'+'`` for non-negative values and
+            ``'-'`` for negative values.  Defaults to ``False``.
+        decimal_places: Number of implied decimal places.  The source value
+            is multiplied by ``10 ** decimal_places`` before zero-padding,
+            effectively shifting the decimal point.  Defaults to ``0``.
+        default_value: Returned when the source value is absent (``None``,
+            empty, or whitespace-only) or cannot be parsed as a number.
+            Defaults to ``''``.
+        type: Always ``'numeric_format'``.
+
+    Example::
+
+        t = NumericFormatTransform(length=13, signed=True)
+        apply_transform("12345", t)       # -> "+000000012345"
+        apply_transform("-12345", t)      # -> "-000000012345"
+
+        t2 = NumericFormatTransform(length=13, signed=True, decimal_places=2)
+        apply_transform("123.45", t2)     # -> "+000000012345"
+    """
+
+    length: int = 0
+    signed: bool = False
+    decimal_places: int = 0
+    default_value: str = ""
+    type: str = field(default="numeric_format", init=False)
+
+    def __post_init__(self) -> None:
+        self.type = "numeric_format"
+
+
+@dataclass
 class ConditionalTransform(Transform):
     """Apply one of two transforms depending on whether a condition holds.
 

@@ -27,6 +27,7 @@ from src.transforms.models import (
     ConstantTransform,
     DefaultTransform,
     FieldMapTransform,
+    NumericFormatTransform,
     SequentialNumberTransform,
     Transform,
 )
@@ -77,6 +78,45 @@ def _lpad(value: str, width: int, pad_char: str = " ") -> str:
     if width <= 0 or len(value) >= width:
         return value
     return pad_char * (width - len(value)) + value
+
+
+def _apply_numeric_format(raw_source: str, transform: "NumericFormatTransform") -> str:
+    """Apply a :class:`NumericFormatTransform` to *raw_source*.
+
+    Args:
+        raw_source: The raw source string (may be empty or whitespace).
+        transform: The ``NumericFormatTransform`` configuration.
+
+    Returns:
+        Zero-padded numeric string with optional sign prefix, or
+        ``transform.default_value`` when the source is absent or unparseable.
+    """
+    if not raw_source or not raw_source.strip():
+        return transform.default_value
+
+    try:
+        value = float(raw_source.strip())
+    except (ValueError, TypeError):
+        return transform.default_value
+
+    if transform.decimal_places > 0:
+        value = value * (10 ** transform.decimal_places)
+
+    int_value = round(value)
+    negative = int_value < 0
+    abs_value = abs(int_value)
+
+    # Width available for digits (subtract 1 for sign char when signed)
+    digit_width = (transform.length - 1) if transform.signed else transform.length
+    digit_width = max(digit_width, 0)
+
+    digit_str = str(abs_value).zfill(digit_width) if digit_width > 0 else str(abs_value)
+
+    if transform.signed:
+        sign = "-" if negative else "+"
+        return sign + digit_str
+
+    return digit_str
 
 
 def apply_transform(
@@ -162,6 +202,9 @@ def apply_transform(
             if transform.pad_length is not None:
                 raw = raw.zfill(transform.pad_length)
             result = raw
+
+    elif isinstance(transform, NumericFormatTransform):
+        result = _apply_numeric_format(raw_source, transform)
 
     elif isinstance(transform, ConditionalTransform):
         branch = (

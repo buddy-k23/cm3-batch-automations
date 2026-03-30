@@ -6,7 +6,8 @@ field values.  Phase 3a adds condition models and an evaluator; Phase 3b
 extends conditions with equality and multi-value (IN) checks.  Phase 3c
 adds ``ConditionalTransform`` for IF/ELSE dispatch.  Phase 3e adds
 ``SequentialNumberTransform`` and ``SequentialCounter`` for stateful
-row-counter tracking.
+row-counter tracking.  Phase 4b adds ``NumericFormatTransform`` for
+signed zero-padded numeric output.
 
 Exported names
 --------------
@@ -39,6 +40,8 @@ Exported names
     Assign an incrementing sequence number to each processed record.
 ``SequentialCounter``
     Stateful counter manager for ``SequentialNumberTransform`` instances.
+``NumericFormatTransform``
+    Zero-pad a numeric value to a fixed width with optional sign prefix.
 ``parse_transform``
     Parse a free-text transform description into a typed ``Transform``.
 ``apply_transform``
@@ -59,6 +62,7 @@ from src.transforms.models import (
     FieldMapTransform,
     InCondition,
     NullCheckCondition,
+    NumericFormatTransform,
     SequentialNumberTransform,
     Transform,
 )
@@ -80,6 +84,7 @@ __all__ = [
     "ConditionalTransform",
     "SequentialNumberTransform",
     "SequentialCounter",
+    "NumericFormatTransform",
     "parse_transform",
     "apply_transform",
     "evaluate_condition",
