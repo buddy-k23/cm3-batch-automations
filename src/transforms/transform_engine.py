@@ -19,9 +19,11 @@ from __future__ import annotations
 
 from typing import Optional
 
+from src.transforms.condition_evaluator import evaluate_condition
 from src.transforms.models import (
     BlankTransform,
     ConcatTransform,
+    ConditionalTransform,
     ConstantTransform,
     DefaultTransform,
     FieldMapTransform,
@@ -142,6 +144,15 @@ def apply_transform(
 
     elif isinstance(transform, FieldMapTransform):
         result = safe_row.get(transform.source_field, "")
+
+    elif isinstance(transform, ConditionalTransform):
+        branch = (
+            transform.then_transform
+            if evaluate_condition(transform.condition, safe_row)
+            else transform.else_transform
+        )
+        # Recurse without applying _fit here; the recursive call handles fitting.
+        return apply_transform(source_value, branch, field_length=field_length, row=row)
 
     else:
         # Noop — pass through.

@@ -14,6 +14,10 @@ from src.transforms.models import (
     ConcatTransform,
     ConcatPart,
     FieldMapTransform,
+    NullCheckCondition,
+    EqualityCondition,
+    InCondition,
+    ConditionalTransform,
 )
 
 
@@ -305,3 +309,150 @@ class TestFieldMapTransformEngine:
         row = {"CODE": "XYZ"}
         result = apply_transform("IGNORED", transform, row=row)
         assert result == "XYZ"
+
+
+# ---------------------------------------------------------------------------
+# ConditionalTransform
+# ---------------------------------------------------------------------------
+
+class TestConditionalTransformEngine:
+    """ConditionalTransform evaluates a condition and dispatches to then/else."""
+
+    def test_null_check_true_applies_then_transform(self):
+        """When null-check IS NULL fires (field is blank), then_transform is used."""
+        transform = ConditionalTransform(
+            condition=NullCheckCondition(field="code"),
+            then_transform=ConstantTransform(value="DEFAULT"),
+            else_transform=ConstantTransform(value="PRESENT"),
+        )
+        row = {"code": ""}
+        result = apply_transform(None, transform, row=row)
+        assert result == "DEFAULT"
+
+    def test_null_check_false_applies_else_transform(self):
+        """When null-check IS NULL does not fire (field has value), else_transform is used."""
+        transform = ConditionalTransform(
+            condition=NullCheckCondition(field="code"),
+            then_transform=ConstantTransform(value="DEFAULT"),
+            else_transform=ConstantTransform(value="PRESENT"),
+        )
+        row = {"code": "ABC"}
+        result = apply_transform(None, transform, row=row)
+        assert result == "PRESENT"
+
+    def test_equality_check_true_applies_then_transform(self):
+        """When equality condition matches, then_transform is applied."""
+        transform = ConditionalTransform(
+            condition=EqualityCondition(field="status", value="ACTIVE"),
+            then_transform=ConstantTransform(value="Y"),
+            else_transform=ConstantTransform(value="N"),
+        )
+        row = {"status": "ACTIVE"}
+        result = apply_transform(None, transform, row=row)
+        assert result == "Y"
+
+    def test_equality_check_false_applies_else_transform(self):
+        """When equality condition does not match, else_transform is applied."""
+        transform = ConditionalTransform(
+            condition=EqualityCondition(field="status", value="ACTIVE"),
+            then_transform=ConstantTransform(value="Y"),
+            else_transform=ConstantTransform(value="N"),
+        )
+        row = {"status": "CLOSED"}
+        result = apply_transform(None, transform, row=row)
+        assert result == "N"
+
+    def test_in_condition_true_applies_then_transform(self):
+        """When IN condition matches, then_transform is applied."""
+        transform = ConditionalTransform(
+            condition=InCondition(field="type", values=["A", "B", "C"]),
+            then_transform=ConstantTransform(value="KNOWN"),
+            else_transform=ConstantTransform(value="UNKNOWN"),
+        )
+        row = {"type": "B"}
+        result = apply_transform(None, transform, row=row)
+        assert result == "KNOWN"
+
+    def test_in_condition_false_applies_else_transform(self):
+        """When IN condition does not match, else_transform is applied."""
+        transform = ConditionalTransform(
+            condition=InCondition(field="type", values=["A", "B", "C"]),
+            then_transform=ConstantTransform(value="KNOWN"),
+            else_transform=ConstantTransform(value="UNKNOWN"),
+        )
+        row = {"type": "X"}
+        result = apply_transform(None, transform, row=row)
+        assert result == "UNKNOWN"
+
+    def test_then_transform_is_constant(self):
+        """ConditionalTransform with ConstantTransform as then branch returns constant."""
+        transform = ConditionalTransform(
+            condition=NullCheckCondition(field="amount"),
+            then_transform=ConstantTransform(value="0"),
+        )
+        row = {"amount": None}
+        result = apply_transform(None, transform, row=row)
+        assert result == "0"
+
+    def test_else_transform_is_default(self):
+        """ConditionalTransform with DefaultTransform as else branch uses source value."""
+        transform = ConditionalTransform(
+            condition=NullCheckCondition(field="flag"),
+            then_transform=ConstantTransform(value="BLANK"),
+            else_transform=DefaultTransform(value="FALLBACK"),
+        )
+        row = {"flag": "X"}
+        # Condition is false (flag is not null), so else_transform runs.
+        # source_value "RAW" is present, so DefaultTransform returns "RAW".
+        result = apply_transform("RAW", transform, row=row)
+        assert result == "RAW"
+
+    def test_field_length_passed_through_to_nested_apply(self):
+        """field_length is forwarded to the nested apply_transform call."""
+        transform = ConditionalTransform(
+            condition=NullCheckCondition(field="x"),
+            then_transform=ConstantTransform(value="HI"),
+        )
+        row = {"x": ""}
+        # Condition fires; ConstantTransform("HI") padded to field_length=5
+        result = apply_transform(None, transform, field_length=5, row=row)
+        assert result == "HI   "
+        assert len(result) == 5
+
+    def test_row_passed_through_to_nested_field_map(self):
+        """row dict is forwarded so FieldMapTransform inside conditional works."""
+        transform = ConditionalTransform(
+            condition=EqualityCondition(field="use_alt", value="Y"),
+            then_transform=FieldMapTransform(source_field="alt_code"),
+            else_transform=FieldMapTransform(source_field="main_code"),
+        )
+        row = {"use_alt": "Y", "alt_code": "ALT", "main_code": "MAIN"}
+        result = apply_transform(None, transform, row=row)
+        assert result == "ALT"
+
+    def test_default_else_transform_is_noop(self):
+        """When else_transform is not provided and condition is False, noop pass-through is used."""
+        transform = ConditionalTransform(
+            condition=EqualityCondition(field="flag", value="Y"),
+            then_transform=ConstantTransform(value="YES"),
+        )
+        row = {"flag": "N"}
+        # Condition false → else_transform defaults to noop → returns source_value
+        result = apply_transform("ORIG", transform, row=row)
+        assert result == "ORIG"
+
+    def test_nested_conditional_as_else_transform(self):
+        """else_transform can itself be a ConditionalTransform (nested conditionals)."""
+        inner = ConditionalTransform(
+            condition=EqualityCondition(field="type", value="B"),
+            then_transform=ConstantTransform(value="TYPE_B"),
+            else_transform=ConstantTransform(value="OTHER"),
+        )
+        outer = ConditionalTransform(
+            condition=EqualityCondition(field="type", value="A"),
+            then_transform=ConstantTransform(value="TYPE_A"),
+            else_transform=inner,
+        )
+        assert apply_transform(None, outer, row={"type": "A"}) == "TYPE_A"
+        assert apply_transform(None, outer, row={"type": "B"}) == "TYPE_B"
+        assert apply_transform(None, outer, row={"type": "C"}) == "OTHER"

@@ -215,3 +215,41 @@ class InCondition:
 
     def __post_init__(self) -> None:
         self.type = "in_condition"
+
+
+@dataclass
+class ConditionalTransform(Transform):
+    """Apply one of two transforms depending on whether a condition holds.
+
+    When *condition* evaluates to ``True`` against the current row,
+    *then_transform* is applied.  Otherwise *else_transform* is applied.
+    Both branches are themselves full ``Transform`` objects, so nested
+    conditionals are supported.
+
+    Attributes:
+        condition: A condition object to evaluate against the current row.
+            Supported types: :class:`NullCheckCondition`,
+            :class:`EqualityCondition`, :class:`InCondition`.
+        then_transform: ``Transform`` to apply when *condition* is ``True``.
+        else_transform: ``Transform`` to apply when *condition* is ``False``.
+            Defaults to a noop pass-through (``Transform(type='noop')``).
+        type: Always ``'conditional'``.
+
+    Example::
+
+        t = ConditionalTransform(
+            condition=NullCheckCondition(field="amount"),
+            then_transform=ConstantTransform(value="0"),
+            else_transform=DefaultTransform(value="0"),
+        )
+        apply_transform(None, t, row={"amount": ""})   # -> "0" (then branch)
+        apply_transform("99", t, row={"amount": "99"}) # -> "99" (else branch)
+    """
+
+    condition: object = field(default=None)
+    then_transform: "Transform" = field(default_factory=lambda: Transform(type="noop"))
+    else_transform: "Transform" = field(default_factory=lambda: Transform(type="noop"))
+    type: str = field(default="conditional", init=False)
+
+    def __post_init__(self) -> None:
+        self.type = "conditional"
