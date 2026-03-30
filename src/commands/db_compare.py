@@ -20,6 +20,7 @@ def run_db_compare_command(
     key_columns: str | None,
     output: str | None,
     logger: Any,
+    apply_transforms: bool = False,
 ) -> None:
     """Execute the DB extract → file comparison workflow from the CLI.
 
@@ -36,6 +37,9 @@ def run_db_compare_command(
             Pass ``None`` or empty string for row-by-row comparison.
         output: Optional file path to write the JSON result report.
         logger: Logger instance used for error messages.
+        apply_transforms: When ``True``, field-level transforms defined in
+            the mapping are applied to each DB row before comparison.
+            Defaults to ``False``.
 
     Raises:
         SystemExit: On any error (mapping not found, DB failure, etc.).
@@ -60,6 +64,7 @@ def run_db_compare_command(
             actual_file=actual_file,
             output_format=output_format,
             key_columns=key_columns or None,
+            apply_transforms=apply_transforms,
         )
     except FileNotFoundError as exc:
         logger.error(str(exc))

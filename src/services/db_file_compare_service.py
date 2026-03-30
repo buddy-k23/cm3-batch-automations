@@ -23,6 +23,7 @@ import pandas as pd
 from src.database.connection import OracleConnection
 from src.database.extractor import DataExtractor
 from src.services.compare_service import run_compare_service
+from src.transforms.transform_orchestrator import TransformEngine
 
 # SQL keywords that unambiguously identify a query string vs. a table name.
 _SQL_KEYWORDS = frozenset(["select", "with", "from"])
@@ -103,6 +104,7 @@ def compare_db_to_file(
     actual_file: str,
     output_format: str = "json",
     key_columns: list[str] | str | None = None,
+    apply_transforms: bool = False,
 ) -> dict[str, Any]:
     """Extract data from Oracle, format it, and compare against an actual batch file.
 
@@ -110,11 +112,13 @@ def compare_db_to_file(
     1. Validate inputs (actual_file must exist).
     2. Connect to Oracle via environment variables and extract data using
        either a SQL query or a table name.
-    3. Write the extracted DataFrame to a temporary pipe-delimited file.
-    4. Delegate to :func:`~src.services.compare_service.run_compare_service`
+    3. Optionally apply field-level transforms to each DB row via
+       :class:`~src.transforms.transform_orchestrator.TransformEngine`.
+    4. Write the (possibly transformed) rows to a temporary pipe-delimited file.
+    5. Delegate to :func:`~src.services.compare_service.run_compare_service`
        for the structural and row-level comparison.
-    5. Clean up the temp file.
-    6. Return a unified result dict with ``workflow`` and ``compare`` sections.
+    6. Clean up the temp file.
+    7. Return a unified result dict with ``workflow`` and ``compare`` sections.
 
     Args:
         query_or_table: A SQL SELECT statement or a bare Oracle table name.
@@ -126,6 +130,10 @@ def compare_db_to_file(
         key_columns: Column name(s) used as join keys during comparison.
             May be a comma-separated string or a list. When None, row-by-row
             comparison is used.
+        apply_transforms: When ``True``, each DB row is passed through
+            :class:`~src.transforms.transform_orchestrator.TransformEngine`
+            before comparison, applying the field-level transforms defined in
+            *mapping_config*.  Defaults to ``False`` (no transformation).
 
     Returns:
         Dict with two top-level keys:
@@ -166,6 +174,25 @@ def compare_db_to_file(
 
     db_rows_extracted = len(df)
 
+    # --- Optionally apply field transforms to each row ----------------------
+    transform_details: list | None = None
+    if apply_transforms:
+        engine = TransformEngine(mapping_config)
+        raw_rows = df.to_dict(orient="records")
+        transformed_rows = []
+        transform_details = []
+        for raw_row in raw_rows:
+            transformed = engine.apply(raw_row)
+            transformed_rows.append(transformed)
+            for field_name in transformed:
+                transform_details.append({
+                    "field": field_name,
+                    "source_value": str(raw_row.get(field_name, "")),
+                    "transformed_value": str(transformed.get(field_name, "")),
+                    "file_value": "",  # populated post-comparison if available
+                })
+        df = pd.DataFrame(transformed_rows)
+
     # --- Write DB data to temp file -----------------------------------------
     temp_path: str | None = None
     try:
@@ -189,7 +216,7 @@ def compare_db_to_file(
     # --- Build unified result ------------------------------------------------
     workflow_status = _determine_workflow_status(compare_result)
 
-    return {
+    result: dict[str, Any] = {
         "workflow": {
             "status": workflow_status,
             "db_rows_extracted": db_rows_extracted,
@@ -197,3 +224,6 @@ def compare_db_to_file(
         },
         "compare": compare_result,
     }
+    if transform_details is not None:
+        result["transform_details"] = transform_details
+    return result
