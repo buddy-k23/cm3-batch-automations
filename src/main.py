@@ -245,7 +245,9 @@ def mask(file, mapping, rules, output):
 @click.option('--output-format', type=click.Choice(['json', 'html']), default='json',
               show_default=True, help='Output format for the report')
 @click.option('--output', '-o', help='File path for the written report')
-def db_compare(query_or_table, mapping, actual_file, key_columns, output_format, output):
+@click.option('--apply-transforms', is_flag=True, default=False,
+              help='Apply field-level transforms from the mapping to each DB row before comparison')
+def db_compare(query_or_table, mapping, actual_file, key_columns, output_format, output, apply_transforms):
     """Extract data from Oracle and compare against an actual batch file."""
     logger = setup_logger('valdo', log_to_file=False)
 
@@ -259,6 +261,7 @@ def db_compare(query_or_table, mapping, actual_file, key_columns, output_format,
             key_columns=key_columns or None,
             output=output,
             logger=logger,
+            apply_transforms=apply_transforms,
         )
     except SystemExit:
         raise
