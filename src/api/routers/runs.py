@@ -1,13 +1,37 @@
-"""Run management API endpoints — trigger, status, and schedule suite runs."""
+"""Run management API endpoints — trigger, status, schedule suite runs, and trend."""
 
+import json
 import uuid
 import asyncio
 from datetime import datetime
-from fastapi import APIRouter, HTTPException
+from pathlib import Path
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from typing import Any, List, Optional
 
+from src.api.auth import require_api_key
+from src.services import trend_service, baseline_service
+from src.services.deviation_detector import check_deviation
+
 router = APIRouter(prefix="/api/v1/runs", tags=["runs"])
+
+_RUN_HISTORY_PATH = Path("reports") / "run_history.json"
+
+
+def load_run_history() -> list[dict[str, Any]]:
+    """Load all run history entries from the JSON file on disk.
+
+    Returns:
+        List of run summary dicts from ``reports/run_history.json``.
+        Returns an empty list if the file does not exist or contains
+        invalid JSON.
+    """
+    if not _RUN_HISTORY_PATH.exists():
+        return []
+    try:
+        return json.loads(_RUN_HISTORY_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return []
 
 # Separate router for schedule endpoints mounted at /api/v1/schedules
 schedule_router = APIRouter(prefix="/api/v1/schedules", tags=["schedules"])
@@ -80,6 +104,32 @@ async def trigger_run(request: TriggerRequest):
 
     asyncio.create_task(_run())
     return TriggerResponse(run_id=run_id, status="queued", message=f"Suite run queued as {run_id}")
+
+
+@router.get("/trend")
+async def get_run_trend(
+    suite: Optional[str] = Query(None),
+    days: int = Query(30),
+    _: str = Depends(require_api_key),
+) -> List[dict]:
+    """Return daily-aggregated run history for charting.
+
+    Args:
+        suite: Filter to a specific suite (optional).
+        days: Days to look back — must be 7, 14, 30, or 90.
+        _: Injected auth context from ``require_api_key``.
+
+    Returns:
+        List of daily bucket dicts with date, total_runs, pass_runs,
+        fail_runs, avg_quality_score, and pass_rate.
+
+    Raises:
+        HTTPException: 422 if ``days`` is not one of 7, 14, 30, 90.
+    """
+    try:
+        return trend_service.get_trend(suite=suite, days=days)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
 
 
 @router.get("/{run_id}")
