@@ -312,6 +312,10 @@ Pipeline
    :members:
    :undoc-members:
 
+.. automodule:: src.commands.detect_drift_command
+   :members:
+   :undoc-members:
+
 Transforms
 ----------
 

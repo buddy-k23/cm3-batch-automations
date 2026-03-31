@@ -1061,6 +1061,40 @@ def db_migrate(revision, downgrade, dry_run):
         sys.exit(1)
 
 
+@cli.command('detect-drift')
+@click.option('--file', '-f', required=True, help='Path to the batch file to inspect')
+@click.option('--mapping', '-m', required=True, help='Mapping ID (JSON filename stem under config/mappings/)')
+@click.option('--output', '-o', default=None, help='Optional path to write JSON report')
+@click.option('--mappings-dir', default='config/mappings', show_default=True,
+              help='Directory containing mapping JSON files')
+def detect_drift(file, mapping, output, mappings_dir):
+    """Detect schema drift between a batch file and its mapping.
+
+    Compares the actual layout of FILE against the declared field positions
+    and lengths in MAPPING.  Exits 0 when no error-severity drift is found;
+    exits 1 when any field has drifted beyond the error threshold.
+
+    Example::
+
+        valdo detect-drift --file data/batch.txt --mapping TRANERT
+    """
+    logger = setup_logger('valdo', log_to_file=False)
+    try:
+        from src.commands.detect_drift_command import run_detect_drift
+        rc = run_detect_drift(
+            file_path=file,
+            mapping_id=mapping,
+            output_path=output,
+            mappings_dir=mappings_dir,
+        )
+        sys.exit(rc)
+    except SystemExit:
+        raise
+    except Exception as e:
+        logger.error(f"Error detecting drift: {e}")
+        sys.exit(1)
+
+
 @cli.command()
 @click.option('--host', default='0.0.0.0', show_default=True,
               help='Bind address for the server')

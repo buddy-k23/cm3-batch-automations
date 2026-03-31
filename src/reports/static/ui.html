@@ -228,6 +228,32 @@
       </button>
     </div>
 
+    <!-- Drift warning badge (hidden by default, shown after validate if drift detected) -->
+    <div id="driftBadge" class="drift-badge" style="display:none;"
+         role="region" aria-label="Schema drift warning" aria-live="polite">
+      <div class="drift-badge-header" id="driftBadgeHeader"
+           tabindex="0" role="button" aria-expanded="false"
+           aria-controls="driftBadgeBody">
+        <span aria-hidden="true">&#x26A0;&#xFE0F;</span>
+        <span>Schema drift detected</span>
+        <span class="drift-badge-chevron" aria-hidden="true">&#x25BE;</span>
+      </div>
+      <div class="drift-badge-body" id="driftBadgeBody">
+        <table class="drift-fields-table" id="driftFieldsTable">
+          <thead>
+            <tr>
+              <th>Field</th>
+              <th>Exp. Start</th>
+              <th>Act. Start</th>
+              <th>Exp. Length</th>
+              <th>Severity</th>
+            </tr>
+          </thead>
+          <tbody id="driftFieldsBody"></tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- Compare section: side-by-side cards -->
     <div id="compare-section">
       <div class="compare-cards">

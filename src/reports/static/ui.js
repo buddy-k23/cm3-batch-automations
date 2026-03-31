@@ -194,6 +194,7 @@ document.getElementById('btnRemovePrimary').addEventListener('click', function(e
   primaryFile = null;
   document.getElementById('primaryFileCard').classList.remove('visible');
   document.getElementById('fileInput').value = '';
+  _hideDriftBadge();
   updateButtons();
 });
 document.getElementById('btnRemoveSecondary').addEventListener('click', function(e) {
@@ -241,6 +242,8 @@ function setFile(file, slot) {
     document.getElementById('primaryFileMeta').textContent = formatBytes(file.size);
     document.getElementById('primaryFormatBadge').textContent = detectFormat(file.name);
     document.getElementById('primaryFileCard').classList.add('visible');
+    // Hide any stale drift badge when a new file is loaded.
+    _hideDriftBadge();
   } else {
     secondaryFile = file;
     document.getElementById('secondaryFileName').textContent = file.name;
@@ -447,6 +450,11 @@ document.getElementById('btnValidate').addEventListener('click', async function(
     } else {
       setStatusText(msg, data.valid ? 'success' : 'error');
     }
+
+    // Fire drift check non-blocking (standard mapping path only, not multi-record YAML).
+    if (!mrYamlFile && mapping) {
+      _runDriftCheck(primaryFile, mapping);
+    }
   } catch (err) {
     setStatusText('Error: ' + err.message, 'error');
   } finally {
@@ -507,6 +515,102 @@ document.getElementById('btnDownloadErrors').addEventListener('click', async fun
     setBtnLoading(btn, false);
   }
 });
+
+// ---------------------------------------------------------------------------
+// Drift detection badge helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Show the drift warning badge and populate the fields table.
+ *
+ * @param {Array<Object>} fields - Array of drifted field objects from the
+ *   detect-drift API response.  Each object has ``name``, ``expected_start``,
+ *   ``actual_start``, ``expected_length``, and ``severity``.
+ */
+function _showDriftBadge(fields) {
+  var badge = document.getElementById('driftBadge');
+  var tbody = document.getElementById('driftFieldsBody');
+  if (!badge || !tbody) return;
+
+  // Clear previous rows.
+  while (tbody.firstChild) { tbody.removeChild(tbody.firstChild); }
+
+  fields.forEach(function(f) {
+    var tr = document.createElement('tr');
+    var sevClass = f.severity === 'error' ? 'drift-severity-error' : 'drift-severity-warning';
+
+    [
+      f.name || '\u2014',
+      f.expected_start != null ? f.expected_start : '\u2014',
+      f.actual_start   != null ? f.actual_start   : '\u2014',
+      f.expected_length != null ? f.expected_length : '\u2014',
+    ].forEach(function(val) {
+      var td = document.createElement('td');
+      td.textContent = val;
+      tr.appendChild(td);
+    });
+
+    var tdSev = document.createElement('td');
+    tdSev.className = sevClass;
+    tdSev.textContent = f.severity || '\u2014';
+    tr.appendChild(tdSev);
+
+    tbody.appendChild(tr);
+  });
+
+  badge.style.display = '';
+}
+
+/**
+ * Hide the drift warning badge.
+ */
+function _hideDriftBadge() {
+  var badge = document.getElementById('driftBadge');
+  if (badge) badge.style.display = 'none';
+}
+
+/**
+ * Fire-and-forget drift check after a successful validate response.
+ *
+ * Posts the file and mapping_id to the detect-drift endpoint.  Silently
+ * swallows any errors so it never disrupts the validation result display.
+ *
+ * @param {File} file - The primary file object already selected by the user.
+ * @param {string} mappingId - The mapping ID string from the mapping select.
+ */
+async function _runDriftCheck(file, mappingId) {
+  try {
+    var fd = new FormData();
+    fd.append('file', file);
+    fd.append('mapping_id', mappingId);
+    var resp = await fetch('/api/v1/files/detect-drift', { method: 'POST', body: fd });
+    if (!resp.ok) { _hideDriftBadge(); return; }
+    var data = await resp.json();
+    if (data && data.drifted && Array.isArray(data.fields) && data.fields.length > 0) {
+      _showDriftBadge(data.fields);
+    } else {
+      _hideDriftBadge();
+    }
+  } catch (_e) {
+    _hideDriftBadge();
+  }
+}
+
+// Expand/collapse drift badge on header click or Enter/Space keypress.
+(function() {
+  var header = document.getElementById('driftBadgeHeader');
+  if (!header) return;
+  function _toggleDriftBadge() {
+    var badge = document.getElementById('driftBadge');
+    if (!badge) return;
+    var expanded = badge.classList.toggle('expanded');
+    header.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  }
+  header.addEventListener('click', _toggleDriftBadge);
+  header.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _toggleDriftBadge(); }
+  });
+})();
 
 // ---------------------------------------------------------------------------
 // Compare

@@ -702,6 +702,33 @@ Auto-detect file format.
 valdo detect --file data/batch/unknown_file.dat
 ```
 
+### detect-drift
+
+Detect layout drift between a batch file and its mapping.  Exits 0 if no
+error-severity drift is found; exits 1 if any field has drifted beyond the
+error threshold (offset > 5 bytes for fixed-width, or missing column for
+delimited).
+
+```bash
+# Basic drift check — prints a summary table to stdout
+valdo detect-drift \
+  --file data/batch/tranert.txt \
+  --mapping TRANERT
+
+# Write full JSON report in addition to stdout
+valdo detect-drift \
+  --file data/batch/tranert.txt \
+  --mapping TRANERT \
+  --output reports/drift_report.json
+```
+
+The command also accepts `--mappings-dir` to override the default
+`config/mappings/` search path.
+
+**API equivalent:** `POST /api/v1/files/detect-drift` (form fields: `file`,
+`mapping_id`).  The Quick Test UI fires this automatically after every
+validate run and displays a yellow drift badge if any fields have shifted.
+
 ### run-tests
 
 Run a complete test suite defined in YAML.
@@ -866,6 +893,7 @@ Review the draft, adjust field names and types as needed, then use it with
 | `convert-mappings` | Bulk convert CSV/Excel templates to mapping JSON |
 | `convert-rules` | Convert Excel/CSV rules template to JSON |
 | `convert-suite` | Convert Excel test suite to YAML |
+| `detect-drift` | Detect layout drift between a batch file and its mapping |
 | `extract` | Extract data from Oracle to file |
 | `generate-multi-record` | Interactive wizard (or non-interactive) to create multi-record YAML configs |
 | `infer-mapping` | Auto-generate a draft mapping JSON from a sample data file |

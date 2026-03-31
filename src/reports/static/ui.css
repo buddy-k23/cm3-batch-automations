@@ -1645,3 +1645,77 @@
   color: #fff;
   border-color: var(--accent);
 }
+
+/* ── Drift warning badge ─────────────────────────────────────────────────── */
+.drift-badge {
+  margin-top: 12px;
+  border: 1.5px solid var(--partial);
+  border-radius: var(--radius);
+  background: rgba(243, 156, 18, 0.10);
+  overflow: hidden;
+}
+[data-theme="light"] .drift-badge {
+  background: rgba(243, 156, 18, 0.08);
+}
+.drift-badge-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+  user-select: none;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--partial);
+}
+.drift-badge-header:focus-visible {
+  outline: 2px solid var(--partial);
+  outline-offset: -2px;
+}
+.drift-badge-chevron {
+  margin-left: auto;
+  font-size: 11px;
+  transition: transform 0.15s ease;
+  display: inline-block;
+}
+.drift-badge.expanded .drift-badge-chevron {
+  transform: rotate(180deg);
+}
+.drift-badge-body {
+  display: none;
+  padding: 0 14px 12px;
+}
+.drift-badge.expanded .drift-badge-body {
+  display: block;
+}
+.drift-fields-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin-top: 4px;
+}
+.drift-fields-table th {
+  text-align: left;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.drift-fields-table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.drift-fields-table tr:last-child td {
+  border-bottom: none;
+}
+.drift-severity-error {
+  color: var(--fail);
+  font-weight: 700;
+}
+.drift-severity-warning {
+  color: var(--partial);
+  font-weight: 600;
+}

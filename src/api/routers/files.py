@@ -37,6 +37,7 @@ from src.services.retry_policy import execute_with_retries
 from src.services.metrics_registry import METRICS
 from src.utils.structured_logger import get_structured_logger, log_event
 from src.validators.threshold import ThresholdEvaluator
+from src.services.drift_detector import detect_drift
 from src.api.auth import require_api_key
 from src.services.error_extractor import extract_error_rows
 
@@ -738,6 +739,58 @@ async def export_errors(
         raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Error exporting errors: {exc}")
+
+    finally:
+        if upload_path.exists():
+            upload_path.unlink()
+
+
+@router.post("/detect-drift")
+async def detect_drift_endpoint(
+    file: UploadFile = File(...),
+    mapping_id: str = Form(...),
+    _key=Depends(require_api_key),
+):
+    """Detect schema drift between an uploaded file and a mapping config.
+
+    Saves the uploaded file to the uploads directory, loads the named mapping
+    from ``config/mappings/{mapping_id}.json``, and runs the drift detector.
+
+    Args:
+        file: The batch data file to inspect.
+        mapping_id: Stem of the mapping JSON file (no ``.json`` extension).
+        _key: Injected API key auth context (from ``require_api_key``).
+
+    Returns:
+        Drift report dict with keys ``drifted`` (bool) and ``fields`` (list).
+        Each entry in ``fields`` contains ``name``, ``expected_start``,
+        ``actual_start``, ``expected_length``, ``actual_length``, and
+        ``severity`` (``'warning'`` or ``'error'``).
+
+    Raises:
+        HTTPException: 404 when ``mapping_id`` does not resolve to a file.
+        HTTPException: 422 when the ``file`` field is missing (FastAPI automatic).
+        HTTPException: 500 on unexpected errors.
+    """
+    import json as _json
+
+    mapping_file = MAPPINGS_DIR / f"{mapping_id}.json"
+    if not mapping_file.exists():
+        raise HTTPException(status_code=404, detail=f"Mapping '{mapping_id}' not found")
+
+    upload_path = UPLOADS_DIR / f"drift_{file.filename}"
+    with open(upload_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    try:
+        mapping = _json.loads(mapping_file.read_text(encoding="utf-8"))
+        result = detect_drift(str(upload_path), mapping)
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Error detecting drift: {exc}")
 
     finally:
         if upload_path.exists():
