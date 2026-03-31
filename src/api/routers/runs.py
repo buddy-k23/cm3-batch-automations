@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from typing import Any, List, Optional
 
 from src.api.auth import require_api_key
-from src.services import trend_service, baseline_service
+from src.services import trend_service, baseline_service, summary_service
 from src.services.deviation_detector import check_deviation
 
 router = APIRouter(prefix="/api/v1/runs", tags=["runs"])
@@ -130,6 +130,85 @@ async def get_run_trend(
         return trend_service.get_trend(suite=suite, days=days)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
+
+
+@router.get("/summaries")
+async def get_summaries(_: Any = Depends(require_api_key)) -> List[dict]:
+    """Return per-suite summary cards data for the dashboard.
+
+    Aggregates the full run history into one summary object per suite,
+    including last-run status, 30-day pass rate, average quality score,
+    and a 7-day trend direction.
+
+    Args:
+        _: Auth context injected by ``require_api_key`` dependency.
+
+    Returns:
+        List of suite summary dicts sorted by ``last_run_at`` descending.
+        Each dict contains: ``suite_name``, ``last_run_status``,
+        ``last_run_at``, ``pass_rate_30d``, ``avg_quality_score``,
+        ``trend_direction``.  Returns ``[]`` when no history exists.
+    """
+    return summary_service.get_suite_summaries()
+
+
+@router.get("/baseline-check")
+async def baseline_check(
+    suite: str = Query(...),
+    run_id: str = Query(...),
+    _: str = Depends(require_api_key),
+) -> dict:
+    """Check whether a specific run has deviated from the suite's baseline.
+
+    Looks up the run by ``run_id`` in the run history, verifies the requested
+    ``suite`` has prior history, then delegates to
+    :func:`src.services.deviation_detector.check_deviation`.
+
+    Args:
+        suite: Logical suite name to compare against (e.g. ``"ATOCTRAN"``).
+        run_id: Identifier of the run to inspect.
+        _: Injected auth context from ``require_api_key``.
+
+    Returns:
+        Deviation report dict with keys ``deviated`` (bool) and ``alerts``
+        (list).  When no baseline exists the dict also carries
+        ``reason: 'no_baseline'``.
+
+    Raises:
+        HTTPException: 404 if ``run_id`` is not found in run history.
+        HTTPException: 404 if ``suite`` has no history entries.
+    """
+    history = load_run_history()
+
+    run = next((r for r in history if str(r.get("run_id")) == run_id), None)
+    if run is None:
+        raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
+
+    suite_runs = [r for r in history if r.get("suite_name") == suite]
+    if not suite_runs:
+        raise HTTPException(status_code=404, detail=f"Suite '{suite}' not found")
+
+    return check_deviation(suite, run)
+
+
+@router.get("/baselines")
+async def list_baselines_endpoint(
+    _: str = Depends(require_api_key),
+) -> list:
+    """Return all stored suite baselines sorted alphabetically.
+
+    Delegates to :func:`src.services.baseline_service.list_baselines`.
+
+    Args:
+        _: Injected auth context from ``require_api_key``.
+
+    Returns:
+        List of baseline dicts.  Each dict contains: suite_name,
+        pass_rate, avg_quality_score, avg_error_rate, sample_size,
+        updated_at.  Returns an empty list when no baselines have
+        been recorded.
+    """
+    return baseline_service.list_baselines()
 
 
 @router.get("/{run_id}")

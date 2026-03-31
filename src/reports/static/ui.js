@@ -8,6 +8,8 @@ var _autoRefreshTimer = null;
 var _runsData = [];
 var _runsSortCol = 'timestamp';
 var _runsSortDir = 'desc';
+var _trendDays = 7;
+var _trendSuite = '';
 
 // ---------------------------------------------------------------------------
 // Tab switching — animated panels + sliding underline indicator
@@ -37,6 +39,8 @@ function switchTab(name) {
     btn.setAttribute('aria-selected', String(t === name));
   });
   updateTabIndicator();
+  // Reload trend chart whenever the Recent Runs tab is activated (#249)
+  if (name === 'runs') { loadTrendChart(); loadSummaryCards(); }
 }
 
 /**
@@ -562,10 +566,15 @@ function buildRunsTable(rows) {
     { label: 'Status',      key: 'status' },
     { label: 'Tests',       key: 'pass_count' },
     { label: 'Report',      key: null },
+    { label: 'vs Baseline', key: null, id: 'thBaseline', hidden: true },
   ];
   cols.forEach(function(col) {
     var th = document.createElement('th');
     th.textContent = col.label;
+    if (col.id) { th.id = col.id; }
+    if (col.hidden) {
+      th.style.display = localStorage.getItem('valdo_baseline_col_visible') === 'true' ? '' : 'none';
+    }
     if (col.key) {
       var sortSpan = document.createElement('span');
       sortSpan.className = 'sort-icon';
@@ -663,6 +672,15 @@ function buildRunsTable(rows) {
     }
     tr.appendChild(tdReport);
 
+    // vs Baseline cell — filled in asynchronously by _fetchBaselineStatuses()
+    var tdBaseline = document.createElement('td');
+    tdBaseline.className = 'td-baseline';
+    tdBaseline.style.display = localStorage.getItem('valdo_baseline_col_visible') === 'true' ? '' : 'none';
+    tdBaseline.textContent = '\u2014';
+    tdBaseline.setAttribute('data-run-id', r.run_id || r.id || '');
+    tdBaseline.setAttribute('data-suite', r.suite_name || '');
+    tr.appendChild(tdBaseline);
+
     tbody.appendChild(tr);
   });
   table.appendChild(tbody);
@@ -688,6 +706,12 @@ async function loadRunHistory() {
     if (!resp.ok) { throw new Error('HTTP ' + resp.status); }
     _runsData = await resp.json();
     buildRunsTable(_runsData);
+    _fetchBaselineStatuses().then(_attachDeviationClickHandlers);
+    // Populate trend chart suite selector with unique suite names (#249)
+    var _suiteNames = Array.from(new Set(
+      _runsData.map(function(r) { return r.suite_name || r.suite || ''; }).filter(Boolean)
+    )).sort();
+    _populateTrendSuiteSelector(_suiteNames);
   } catch (err) {
     while (wrap.firstChild) { wrap.removeChild(wrap.firstChild); }
     var p = document.createElement('p');
@@ -713,10 +737,498 @@ function toggleAutoRefresh() {
     toggle.classList.remove('active');
     label.textContent = 'Auto-refresh off';
   } else {
-    _autoRefreshTimer = setInterval(loadRunHistory, 30000);
+    _autoRefreshTimer = setInterval(function() { loadRunHistory(); loadTrendChart(); loadSummaryCards(); }, 30000);
     toggle.classList.add('active');
     label.textContent = 'Auto-refresh on (30s)';
   }
+}
+
+// ===========================================================================
+// Trend Chart — fetch + wiring (#249)
+// ===========================================================================
+/**
+ * Set the active day-range for the trend chart and reload it.
+ *
+ * Updates button active state and triggers a fresh fetch.
+ *
+ * @param {number} days - Number of days to display (7, 14, or 30).
+ */
+function setTrendDays(days) {
+  _trendDays = days;
+  document.querySelectorAll('.trend-day-btn').forEach(function(btn) {
+    var isActive = parseInt(btn.getAttribute('data-days')) === days;
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+  });
+  loadTrendChart();
+}
+
+/**
+ * Fetch trend data from the API and render it into the #trendsChart container.
+ *
+ * Uses the current values of _trendDays and the #trendSuiteSelect element.
+ * Safe to call before the DOM element exists — returns early if container is absent.
+ */
+function loadTrendChart() {
+  var container = document.getElementById('trendsChart');
+  if (!container) { return; }
+
+  var suite = document.getElementById('trendSuiteSelect') ?
+    document.getElementById('trendSuiteSelect').value : '';
+
+  var url = '/api/v1/runs/trend?days=' + _trendDays;
+  if (suite) { url += '&suite=' + encodeURIComponent(suite); }
+
+  container.innerHTML = '<span style="font-size:12px;color:var(--text-secondary);">Loading\u2026</span>';
+
+  fetch(url, { headers: window._apiKey ? { 'X-API-Key': window._apiKey } : {} })
+    .then(function(r) { return r.ok ? r.json() : []; })
+    .then(function(data) { renderTrendChart(data, container); })
+    .catch(function() {
+      container.innerHTML = '<span style="font-size:12px;color:var(--fail);">Failed to load trend data.</span>';
+    });
+}
+
+/**
+ * Populate the suite filter <select> in the trend chart section.
+ *
+ * Always preserves the leading "All suites" option and rebuilds the rest
+ * from the provided list.
+ *
+ * @param {string[]} suites - Unique suite names extracted from run history.
+ */
+function _populateTrendSuiteSelector(suites) {
+  var sel = document.getElementById('trendSuiteSelect');
+  if (!sel) { return; }
+  sel.innerHTML = '<option value="">All suites</option>';
+  (suites || []).forEach(function(s) {
+    var opt = document.createElement('option');
+    opt.value = s;
+    opt.textContent = s;
+    sel.appendChild(opt);
+  });
+}
+
+// ===========================================================================
+// Trend Chart — SVG renderer
+// ===========================================================================
+/**
+ * Render a pass-rate / quality-score trend line chart into a container element.
+ *
+ * The function is a pure DOM-manipulation renderer — it performs no fetch calls
+ * and has no side-effects beyond writing into `container`.
+ *
+ * Testability note: renderTrendChart is a pure DOM-manipulation function.
+ * Verified by: node --check src/reports/static/ui.js (syntax check)
+ * Manual test: open /ui in browser, check Recent Runs tab after chart is wired in (#249).
+ *
+ * @param {Array<{date: string, pass_rate: number, avg_quality_score: number|null}>} data
+ *   Array of daily trend objects, ordered oldest → newest.
+ * @param {HTMLElement} container - DOM element into which the SVG chart is injected.
+ */
+function renderTrendChart(data, container) {
+  // Clear container
+  container.innerHTML = '';
+
+  if (!data || data.length === 0) {
+    var emptyMsg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    emptyMsg.setAttribute('width', '100%');
+    emptyMsg.setAttribute('height', '120');
+    emptyMsg.setAttribute('role', 'img');
+    emptyMsg.setAttribute('aria-label', 'No trend data available');
+    var txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    txt.setAttribute('x', '50%');
+    txt.setAttribute('y', '60');
+    txt.setAttribute('text-anchor', 'middle');
+    txt.setAttribute('fill', 'var(--text-secondary)');
+    txt.setAttribute('font-size', '13');
+    txt.textContent = 'No trend data yet \u2014 run some suites to see history';
+    emptyMsg.appendChild(txt);
+    container.appendChild(emptyMsg);
+    return;
+  }
+
+  var W = container.clientWidth || 600;
+  var H = 180;
+  var PAD = { top: 16, right: 80, bottom: 32, left: 40 };
+  var chartW = W - PAD.left - PAD.right;
+  var chartH = H - PAD.top - PAD.bottom;
+
+  var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('width', W);
+  svg.setAttribute('height', H);
+  svg.setAttribute('role', 'img');
+
+  // Compute pass rate range for aria-label
+  var passRates = data.map(function(d) { return d.pass_rate || 0; });
+  var first = Math.round(passRates[0]);
+  var last = Math.round(passRates[passRates.length - 1]);
+  svg.setAttribute('aria-label', 'Pass rate trend: ' + first + '% to ' + last + '% over ' + data.length + ' days');
+
+  var g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.setAttribute('transform', 'translate(' + PAD.left + ',' + PAD.top + ')');
+
+  // Y-axis reference lines at 0, 25, 50, 75, 100
+  [0, 25, 50, 75, 100].forEach(function(val) {
+    var y = chartH - (val / 100) * chartH;
+    var line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', 0); line.setAttribute('x2', chartW);
+    line.setAttribute('y1', y); line.setAttribute('y2', y);
+    line.setAttribute('stroke', 'var(--border, #e0e0e0)');
+    line.setAttribute('stroke-width', '1');
+    g.appendChild(line);
+
+    var label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    label.setAttribute('x', -4); label.setAttribute('y', y + 4);
+    label.setAttribute('text-anchor', 'end');
+    label.setAttribute('font-size', '10');
+    label.setAttribute('fill', 'var(--text-secondary, #888)');
+    label.textContent = val + '%';
+    g.appendChild(label);
+  });
+
+  function makePolyline(values, color) {
+    var n = data.length;
+    var points = values.map(function(v, i) {
+      var x = (i / Math.max(n - 1, 1)) * chartW;
+      var y = chartH - (Math.min(Math.max(v || 0, 0), 100) / 100) * chartH;
+      return x + ',' + y;
+    }).join(' ');
+    var pl = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+    pl.setAttribute('points', points);
+    pl.setAttribute('fill', 'none');
+    pl.setAttribute('stroke', color);
+    pl.setAttribute('stroke-width', '2');
+    pl.setAttribute('stroke-linejoin', 'round');
+    return pl;
+  }
+
+  // Pass rate line
+  g.appendChild(makePolyline(data.map(function(d){ return d.pass_rate; }), 'var(--accent, #2563eb)'));
+  // Quality score line
+  var qualScores = data.map(function(d){ return d.avg_quality_score; });
+  if (qualScores.some(function(v){ return v != null; })) {
+    g.appendChild(makePolyline(qualScores, 'var(--text-secondary, #888)'));
+  }
+
+  // X-axis tick labels every 7 points
+  var step = Math.max(1, Math.floor(data.length / 5));
+  data.forEach(function(d, i) {
+    if (i % step !== 0 && i !== data.length - 1) return;
+    var x = (i / Math.max(data.length - 1, 1)) * chartW;
+    var datePart = (d.date || '').slice(5); // MM-DD
+    var tick = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    tick.setAttribute('x', x);
+    tick.setAttribute('y', chartH + 14);
+    tick.setAttribute('text-anchor', 'middle');
+    tick.setAttribute('font-size', '9');
+    tick.setAttribute('fill', 'var(--text-secondary, #888)');
+    tick.textContent = datePart;
+    g.appendChild(tick);
+  });
+
+  // Legend
+  var legY = PAD.top / 2;
+  var legItems = [
+    { color: 'var(--accent, #2563eb)', label: 'Pass rate' },
+  ];
+  if (qualScores.some(function(v){ return v != null; })) {
+    legItems.push({ color: 'var(--text-secondary, #888)', label: 'Quality score' });
+  }
+  legItems.forEach(function(item, idx) {
+    var lx = PAD.left + idx * 110;
+    var rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('x', lx); rect.setAttribute('y', legY - 6);
+    rect.setAttribute('width', 20); rect.setAttribute('height', 3);
+    rect.setAttribute('fill', item.color);
+    svg.appendChild(rect);
+    var lt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    lt.setAttribute('x', lx + 24); lt.setAttribute('y', legY);
+    lt.setAttribute('font-size', '10');
+    lt.setAttribute('fill', 'var(--text-secondary, #888)');
+    lt.textContent = item.label;
+    svg.appendChild(lt);
+  });
+
+  svg.appendChild(g);
+  container.appendChild(svg);
+}
+
+// ===========================================================================
+// Suite summary cards (#252)
+// ===========================================================================
+/**
+ * Fetch suite summaries from the API and render them as dashboard cards.
+ *
+ * Safe to call before the container element exists — returns early when absent.
+ */
+function loadSummaryCards() {
+  var container = document.getElementById('suiteSummaryCards');
+  if (!container) return;
+
+  fetch('/api/v1/runs/summaries', {
+    headers: window._apiKey ? { 'X-API-Key': window._apiKey } : {}
+  })
+  .then(function(r) { return r.ok ? r.json() : []; })
+  .then(function(summaries) { _renderSummaryCards(summaries, container); })
+  .catch(function() { container.textContent = ''; });
+}
+
+/**
+ * Render suite summary cards into the given container element.
+ *
+ * Displays up to 8 cards in a responsive grid. Each card shows the suite name,
+ * last-run status badge, relative time, 30-day pass rate, and trend arrow.
+ * Clicking a card sets the trendSuiteSelect filter and reloads the trend chart.
+ *
+ * @param {Array<Object>} summaries - Array of suite summary objects from the API.
+ * @param {HTMLElement} container - The DOM element to render cards into.
+ */
+function _renderSummaryCards(summaries, container) {
+  container.innerHTML = '';
+
+  if (!summaries || summaries.length === 0) {
+    var empty = document.createElement('p');
+    empty.style.fontSize = '13px';
+    empty.style.color = 'var(--text-secondary)';
+    empty.textContent = 'No suite history yet.';
+    container.appendChild(empty);
+    return;
+  }
+
+  var grid = document.createElement('div');
+  grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;';
+
+  var MAX_CARDS = 8;
+  var shown = summaries.slice(0, MAX_CARDS);
+
+  shown.forEach(function(s) {
+    var card = document.createElement('div');
+    card.style.cssText = 'border:1px solid var(--border);border-radius:6px;padding:10px 12px;cursor:pointer;background:var(--bg-secondary);';
+    card.setAttribute('role', 'button');
+    card.setAttribute('tabindex', '0');
+    card.setAttribute('data-suite', s.suite_name);
+
+    // Suite name
+    var nameEl = document.createElement('div');
+    nameEl.style.cssText = 'font-weight:600;font-size:13px;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+    nameEl.textContent = s.suite_name;
+    card.appendChild(nameEl);
+
+    // Status badge
+    var badge = document.createElement('span');
+    var isPass = s.last_run_status === 'PASS';
+    badge.style.cssText = 'font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px;' +
+      (isPass ? 'background:#dcfce7;color:#16a34a;' : 'background:#fee2e2;color:#dc2626;');
+    badge.textContent = s.last_run_status;
+    card.appendChild(badge);
+
+    // Relative time
+    var timeEl = document.createElement('div');
+    timeEl.style.cssText = 'font-size:11px;color:var(--text-secondary);margin-top:4px;';
+    timeEl.textContent = _relativeTime(s.last_run_at);
+    card.appendChild(timeEl);
+
+    // Pass rate and trend
+    var statsEl = document.createElement('div');
+    statsEl.style.cssText = 'font-size:11px;margin-top:6px;display:flex;gap:8px;';
+    var prEl = document.createElement('span');
+    prEl.textContent = (s.pass_rate_30d || 0) + '% pass';
+    var trendEl = document.createElement('span');
+    var arrow = s.trend_direction === 'up' ? '\u2191' : s.trend_direction === 'down' ? '\u2193' : '\u2192';
+    var arrowColor = s.trend_direction === 'up' ? '#16a34a' : s.trend_direction === 'down' ? '#dc2626' : 'var(--text-secondary)';
+    trendEl.style.color = arrowColor;
+    trendEl.textContent = arrow;
+    statsEl.appendChild(prEl);
+    statsEl.appendChild(trendEl);
+    card.appendChild(statsEl);
+
+    // Click to filter trend chart
+    card.addEventListener('click', function() {
+      var sel = document.getElementById('trendSuiteSelect');
+      if (sel) {
+        sel.value = s.suite_name;
+        if (typeof loadTrendChart === 'function') loadTrendChart();
+      }
+    });
+
+    grid.appendChild(card);
+  });
+
+  container.appendChild(grid);
+}
+
+// ===========================================================================
+// Baseline column toggle and deviation fetch — issue #253
+// ===========================================================================
+
+/**
+ * Toggle the 'vs Baseline' column visibility in the Recent Runs table and
+ * persist the preference in localStorage.
+ */
+function toggleBaselineColumn() {
+  var visible = localStorage.getItem('valdo_baseline_col_visible') === 'true';
+  visible = !visible;
+  localStorage.setItem('valdo_baseline_col_visible', visible);
+  _applyBaselineColVisibility();
+}
+
+/**
+ * Apply the stored baseline column visibility preference to the table header
+ * and all baseline cells.  Safe to call before the table is rendered — it is
+ * a no-op when the relevant elements are absent.
+ */
+function _applyBaselineColVisibility() {
+  var visible = localStorage.getItem('valdo_baseline_col_visible') === 'true';
+  var th = document.getElementById('thBaseline');
+  var btn = document.getElementById('btnToggleBaselineCol');
+  if (th) { th.style.display = visible ? '' : 'none'; }
+  document.querySelectorAll('.td-baseline').forEach(function(td) {
+    td.style.display = visible ? '' : 'none';
+  });
+  if (btn) { btn.textContent = visible ? 'Hide baseline' : 'Show baseline'; }
+}
+
+/**
+ * Fetch deviation status from the baseline-check API for every baseline cell
+ * currently in the table and update each cell's text and style in-place.
+ *
+ * Requests are fired in parallel.  Cells with no run_id or suite are left
+ * unchanged.  Network errors are silently swallowed so the table remains
+ * functional when the baseline service is unavailable.
+ *
+ * @returns {Promise<void[]>}
+ */
+function _fetchBaselineStatuses() {
+  var cells = document.querySelectorAll('.td-baseline[data-run-id]');
+  var promises = Array.from(cells).map(function(td) {
+    var runId = td.getAttribute('data-run-id');
+    var suite = td.getAttribute('data-suite');
+    if (!runId || !suite) { return Promise.resolve(); }
+    return fetch(
+      '/api/v1/runs/baseline-check?suite=' + encodeURIComponent(suite) +
+      '&run_id=' + encodeURIComponent(runId),
+      { headers: { 'X-API-Key': window._apiKey || '' } }
+    )
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(data) {
+      if (!data) { td.textContent = '\u2014'; return; }
+      if (data.reason === 'no_baseline') {
+        td.textContent = '\u2014';
+      } else if (data.deviated) {
+        var firstAlert = data.alerts && data.alerts[0];
+        var delta = firstAlert
+          ? ' (' + (firstAlert.delta > 0 ? '+' : '') + Math.round(firstAlert.delta) + '%)'
+          : '';
+        td.textContent = '\u26A0\uFE0F Deviated' + delta;
+        td.style.color = 'var(--error, #dc2626)';
+        td.setAttribute(
+          'title',
+          'Threshold: ' + (firstAlert
+            ? firstAlert.metric + ' drop > ' + firstAlert.threshold + '%'
+            : '')
+        );
+        td.style.cursor = 'pointer';
+        td.setAttribute('data-deviation', JSON.stringify(data));
+      } else {
+        td.textContent = '\u2713 Within baseline';
+        td.style.color = 'var(--success, #16a34a)';
+      }
+    })
+    .catch(function() { td.textContent = '\u2014'; });
+  });
+  return Promise.all(promises);
+}
+
+/**
+ * Attach click handlers to deviation badge cells so that clicking a warning cell
+ * expands an inline detail row showing deviation metrics (Metric, Baseline,
+ * Current, Delta, Threshold).  Only cells with a `data-deviation` attribute
+ * (set by _fetchBaselineStatuses) are wired.
+ */
+function _attachDeviationClickHandlers() {
+  document.querySelectorAll('.td-baseline[data-deviation]').forEach(function(td) {
+    td.addEventListener('click', function() {
+      var row = td.closest('tr');
+      if (!row) return;
+
+      // Close any existing open detail row
+      var existing = document.querySelector('tr.deviation-detail-row');
+      if (existing) {
+        var prevRow = existing.previousElementSibling;
+        if (prevRow === row) {
+          // Toggle off — same cell clicked again
+          existing.remove();
+          td.setAttribute('aria-expanded', 'false');
+          return;
+        }
+        // Close the other row's aria state
+        if (prevRow) {
+          var prevTd = prevRow.querySelector('.td-baseline');
+          if (prevTd) { prevTd.setAttribute('aria-expanded', 'false'); }
+        }
+        existing.remove();
+      }
+
+      var deviationData = JSON.parse(td.getAttribute('data-deviation') || '{}');
+      var alerts = deviationData.alerts || [];
+
+      var detailRow = document.createElement('tr');
+      detailRow.className = 'deviation-detail-row';
+
+      var colCount = row.cells.length;
+      var detailTd = document.createElement('td');
+      detailTd.setAttribute('colspan', colCount);
+      detailTd.style.cssText = 'padding:8px 16px;background:var(--bg-secondary);border-bottom:1px solid var(--border);';
+
+      if (alerts.length === 0) {
+        detailTd.textContent = 'No deviation details available.';
+      } else {
+        var table = document.createElement('table');
+        table.style.cssText = 'font-size:11px;border-collapse:collapse;width:auto;';
+
+        // Header row
+        var thead = document.createElement('thead');
+        var hrow = document.createElement('tr');
+        ['Metric', 'Baseline', 'Current', 'Delta', 'Threshold'].forEach(function(h) {
+          var th = document.createElement('th');
+          th.style.cssText = 'padding:3px 10px;text-align:left;color:var(--text-secondary);font-weight:600;border-bottom:1px solid var(--border);';
+          th.textContent = h;
+          hrow.appendChild(th);
+        });
+        thead.appendChild(hrow);
+        table.appendChild(thead);
+
+        // Data rows
+        var tbody = document.createElement('tbody');
+        alerts.forEach(function(alert) {
+          var tr = document.createElement('tr');
+          var deltaStr = (alert.delta > 0 ? '+' : '') + Math.round(alert.delta * 10) / 10 + '%';
+          var deltaColor = alert.delta < 0 ? 'var(--error, #dc2626)' : 'var(--success, #16a34a)';
+          [
+            alert.metric,
+            Math.round(alert.baseline_value * 10) / 10 + '%',
+            Math.round(alert.current_value * 10) / 10 + '%',
+            deltaStr,
+            alert.metric + ' drop > ' + alert.threshold + '%',
+          ].forEach(function(val, idx) {
+            var td2 = document.createElement('td');
+            td2.style.cssText = 'padding:3px 10px;';
+            if (idx === 3) { td2.style.color = deltaColor; }
+            td2.textContent = val;
+            tr.appendChild(td2);
+          });
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        detailTd.appendChild(table);
+      }
+
+      detailRow.appendChild(detailTd);
+      row.parentNode.insertBefore(detailRow, row.nextSibling);
+      td.setAttribute('aria-expanded', 'true');
+    });
+  });
 }
 
 // ===========================================================================
@@ -1523,6 +2035,12 @@ setInterval(checkHealth, HEALTH_INTERVAL_MS);
 loadMappings();
 loadRules();
 loadRunHistory();
+loadTrendChart();
+loadSummaryCards();
+_applyBaselineColVisibility();
+
+var trendSel = document.getElementById('trendSuiteSelect');
+if (trendSel) { trendSel.addEventListener('change', loadTrendChart); }
 
 // ===========================================================================
 // API TESTER

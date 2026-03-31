@@ -252,3 +252,118 @@ class TestTooltips:
         assert "All tests passed or were skipped" in html
         assert "One or more tests failed" in html
         assert "Some tests passed and some failed" in html
+
+
+# ---------------------------------------------------------------------------
+# vs Baseline column — issue #253
+# ---------------------------------------------------------------------------
+
+
+class TestBaselineColumn:
+    """Tests for the 'vs Baseline' column and toggle in the Recent Runs table."""
+
+    def test_baseline_th_id_referenced_in_js(self):
+        """ui.js must reference 'thBaseline' as the column header id."""
+        html = _load_ui_html()
+        assert "thBaseline" in html, "thBaseline id reference is missing from ui.js"
+
+    def test_baseline_th_hidden_by_default(self):
+        """The baseline column header must start hidden unless localStorage says otherwise."""
+        html = _load_ui_html()
+        # JS must check valdo_baseline_col_visible to determine initial display state
+        assert "valdo_baseline_col_visible" in html, (
+            "valdo_baseline_col_visible key missing — baseline column won't be hidden by default"
+        )
+
+    def test_toggle_button_present_in_html(self):
+        """ui.html must contain a button with id='btnToggleBaselineCol'."""
+        html = _load_ui_html()
+        assert 'id="btnToggleBaselineCol"' in html, (
+            "btnToggleBaselineCol toggle button is missing from ui.html"
+        )
+
+    def test_toggle_button_in_runs_toolbar(self):
+        """The baseline toggle button must appear inside the runs-toolbar section."""
+        content = (
+            Path(__file__).resolve().parent.parent.parent
+            / "src"
+            / "reports"
+            / "static"
+            / "ui.html"
+        ).read_text(encoding="utf-8")
+        # Find the runs-toolbar div and the subsequent table-wrap div
+        toolbar_start = content.find('class="runs-toolbar"')
+        table_wrap_start = content.find('id="runsTableWrap"', toolbar_start)
+        assert toolbar_start != -1, "runs-toolbar section not found"
+        assert table_wrap_start != -1, "runsTableWrap section not found after toolbar"
+        toolbar_section = content[toolbar_start:table_wrap_start]
+        assert "btnToggleBaselineCol" in toolbar_section, (
+            "btnToggleBaselineCol must be inside the runs-toolbar div"
+        )
+
+    def test_toggle_baseline_column_function_in_js(self):
+        """ui.js must define a toggleBaselineColumn() function."""
+        html = _load_ui_html()
+        assert "function toggleBaselineColumn(" in html, (
+            "toggleBaselineColumn function missing from ui.js"
+        )
+
+    def test_apply_baseline_col_visibility_function_in_js(self):
+        """ui.js must define _applyBaselineColVisibility() function."""
+        html = _load_ui_html()
+        assert "function _applyBaselineColVisibility(" in html, (
+            "_applyBaselineColVisibility function missing from ui.js"
+        )
+
+    def test_fetch_baseline_statuses_function_in_js(self):
+        """ui.js must define _fetchBaselineStatuses() function."""
+        html = _load_ui_html()
+        assert "function _fetchBaselineStatuses(" in html, (
+            "_fetchBaselineStatuses function missing from ui.js"
+        )
+
+    def test_td_baseline_class_in_row_builder(self):
+        """ui.js row builder must create cells with class 'td-baseline'."""
+        html = _load_ui_html()
+        assert "td-baseline" in html, (
+            "td-baseline class not found — baseline cell missing from row builder"
+        )
+
+    def test_baseline_check_api_url_in_js(self):
+        """ui.js must call the /api/v1/runs/baseline-check endpoint."""
+        html = _load_ui_html()
+        assert "/api/v1/runs/baseline-check" in html, (
+            "baseline-check API URL missing from ui.js"
+        )
+
+    def test_fetch_baseline_statuses_called_after_table_renders(self):
+        """ui.js must call _fetchBaselineStatuses() after loadRunHistory builds the table."""
+        html = _load_ui_html()
+        # The call must appear after buildRunsTable in the loadRunHistory function
+        load_idx = html.find("async function loadRunHistory(")
+        assert load_idx != -1, "loadRunHistory function not found"
+        fetch_call_idx = html.find("_fetchBaselineStatuses()", load_idx)
+        assert fetch_call_idx != -1, (
+            "_fetchBaselineStatuses() is not called inside loadRunHistory"
+        )
+
+    def test_apply_visibility_called_at_init(self):
+        """ui.js init block must call _applyBaselineColVisibility() at page load."""
+        html = _load_ui_html()
+        # Must appear after the loadRunHistory() call in the init block
+        init_idx = html.find("loadRunHistory();")
+        assert init_idx != -1, "loadRunHistory() init call not found"
+        apply_idx = html.find("_applyBaselineColVisibility()", init_idx)
+        assert apply_idx != -1, (
+            "_applyBaselineColVisibility() is not called in the init block after loadRunHistory()"
+        )
+
+    def test_deviated_badge_text_in_js(self):
+        """ui.js must contain the deviation badge text string."""
+        html = _load_ui_html()
+        assert "Deviated" in html, "Deviation badge text 'Deviated' not found in ui.js"
+
+    def test_within_baseline_text_in_js(self):
+        """ui.js must contain the 'Within baseline' success text."""
+        html = _load_ui_html()
+        assert "Within baseline" in html, "'Within baseline' text not found in ui.js"

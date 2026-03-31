@@ -1629,3 +1629,19 @@
       transition: none !important;
     }
   }
+
+/* ── Trend chart day-range buttons ──────────────────────────────────────── */
+.trend-day-btn {
+  font-size: 11px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+.trend-day-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
