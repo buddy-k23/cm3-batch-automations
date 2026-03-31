@@ -1008,6 +1008,441 @@ document.getElementById('btnGenRules').addEventListener('click', async function(
 });
 
 // ---------------------------------------------------------------------------
+// === Multi-Record Config Wizard ===
+// ---------------------------------------------------------------------------
+var _mrStep          = 1;    // current step 1-5
+var _mrMappings      = [];   // [{id, label}] from API
+var _mrSelected      = [];   // selected mapping ids
+var _mrDiscriminator = {};   // {field, position, length}
+var _mrRecordTypes   = {};   // {mappingId: {code, first_row, last_row, expect}}
+var _mrCrossRules    = [];   // [{type, ...fields}]
+var _mrYamlText      = null; // last generated YAML
+var _mrPendingYaml   = null; // YAML to pre-load into Quick Test
+
+function mrToggle() {
+  var body = document.getElementById('mrWizardBody');
+  var btn  = document.getElementById('mrToggleBtn');
+  var open = body.style.display !== 'none';
+  if (open) {
+    body.style.display = 'none';
+    btn.textContent = 'Start Wizard';
+    btn.setAttribute('aria-expanded', 'false');
+  } else {
+    body.style.display = '';
+    btn.textContent = 'Close Wizard';
+    btn.setAttribute('aria-expanded', 'true');
+    mrInit();
+  }
+}
+
+function mrInit() {
+  _mrStep = 1;
+  _mrSelected      = [];
+  _mrDiscriminator = {};
+  _mrRecordTypes   = {};
+  _mrCrossRules    = [];
+  _mrYamlText      = null;
+  mrPopulateMappingList();
+  mrGoTo(1);
+}
+
+function mrGoTo(n) {
+  _mrStep = n;
+  document.querySelectorAll('.mr-step-panel').forEach(function(p) { p.classList.remove('active'); });
+  var target = document.getElementById('mrStep' + n);
+  if (target) target.classList.add('active');
+  document.querySelectorAll('.step-indicator').forEach(function(ind) {
+    var s = parseInt(ind.dataset.step, 10);
+    ind.classList.toggle('active', s === n);
+    ind.setAttribute('aria-selected', s === n ? 'true' : 'false');
+  });
+  document.getElementById('mrBackBtn').style.display = n > 1 ? '' : 'none';
+  var nextBtn = document.getElementById('mrNextBtn');
+  if (n === 5) {
+    nextBtn.style.display = 'none';
+  } else {
+    nextBtn.style.display = '';
+    nextBtn.textContent = n === 4 ? 'Finish \u2192' : 'Next \u2192';
+  }
+}
+
+function mrNext() {
+  if (_mrStep === 1) {
+    _mrSelected = [];
+    document.querySelectorAll('#mrMappingList input[type="checkbox"]:checked').forEach(function(cb) {
+      _mrSelected.push(cb.value);
+    });
+    if (_mrSelected.length === 0) {
+      document.getElementById('mrStep1Error').textContent = 'Please select at least one record type.';
+      return;
+    }
+    document.getElementById('mrStep1Error').textContent = '';
+    mrRenderTypeRows();
+    mrGoTo(2);
+  } else if (_mrStep === 2) {
+    var field = document.getElementById('mrDiscField').value.trim();
+    var pos   = parseInt(document.getElementById('mrDiscPosition').value, 10);
+    var len   = parseInt(document.getElementById('mrDiscLength').value, 10);
+    if (!field || isNaN(pos) || pos < 1 || isNaN(len) || len < 1) {
+      document.getElementById('mrStep2Error').textContent = 'Please fill in Field Name, Position, and Length.';
+      return;
+    }
+    document.getElementById('mrStep2Error').textContent = '';
+    _mrDiscriminator = { field: field, position: pos, length: len };
+    mrGoTo(3);
+  } else if (_mrStep === 3) {
+    var err3 = '';
+    _mrSelected.forEach(function(id) {
+      var codeEl = document.getElementById('mrCode_' + id);
+      if (!codeEl || !codeEl.value.trim()) { err3 = 'Please enter a discriminator code for every record type.'; }
+    });
+    if (err3) { document.getElementById('mrStep3Error').textContent = err3; return; }
+    document.getElementById('mrStep3Error').textContent = '';
+    _mrSelected.forEach(function(id) {
+      _mrRecordTypes[id] = {
+        code:      document.getElementById('mrCode_' + id).value.trim(),
+        first_row: (document.getElementById('mrFirstRow_' + id) || {}).value || '',
+        last_row:  (document.getElementById('mrLastRow_' + id) || {}).value || '',
+        expect:    (document.getElementById('mrExpect_' + id) || {}).value || '',
+      };
+    });
+    mrGoTo(4);
+  } else if (_mrStep === 4) {
+    mrGoTo(5);
+  }
+}
+
+function mrBack() { if (_mrStep > 1) mrGoTo(_mrStep - 1); }
+
+// -- Step 1: mapping checklist --
+
+function mrPopulateMappingList() {
+  var container = document.getElementById('mrMappingList');
+  container.textContent = 'Loading mappings\u2026';
+  if (_allMappingOptions && _allMappingOptions.length > 0) {
+    _mrRenderMappingCheckboxes(_allMappingOptions);
+    return;
+  }
+  fetch('/api/v1/mappings/', { headers: _apiHeaders() })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var opts = (data.mappings || data || []).map(function(m) {
+        return { value: m.id || m.value, label: m.label || m.name || m.id };
+      });
+      _mrRenderMappingCheckboxes(opts);
+    })
+    .catch(function() { container.textContent = 'Failed to load mappings. Please refresh and try again.'; });
+}
+
+function _mrRenderMappingCheckboxes(opts) {
+  var container = document.getElementById('mrMappingList');
+  if (!opts || opts.length === 0) {
+    container.textContent = 'No mappings found. Upload a mapping template first.';
+    return;
+  }
+  while (container.firstChild) container.removeChild(container.firstChild);
+  opts.forEach(function(opt) {
+    var lbl = document.createElement('label');
+    var cb  = document.createElement('input');
+    cb.type  = 'checkbox';
+    cb.value = opt.value;
+    cb.id    = 'mrMapCb_' + opt.value;
+    var txt  = document.createTextNode(' ' + opt.label);  // plain text — no XSS
+    lbl.appendChild(cb);
+    lbl.appendChild(txt);
+    container.appendChild(lbl);
+  });
+}
+
+// -- Step 2: auto-detect discriminator --
+
+function mrAutoDetect() {
+  var fileInput = document.getElementById('mrAutoDetectFile');
+  var status    = document.getElementById('mrAutoDetectStatus');
+  var btn       = document.getElementById('mrAutoDetectBtn');
+  if (!fileInput.files || fileInput.files.length === 0) {
+    status.textContent = 'Please select a file first.';
+    return;
+  }
+  status.textContent = 'Detecting\u2026';
+  btn.disabled = true;
+  var formData = new FormData();
+  formData.append('file', fileInput.files[0]);
+  fetch('/api/v1/multi-record/detect-discriminator', { method: 'POST', headers: _apiHeaders(), body: formData })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      btn.disabled = false;
+      var best = data.best;
+      if (!best) {
+        status.textContent = 'No discriminator detected. Fill in fields manually.';
+        return;
+      }
+      document.getElementById('mrDiscPosition').value = best.position;
+      document.getElementById('mrDiscLength').value   = best.length;
+      // textContent used — values are numbers/strings from API, no XSS risk
+      status.textContent = 'Detected: position=' + best.position +
+        ', length=' + best.length +
+        ', values=[' + best.values.join(', ') + ']' +
+        ' (confidence=' + Math.round(best.confidence * 100) + '%)';
+    })
+    .catch(function(err) {
+      btn.disabled = false;
+      status.textContent = 'Auto-detect failed: ' + err.message;
+    });
+}
+
+// -- Step 3: record type rows --
+
+function mrRenderTypeRows() {
+  var container = document.getElementById('mrTypeRows');
+  while (container.firstChild) container.removeChild(container.firstChild);
+  _mrSelected.forEach(function(id) {
+    var labelText = ((_allMappingOptions || []).find(function(o) { return o.value === id; }) || {}).label || id;
+    var div = document.createElement('div');
+    div.className = 'mr-record-type-row';
+    var h4 = document.createElement('h4');
+    h4.textContent = labelText;  // textContent -- safe
+    div.appendChild(h4);
+    var fields = document.createElement('div');
+    fields.className = 'mr-type-fields';
+    _mrAppendLabelInput(fields, 'Disc. Code', 'mrCode_' + id, 'text', 'e.g. HDR', 'width:90px');
+    _mrAppendLabelSelect(fields, 'First row',  'mrFirstRow_' + id, ['', 'required', 'optional'], ['\u2014', 'required', 'optional']);
+    _mrAppendLabelSelect(fields, 'Last row',   'mrLastRow_'  + id, ['', 'required', 'optional'], ['\u2014', 'required', 'optional']);
+    _mrAppendLabelSelect(fields, 'Expect', 'mrExpect_' + id,
+      ['', 'exactly_one', 'at_least_one', 'any_number', 'none'],
+      ['\u2014', 'exactly_one', 'at_least_one', 'any_number', 'none']);
+    div.appendChild(fields);
+    container.appendChild(div);
+  });
+}
+
+function _mrAppendLabelInput(parent, labelText, inputId, inputType, placeholder, style) {
+  var lbl = document.createElement('label');
+  lbl.htmlFor = inputId;
+  lbl.textContent = labelText;
+  var inp = document.createElement('input');
+  inp.type = inputType;
+  inp.id = inputId;
+  inp.placeholder = placeholder || '';
+  inp.autocomplete = 'off';
+  if (style) inp.style.cssText = style;
+  parent.appendChild(lbl);
+  parent.appendChild(inp);
+}
+
+function _mrAppendLabelSelect(parent, labelText, selectId, values, labels) {
+  var lbl = document.createElement('label');
+  lbl.htmlFor = selectId;
+  lbl.textContent = labelText;
+  var sel = document.createElement('select');
+  sel.id = selectId;
+  values.forEach(function(v, i) {
+    var opt = document.createElement('option');
+    opt.value = v;
+    opt.textContent = labels[i];
+    sel.appendChild(opt);
+  });
+  parent.appendChild(lbl);
+  parent.appendChild(sel);
+}
+
+// -- Step 4: cross-type rules --
+
+var _mrRuleTypeOptions = [
+  'required_companion', 'header_trailer_count', 'header_trailer_sum',
+  'header_trailer_match', 'header_detail_consistent', 'type_sequence', 'expect_count'
+];
+
+function mrAddCrossRule() {
+  var container = document.getElementById('mrCrossRuleRows');
+  var idx = _mrCrossRules.length;
+  _mrCrossRules.push({ type: _mrRuleTypeOptions[0] });
+
+  var row = document.createElement('div');
+  row.className = 'mr-cross-rule-row';
+  row.id = 'mrCrossRule_' + idx;
+
+  // Rule type selector
+  var typeSel = document.createElement('select');
+  typeSel.id = 'mrRuleType_' + idx;
+  _mrRuleTypeOptions.forEach(function(rt) {
+    var opt = document.createElement('option');
+    opt.value = rt;
+    opt.textContent = rt;
+    typeSel.appendChild(opt);
+  });
+  typeSel.addEventListener('change', function() {
+    _mrCrossRules[idx].type = typeSel.value;
+    mrRenderRuleFields(typeSel.value, extra, idx);
+  });
+
+  // Extra fields container
+  var extra = document.createElement('div');
+  extra.className = 'mr-cross-rule-extra';
+
+  // Remove button
+  var rmBtn = document.createElement('button');
+  rmBtn.className = 'mr-remove-btn';
+  rmBtn.textContent = '\u00d7';
+  rmBtn.title = 'Remove rule';
+  rmBtn.addEventListener('click', function() { mrRemoveCrossRule(row, idx); });
+
+  row.appendChild(typeSel);
+  row.appendChild(extra);
+  row.appendChild(rmBtn);
+  container.appendChild(row);
+  mrRenderRuleFields(_mrRuleTypeOptions[0], extra, idx);
+}
+
+function mrRemoveCrossRule(row, idx) {
+  _mrCrossRules[idx] = null;
+  if (row && row.parentNode) row.parentNode.removeChild(row);
+}
+
+function mrRenderRuleFields(ruleType, container, idx) {
+  while (container.firstChild) container.removeChild(container.firstChild);
+  var fields = [];
+  if (ruleType === 'required_companion') {
+    fields = [['when_type','When type'],['requires_type','Requires type']];
+  } else if (ruleType === 'header_trailer_count') {
+    fields = [['record_type','Trailer type'],['trailer_field','Trailer field'],['count_of','Count of']];
+  } else if (ruleType === 'header_trailer_sum') {
+    fields = [['record_type','Trailer type'],['trailer_field','Trailer field'],['sum_of','Sum field'],['detail_type','Detail type']];
+  } else if (ruleType === 'header_trailer_match') {
+    fields = [['record_type','Trailer type'],['trailer_field','Trailer field'],['header_type','Header type'],['header_field','Header field']];
+  } else if (ruleType === 'header_detail_consistent') {
+    fields = [['header_type','Header type'],['header_field','Header field'],['detail_type','Detail type'],['detail_field','Detail field']];
+  } else if (ruleType === 'type_sequence') {
+    fields = [['sequence','Sequence (comma-sep)']];
+  } else if (ruleType === 'expect_count') {
+    fields = [['record_type','Record type'],['count','Count']];
+  }
+  fields.forEach(function(pair) {
+    var key = pair[0], lbl = pair[1];
+    var label = document.createElement('label');
+    label.textContent = lbl + ':';
+    var inp = document.createElement('input');
+    inp.type = 'text';
+    inp.placeholder = key;
+    inp.style.width = '110px';
+    inp.addEventListener('change', function() {
+      if (_mrCrossRules[idx]) _mrCrossRules[idx][key] = inp.value.trim();
+    });
+    container.appendChild(label);
+    container.appendChild(inp);
+  });
+  // Severity + message always present
+  var sevLbl = document.createElement('label');
+  sevLbl.textContent = 'Severity:';
+  var sevSel = document.createElement('select');
+  ['error','warning'].forEach(function(s) {
+    var opt = document.createElement('option');
+    opt.value = s; opt.textContent = s; sevSel.appendChild(opt);
+  });
+  sevSel.addEventListener('change', function() { if (_mrCrossRules[idx]) _mrCrossRules[idx].severity = sevSel.value; });
+  var msgLbl = document.createElement('label');
+  msgLbl.textContent = 'Message:';
+  var msgInp = document.createElement('input');
+  msgInp.type = 'text';
+  msgInp.placeholder = 'optional message';
+  msgInp.style.width = '160px';
+  msgInp.addEventListener('change', function() { if (_mrCrossRules[idx]) _mrCrossRules[idx].message = msgInp.value.trim(); });
+  container.appendChild(sevLbl);
+  container.appendChild(sevSel);
+  container.appendChild(msgLbl);
+  container.appendChild(msgInp);
+}
+
+// -- Step 5: build payload, generate, copy, download, validate --
+
+function mrBuildPayload() {
+  var discriminator = {};
+  if (_mrDiscriminator.field)    discriminator.field    = _mrDiscriminator.field;
+  if (_mrDiscriminator.position) discriminator.position = _mrDiscriminator.position;
+  if (_mrDiscriminator.length)   discriminator.length   = _mrDiscriminator.length;
+
+  var record_types = {};
+  _mrSelected.forEach(function(id) {
+    var rt = _mrRecordTypes[id] || {};
+    var entry = {};
+    entry.match   = rt.code   || '';
+    entry.mapping = 'config/mappings/' + id + '.json';
+    if (rt.first_row) entry.first_row = rt.first_row;
+    if (rt.last_row)  entry.last_row  = rt.last_row;
+    if (rt.expect)    entry.expect    = rt.expect;
+    record_types[id] = entry;
+  });
+
+  var cross_type_rules = (_mrCrossRules || []).filter(Boolean).map(function(r) {
+    var rule = { check: r.type };
+    Object.keys(r).forEach(function(k) { if (k !== 'type' && r[k]) rule[k] = r[k]; });
+    return rule;
+  });
+
+  var payload = { discriminator: discriminator, record_types: record_types };
+  if (cross_type_rules.length > 0) payload.cross_type_rules = cross_type_rules;
+  return payload;
+}
+
+function mrGenerateYaml() {
+  var preEl  = document.getElementById('mrYamlPreview');
+  var copyBtn = document.getElementById('mrCopyBtn');
+  var dlBtn   = document.getElementById('mrDownloadBtn');
+  var valBtn  = document.getElementById('mrValidateBtn');
+  preEl.textContent = 'Generating\u2026';
+  [copyBtn, dlBtn, valBtn].forEach(function(b) { b.disabled = true; });
+
+  var payload = mrBuildPayload();
+  fetch('/api/v1/multi-record/generate', {
+    method: 'POST',
+    headers: Object.assign({ 'Content-Type': 'application/json' }, _apiHeaders()),
+    body: JSON.stringify(payload),
+  })
+    .then(function(r) {
+      if (!r.ok) return r.text().then(function(t) { throw new Error(t); });
+      return r.text();
+    })
+    .then(function(yaml) {
+      _mrYamlText = yaml;
+      preEl.textContent = yaml;  // textContent — no XSS
+      [copyBtn, dlBtn, valBtn].forEach(function(b) { b.disabled = false; });
+    })
+    .catch(function(err) {
+      preEl.textContent = 'Error: ' + err.message;
+    });
+}
+
+function mrCopyYaml() {
+  if (!_mrYamlText) return;
+  navigator.clipboard.writeText(_mrYamlText).then(function() {
+    var btn = document.getElementById('mrCopyBtn');
+    var orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(function() { btn.textContent = orig; }, 1500);
+  });
+}
+
+function mrDownloadYaml() {
+  if (!_mrYamlText) return;
+  var blob = new Blob([_mrYamlText], { type: 'application/x-yaml' });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'multi_record_config.yaml';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function() { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+}
+
+function mrValidateWithConfig() {
+  if (!_mrYamlText) return;
+  _mrPendingYaml = new Blob([_mrYamlText], { type: 'application/x-yaml' });
+  switchTab('quicktest');
+  var status = document.getElementById('qtStatus');
+  if (status) status.textContent = 'Multi-record YAML config ready. Upload your batch file and click Validate.';
+}
+
+// ---------------------------------------------------------------------------
 // Theme toggle
 // ---------------------------------------------------------------------------
 document.getElementById('btnTheme').addEventListener('click', function() {
