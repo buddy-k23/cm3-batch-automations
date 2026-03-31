@@ -1597,6 +1597,49 @@ multi-record structure and returns a downloadable YAML config file.
 The response is an `application/x-yaml` attachment that can be saved directly
 and used with `--multi-record`.
 
+**POST /api/v1/multi-record/detect-discriminator** — scan an uploaded batch
+file to auto-detect the discriminator field position and length.
+
+```
+POST /api/v1/multi-record/detect-discriminator?max_lines=20
+Content-Type: multipart/form-data
+file: <batch file>
+```
+
+Response:
+```json
+{
+  "candidates": [
+    {"position": 1, "length": 3, "values": ["HDR", "DTL", "TRL"], "confidence": 0.95}
+  ],
+  "best": {"position": 1, "length": 3, "values": ["HDR", "DTL", "TRL"], "confidence": 0.95}
+}
+```
+
+`candidates` is empty and `best` is `null` when no repeating pattern is found.
+
+#### Multi-Record Config Wizard (Web UI)
+
+The **Mapping Generator** tab includes a guided 5-step wizard that builds a
+multi-record YAML config without writing YAML by hand.
+
+1. **Select Record Types** — choose one or more mappings from the list.
+2. **Configure Discriminator** — enter the field name, position (1-indexed),
+   and length.  Click **Auto-detect** to upload a sample batch file and have
+   the server suggest the most likely discriminator position automatically.
+3. **Map Codes to Record Types** — for each selected mapping, enter the
+   discriminator code value (e.g. `HDR`) and optional cardinality settings.
+4. **Cross-Type Rules** *(optional)* — add rules that span record types such
+   as `required_companion`, `header_trailer_count`, or `type_sequence`.
+   Click **Skip** to go straight to Step 5.
+5. **Preview & Download** — click **Generate YAML** to call
+   `POST /api/v1/multi-record/generate` and display the YAML config.  Use
+   **Copy YAML**, **Download YAML**, or **Validate File With This Config**
+   (switches to the Quick Test tab with the config ready).
+
+To open the wizard: switch to the **Mapping Generator** tab and click
+**Start Wizard** in the Multi-Record Config Wizard section.
+
 #### CLI config generator (`valdo generate-multi-record`)
 
 The `generate-multi-record` command creates a multi-record YAML config file

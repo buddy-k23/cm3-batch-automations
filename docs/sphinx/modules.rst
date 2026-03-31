@@ -246,6 +246,10 @@ Services
    :members:
    :undoc-members:
 
+.. automodule:: src.services.multi_record_wizard_service
+   :members:
+   :undoc-members:
+
 Contracts & Adapters
 --------------------
 
