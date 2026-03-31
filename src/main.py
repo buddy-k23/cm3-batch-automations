@@ -1028,6 +1028,36 @@ def run_etl_pipeline(config, run_date, params, output):
         sys.exit(1)
 
 
+@cli.command('db-migrate')
+@click.option('--revision', default='head', show_default=True,
+              help='Target Alembic revision (e.g. head, base, or a specific revision ID)')
+@click.option('--downgrade', is_flag=True, default=False,
+              help='Run downgrade instead of upgrade')
+@click.option('--dry-run', is_flag=True, default=False,
+              help='Emit SQL without executing (Alembic offline mode)')
+def db_migrate(revision, downgrade, dry_run):
+    """Run Alembic database migrations.
+
+    Upgrades to HEAD by default.  Use --downgrade to reverse migrations
+    and --dry-run to preview the SQL without touching the database.
+
+    Examples::
+
+        valdo db-migrate
+        valdo db-migrate --revision 0001
+        valdo db-migrate --downgrade --revision base
+        valdo db-migrate --dry-run
+    """
+    try:
+        from src.commands.db_migrate_command import run_db_migrate
+        run_db_migrate(revision=revision, downgrade=downgrade, dry_run=dry_run)
+    except SystemExit:
+        raise
+    except Exception as e:
+        click.echo(click.style(f"Migration error: {e}", fg='red'), err=True)
+        sys.exit(1)
+
+
 @cli.command()
 @click.option('--host', default='0.0.0.0', show_default=True,
               help='Bind address for the server')
