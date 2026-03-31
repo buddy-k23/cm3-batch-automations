@@ -720,6 +720,137 @@ function toggleAutoRefresh() {
 }
 
 // ===========================================================================
+// Trend Chart — SVG renderer
+// ===========================================================================
+/**
+ * Render a pass-rate / quality-score trend line chart into a container element.
+ *
+ * The function is a pure DOM-manipulation renderer — it performs no fetch calls
+ * and has no side-effects beyond writing into `container`.
+ *
+ * Testability note: renderTrendChart is a pure DOM-manipulation function.
+ * Verified by: node --check src/reports/static/ui.js (syntax check)
+ * Manual test: open /ui in browser, check Recent Runs tab after chart is wired in (#249).
+ *
+ * @param {Array<{date: string, pass_rate: number, avg_quality_score: number|null}>} data
+ *   Array of daily trend objects, ordered oldest → newest.
+ * @param {HTMLElement} container - DOM element into which the SVG chart is injected.
+ */
+function renderTrendChart(data, container) {
+  // Clear container
+  container.innerHTML = '';
+
+  if (!data || data.length === 0) {
+    var emptyMsg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    emptyMsg.setAttribute('width', '100%');
+    emptyMsg.setAttribute('height', '120');
+    emptyMsg.setAttribute('role', 'img');
+    emptyMsg.setAttribute('aria-label', 'No trend data available');
+    var txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    txt.setAttribute('x', '50%');
+    txt.setAttribute('y', '60');
+    txt.setAttribute('text-anchor', 'middle');
+    txt.setAttribute('fill', 'var(--text-secondary)');
+    txt.setAttribute('font-size', '13');
+    txt.textContent = 'No trend data yet \u2014 run some suites to see history';
+    emptyMsg.appendChild(txt);
+    container.appendChild(emptyMsg);
+    return;
+  }
+
+  var W = container.clientWidth || 600;
+  var H = 180;
+  var PAD = { top: 16, right: 80, bottom: 32, left: 40 };
+  var chartW = W - PAD.left - PAD.right;
+  var chartH = H - PAD.top - PAD.bottom;
+
+  var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('width', W);
+  svg.setAttribute('height', H);
+  svg.setAttribute('role', 'img');
+
+  // Compute pass rate range for aria-label
+  var passRates = data.map(function(d) { return d.pass_rate || 0; });
+  var first = Math.round(passRates[0]);
+  var last = Math.round(passRates[passRates.length - 1]);
+  svg.setAttribute('aria-label', 'Pass rate trend: ' + first + '% to ' + last + '% over ' + data.length + ' days');
+
+  var g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.setAttribute('transform', 'translate(' + PAD.left + ',' + PAD.top + ')');
+
+  // Y-axis reference lines at 0, 25, 50, 75, 100
+  [0, 25, 50, 75, 100].forEach(function(val) {
+    var y = chartH - (val / 100) * chartH;
+    var line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', 0); line.setAttribute('x2', chartW);
+    line.setAttribute('y1', y); line.setAttribute('y2', y);
+    line.setAttribute('stroke', 'var(--border, #e0e0e0)');
+    line.setAttribute('stroke-width', '1');
+    g.appendChild(line);
+
+    var label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    label.setAttribute('x', -4); label.setAttribute('y', y + 4);
+    label.setAttribute('text-anchor', 'end');
+    label.setAttribute('font-size', '10');
+    label.setAttribute('fill', 'var(--text-secondary, #888)');
+    label.textContent = val + '%';
+    g.appendChild(label);
+  });
+
+  function makePolyline(values, color) {
+    var n = data.length;
+    var points = values.map(function(v, i) {
+      var x = (i / Math.max(n - 1, 1)) * chartW;
+      var y = chartH - (Math.min(Math.max(v || 0, 0), 100) / 100) * chartH;
+      return x + ',' + y;
+    }).join(' ');
+    var pl = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+    pl.setAttribute('points', points);
+    pl.setAttribute('fill', 'none');
+    pl.setAttribute('stroke', color);
+    pl.setAttribute('stroke-width', '2');
+    pl.setAttribute('stroke-linejoin', 'round');
+    return pl;
+  }
+
+  // Pass rate line
+  g.appendChild(makePolyline(data.map(function(d){ return d.pass_rate; }), 'var(--accent, #2563eb)'));
+  // Quality score line
+  var qualScores = data.map(function(d){ return d.avg_quality_score; });
+  if (qualScores.some(function(v){ return v != null; })) {
+    g.appendChild(makePolyline(qualScores, 'var(--text-secondary, #888)'));
+  }
+
+  // X-axis tick labels every 7 points
+  var step = Math.max(1, Math.floor(data.length / 5));
+  data.forEach(function(d, i) {
+    if (i % step !== 0 && i !== data.length - 1) return;
+    var x = (i / Math.max(data.length - 1, 1)) * chartW;
+    var datePart = (d.date || '').slice(5); // MM-DD
+    var tick = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    tick.setAttribute('x', x); tick.setAttribute('y', chartH + 14);
+    tick.setAttribute('text-anchor', 'middle');
+    tick.setAttribute('font-size', '9');
+    tick.setAttribute('fill', 'var(--text-secondary, #888)');
+    tick.textContent = datePart;
+    g.appendChild(tick);
+  });
+
+  // Legend at right edge
+  [['Pass Rate', 'var(--accent, #2563eb)', chartH - 20],
+   ['Quality', 'var(--text-secondary, #888)', chartH - 6]].forEach(function(item) {
+    var leg = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    leg.setAttribute('x', chartW + 4); leg.setAttribute('y', item[2]);
+    leg.setAttribute('font-size', '9'); leg.setAttribute('fill', item[1]);
+    leg.textContent = item[0];
+    g.appendChild(leg);
+  });
+
+  svg.appendChild(g);
+  container.appendChild(svg);
+}
+
+// ===========================================================================
 // Mapping Generator — state
 // ===========================================================================
 var mapFile   = null;
