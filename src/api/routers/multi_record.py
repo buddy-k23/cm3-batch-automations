@@ -1,15 +1,18 @@
-"""Multi-record config generation endpoint.
+"""Multi-record config generation and wizard-helper endpoints.
 
-Exposes ``POST /api/v1/multi-record/generate`` which accepts a JSON body
-describing the multi-record structure and returns a YAML file as a download.
+Exposes:
+- ``POST /api/v1/multi-record/generate`` — generate a YAML config from JSON body.
+- ``POST /api/v1/multi-record/detect-discriminator`` — auto-detect the
+  discriminator field from an uploaded batch file.
 """
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query, UploadFile
 from fastapi.responses import Response
 
 from src.config.multi_record_config import MultiRecordConfig
+from src.services.multi_record_wizard_service import detect_discriminator
 
 router = APIRouter()
 
@@ -76,3 +79,47 @@ async def generate_multi_record_config(config: MultiRecordConfig) -> Response:
             "Content-Disposition": 'attachment; filename="multi_record_config.yaml"'
         },
     )
+
+
+@router.post(
+    "/detect-discriminator",
+    summary="Auto-detect the discriminator field from a batch file sample",
+    response_description="Candidate discriminator positions with confidence scores",
+)
+async def detect_discriminator_endpoint(
+    file: UploadFile,
+    max_lines: int = Query(default=20, ge=1, le=1000),
+) -> dict:
+    """Scan the uploaded file and return likely discriminator field candidates.
+
+    Reads up to *max_lines* lines and scores each ``(position, length)`` pair
+    by how consistently it produces 2–8 repeating distinct values.  The
+    ``best`` key contains the highest-confidence candidate.
+
+    Args:
+        file: Batch file to scan (any text format).
+        max_lines: Number of lines to inspect.  Defaults to ``20``.
+
+    Returns:
+        Dict with keys:
+
+        - ``candidates``: list of dicts — ``position`` (1-indexed), ``length``,
+          ``values`` (list of distinct values found), ``confidence`` (0–1).
+          Sorted descending by confidence.
+        - ``best``: the highest-confidence candidate dict, or ``null`` when
+          none found.
+
+    Example response::
+
+        {
+          "candidates": [
+            {"position": 1, "length": 3, "values": ["HDR", "DTL", "TRL"],
+             "confidence": 0.95}
+          ],
+          "best": {"position": 1, "length": 3, "values": ["HDR", "DTL", "TRL"],
+                   "confidence": 0.95}
+        }
+    """
+    raw = await file.read()
+    content = raw.decode("utf-8", errors="replace")
+    return detect_discriminator(content, max_lines=max_lines)
