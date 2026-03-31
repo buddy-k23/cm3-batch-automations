@@ -445,6 +445,96 @@
         </div>
       </div>
     </div>
+
+    <!-- Section 3: Multi-Record Config Wizard -->
+    <div class="gen-section" id="mrWizardSection">
+      <div class="gen-section-title">Multi-Record Config Wizard
+        <button class="btn-secondary" id="mrToggleBtn" onclick="mrToggle()" aria-expanded="false"
+                aria-controls="mrWizardBody">Start Wizard</button>
+      </div>
+      <div id="mrWizardBody" style="display:none">
+        <!-- Step indicators -->
+        <div class="step-indicators" id="mrStepIndicators" role="tablist" aria-label="Wizard steps">
+          <button class="step-indicator active" data-step="1" role="tab" aria-selected="true"  aria-controls="mrStep1">1. Record Types</button>
+          <button class="step-indicator"        data-step="2" role="tab" aria-selected="false" aria-controls="mrStep2">2. Discriminator</button>
+          <button class="step-indicator"        data-step="3" role="tab" aria-selected="false" aria-controls="mrStep3">3. Map Codes</button>
+          <button class="step-indicator"        data-step="4" role="tab" aria-selected="false" aria-controls="mrStep4">4. Cross-Type Rules</button>
+          <button class="step-indicator"        data-step="5" role="tab" aria-selected="false" aria-controls="mrStep5">5. Preview &amp; Download</button>
+        </div>
+
+        <div class="mr-wizard">
+          <!-- Step 1: Select Record Types -->
+          <div class="mr-step-panel active" id="mrStep1" role="tabpanel" aria-labelledby="">
+            <h3 class="mr-step-title">Step 1 — Select Record Types</h3>
+            <p class="mr-step-desc">Choose the mapping(s) that define each record type in your batch file.</p>
+            <div id="mrMappingList" class="mr-mapping-list" aria-live="polite">Loading mappings…</div>
+            <p class="mr-validation-msg" id="mrStep1Error" role="alert" aria-live="assertive"></p>
+          </div>
+
+          <!-- Step 2: Configure Discriminator -->
+          <div class="mr-step-panel" id="mrStep2" role="tabpanel">
+            <h3 class="mr-step-title">Step 2 — Configure Discriminator</h3>
+            <p class="mr-step-desc">Specify the field that identifies each record type (e.g. a record-type code in columns 1–3).</p>
+            <div class="mr-field-row">
+              <label for="mrDiscField">Field Name</label>
+              <input type="text" id="mrDiscField" placeholder="e.g. REC_TYPE" autocomplete="off">
+            </div>
+            <div class="mr-field-row">
+              <label for="mrDiscPosition">Position (1-indexed)</label>
+              <input type="number" id="mrDiscPosition" min="1" placeholder="e.g. 1" autocomplete="off">
+            </div>
+            <div class="mr-field-row">
+              <label for="mrDiscLength">Length</label>
+              <input type="number" id="mrDiscLength" min="1" placeholder="e.g. 3" autocomplete="off">
+            </div>
+            <div class="mr-autodetect-row">
+              <label for="mrAutoDetectFile">Auto-detect from file (optional)</label>
+              <input type="file" id="mrAutoDetectFile" accept=".txt,.dat,.csv,.fixed">
+              <button class="btn-secondary" onclick="mrAutoDetect()" id="mrAutoDetectBtn">Auto-detect</button>
+              <span class="mr-autodetect-status" id="mrAutoDetectStatus" aria-live="polite"></span>
+            </div>
+            <p class="mr-validation-msg" id="mrStep2Error" role="alert" aria-live="assertive"></p>
+          </div>
+
+          <!-- Step 3: Map Codes to Record Types -->
+          <div class="mr-step-panel" id="mrStep3" role="tabpanel">
+            <h3 class="mr-step-title">Step 3 — Map Codes to Record Types</h3>
+            <p class="mr-step-desc">For each selected mapping, enter the discriminator code that identifies it and configure cardinality.</p>
+            <div id="mrTypeRows"></div>
+            <p class="mr-validation-msg" id="mrStep3Error" role="alert" aria-live="assertive"></p>
+          </div>
+
+          <!-- Step 4: Cross-Type Rules (optional) -->
+          <div class="mr-step-panel" id="mrStep4" role="tabpanel">
+            <h3 class="mr-step-title">Step 4 — Cross-Type Rules <span class="mr-optional">(optional)</span></h3>
+            <p class="mr-step-desc">Add rules that span multiple record types, e.g. header/trailer count checks.</p>
+            <div id="mrCrossRuleRows"></div>
+            <button class="btn-secondary" onclick="mrAddCrossRule()" id="mrAddRuleBtn">+ Add Rule</button>
+            <p><a href="#" class="mr-skip-link" onclick="mrGoTo(5);return false;">Skip this step →</a></p>
+          </div>
+
+          <!-- Step 5: Preview & Download -->
+          <div class="mr-step-panel" id="mrStep5" role="tabpanel">
+            <h3 class="mr-step-title">Step 5 — Preview &amp; Download</h3>
+            <p class="mr-step-desc">Review the generated YAML config, then download or validate directly.</p>
+            <div class="mr-preview-toolbar">
+              <button class="btn-secondary" onclick="mrGenerateYaml()" id="mrGenerateBtn">Generate YAML</button>
+              <button class="btn-secondary" onclick="mrCopyYaml()" id="mrCopyBtn" disabled>Copy YAML</button>
+              <button class="btn-secondary" onclick="mrDownloadYaml()" id="mrDownloadBtn" disabled>Download YAML</button>
+              <button class="btn-primary"   onclick="mrValidateWithConfig()" id="mrValidateBtn" disabled>Validate File With This Config</button>
+            </div>
+            <pre class="mr-yaml-preview" id="mrYamlPreview" aria-live="polite">Click "Generate YAML" to preview.</pre>
+          </div>
+        </div><!-- /.mr-wizard -->
+
+        <!-- Navigation buttons -->
+        <div class="btn-row mr-nav-row">
+          <button class="btn-secondary" id="mrBackBtn"  onclick="mrBack()" style="display:none">← Back</button>
+          <button class="btn-primary"   id="mrNextBtn"  onclick="mrNext()">Next →</button>
+        </div>
+      </div><!-- /#mrWizardBody -->
+    </div><!-- /#mrWizardSection -->
+
   </div>
 
   <!-- API TESTER PANEL -->
