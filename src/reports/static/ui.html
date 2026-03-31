@@ -308,13 +308,14 @@
     <div id="trendChartSection" style="margin-bottom:20px;">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap;">
         <span style="font-size:13px;font-weight:600;color:var(--text-primary);">Pass Rate &amp; Quality Trend</span>
+        <label for="trendSuiteSelect" style="font-size:11px;color:var(--text-secondary);">Suite:</label>
         <select id="trendSuiteSelect" style="font-size:12px;padding:2px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg-secondary);color:var(--text-primary);">
           <option value="">All suites</option>
         </select>
         <div style="display:flex;gap:4px;">
-          <button type="button" class="trend-day-btn active" data-days="7" onclick="setTrendDays(7)">7d</button>
-          <button type="button" class="trend-day-btn" data-days="14" onclick="setTrendDays(14)">14d</button>
-          <button type="button" class="trend-day-btn" data-days="30" onclick="setTrendDays(30)">30d</button>
+          <button type="button" class="trend-day-btn active" data-days="7" onclick="setTrendDays(7)" aria-pressed="true">7d</button>
+          <button type="button" class="trend-day-btn" data-days="14" onclick="setTrendDays(14)" aria-pressed="false">14d</button>
+          <button type="button" class="trend-day-btn" data-days="30" onclick="setTrendDays(30)" aria-pressed="false">30d</button>
         </div>
       </div>
       <div id="trendsChart" style="width:100%;min-height:120px;"></div>

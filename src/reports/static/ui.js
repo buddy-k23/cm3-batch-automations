@@ -1069,7 +1069,9 @@ function _relativeTime(isoStr) {
 function setTrendDays(days) {
   _trendDays = days;
   document.querySelectorAll('.trend-day-btn').forEach(function(btn) {
-    btn.classList.toggle('active', parseInt(btn.getAttribute('data-days')) === days);
+    var isActive = parseInt(btn.getAttribute('data-days')) === days;
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
   });
   loadTrendChart();
 }
@@ -1090,12 +1092,14 @@ function loadTrendChart() {
   var url = '/api/v1/runs/trend?days=' + _trendDays;
   if (suite) { url += '&suite=' + encodeURIComponent(suite); }
 
-  container.textContent = 'Loading\u2026';
+  container.innerHTML = '<span style="font-size:12px;color:var(--text-secondary);">Loading\u2026</span>';
 
   fetch(url, { headers: window._apiKey ? { 'X-API-Key': window._apiKey } : {} })
     .then(function(r) { return r.ok ? r.json() : []; })
     .then(function(data) { renderTrendChart(data, container); })
-    .catch(function() { container.textContent = 'Failed to load trend data.'; });
+    .catch(function() {
+      container.innerHTML = '<span style="font-size:12px;color:var(--fail);">Failed to load trend data.</span>';
+    });
 }
 
 /**
