@@ -22,6 +22,11 @@ try:
 except ImportError:  # service not yet present in all environments
     _db_write_run = None  # type: ignore[assignment]
 
+try:
+    from src.services.baseline_service import update_baseline
+except ImportError:  # baseline service not yet present in all environments
+    update_baseline = None  # type: ignore[assignment]
+
 
 def _run_api_check_test(test: TestConfig, params: dict) -> dict:
     """Execute an HTTP API check test.
@@ -573,6 +578,20 @@ def run_suite_from_path(
         archive_path=archive_path_str,
         timestamp=run_timestamp,
     )
+
+    if update_baseline is not None:
+        try:
+            pass_count = sum(1 for r in results if r["status"] == "PASS")
+            total_count = len(results)
+            update_baseline(
+                suite.name,
+                {
+                    "pass_count": pass_count,
+                    "total_count": total_count,
+                },
+            )
+        except Exception as exc:  # noqa: BLE001
+            logging.getLogger(__name__).warning("Baseline update failed: %s", exc)
 
     return results
 

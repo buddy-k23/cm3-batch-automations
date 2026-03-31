@@ -5,6 +5,10 @@ read-modify-write pattern as ``reports/run_history.json``.  Each suite
 maintains a rolling window of its last 10 runs; averages are recomputed
 on every call to :func:`update_baseline`.
 
+When the ``DB_ADAPTER`` environment variable is set, each public function
+attempts a database path first (UPSERT / SELECT against the ``CM3_BASELINES``
+table) and falls back to JSON on any exception.
+
 Storage format (``reports/baselines.json``)::
 
     {
@@ -29,6 +33,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
@@ -142,6 +147,256 @@ def _recompute_baseline(suite_name: str, history: list[dict[str, Any]]) -> dict[
 
 
 # ---------------------------------------------------------------------------
+# DB helpers (used when DB_ADAPTER env var is set)
+# ---------------------------------------------------------------------------
+
+_CREATE_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS CM3_BASELINES (
+    suite_name        VARCHAR(200) PRIMARY KEY,
+    pass_rate         REAL,
+    avg_quality_score REAL,
+    avg_error_rate    REAL,
+    sample_size       INTEGER NOT NULL DEFAULT 0,
+    updated_at        TEXT
+)
+"""
+
+
+def _get_schema_prefix() -> str:
+    """Return the schema prefix string including trailing dot, or empty string.
+
+    Reads ``ORACLE_SCHEMA`` (falling back to ``ORACLE_USER``, then empty) and
+    returns the value with a trailing ``.`` so it can be prepended directly to
+    a table name.
+
+    Returns:
+        Schema prefix such as ``"CM3INT."`` or ``""`` when not configured.
+    """
+    schema = os.getenv("ORACLE_SCHEMA") or os.getenv("ORACLE_USER") or ""
+    return f"{schema}." if schema else ""
+
+
+def _ensure_baselines_table(connection: Any) -> None:
+    """Create the CM3_BASELINES table if it does not already exist.
+
+    Uses a dialect-agnostic ``CREATE TABLE IF NOT EXISTS`` statement that is
+    compatible with SQLite and PostgreSQL.  For Oracle, the Alembic migration
+    ``0003_cm3_baselines.py`` is the authoritative table-creation path.
+
+    Args:
+        connection: A raw DBAPI connection (e.g. ``sqlite3.Connection``).
+    """
+    try:
+        connection.execute(_CREATE_TABLE_SQL)
+        connection.commit()
+    except Exception:  # noqa: BLE001 — best-effort; Oracle falls through to Alembic
+        pass
+
+
+def _update_baseline_db(suite_name: str, result: dict[str, Any]) -> dict[str, Any]:
+    """Compute a single-run baseline from *result* and UPSERT it into CM3_BASELINES.
+
+    Derives pass_rate, error_rate, and quality_score from the run result dict,
+    then UPSERTs the row using ``INSERT OR REPLACE`` (SQLite) with a fallback
+    DELETE + INSERT for Oracle/PostgreSQL.  Both paths commit the transaction.
+
+    The CM3_BASELINES table stores the latest single-run snapshot per suite
+    in the DB path; the rolling-window average is maintained separately in
+    ``baselines.json`` by the JSON path.
+
+    Args:
+        suite_name: Primary key — logical name of the test suite.
+        result: Run result dict.  Expected keys (all optional):
+            ``pass_count``, ``total_count``, ``invalid_rows``,
+            ``total_rows``, ``quality_score``.
+
+    Returns:
+        The computed single-run baseline dict (same shape as the JSON path).
+
+    Raises:
+        Exception: Propagates any DB exception so the caller can apply the
+            JSON fallback.
+    """
+    from src.database.adapters.factory import get_database_adapter
+
+    # Compute single-run metrics from the raw result dict
+    pass_count = result.get("pass_count", 0)
+    total_count = result.get("total_count", 0)
+    pass_rate = (pass_count / total_count * 100.0) if total_count > 0 else 0.0
+
+    invalid_rows = result.get("invalid_rows", 0)
+    total_rows = result.get("total_rows", 0)
+    error_rate = _compute_error_rate(invalid_rows, total_rows)
+    quality_score = result.get("quality_score")
+    updated_at = datetime.utcnow().isoformat()
+
+    baseline_record: dict[str, Any] = {
+        "suite_name": suite_name,
+        "pass_rate": pass_rate,
+        "avg_quality_score": quality_score,
+        "avg_error_rate": error_rate,
+        "sample_size": 1,
+        "updated_at": updated_at,
+    }
+
+    adapter = get_database_adapter()
+    adapter.connect()
+    try:
+        conn = adapter._connection  # type: ignore[attr-defined]
+        _ensure_baselines_table(conn)
+
+        prefix = _get_schema_prefix()
+        table = f"{prefix}CM3_BASELINES"
+
+        params = {
+            "suite_name": suite_name,
+            "pass_rate": pass_rate,
+            "avg_quality_score": quality_score,
+            "avg_error_rate": error_rate,
+            "sample_size": 1,
+            "updated_at": updated_at,
+        }
+
+        try:
+            # SQLite-compatible UPSERT
+            conn.execute(
+                f"INSERT OR REPLACE INTO {table}"
+                " (suite_name, pass_rate, avg_quality_score,"
+                "  avg_error_rate, sample_size, updated_at)"
+                " VALUES (:suite_name, :pass_rate, :avg_quality_score,"
+                "         :avg_error_rate, :sample_size, :updated_at)",
+                params,
+            )
+        except Exception:  # noqa: BLE001
+            # Fallback for Oracle / PostgreSQL: DELETE then INSERT
+            conn.execute(
+                f"DELETE FROM {table} WHERE suite_name = :suite_name",
+                {"suite_name": suite_name},
+            )
+            conn.execute(
+                f"INSERT INTO {table}"
+                " (suite_name, pass_rate, avg_quality_score,"
+                "  avg_error_rate, sample_size, updated_at)"
+                " VALUES (:suite_name, :pass_rate, :avg_quality_score,"
+                "         :avg_error_rate, :sample_size, :updated_at)",
+                params,
+            )
+        conn.commit()
+    finally:
+        adapter.disconnect()
+
+    return baseline_record
+
+
+def _get_baseline_db(suite_name: str) -> Optional[dict[str, Any]]:
+    """Fetch a single baseline row from the CM3_BASELINES table.
+
+    Args:
+        suite_name: Suite name to look up (primary key).
+
+    Returns:
+        Baseline dict, or ``None`` when the row does not exist.
+
+    Raises:
+        Exception: Propagates any DB exception so the caller can apply the
+            JSON fallback.
+    """
+    from src.database.adapters.factory import get_database_adapter
+
+    adapter = get_database_adapter()
+    adapter.connect()
+    try:
+        conn = adapter._connection  # type: ignore[attr-defined]
+        _ensure_baselines_table(conn)
+
+        prefix = _get_schema_prefix()
+        table = f"{prefix}CM3_BASELINES"
+
+        cursor = conn.execute(
+            f"SELECT suite_name, pass_rate, avg_quality_score,"
+            f"       avg_error_rate, sample_size, updated_at"
+            f" FROM {table}"
+            f" WHERE suite_name = :suite_name",
+            {"suite_name": suite_name},
+        )
+        row = cursor.fetchone()
+    finally:
+        adapter.disconnect()
+
+    if row is None:
+        return None
+
+    # Support both sqlite3.Row (dict-like) and plain tuple
+    try:
+        return {
+            "suite_name": row["suite_name"],
+            "pass_rate": row["pass_rate"],
+            "avg_quality_score": row["avg_quality_score"],
+            "avg_error_rate": row["avg_error_rate"],
+            "sample_size": row["sample_size"],
+            "updated_at": row["updated_at"],
+        }
+    except TypeError:
+        cols = [
+            "suite_name", "pass_rate", "avg_quality_score",
+            "avg_error_rate", "sample_size", "updated_at",
+        ]
+        return dict(zip(cols, row))
+
+
+def _list_baselines_db() -> list[dict[str, Any]]:
+    """Return all baseline rows from CM3_BASELINES sorted by suite_name.
+
+    Returns:
+        List of baseline dicts sorted alphabetically by ``suite_name``.
+        Empty list when the table is empty.
+
+    Raises:
+        Exception: Propagates any DB exception so the caller can apply the
+            JSON fallback.
+    """
+    from src.database.adapters.factory import get_database_adapter
+
+    adapter = get_database_adapter()
+    adapter.connect()
+    try:
+        conn = adapter._connection  # type: ignore[attr-defined]
+        _ensure_baselines_table(conn)
+
+        prefix = _get_schema_prefix()
+        table = f"{prefix}CM3_BASELINES"
+
+        cursor = conn.execute(
+            f"SELECT suite_name, pass_rate, avg_quality_score,"
+            f"       avg_error_rate, sample_size, updated_at"
+            f" FROM {table}"
+            f" ORDER BY suite_name"
+        )
+        rows = cursor.fetchall()
+    finally:
+        adapter.disconnect()
+
+    results = []
+    for row in rows:
+        try:
+            results.append({
+                "suite_name": row["suite_name"],
+                "pass_rate": row["pass_rate"],
+                "avg_quality_score": row["avg_quality_score"],
+                "avg_error_rate": row["avg_error_rate"],
+                "sample_size": row["sample_size"],
+                "updated_at": row["updated_at"],
+            })
+        except TypeError:
+            cols = [
+                "suite_name", "pass_rate", "avg_quality_score",
+                "avg_error_rate", "sample_size", "updated_at",
+            ]
+            results.append(dict(zip(cols, row)))
+    return results
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -154,6 +409,10 @@ def update_baseline(suite_name: str, result: dict[str, Any]) -> dict[str, Any]:
     the history at :data:`_ROLLING_WINDOW` entries (oldest dropped first),
     recomputes all averages, persists the updated store, and returns the
     new baseline dict.
+
+    When ``DB_ADAPTER`` is set in the environment, the function first attempts
+    to delegate to :func:`_update_baseline_db`.  On any DB exception the JSON
+    path is used as fallback (warning logged, no exception propagated).
 
     Args:
         suite_name: Logical name of the test suite (e.g. ``"ATOCTRAN"``).
@@ -170,6 +429,12 @@ def update_baseline(suite_name: str, result: dict[str, Any]) -> dict[str, Any]:
         Updated baseline dict with keys: suite_name, pass_rate,
         avg_quality_score, avg_error_rate, sample_size, updated_at.
     """
+    if os.getenv("DB_ADAPTER"):
+        try:
+            return _update_baseline_db(suite_name, result)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("DB baseline update failed, using JSON: %s", exc)
+
     path = _BASELINES_PATH
 
     store = _load_store(path)
@@ -207,6 +472,10 @@ def update_baseline(suite_name: str, result: dict[str, Any]) -> dict[str, Any]:
 def get_baseline(suite_name: str) -> Optional[dict[str, Any]]:
     """Return the stored baseline for *suite_name*, or ``None`` if absent.
 
+    When ``DB_ADAPTER`` is set in the environment, the database is queried
+    first via :func:`_get_baseline_db`.  On any DB exception the JSON file
+    is used as fallback (warning logged).
+
     Args:
         suite_name: Name of the suite to look up.
 
@@ -215,6 +484,12 @@ def get_baseline(suite_name: str) -> Optional[dict[str, Any]]:
         avg_error_rate, sample_size, updated_at; or ``None`` if no baseline
         has been recorded for this suite yet.
     """
+    if os.getenv("DB_ADAPTER"):
+        try:
+            return _get_baseline_db(suite_name)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("DB baseline get failed, using JSON: %s", exc)
+
     path = _BASELINES_PATH
     store = _load_store(path)
     record = store.get(suite_name)
@@ -226,10 +501,20 @@ def get_baseline(suite_name: str) -> Optional[dict[str, Any]]:
 def list_baselines() -> list[dict[str, Any]]:
     """Return all stored baselines sorted alphabetically by suite name.
 
+    When ``DB_ADAPTER`` is set in the environment, the database is queried
+    first via :func:`_list_baselines_db`.  On any DB exception the JSON file
+    is used as fallback (warning logged).
+
     Returns:
         List of baseline dicts (see :func:`get_baseline`), sorted by
         ``suite_name``.  Returns an empty list when no baselines exist.
     """
+    if os.getenv("DB_ADAPTER"):
+        try:
+            return _list_baselines_db()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("DB baseline list failed, using JSON: %s", exc)
+
     path = _BASELINES_PATH
     store = _load_store(path)
     baselines = [
