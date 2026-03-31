@@ -251,7 +251,9 @@ function updateButtons() {
   var hasPrimary   = !!primaryFile;
   var hasMapping   = !!document.getElementById('mappingSelect').value;
   var hasSecondary = !!secondaryFile;
-  document.getElementById('btnValidate').disabled = !(hasPrimary && hasMapping);
+  var mrYamlInput  = document.getElementById('qtMrYamlInput');
+  var hasMrYaml    = !!(mrYamlInput && mrYamlInput.files && mrYamlInput.files[0]);
+  document.getElementById('btnValidate').disabled = !(hasPrimary && (hasMapping || hasMrYaml));
   document.getElementById('btnCompare').disabled  = !(hasPrimary && hasMapping && hasSecondary);
 }
 
@@ -383,12 +385,30 @@ function setBtnLoading(btn, isLoading) {
 }
 
 // ===========================================================================
+// Multi-record YAML toggle (Quick Test)
+// ===========================================================================
+function toggleMrYamlSection() {
+  var section = document.getElementById('mrYamlSection');
+  var btn = document.getElementById('btnToggleMrYaml');
+  var chevron = document.getElementById('mrYamlChevron');
+  var expanded = btn.getAttribute('aria-expanded') === 'true';
+  section.style.display = expanded ? 'none' : '';
+  btn.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+  chevron.style.transform = expanded ? '' : 'rotate(90deg)';
+  updateButtons();
+}
+
+document.getElementById('qtMrYamlInput').addEventListener('change', updateButtons);
+
+// ===========================================================================
 // Validate
 // ===========================================================================
 document.getElementById('btnValidate').addEventListener('click', async function() {
   if (!primaryFile) { setStatusText('Please select a file.', 'error'); return; }
+  var mrYamlInput = document.getElementById('qtMrYamlInput');
+  var mrYamlFile = mrYamlInput && mrYamlInput.files[0] ? mrYamlInput.files[0] : null;
   var mapping = document.getElementById('mappingSelect').value;
-  if (!mapping) { setStatusText('Please select a mapping.', 'error'); return; }
+  if (!mrYamlFile && !mapping) { setStatusText('Please select a mapping or provide a multi-record YAML.', 'error'); return; }
 
   setLoading('Validating\u2026');
   setBtnLoading(this, true);
@@ -397,9 +417,13 @@ document.getElementById('btnValidate').addEventListener('click', async function(
   try {
     var fd = new FormData();
     fd.append('file', primaryFile);
-    fd.append('mapping_id', mapping);
+    if (mrYamlFile) {
+      fd.append('multi_record_config', mrYamlFile);
+    } else {
+      fd.append('mapping_id', mapping);
+    }
     var rulesVal = document.getElementById('rulesSelect').value;
-    if (rulesVal) { fd.append('rules_id', rulesVal); }
+    if (rulesVal && !mrYamlFile) { fd.append('rules_id', rulesVal); }
     fd.append('suppress_pii', document.getElementById('suppressPii').checked ? 'true' : 'false');
 
     var resp = await fetch('/api/v1/files/validate', { method: 'POST', body: fd });
@@ -1437,9 +1461,29 @@ function mrDownloadYaml() {
 function mrValidateWithConfig() {
   if (!_mrYamlText) return;
   _mrPendingYaml = new Blob([_mrYamlText], { type: 'application/x-yaml' });
-  switchTab('quicktest');
-  var status = document.getElementById('qtStatus');
-  if (status) status.textContent = 'Multi-record YAML config ready. Upload your batch file and click Validate.';
+
+  // Pre-populate the Quick Test multi-record YAML file input.
+  var yamlFile = new File([_mrPendingYaml], 'multi_record_config.yaml', { type: 'application/x-yaml' });
+  var dt = new DataTransfer();
+  dt.items.add(yamlFile);
+  var input = document.getElementById('qtMrYamlInput');
+  if (input) {
+    input.files = dt.files;
+    // Expand the section so the user can see it is set.
+    var section = document.getElementById('mrYamlSection');
+    var btn = document.getElementById('btnToggleMrYaml');
+    var chevron = document.getElementById('mrYamlChevron');
+    if (section && section.style.display === 'none') {
+      section.style.display = '';
+      if (btn) btn.setAttribute('aria-expanded', 'true');
+      if (chevron) chevron.style.transform = 'rotate(90deg)';
+    }
+    updateButtons();
+  }
+
+  switchTab('quick');
+  var status = document.getElementById('statusText');
+  if (status) status.textContent = 'Multi-record YAML config loaded. Upload your batch file and click Validate.';
 }
 
 // ---------------------------------------------------------------------------

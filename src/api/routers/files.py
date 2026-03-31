@@ -29,6 +29,7 @@ from src.services.compare_service import run_compare_service
 from src.services.db_file_compare_service import compare_db_to_file
 from src.services.parse_service import run_parse_service
 from src.services.validate_service import run_validate_service
+from src.services.multi_record_validate_service import run_multi_record_validate_service
 from src.reports.renderers.comparison_renderer import HTMLReporter
 from src.services.compare_job_store import CompareJobStore
 from src.services.retry_policy import execute_with_retries
@@ -145,32 +146,82 @@ async def parse_file(
 @router.post("/validate", response_model=FileValidationResult)
 async def validate_file(
     file: UploadFile = File(...),
-    mapping_id: str = Form(...),
+    mapping_id: str = Form(None),
     detailed: bool = Form(True),
     strict_fixed_width: bool = Form(False),
     strict_level: str = Form("format"),
     output_html: bool = Form(True),
     suppress_pii: bool = Form(True),
+    multi_record_config: UploadFile = File(None),
 ):
-    """Validate a file against a mapping with optional strict mode.
+    """Validate a file against a mapping or multi-record YAML config.
 
     Returns validation result including error list and optional HTML report URL.
+    Either ``mapping_id`` or ``multi_record_config`` must be provided.  When
+    both are supplied ``multi_record_config`` takes precedence.
 
     Args:
         file: The batch data file to validate.
-        mapping_id: Mapping config identifier (JSON filename stem under config/mappings/).
+        mapping_id: Mapping config identifier (JSON filename stem under
+            config/mappings/).  Required unless ``multi_record_config`` is
+            provided.
         detailed: Include detailed field-level analysis.
         strict_fixed_width: Enable strict fixed-width position checks.
         strict_level: Validation strictness level (``'format'`` or ``'all'``).
         output_html: When True, generate an HTML report alongside JSON results.
         suppress_pii: When True (default), redact raw field values from the
             HTML report. Set to False to show actual values in the report.
+        multi_record_config: Optional YAML file describing a multi-record
+            config.  When present, ``mapping_id`` is not required and
+            multi-record validation is performed instead of field-level
+            validation.
     """
+    if multi_record_config is None and not mapping_id:
+        raise HTTPException(
+            status_code=422,
+            detail="Either 'mapping_id' or 'multi_record_config' must be provided",
+        )
+
     upload_path = UPLOADS_DIR / f"validate_{file.filename}"
     with open(upload_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
     try:
+        # --- Multi-record path ---
+        if multi_record_config is not None:
+            config_bytes = await multi_record_config.read()
+            config_yaml = config_bytes.decode("utf-8", errors="replace")
+            try:
+                result = run_multi_record_validate_service(
+                    file_path=str(upload_path),
+                    config_yaml=config_yaml,
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc))
+
+            cross_violations = result.get("cross_type_violations", [])
+            errors = [
+                {"message": v.get("message", ""), "severity": v.get("severity", "error")}
+                for v in cross_violations
+                if v.get("severity") == "error"
+            ]
+            warnings = [
+                {"message": v.get("message", ""), "severity": v.get("severity", "warning")}
+                for v in cross_violations
+                if v.get("severity") == "warning"
+            ]
+            return FileValidationResult(
+                valid=result.get("valid", False),
+                total_rows=result.get("total_rows", 0),
+                valid_rows=result.get("total_rows", 0) if result.get("valid") else 0,
+                invalid_rows=len(errors),
+                errors=errors,
+                warnings=warnings,
+                quality_score=None,
+                report_url=None,
+            )
+
+        # --- Standard field-level validation path ---
         mapping_file = MAPPINGS_DIR / f"{mapping_id}.json"
         if not mapping_file.exists():
             raise HTTPException(status_code=404, detail=f"Mapping '{mapping_id}' not found")

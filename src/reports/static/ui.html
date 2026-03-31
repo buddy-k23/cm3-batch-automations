@@ -165,6 +165,28 @@
       </label>
     </div>
 
+    <!-- Multi-record YAML (optional) -->
+    <div class="mapping-search-wrap">
+      <button type="button" id="btnToggleMrYaml"
+              style="background:none;border:none;cursor:pointer;display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-secondary);padding:0;"
+              aria-expanded="false" aria-controls="mrYamlSection"
+              onclick="toggleMrYamlSection()">
+        <svg id="mrYamlChevron" aria-hidden="true" focusable="false" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="transition:transform .2s">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+        </svg>
+        Multi-record YAML <span style="font-size:11px;opacity:.65">(optional)</span>
+      </button>
+      <div id="mrYamlSection" style="display:none;margin-top:8px;">
+        <input type="file" id="qtMrYamlInput" accept=".yaml,.yml"
+               style="font-size:13px;color:var(--text-primary);"
+               aria-label="Multi-record YAML config file">
+        <div style="font-size:11px;color:var(--text-secondary);margin-top:4px;">
+          Validate against a multi-record YAML config instead of a mapping.
+          When set, no mapping selection is required.
+        </div>
+      </div>
+    </div>
+
     <div class="btn-row">
       <button class="btn btn-primary btn-lg" id="btnValidate" disabled
               data-tooltip="Run structural validation against the selected mapping and rules">
