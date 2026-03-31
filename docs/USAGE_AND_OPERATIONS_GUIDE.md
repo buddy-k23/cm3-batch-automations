@@ -1301,6 +1301,20 @@ The `default_value` column sits between `format` and `transformation`. If both
 an explicit `default_value` and a "Default to ..." phrase in `transformation`
 are present, the explicit column value takes precedence.
 
+**Example: transformation column patterns in mapping JSON:**
+
+```json
+{"target_name": "CUST_ID",  "transformation": "Pass as is"},
+{"target_name": "ACCT_KEY", "transformation": "BR + CUS + LN"},
+{"target_name": "DATE_OUT", "transformation": "Date YYYYMMDD to MM/DD/YYYY"},
+{"target_name": "AMOUNT",   "transformation": "Pass 'DEFAULT_AMOUNT'"},
+{"target_name": "SEQ_NUM",  "transformation": "Sequential from 1"}
+```
+
+See the Transform Engine section (§ 9.5) and `docs/TRANSFORMATION_TYPES.md`
+for the full list of recognised text patterns and their generated transform
+types.
+
 **Note on fixed-width length warnings:** If any fixed-width field has a missing
 `length` value, the converter emits a warning. This warning is included in the
 upload API response so you can fix the template before validation.
@@ -1625,17 +1639,21 @@ multi-record YAML config without writing YAML by hand.
 
 1. **Select Record Types** — choose one or more mappings from the list.
 2. **Configure Discriminator** — enter the field name, position (1-indexed),
-   and length.  Click **Auto-detect** to upload a sample batch file and have
-   the server suggest the most likely discriminator position automatically.
+   and length. Click **Auto-detect** to upload a sample batch file; the UI
+   calls `POST /api/v1/multi-record/detect-discriminator` and pre-fills the
+   position and length fields with the best candidate returned by the server.
 3. **Map Codes to Record Types** — for each selected mapping, enter the
-   discriminator code value (e.g. `HDR`) and optional cardinality settings.
+   discriminator code value (e.g. `HDR`) and optional cardinality settings
+   (min/max occurrences per file).
 4. **Cross-Type Rules** *(optional)* — add rules that span record types such
    as `required_companion`, `header_trailer_count`, or `type_sequence`.
    Click **Skip** to go straight to Step 5.
 5. **Preview & Download** — click **Generate YAML** to call
-   `POST /api/v1/multi-record/generate` and display the YAML config.  Use
-   **Copy YAML**, **Download YAML**, or **Validate File With This Config**
-   (switches to the Quick Test tab with the config ready).
+   `POST /api/v1/multi-record/generate` and display the YAML config. Use
+   **Copy YAML** or **Download YAML** to save the config, or click
+   **Validate File With This Config** to store the generated YAML and
+   automatically switch to the Quick Test tab with the config pre-loaded
+   and ready for a file upload.
 
 To open the wizard: switch to the **Mapping Generator** tab and click
 **Start Wizard** in the Multi-Record Config Wizard section.
@@ -2062,6 +2080,23 @@ valdo db-compare \
 | `--key-columns` | `-k` | No | Comma-separated column names used as join keys for row matching |
 | `--output-format` | | No | `json` (default) or `html` |
 | `--output` | `-o` | No | File path for the written report |
+| `--apply-transforms` | | No | Pass each DB row through the field-level transforms defined in the mapping before comparison |
+
+#### Applying Transforms Before Comparison
+
+When set, each DB row is passed through the field-level transforms defined in
+the mapping before comparison. This is useful when DB data requires reformatting
+(e.g. date format changes, zero-padding, concatenation) to match the expected
+batch file layout.
+
+```bash
+# Apply field-level transforms from the mapping before comparing
+valdo db-compare \
+  --query-or-table "SELECT * FROM CM3INT.FOO_TABLE" \
+  --mapping config/mappings/foo_mapping.json \
+  --actual-file data/foo_batch.txt \
+  --apply-transforms
+```
 
 #### API Usage
 
@@ -2416,6 +2451,51 @@ Use the `list-runs` command to view recent run history from the terminal:
 valdo list-runs
 ```
 
+#### What Is Stored
+
+Each run record captures:
+
+| Field | Description |
+|---|---|
+| `run_id` | Unique UUID for the run |
+| `timestamp` | UTC timestamp when the run started |
+| `command` | The Valdo command that was executed (e.g. `validate`, `compare`) |
+| `status` | Overall result: `passed` or `failed` |
+| `file_paths` | Input/output file paths associated with the run |
+| `row_counts` | Number of rows processed and number of errors found |
+| `error_messages` | First-N error messages for quick diagnosis |
+
+Run history is persisted via `run_history_service` using whichever DB adapter
+is configured (`oracle`, `postgresql`, or `sqlite`). Oracle uses the
+`CM3_RUN_HISTORY` and `CM3_RUN_TESTS` tables described above; SQLite stores
+the same data in a local `.db` file, which is useful for development and
+offline environments.
+
+#### Viewing Runs in the Web UI
+
+The **Recent Runs** tab in the Web UI shows the last N runs in a sortable
+table with auto-refresh. Each row displays the run ID, timestamp, command,
+status, row count, and a link to the HTML report.
+
+#### Programmatic Access
+
+```bash
+# Fetch the 20 most recent runs (default)
+curl http://localhost:8000/api/v1/runs/
+
+# Fetch with a custom limit
+curl "http://localhost:8000/api/v1/runs/?limit=50"
+```
+
+The response is a JSON array ordered newest-first. Each element mirrors the
+`CM3_RUN_HISTORY` schema above.
+
+#### Retention
+
+Run history retention is configurable. Set the `RUN_HISTORY_RETENTION_DAYS`
+environment variable (default: `90`) to control how many days of history are
+kept before older records are purged automatically on the next run.
+
 ---
 
 ### 8.7 Cross-Row Validation with DB Data
@@ -2702,6 +2782,109 @@ steps:
 
 The command exits non-zero on failure, so the Azure DevOps pipeline step
 will fail automatically if any blocking gate does not pass.
+
+---
+
+## 9.5 Transform Engine
+
+The Transform Engine parses free-text transformation descriptions from mapping
+spreadsheet cells and applies them to field values at run time. It is used
+during `db-compare --apply-transforms` to reformat DB data before comparison,
+and is available as a Python API for use in custom pipelines.
+
+> For the complete reference, see `docs/TRANSFORMATION_TYPES.md`.
+
+### Overview
+
+Transformations are stored in the `transformation` column of a mapping CSV
+template (or the equivalent field in mapping JSON). The transform parser
+(`parse_transform()`) converts the free-text description into a typed dataclass;
+the transform engine (`apply_transform()`) then executes it against a field value.
+
+### Transform Types Reference
+
+| Transform | Example text pattern | Description |
+|---|---|---|
+| **noop** (pass-through) | *(empty cell)* | Returns the source value unchanged |
+| **DefaultTransform** | `Default to '100030'` | Returns source when present; otherwise returns the default string |
+| **BlankTransform** | `Leave Blank` | Always outputs blank/spaces, ignoring source |
+| **ConstantTransform** | `Pass 'USD'` / `Hard-code to '000'` | Always outputs a fixed constant, ignoring source |
+| **ConcatTransform** | `BR + CUS + LN` / `LPAD(FIELD,10,'0') + FIELD2` | Concatenates multiple source fields with optional LPAD per field |
+| **FieldMapTransform** | `ACCOUNT_NUM` | Maps a named source field to output (column rename) |
+| **DateFormatTransform** | `Date YYYYMMDD to MM/DD/YYYY` / `Convert to CCYYMMDD` | Converts date strings between strptime/strftime formats |
+| **NumericFormatTransform** | `9(13)` / `+9(12)` / `Zero-pad to 10` | Zero-pads numeric values to a fixed width; supports sign prefix and implied decimal scaling |
+| **ScaleTransform** | `Multiply by 100` / `Divide by 1000` | Multiplies or divides a numeric value by a fixed factor |
+| **PadTransform** | `Left pad to 10 with '0'` / `Right pad to 20` | Pads a value to a target width (left or right) without truncating |
+| **TruncateTransform** | `Truncate to 8` | Truncates a value to at most N characters |
+| **ConditionalTransform** | `IF FIELD IS NULL THEN '0' ELSE FIELD` | Dispatches to one of two child transforms based on a condition |
+| **SequentialNumberTransform** | `Sequential` / `Sequential from 1` | Assigns an incrementing sequence number to each record |
+
+### Condition System
+
+Conditions are embedded inside `ConditionalTransform` and test the current row:
+
+- **NullCheckCondition** — tests whether a field is null/blank: `IF FIELD IS NULL THEN ...` or `IF FIELD IS NOT NULL THEN ...`
+- **EqualityCondition** — tests equality or inequality: `IF STATUS = 'A' THEN ... ELSE ...` or `IF FLAG != 'Y' THEN ...`
+- **InCondition** — tests membership in a value list: `IF TYPE IN ('A','B','C') THEN ...`
+
+### Using Transforms in Mapping JSON
+
+The `transformation` column in mapping CSVs is the primary input. In the
+generated mapping JSON the parsed result is stored under the `transform` key:
+
+```json
+{
+  "fields": [
+    {"target_name": "CUST_ID",    "transformation": "Pass as is"},
+    {"target_name": "ACCT_KEY",   "transformation": "BR + CUS + LN"},
+    {"target_name": "DATE_OUT",   "transformation": "Date YYYYMMDD to MM/DD/YYYY"},
+    {"target_name": "AMOUNT",     "transformation": "Pass 'DEFAULT_AMOUNT'"},
+    {"target_name": "SEQ_NUM",    "transformation": "Sequential from 1"}
+  ]
+}
+```
+
+When the mapping CSV is uploaded via the Mapping Generator tab or
+`POST /api/v1/mappings/upload`, the converter automatically calls
+`parse_transform()` and embeds the result in each field entry.
+
+### Python API
+
+```python
+from src.transforms.transform_parser import parse_transform
+from src.transforms.transform_engine import apply_transform
+from src.transforms.condition_evaluator import evaluate_condition
+
+# Parse a transform from free text
+tx = parse_transform("Date YYYYMMDD to MM/DD/YYYY")
+
+# Apply it to a value (pass the full row dict for field-reference transforms)
+result = apply_transform(tx, "20250615", row={})
+# → "06/15/2025"
+
+# Evaluate a condition independently
+from src.transforms.models import EqualityCondition
+cond = EqualityCondition(field="STATUS", value="A")
+is_match = evaluate_condition(cond, row={"STATUS": "A"})
+# → True
+```
+
+### The --apply-transforms Flag
+
+Pass `--apply-transforms` to `valdo db-compare` to run every DB row through
+its mapping transforms before the field-by-field comparison:
+
+```bash
+valdo db-compare \
+  --query-or-table "SELECT * FROM CM3INT.FOO_TABLE" \
+  --mapping config/mappings/foo_mapping.json \
+  --actual-file data/foo_batch.txt \
+  --apply-transforms
+```
+
+This is especially useful when the DB stores data in a normalised form
+(e.g. ISO dates, unpadded numbers) while the batch file uses a legacy
+layout (e.g. `MMDDYYYY`, zero-padded fixed-width fields).
 
 ---
 
