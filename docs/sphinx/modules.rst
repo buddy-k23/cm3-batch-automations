@@ -316,6 +316,26 @@ Transforms
    :members:
    :undoc-members:
 
+.. automodule:: src.transforms.condition_evaluator
+   :members:
+   :undoc-members:
+
+.. automodule:: src.transforms.sequential_counter
+   :members:
+   :undoc-members:
+
+.. automodule:: src.transforms.transform_orchestrator
+   :members:
+   :undoc-members:
+
+.. automodule:: src.transforms.multi_record_transform_engine
+   :members:
+   :undoc-members:
+
+.. automodule:: src.transforms.transform_mismatch_reporter
+   :members:
+   :undoc-members:
+
 Reporting & Utilities
 ---------------------
 
