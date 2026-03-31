@@ -562,10 +562,15 @@ function buildRunsTable(rows) {
     { label: 'Status',      key: 'status' },
     { label: 'Tests',       key: 'pass_count' },
     { label: 'Report',      key: null },
+    { label: 'vs Baseline', key: null, id: 'thBaseline', hidden: true },
   ];
   cols.forEach(function(col) {
     var th = document.createElement('th');
     th.textContent = col.label;
+    if (col.id) { th.id = col.id; }
+    if (col.hidden) {
+      th.style.display = localStorage.getItem('valdo_baseline_col_visible') === 'true' ? '' : 'none';
+    }
     if (col.key) {
       var sortSpan = document.createElement('span');
       sortSpan.className = 'sort-icon';
@@ -663,10 +668,101 @@ function buildRunsTable(rows) {
     }
     tr.appendChild(tdReport);
 
+    // vs Baseline cell — filled in asynchronously by _fetchBaselineStatuses()
+    var tdBaseline = document.createElement('td');
+    tdBaseline.className = 'td-baseline';
+    tdBaseline.style.display = localStorage.getItem('valdo_baseline_col_visible') === 'true' ? '' : 'none';
+    tdBaseline.textContent = '\u2014';
+    tdBaseline.setAttribute('data-run-id', r.run_id || r.id || '');
+    tdBaseline.setAttribute('data-suite', r.suite_name || '');
+    tr.appendChild(tdBaseline);
+
     tbody.appendChild(tr);
   });
   table.appendChild(tbody);
   wrap.appendChild(table);
+}
+
+// ===========================================================================
+// Baseline column toggle and deviation fetch — issue #253
+// ===========================================================================
+
+/**
+ * Toggle the 'vs Baseline' column visibility in the Recent Runs table and
+ * persist the preference in localStorage.
+ */
+function toggleBaselineColumn() {
+  var visible = localStorage.getItem('valdo_baseline_col_visible') === 'true';
+  visible = !visible;
+  localStorage.setItem('valdo_baseline_col_visible', visible);
+  _applyBaselineColVisibility();
+}
+
+/**
+ * Apply the stored baseline column visibility preference to the table header
+ * and all baseline cells.  Safe to call before the table is rendered — it is
+ * a no-op when the relevant elements are absent.
+ */
+function _applyBaselineColVisibility() {
+  var visible = localStorage.getItem('valdo_baseline_col_visible') === 'true';
+  var th = document.getElementById('thBaseline');
+  var btn = document.getElementById('btnToggleBaselineCol');
+  if (th) { th.style.display = visible ? '' : 'none'; }
+  document.querySelectorAll('.td-baseline').forEach(function(td) {
+    td.style.display = visible ? '' : 'none';
+  });
+  if (btn) { btn.textContent = visible ? 'Hide baseline' : 'Show baseline'; }
+}
+
+/**
+ * Fetch deviation status from the baseline-check API for every baseline cell
+ * currently in the table and update each cell's text and style in-place.
+ *
+ * Requests are fired in parallel.  Cells with no run_id or suite are left
+ * unchanged.  Network errors are silently swallowed so the table remains
+ * functional when the baseline service is unavailable.
+ *
+ * @returns {Promise<void[]>}
+ */
+function _fetchBaselineStatuses() {
+  var cells = document.querySelectorAll('.td-baseline[data-run-id]');
+  var promises = Array.from(cells).map(function(td) {
+    var runId = td.getAttribute('data-run-id');
+    var suite = td.getAttribute('data-suite');
+    if (!runId || !suite) { return Promise.resolve(); }
+    return fetch(
+      '/api/v1/runs/baseline-check?suite=' + encodeURIComponent(suite) +
+      '&run_id=' + encodeURIComponent(runId),
+      { headers: { 'X-API-Key': window._apiKey || '' } }
+    )
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(data) {
+      if (!data) { td.textContent = '\u2014'; return; }
+      if (data.reason === 'no_baseline') {
+        td.textContent = '\u2014';
+      } else if (data.deviated) {
+        var firstAlert = data.alerts && data.alerts[0];
+        var delta = firstAlert
+          ? ' (' + (firstAlert.delta > 0 ? '+' : '') + Math.round(firstAlert.delta) + '%)'
+          : '';
+        td.textContent = '\u26A0\uFE0F Deviated' + delta;
+        td.style.color = 'var(--error, #dc2626)';
+        td.setAttribute(
+          'title',
+          'Threshold: ' + (firstAlert
+            ? firstAlert.metric + ' drop > ' + firstAlert.threshold + '%'
+            : '')
+        );
+        td.style.cursor = 'pointer';
+        td.setAttribute('data-deviation', JSON.stringify(data));
+      } else {
+        td.textContent = '\u2713 Within baseline';
+        td.style.color = 'var(--success, #16a34a)';
+      }
+    })
+    .catch(function() { td.textContent = '\u2014'; });
+  });
+  return Promise.all(promises);
 }
 
 /**
@@ -688,6 +784,7 @@ async function loadRunHistory() {
     if (!resp.ok) { throw new Error('HTTP ' + resp.status); }
     _runsData = await resp.json();
     buildRunsTable(_runsData);
+    _fetchBaselineStatuses();
   } catch (err) {
     while (wrap.firstChild) { wrap.removeChild(wrap.firstChild); }
     var p = document.createElement('p');
@@ -1654,6 +1751,7 @@ setInterval(checkHealth, HEALTH_INTERVAL_MS);
 loadMappings();
 loadRules();
 loadRunHistory();
+_applyBaselineColVisibility();
 
 // ===========================================================================
 // API TESTER
