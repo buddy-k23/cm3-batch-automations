@@ -3600,3 +3600,60 @@ function _dbcShowResults(data, bannerClass, bannerText) {
 
   resultsEl.style.display = '';
 }
+
+// ===========================================================================
+// DB Compare — client-side diff CSV
+// ===========================================================================
+function _dbcBuildDiffCsv(fieldStatistics) {
+  var rows = ['row_number,key_columns,field_name,db_value,file_value,difference_type'];
+  (fieldStatistics || []).forEach(function(stat) {
+    var fieldName = stat.field_name || stat.field || '';
+    var diffs     = stat.differences || stat.mismatches || [];
+    diffs.forEach(function(d) {
+      function esc(v) {
+        var s = (v == null ? '' : String(v)).replace(/"/g, '""');
+        return (s.indexOf(',') >= 0 || s.indexOf('"') >= 0 || s.indexOf('\n') >= 0) ? '"' + s + '"' : s;
+      }
+      rows.push([
+        esc(d.row_number),
+        esc(Array.isArray(d.key_columns) ? d.key_columns.join('|') : (d.key_columns || '')),
+        esc(fieldName),
+        esc(d.db_value),
+        esc(d.file_value),
+        esc(d.difference_type || 'mismatch'),
+      ].join(','));
+    });
+  });
+  return rows.join('\r\n');
+}
+
+function _dbcTriggerCsvDownload(fieldStatistics) {
+  var csv  = _dbcBuildDiffCsv(fieldStatistics);
+  var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'db_compare_diff.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function() { URL.revokeObjectURL(url); }, 10000);
+}
+
+var _dbcDlBtn = document.getElementById('dbcDownloadDiffBtn');
+if (_dbcDlBtn) {
+  _dbcDlBtn.addEventListener('click', function() {
+    var btn   = this;
+    var stats = btn._fieldStatistics;
+    if (!stats) return;
+    btn.disabled    = true;
+    btn.textContent = '\u23F3 Building CSV\u2026';
+    setTimeout(function() {
+      try { _dbcTriggerCsvDownload(stats); }
+      finally {
+        btn.disabled    = false;
+        btn.textContent = '\u2B07 Download Diff CSV';
+      }
+    }, 0);
+  });
+}
