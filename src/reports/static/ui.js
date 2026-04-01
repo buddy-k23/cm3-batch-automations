@@ -3314,3 +3314,125 @@ toggleAutoRefresh = function() {
     if (firstMark) firstMark.scrollIntoView({ behavior: 'smooth', block: 'center' });
   });
 })();
+
+// ===========================================================================
+// DB Compare — connection chip expand/collapse + sessionStorage + db-ping
+// ===========================================================================
+(function() {
+  var _SS_KEYS = ['dbcHost', 'dbcUser', 'dbcSchema', 'dbcAdapter'];
+
+  function _dbcRestoreSession() {
+    _SS_KEYS.forEach(function(id) {
+      var el  = document.getElementById(id);
+      var val = sessionStorage.getItem('valdo-dbc-' + id);
+      if (el && val) el.value = val;
+    });
+    _dbcRefreshChip();
+  }
+
+  function _dbcSaveSession() {
+    _SS_KEYS.forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) sessionStorage.setItem('valdo-dbc-' + id, el.value);
+    });
+    // Password (dbcPassword) is intentionally excluded — never persisted
+  }
+
+  function _dbcRefreshChip() {
+    var hostEl   = document.getElementById('dbcHost');
+    var schemaEl = document.getElementById('dbcSchema');
+    var chipText = document.getElementById('dbcConnChipText');
+    if (!chipText) return;
+
+    var host   = hostEl   ? hostEl.value   : '';
+    var schema = schemaEl ? schemaEl.value : '';
+
+    // Use textContent for user-supplied values to avoid XSS
+    chipText.textContent = '';
+    var icon = document.createTextNode('\uD83D\uDD0C ');
+    var hostSpan = document.createElement('span');
+    hostSpan.className = 'dbc-chip-host';
+    hostSpan.textContent = host || 'not configured';
+    chipText.appendChild(icon);
+    chipText.appendChild(hostSpan);
+    if (schema) {
+      chipText.appendChild(document.createTextNode(' \u00B7 '));
+      var schemaSpan = document.createElement('span');
+      schemaSpan.textContent = schema;
+      chipText.appendChild(schemaSpan);
+    }
+  }
+
+  function _dbcToggleConnForm() {
+    var chip = document.getElementById('dbcConnChip');
+    var form = document.getElementById('dbcConnForm');
+    var warn = document.getElementById('dbcHttpsWarning');
+    if (!chip || !form) return;
+    var isExpanded = chip.getAttribute('aria-expanded') === 'true';
+    if (isExpanded) {
+      _dbcSaveSession();
+      form.style.display = 'none';
+      chip.setAttribute('aria-expanded', 'false');
+      if (warn) warn.style.display = 'none';
+      _dbcRefreshChip();
+    } else {
+      form.style.display = '';
+      chip.setAttribute('aria-expanded', 'true');
+      if (warn && window.location.protocol !== 'https:') warn.style.display = '';
+    }
+  }
+
+  var chip = document.getElementById('dbcConnChip');
+  if (chip) {
+    chip.addEventListener('click', _dbcToggleConnForm);
+    chip.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _dbcToggleConnForm(); }
+    });
+  }
+
+  // Test Connection
+  var testBtn = document.getElementById('dbcTestConnBtn');
+  if (testBtn) {
+    testBtn.addEventListener('click', async function() {
+      var btn    = this;
+      var result = document.getElementById('dbcConnResult');
+      btn.disabled = true;
+      btn.textContent = '\u23F3 Testing\u2026';
+      if (result) result.style.display = 'none';
+      try {
+        var fd = new FormData();
+        fd.append('db_host',     (document.getElementById('dbcHost')     || {}).value || '');
+        fd.append('db_user',     (document.getElementById('dbcUser')     || {}).value || '');
+        fd.append('db_password', (document.getElementById('dbcPassword') || {}).value || '');
+        fd.append('db_schema',   (document.getElementById('dbcSchema')   || {}).value || '');
+        fd.append('db_adapter',  (document.getElementById('dbcAdapter')  || {}).value || 'oracle');
+        var apiKeyEl = document.getElementById('apiKeyInput');
+        var hdrs = apiKeyEl && apiKeyEl.value ? { 'X-API-Key': apiKeyEl.value } : {};
+        var resp = await fetch('/api/v1/system/db-ping', { method: 'POST', body: fd, headers: hdrs });
+        var data = await resp.json();
+        if (result) {
+          result.style.display = '';
+          result.className = 'dbc-conn-result ' + (data.ok ? 'ok' : 'err');
+          result.textContent = data.ok ? '\u2705 Connected' : '\u274C ' + (data.error || 'Connection failed');
+        }
+      } catch (err) {
+        if (result) {
+          result.style.display = '';
+          result.className = 'dbc-conn-result err';
+          result.textContent = '\u274C Request failed \u2014 check server is running';
+        }
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '\uD83D\uDD17 Test Connection';
+      }
+    });
+  }
+
+  // Restore session on page load
+  _dbcRestoreSession();
+
+  // Expose host getter for run button enable check
+  window._dbcGetHost = function() {
+    return (document.getElementById('dbcHost') || {}).value || '';
+  };
+})();
