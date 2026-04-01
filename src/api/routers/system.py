@@ -1,11 +1,12 @@
 """System endpoints - health check and system information."""
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Form
 from src.api.models.response import HealthResponse, SystemInfoResponse
 from datetime import datetime
 import sys
 
 from src.api.auth import require_api_key, require_role
+from src.database.connection import OracleConnection
 from src.services.metrics_registry import METRICS
 
 router = APIRouter()
@@ -50,3 +51,43 @@ async def metrics_snapshot(_=Depends(require_role("admin"))):
 async def slo_alerts(_=Depends(require_role("admin"))):
     """Return evaluated SLO alerts for operators."""
     return {"alerts": METRICS.slo_alerts()}
+
+
+@router.post("/db-ping")
+async def db_ping(
+    db_host: str = Form(...),
+    db_user: str = Form(...),
+    db_password: str = Form(...),
+    db_schema: str = Form(""),
+    db_adapter: str = Form("oracle"),
+    _key=Depends(require_api_key),
+):
+    """Test a database connection with the provided credentials.
+
+    Oracle-only in the initial scope.  Non-Oracle adapters return
+    ``{"ok": false, "error": "..."}`` without attempting a connection.
+
+    Args:
+        db_host: Host/DSN string (e.g. ``localhost:1521/FREEPDB1``).
+        db_user: Database username.
+        db_password: Database password.
+        db_schema: Schema name (informational; not used for ping).
+        db_adapter: Database adapter (``oracle``, ``postgresql``, ``sqlite``).
+            Only ``oracle`` is supported; others return an error.
+        _key: API key dependency.
+
+    Returns:
+        ``{"ok": True}`` on success, or ``{"ok": False, "error": "<message>"}``
+        on failure.
+    """
+    if db_adapter != "oracle":
+        return {
+            "ok": False,
+            "error": f"Connection test only supported for oracle adapter (got '{db_adapter}')",
+        }
+    try:
+        conn = OracleConnection(username=db_user, password=db_password, dsn=db_host)
+        conn.connect()
+        return {"ok": True}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}

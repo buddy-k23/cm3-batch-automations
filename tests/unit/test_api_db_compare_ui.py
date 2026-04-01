@@ -162,3 +162,57 @@ class TestDbCompareExtendedParams:
         override = mock_svc.call_args.kwargs.get("connection_override")
         assert override is not None
         assert override["db_adapter"] == "sqlite"
+
+
+class TestDbPingEndpoint:
+    """Tests for POST /api/v1/system/db-ping."""
+
+    def test_endpoint_requires_api_key(self) -> None:
+        """Endpoint returns 401 without API key."""
+        client = TestClient(_make_app())
+        resp = client.post(
+            "/api/v1/system/db-ping",
+            data={"db_host": "h", "db_user": "u", "db_password": "p"},
+        )
+        assert resp.status_code == 401
+
+    def test_returns_ok_false_on_bad_credentials(self) -> None:
+        """Bad credentials returns ok=false with error message."""
+        client = TestClient(_make_app())
+        with patch("src.api.routers.system.OracleConnection") as mock_conn:
+            mock_conn.return_value.connect.side_effect = Exception("invalid credentials")
+            resp = client.post(
+                "/api/v1/system/db-ping",
+                headers=AUTH,
+                data={"db_host": "bad:1521/FREE", "db_user": "u", "db_password": "bad"},
+            )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["ok"] is False
+        assert "error" in body
+
+    def test_returns_ok_true_on_success(self) -> None:
+        """Successful connection returns ok=true."""
+        client = TestClient(_make_app())
+        with patch("src.api.routers.system.OracleConnection") as mock_conn:
+            mock_conn.return_value.connect.return_value = MagicMock()
+            resp = client.post(
+                "/api/v1/system/db-ping",
+                headers=AUTH,
+                data={"db_host": "h:1521/F", "db_user": "u", "db_password": "p"},
+            )
+        assert resp.status_code == 200
+        assert resp.json() == {"ok": True}
+
+    def test_non_oracle_adapter_returns_not_implemented(self) -> None:
+        """Non-oracle adapter returns ok=false with descriptive message."""
+        client = TestClient(_make_app())
+        resp = client.post(
+            "/api/v1/system/db-ping",
+            headers=AUTH,
+            data={"db_host": "h", "db_user": "u", "db_password": "p", "db_adapter": "postgresql"},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["ok"] is False
+        assert "oracle" in body["error"].lower()
