@@ -3330,8 +3330,7 @@ toggleAutoRefresh = function() {
  */
 async function loadDbConnections() {
   try {
-    var apiKeyEl = document.getElementById('apiKeyInput');
-    var hdrs = apiKeyEl && apiKeyEl.value ? { 'X-API-Key': apiKeyEl.value } : {};
+    var hdrs = window._apiKey ? { 'X-API-Key': window._apiKey } : {};
     var resp = await fetch('/api/v1/system/db-connections', { headers: hdrs });
     if (!resp.ok) return;
     var connections = await resp.json();
@@ -3381,6 +3380,7 @@ function onDbcConnectionSelectChange() {
   } else {
     // Manual entry — restore chip visibility
     if (chip) chip.style.display = '';
+    if (warn) warn.style.display = (location.protocol === 'http:') ? '' : 'none';
   }
 
   _updateDbcRunBtn();
@@ -3483,8 +3483,7 @@ function onDbcConnectionSelectChange() {
         fd.append('db_password', (document.getElementById('dbcPassword') || {}).value || '');
         fd.append('db_schema',   (document.getElementById('dbcSchema')   || {}).value || '');
         fd.append('db_adapter',  (document.getElementById('dbcAdapter')  || {}).value || 'oracle');
-        var apiKeyEl = document.getElementById('apiKeyInput');
-        var hdrs = apiKeyEl && apiKeyEl.value ? { 'X-API-Key': apiKeyEl.value } : {};
+        var hdrs = window._apiKey ? { 'X-API-Key': window._apiKey } : {};
         var resp = await fetch('/api/v1/system/db-ping', { method: 'POST', body: fd, headers: hdrs });
         var data = await resp.json();
         if (result) {
@@ -3589,8 +3588,7 @@ if (_dbcRunBtn) {
         fd.append('db_schema',   (document.getElementById('dbcSchema')   || {}).value || '');
       }
 
-      var apiKeyEl = document.getElementById('apiKeyInput');
-      var hdrs = apiKeyEl && apiKeyEl.value ? { 'X-API-Key': apiKeyEl.value } : {};
+      var hdrs = window._apiKey ? { 'X-API-Key': window._apiKey } : {};
 
       var resp = await fetch('/api/v1/files/db-compare', { method: 'POST', body: fd, headers: hdrs });
       var data = await resp.json();
