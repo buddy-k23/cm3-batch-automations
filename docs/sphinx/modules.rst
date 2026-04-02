@@ -167,6 +167,10 @@ Configuration & Validators
    :members:
    :undoc-members:
 
+.. automodule:: src.config.db_connections
+   :members:
+   :undoc-members:
+
 .. automodule:: src.validators.mapping_validator
    :members:
    :undoc-members:
