@@ -3621,6 +3621,122 @@ toggleAutoRefresh = function() {
 })();
 
 // ===========================================================================
+// File Downloader — Search Files
+// ===========================================================================
+
+/**
+ * Search for a string inside files matching a filename pattern in the selected path.
+ *
+ * Reads inputs from #fdSearchFilename and #fdSearchString and renders results
+ * (or a truncation notice) in #fdSearchResults.
+ */
+function fdSearchFiles() {
+  var path = document.getElementById('fdPathSelect').value;
+  if (!path) { alert('Please select a path first.'); return; }
+  var filenamePattern = document.getElementById('fdSearchFilename').value.trim();
+  var searchString    = document.getElementById('fdSearchString').value.trim();
+  if (!filenamePattern || !searchString) {
+    alert('Please fill in both the filename pattern and search string.');
+    return;
+  }
+  var container = document.getElementById('fdSearchResults');
+  container.textContent = 'Searching\u2026';
+
+  fetch('/api/v1/downloader/search-files', {
+    method: 'POST',
+    headers: Object.assign({ 'Content-Type': 'application/json' }, _apiHeaders()),
+    body: JSON.stringify({ path: path, filename_pattern: filenamePattern, search_string: searchString }),
+  })
+    .then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
+    .then(function(data) { _fdRenderSearchResults(data, container); })
+    .catch(function(err) { container.textContent = 'Search failed: ' + err; });
+}
+
+/**
+ * Render search results (from search-files or search-archive) into a container element.
+ *
+ * Builds a summary line, a results table, and an optional truncation notice. All
+ * server-provided strings (filenames, line content, archive names) are assigned
+ * via textContent to prevent XSS.
+ *
+ * @param {Object}      data      - API response with results, shown, total_matches, truncated fields.
+ * @param {HTMLElement} container - DOM element to render into (cleared before rendering).
+ */
+function _fdRenderSearchResults(data, container) {
+  container.textContent = '';
+
+  if (!data.results || data.results.length === 0) {
+    container.textContent = 'No matches found.';
+    return;
+  }
+
+  var summary = document.createElement('p');
+  summary.style.cssText = 'font-size:12px;color:var(--text-secondary);margin-bottom:6px';
+  summary.textContent = 'Showing ' + data.shown + ' of ' + data.total_matches + ' match(es)';
+  container.appendChild(summary);
+
+  var hasArchive = data.results.some(function(r) { return r.archive; });
+  var headers = hasArchive ? ['Archive', 'File', 'Line', 'Content'] : ['File', 'Line', 'Content'];
+
+  var table = document.createElement('table');
+  table.className = 'fd-table';
+
+  var thead = document.createElement('thead');
+  var headRow = document.createElement('tr');
+  headers.forEach(function(h) {
+    var th = document.createElement('th');
+    th.textContent = h;
+    headRow.appendChild(th);
+  });
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+
+  var tbody = document.createElement('tbody');
+  data.results.forEach(function(hit) {
+    var tr = document.createElement('tr');
+    var cells = hasArchive
+      ? [hit.archive || '', hit.file, String(hit.line), hit.content]
+      : [hit.file, String(hit.line), hit.content];
+    cells.forEach(function(val) {
+      var td = document.createElement('td');
+      td.textContent = val;
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  container.appendChild(table);
+
+  if (data.truncated) {
+    if (data.download_ref) {
+      var warn = document.createElement('div');
+      warn.className = 'fd-truncation-warn';
+
+      var warnText = document.createElement('span');
+      warnText.textContent = '\u26A0 Results truncated at 50 lines';
+      warn.appendChild(warnText);
+
+      var dlBtn = document.createElement('button');
+      dlBtn.className = 'btn btn-primary';
+      dlBtn.style.cssText = 'font-size:11px';
+      var fname = data.download_ref.filename.split('/').pop();
+      var arcLabel = data.download_ref.archive ? ' from ' + data.download_ref.archive : '';
+      dlBtn.textContent = '\u2B07 Download ' + fname + arcLabel;
+      dlBtn.onclick = (function(ref) {
+        return function() { fdDownload(ref.path, ref.filename, ref.archive || null); };
+      })(data.download_ref);
+      warn.appendChild(dlBtn);
+      container.appendChild(warn);
+    } else {
+      var refine = document.createElement('div');
+      refine.className = 'fd-refine-prompt';
+      refine.textContent = 'Too many results across multiple files \u2014 please refine your search using a single exact filename.';
+      container.appendChild(refine);
+    }
+  }
+}
+
+// ===========================================================================
 // DB Compare — named connection dropdown (#296)
 // ===========================================================================
 
