@@ -157,9 +157,13 @@ def extract_file(archive_path: Path, inner_filename: str) -> Iterator[bytes]:
         return
     if name.endswith(".zip"):
         with zipfile.ZipFile(archive_path, "r") as zf:
-            with zf.open(inner_filename) as fh:
+            try:
+                fh_ctx = zf.open(inner_filename)
+            except KeyError:
+                raise FileNotFoundError(f"{inner_filename!r} not in {archive_path.name}")
+            with fh_ctx:
                 while True:
-                    data = fh.read(chunk)
+                    data = fh_ctx.read(chunk)
                     if not data:
                         break
                     yield data

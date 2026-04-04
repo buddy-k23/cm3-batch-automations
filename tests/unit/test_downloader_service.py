@@ -4,7 +4,7 @@ import tarfile
 import zipfile
 import pytest
 from pathlib import Path
-from src.services.downloader_service import validate_path, browse_path, BrowseEntry
+from src.services.downloader_service import validate_path, browse_path, BrowseEntry, list_archive_contents, extract_file
 
 
 def test_validate_path_accepts_allowed(tmp_path):
@@ -105,9 +105,6 @@ def _make_zip(path: Path, inner_files: dict) -> Path:
     return path
 
 
-from src.services.downloader_service import list_archive_contents, extract_file
-
-
 def test_list_archive_contents_targz(tmp_path):
     arc = _make_targz(tmp_path / "a.tar.gz", {"r.csv": b"a,b", "e.log": b"none"})
     assert set(list_archive_contents(arc)) == {"r.csv", "e.log"}
@@ -132,5 +129,11 @@ def test_extract_file_zip(tmp_path):
 
 def test_extract_file_missing_raises(tmp_path):
     arc = _make_targz(tmp_path / "a.tar.gz", {"exists.txt": b"x"})
-    with pytest.raises((KeyError, FileNotFoundError)):
+    with pytest.raises(FileNotFoundError):
+        list(extract_file(arc, "missing.txt"))
+
+
+def test_extract_file_missing_raises_zip(tmp_path):
+    arc = _make_zip(tmp_path / "a.zip", {"exists.txt": b"x"})
+    with pytest.raises(FileNotFoundError):
         list(extract_file(arc, "missing.txt"))
