@@ -58,6 +58,12 @@ async def lifespan(app: FastAPI):
     else:
         app.state.fd_config = {}
 
+    logger.info(
+        "Loaded ui_config with %d tab entries; fd_config with %d path entries",
+        len((app.state.ui_config or {}).get("tabs", {})),
+        len((app.state.fd_config or {}).get("paths", {})),
+    )
+
     yield
     # Shutdown: nothing needed
 

@@ -3,10 +3,10 @@
 import os
 from unittest.mock import patch
 from fastapi.testclient import TestClient
+from src.api.main import app
 
 
 def test_ui_config_all_false_when_empty():
-    from src.api.main import app
     app.state.ui_config = {}
     with patch.dict(os.environ, {"ENABLE_FILE_DOWNLOADER": "false"}):
         r = TestClient(app).get("/api/v1/system/ui-config")
@@ -17,7 +17,6 @@ def test_ui_config_all_false_when_empty():
 
 
 def test_ui_config_returns_configured_values():
-    from src.api.main import app
     app.state.ui_config = {
         "tabs": {"quick": True, "runs": True, "mapping": False,
                  "tester": True, "dbcompare": True, "downloader": True}
@@ -32,7 +31,6 @@ def test_ui_config_returns_configured_values():
 
 
 def test_ui_config_downloader_forced_false_when_flag_off():
-    from src.api.main import app
     app.state.ui_config = {"tabs": {"downloader": True}}
     with patch.dict(os.environ, {"ENABLE_FILE_DOWNLOADER": "false"}):
         r = TestClient(app).get("/api/v1/system/ui-config")
