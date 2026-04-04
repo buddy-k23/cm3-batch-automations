@@ -17,7 +17,7 @@ var _trendSuite = '';
 /**
  * Switch the active tab panel and update the sliding underline indicator.
  *
- * @param {string} name - Tab identifier: 'quick', 'runs', 'mapping', 'tester', or 'dbcompare'.
+ * @param {string} name - Tab identifier: 'quick', 'runs', 'mapping', 'tester', 'dbcompare', or 'downloader'.
  */
 function switchTab(name) {
   ['quick', 'runs', 'mapping', 'tester', 'dbcompare', 'downloader'].forEach(function(t) {
@@ -50,6 +50,13 @@ function switchTab(name) {
 // ---------------------------------------------------------------------------
 // Tab visibility — driven by GET /api/v1/system/ui-config
 // ---------------------------------------------------------------------------
+/**
+ * Fetch tab visibility config and hide disabled tabs.
+ *
+ * Called once on page load. Tabs where the server returns ``false`` have
+ * their button and panel hidden with ``display:none``. Fails open: if the
+ * fetch errors, all tabs remain visible.
+ */
 function initTabVisibility() {
   fetch('/api/v1/system/ui-config')
     .then(function(r) { return r.ok ? r.json() : null; })
@@ -60,12 +67,15 @@ function initTabVisibility() {
           var btn = document.getElementById('tab-' + tab);
           var panel = document.getElementById('panel-' + tab);
           if (btn) btn.style.display = 'none';
-          if (panel && panel.parentNode) panel.parentNode.removeChild(panel);
+          if (panel) panel.style.display = 'none';
         }
       });
     })
     .catch(function() { /* fail open — config error must not break the app */ });
 }
+
+// Stub — replaced with real implementation in Task 12
+function loadDownloaderPaths() {}
 
 // ===========================================================================
 // DB Compare — direction state + swap
