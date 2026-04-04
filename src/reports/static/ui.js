@@ -20,7 +20,7 @@ var _trendSuite = '';
  * @param {string} name - Tab identifier: 'quick', 'runs', 'mapping', 'tester', or 'dbcompare'.
  */
 function switchTab(name) {
-  ['quick', 'runs', 'mapping', 'tester', 'dbcompare'].forEach(function(t) {
+  ['quick', 'runs', 'mapping', 'tester', 'dbcompare', 'downloader'].forEach(function(t) {
     var panel = document.getElementById('panel-' + t);
     var btn   = document.getElementById('tab-' + t);
     if (t === name) {
@@ -43,6 +43,28 @@ function switchTab(name) {
   if (name === 'runs') { loadTrendChart(); loadSummaryCards(); }
   // Load named connections whenever DB Compare tab is activated (#296)
   if (name === 'dbcompare') { loadDbConnections(); }
+  // Load downloader paths when Downloader tab is activated
+  if (name === 'downloader') { loadDownloaderPaths(); }
+}
+
+// ---------------------------------------------------------------------------
+// Tab visibility — driven by GET /api/v1/system/ui-config
+// ---------------------------------------------------------------------------
+function initTabVisibility() {
+  fetch('/api/v1/system/ui-config')
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(data) {
+      if (!data || !data.tabs) return;
+      Object.keys(data.tabs).forEach(function(tab) {
+        if (!data.tabs[tab]) {
+          var btn = document.getElementById('tab-' + tab);
+          var panel = document.getElementById('panel-' + tab);
+          if (btn) btn.style.display = 'none';
+          if (panel && panel.parentNode) panel.parentNode.removeChild(panel);
+        }
+      });
+    })
+    .catch(function() { /* fail open — config error must not break the app */ });
 }
 
 // ===========================================================================
@@ -2256,6 +2278,7 @@ setInterval(checkHealth, HEALTH_INTERVAL_MS);
 // ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
+initTabVisibility();
 loadMappings();
 loadRules();
 loadRunHistory();
