@@ -23,6 +23,7 @@ function switchTab(name) {
   ['quick', 'runs', 'mapping', 'tester', 'dbcompare', 'downloader'].forEach(function(t) {
     var panel = document.getElementById('panel-' + t);
     var btn   = document.getElementById('tab-' + t);
+    if (!panel || !btn) return;
     if (t === name) {
       panel.classList.remove('panel-hidden');
       panel.classList.add('panel-entering');
