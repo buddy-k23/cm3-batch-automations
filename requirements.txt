@@ -23,6 +23,9 @@ psutil>=5.9.0
 # Excel support
 openpyxl>=3.1.0
 
+# YAML configuration
+pyyaml>=6.0
+
 # API Framework (optional - for REST API)
 fastapi>=0.109.0
 uvicorn[standard]>=0.27.0

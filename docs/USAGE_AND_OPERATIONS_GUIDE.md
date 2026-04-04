@@ -515,6 +515,57 @@ Options:
 
 The **Download Diff CSV** button generates a diff file client-side (no extra server call). CSV columns: `row_number`, `key_columns`, `field_name`, `db_value`, `file_value`, `difference_type`. The button is hidden when the compare is clean.
 
+### File Downloader Tab
+
+> **Non-production only.** Requires `ENABLE_FILE_DOWNLOADER=true` and `downloader: true` in `config/ui.yml`.
+
+Browse, search, and download files from configured server paths directly within the Valdo UI.
+
+#### Configuration
+
+**`config/file-downloader.yml`** — defines accessible server paths:
+
+```yaml
+paths:
+  - label: "Batch Output"
+    path: /data/batch/output
+```
+
+**`config/ui.yml`** — controls which tabs appear (all keys default to `false`):
+
+```yaml
+tabs:
+  quick: true
+  downloader: true   # also requires ENABLE_FILE_DOWNLOADER=true
+```
+
+| Env var | Description |
+|---------|-------------|
+| `ENABLE_FILE_DOWNLOADER` | Set `true` to activate feature and API |
+| `DOWNLOADER_LOG_PATH` | Activity log path (default: `logs/file-downloads.log`) |
+
+#### Browse & Download
+
+Select a configured path, optionally filter by archive name pattern, then click Browse. Plain files have a direct Download button. Archives show an Expand button listing inner files — each has its own Download button. Whole-archive downloads are not permitted.
+
+#### Search Files
+
+Enter a filename wildcard and search string. Results show file, line number, and matched content. If results from a single file exceed 50 lines, a Download button is offered. If results span multiple files, you are prompted to use a single exact filename.
+
+#### Search Archives
+
+Enter an archive pattern, inner file pattern, and search string to search within archives. Same 50-line truncation rules apply.
+
+#### Activity Log
+
+All download and search operations are logged to `DOWNLOADER_LOG_PATH` as JSON lines, rotated daily (30-day retention):
+
+```json
+{"timestamp":"2026-04-03T14:22:11Z","client_ip":"10.0.1.42","client_host":"devbox01",
+ "operation":"download","path":"/data/batch/output","archive":"batch.tar.gz",
+ "file":"report.csv","environment":"SIT","status":"success"}
+```
+
 ### Theme Toggle and Accessibility
 
 - **Theme toggle** -- A button in the top navigation switches between dark and

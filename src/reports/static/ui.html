@@ -94,6 +94,8 @@
             aria-controls="panel-tester" onclick="switchTab('tester')">API Tester</button>
     <button id="tab-dbcompare" role="tab" aria-selected="false"
             aria-controls="panel-dbcompare" onclick="switchTab('dbcompare')">DB Compare</button>
+    <button id="tab-downloader" role="tab" aria-selected="false"
+            aria-controls="panel-downloader" onclick="switchTab('downloader')">File Downloader</button>
   </div>
 </nav>
 
@@ -894,6 +896,70 @@
     </div>
 
   </div><!-- /#panel-dbcompare -->
+
+  <!-- FILE DOWNLOADER PANEL -->
+  <div id="panel-downloader" class="panel panel-hidden" role="tabpanel"
+       aria-labelledby="tab-downloader" tabindex="-1">
+    <h2>File Downloader</h2>
+
+    <div class="fd-path-row">
+      <label class="fd-label" for="fdPathSelect">Path</label>
+      <select id="fdPathSelect" class="fd-select" onchange="onFdPathChange()">
+        <option value="">— select a path —</option>
+      </select>
+    </div>
+
+    <div class="fd-subtabs" role="tablist">
+      <button id="fdtab-browse" class="fd-subtab active" role="tab" aria-selected="true"
+              aria-controls="fdpanel-browse" onclick="switchFdSubTab('browse')">Browse &amp; Download</button>
+      <button id="fdtab-search" class="fd-subtab" role="tab" aria-selected="false"
+              aria-controls="fdpanel-search" onclick="switchFdSubTab('search')">Search Files</button>
+      <button id="fdtab-searcharch" class="fd-subtab" role="tab" aria-selected="false"
+              aria-controls="fdpanel-searcharch" onclick="switchFdSubTab('searcharch')">Search Archives</button>
+    </div>
+
+    <div id="fdpanel-browse" class="fd-subpanel" role="tabpanel" aria-labelledby="fdtab-browse">
+      <div class="fd-row">
+        <label class="fd-label" for="fdArchivePattern">Archive pattern</label>
+        <input id="fdArchivePattern" class="fd-input" type="text"
+               placeholder="e.g. batch_*.tar.gz  (leave blank for plain files)">
+        <button class="btn btn-secondary" onclick="fdBrowse()">Browse</button>
+      </div>
+      <div id="fdBrowseResults" class="fd-results" aria-live="polite"></div>
+    </div>
+
+    <div id="fdpanel-search" class="fd-subpanel fd-subpanel--hidden" role="tabpanel" aria-labelledby="fdtab-search">
+      <div class="fd-row">
+        <label class="fd-label" for="fdSearchFilename">Filename pattern</label>
+        <input id="fdSearchFilename" class="fd-input" type="text" placeholder="e.g. *.log">
+      </div>
+      <div class="fd-row">
+        <label class="fd-label" for="fdSearchString">Search string</label>
+        <input id="fdSearchString" class="fd-input" type="text" placeholder="e.g. ERROR">
+        <button class="btn btn-secondary" onclick="fdSearchFiles()">Search</button>
+      </div>
+      <div id="fdSearchResults" class="fd-results" aria-live="polite"></div>
+    </div>
+
+    <div id="fdpanel-searcharch" class="fd-subpanel fd-subpanel--hidden" role="tabpanel" aria-labelledby="fdtab-searcharch">
+      <div class="fd-row">
+        <label class="fd-label" for="fdArchSearchPattern">Archive pattern</label>
+        <input id="fdArchSearchPattern" class="fd-input" type="text"
+               placeholder="e.g. batch_*.tar.gz">
+      </div>
+      <div class="fd-row">
+        <label class="fd-label" for="fdArchFilePattern">File pattern</label>
+        <input id="fdArchFilePattern" class="fd-input" type="text" placeholder="e.g. *.log">
+      </div>
+      <div class="fd-row">
+        <label class="fd-label" for="fdArchSearchString">Search string</label>
+        <input id="fdArchSearchString" class="fd-input" type="text" placeholder="e.g. ERROR">
+        <button class="btn btn-secondary" onclick="fdSearchArchive()">Search</button>
+      </div>
+      <div id="fdArchSearchResults" class="fd-results" aria-live="polite"></div>
+    </div>
+
+  </div><!-- /#panel-downloader -->
 
 </main>
 

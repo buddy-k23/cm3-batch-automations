@@ -17,12 +17,13 @@ var _trendSuite = '';
 /**
  * Switch the active tab panel and update the sliding underline indicator.
  *
- * @param {string} name - Tab identifier: 'quick', 'runs', 'mapping', 'tester', or 'dbcompare'.
+ * @param {string} name - Tab identifier: 'quick', 'runs', 'mapping', 'tester', 'dbcompare', or 'downloader'.
  */
 function switchTab(name) {
-  ['quick', 'runs', 'mapping', 'tester', 'dbcompare'].forEach(function(t) {
+  ['quick', 'runs', 'mapping', 'tester', 'dbcompare', 'downloader'].forEach(function(t) {
     var panel = document.getElementById('panel-' + t);
     var btn   = document.getElementById('tab-' + t);
+    if (!panel || !btn) return;
     if (t === name) {
       panel.classList.remove('panel-hidden');
       panel.classList.add('panel-entering');
@@ -43,6 +44,307 @@ function switchTab(name) {
   if (name === 'runs') { loadTrendChart(); loadSummaryCards(); }
   // Load named connections whenever DB Compare tab is activated (#296)
   if (name === 'dbcompare') { loadDbConnections(); }
+  // Load downloader paths when Downloader tab is activated
+  if (name === 'downloader') { loadDownloaderPaths(); }
+}
+
+// ---------------------------------------------------------------------------
+// Tab visibility — driven by GET /api/v1/system/ui-config
+// ---------------------------------------------------------------------------
+/**
+ * Fetch tab visibility config and hide disabled tabs.
+ *
+ * Called once on page load. Tabs where the server returns ``false`` have
+ * their button and panel hidden with ``display:none``. Fails open: if the
+ * fetch errors, all tabs remain visible.
+ */
+function initTabVisibility() {
+  fetch('/api/v1/system/ui-config')
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(data) {
+      if (!data || !data.tabs) return;
+      Object.keys(data.tabs).forEach(function(tab) {
+        if (!data.tabs[tab]) {
+          var btn = document.getElementById('tab-' + tab);
+          var panel = document.getElementById('panel-' + tab);
+          if (btn) btn.style.display = 'none';
+          if (panel) panel.style.display = 'none';
+        }
+      });
+    })
+    .catch(function() { /* fail open — config error must not break the app */ });
+}
+
+// ===========================================================================
+// File Downloader Tab
+// ===========================================================================
+var _fdPaths = [];
+
+/**
+ * Return authentication headers for API requests.
+ *
+ * Uses the globally stored API key injected by the server into window._apiKey.
+ * Returns an empty object when no key is configured so unauthenticated servers
+ * continue to work without modification.
+ *
+ * @returns {Object} Headers object, optionally containing X-API-Key.
+ */
+function _apiHeaders() {
+  return window._apiKey ? { 'X-API-Key': window._apiKey } : {};
+}
+
+/**
+ * Escape a string for safe insertion as HTML text.
+ *
+ * @param {string} str - Raw string that may contain HTML special characters.
+ * @returns {string} HTML-escaped string.
+ */
+function _escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/**
+ * Load allowed download paths from the server and populate #fdPathSelect.
+ *
+ * No-ops if paths were already loaded (cached in _fdPaths). Called each time
+ * the Downloader tab is activated.
+ */
+function loadDownloaderPaths() {
+  if (_fdPaths.length > 0) return;
+  fetch('/api/v1/downloader/paths', { headers: _apiHeaders() })
+    .then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
+    .then(function(data) {
+      _fdPaths = data.paths || [];
+      var sel = document.getElementById('fdPathSelect');
+      if (!sel) return;
+      while (sel.options.length > 0) sel.remove(0);
+      var placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = '\u2014 select a path \u2014';
+      sel.appendChild(placeholder);
+      _fdPaths.forEach(function(p) {
+        var opt = document.createElement('option');
+        opt.value = p.path;
+        opt.textContent = p.label + ' \u2014 ' + p.path;
+        sel.appendChild(opt);
+      });
+    })
+    .catch(function(err) { console.error('Failed to load downloader paths:', err); });
+}
+
+/**
+ * Clear browse/search result panels when the selected path changes.
+ */
+function onFdPathChange() {
+  ['fdBrowseResults', 'fdSearchResults', 'fdArchSearchResults'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = '';
+  });
+}
+
+/**
+ * Switch the active File Downloader sub-tab.
+ *
+ * @param {string} name - Sub-tab name: 'browse', 'search', or 'searcharch'.
+ */
+function switchFdSubTab(name) {
+  ['browse', 'search', 'searcharch'].forEach(function(t) {
+    var panel = document.getElementById('fdpanel-' + t);
+    var btn   = document.getElementById('fdtab-' + t);
+    if (panel) panel.classList.toggle('fd-subpanel--hidden', t !== name);
+    if (btn) {
+      btn.classList.toggle('active', t === name);
+      btn.setAttribute('aria-selected', String(t === name));
+    }
+  });
+}
+
+/**
+ * Format a byte count into a human-readable string (B / KB / MB).
+ *
+ * @param {number} bytes - Raw byte count.
+ * @returns {string} Formatted size string.
+ */
+function _fdFormatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+/**
+ * List files in the selected path and render them in #fdBrowseResults.
+ *
+ * Reads the optional archive pattern from #fdArchivePattern. Shows a loading
+ * indicator while the request is in flight and an error message on failure.
+ */
+function fdBrowse() {
+  var path = document.getElementById('fdPathSelect').value;
+  if (!path) { alert('Please select a path first.'); return; }
+  var pattern = document.getElementById('fdArchivePattern').value.trim() || null;
+  var url = '/api/v1/downloader/browse?path=' + encodeURIComponent(path);
+  if (pattern) url += '&pattern=' + encodeURIComponent(pattern);
+  var container = document.getElementById('fdBrowseResults');
+  container.textContent = 'Loading\u2026';
+
+  fetch(url, { headers: _apiHeaders() })
+    .then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
+    .then(function(data) {
+      container.textContent = '';
+      if (!data.entries || data.entries.length === 0) {
+        container.textContent = 'No files found.';
+        return;
+      }
+      data.entries.forEach(function(entry) {
+        container.appendChild(_fdRenderEntry(entry, path));
+      });
+    })
+    .catch(function(err) {
+      container.textContent = 'Browse failed: ' + err;
+    });
+}
+
+/**
+ * Build a DOM row for a single browse entry (file or archive).
+ *
+ * All server-provided strings (name, type, size) are assigned via textContent
+ * to prevent XSS.
+ *
+ * @param {Object} entry - Entry object with name, type, and size_bytes fields.
+ * @param {string} path  - The selected path alias used for download requests.
+ * @returns {HTMLElement} A div element representing the entry row.
+ */
+function _fdRenderEntry(entry, path) {
+  var row = document.createElement('div');
+  row.className = 'fd-entry';
+
+  var nameEl = document.createElement('span');
+  nameEl.className = 'fd-entry-name';
+  nameEl.textContent = (entry.type === 'archive' ? '\uD83D\uDDDC  ' : '\uD83D\uDCC4  ') + entry.name;
+
+  var meta = document.createElement('span');
+  meta.className = 'fd-entry-meta';
+  meta.textContent = entry.type + ' \u00B7 ' + _fdFormatBytes(entry.size_bytes);
+
+  row.appendChild(nameEl);
+  row.appendChild(meta);
+
+  if (entry.type === 'archive') {
+    var expandBtn = document.createElement('button');
+    expandBtn.className = 'btn btn-secondary';
+    expandBtn.style.cssText = 'font-size:11px;padding:3px 10px';
+    expandBtn.textContent = '\u25BC Expand';
+
+    var childContainer = document.createElement('div');
+    childContainer.className = 'fd-entry-children';
+    childContainer.style.display = 'none';
+    var expanded = false;
+
+    expandBtn.onclick = function() {
+      if (expanded) {
+        childContainer.style.display = 'none';
+        expandBtn.textContent = '\u25BC Expand';
+        expanded = false;
+      } else {
+        fdExpandArchive(path, entry.name, childContainer, expandBtn);
+        expanded = true;
+      }
+    };
+
+    row.appendChild(expandBtn);
+    var wrapper = document.createElement('div');
+    wrapper.appendChild(row);
+    wrapper.appendChild(childContainer);
+    return wrapper;
+  }
+
+  var dlBtn = document.createElement('button');
+  dlBtn.className = 'btn btn-primary';
+  dlBtn.style.cssText = 'font-size:11px;padding:3px 10px';
+  dlBtn.textContent = '\u2B07 Download';
+  dlBtn.onclick = function() { fdDownload(path, entry.name, null); };
+  row.appendChild(dlBtn);
+  return row;
+}
+
+/**
+ * Fetch and render the contents of an archive entry inline.
+ *
+ * @param {string}      path      - Selected path alias.
+ * @param {string}      archive   - Archive filename.
+ * @param {HTMLElement} container - DOM element to render child file rows into.
+ * @param {HTMLElement} btn       - The Expand button, updated to show Collapse label.
+ */
+function fdExpandArchive(path, archive, container, btn) {
+  btn.textContent = '\u25B2 Collapse';
+  container.style.display = 'block';
+  container.textContent = 'Loading\u2026';
+
+  var url = '/api/v1/downloader/archive-contents?path=' + encodeURIComponent(path)
+            + '&archive=' + encodeURIComponent(archive);
+  fetch(url, { headers: _apiHeaders() })
+    .then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
+    .then(function(data) {
+      container.textContent = '';
+      (data.files || []).forEach(function(innerFile) {
+        var row = document.createElement('div');
+        row.className = 'fd-entry';
+
+        var nameEl = document.createElement('span');
+        nameEl.className = 'fd-entry-name';
+        nameEl.textContent = '\uD83D\uDCC4  ' + innerFile;
+
+        var dlBtn = document.createElement('button');
+        dlBtn.className = 'btn btn-primary';
+        dlBtn.style.cssText = 'font-size:11px;padding:3px 10px';
+        dlBtn.textContent = '\u2B07';
+        dlBtn.onclick = (function(f) { return function() { fdDownload(path, f, archive); }; })(innerFile);
+
+        row.appendChild(nameEl);
+        row.appendChild(dlBtn);
+        container.appendChild(row);
+      });
+    })
+    .catch(function(err) {
+      container.textContent = 'Failed to load archive contents: ' + err;
+    });
+}
+
+/**
+ * Download a file (optionally from inside an archive) via the downloader API.
+ *
+ * Creates a temporary anchor element to trigger the browser file save dialog
+ * without navigating away from the page.
+ *
+ * @param {string}      path     - Selected path alias.
+ * @param {string}      filename - File path relative to the path root.
+ * @param {string|null} archive  - Archive name if the file is inside one, else null.
+ */
+function fdDownload(path, filename, archive) {
+  var body = { path: path, filename: filename };
+  if (archive) body.archive = archive;
+
+  fetch('/api/v1/downloader/download', {
+    method: 'POST',
+    headers: Object.assign({ 'Content-Type': 'application/json' }, _apiHeaders()),
+    body: JSON.stringify(body),
+  })
+    .then(function(r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.blob();
+    })
+    .then(function(blob) {
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = filename.split('/').pop();
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    })
+    .catch(function(err) { alert('Download error: ' + err); });
 }
 
 // ===========================================================================
@@ -2256,6 +2558,7 @@ setInterval(checkHealth, HEALTH_INTERVAL_MS);
 // ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
+initTabVisibility();
 loadMappings();
 loadRules();
 loadRunHistory();
@@ -3316,6 +3619,161 @@ toggleAutoRefresh = function() {
     if (firstMark) firstMark.scrollIntoView({ behavior: 'smooth', block: 'center' });
   });
 })();
+
+// ===========================================================================
+// File Downloader — Search Files
+// ===========================================================================
+
+/**
+ * Search for a string inside files matching a filename pattern in the selected path.
+ *
+ * Reads inputs from #fdSearchFilename and #fdSearchString and renders results
+ * (or a truncation notice) in #fdSearchResults.
+ */
+function fdSearchFiles() {
+  var path = document.getElementById('fdPathSelect').value;
+  if (!path) { alert('Please select a path first.'); return; }
+  var filenamePattern = document.getElementById('fdSearchFilename').value.trim();
+  var searchString    = document.getElementById('fdSearchString').value.trim();
+  if (!filenamePattern || !searchString) {
+    alert('Please fill in both the filename pattern and search string.');
+    return;
+  }
+  var container = document.getElementById('fdSearchResults');
+  container.textContent = 'Searching\u2026';
+
+  fetch('/api/v1/downloader/search-files', {
+    method: 'POST',
+    headers: Object.assign({ 'Content-Type': 'application/json' }, _apiHeaders()),
+    body: JSON.stringify({ path: path, filename_pattern: filenamePattern, search_string: searchString }),
+  })
+    .then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
+    .then(function(data) { _fdRenderSearchResults(data, container); })
+    .catch(function(err) { container.textContent = 'Search failed: ' + err; });
+}
+
+/**
+ * Render search results (from search-files or search-archive) into a container element.
+ *
+ * Builds a summary line, a results table, and an optional truncation notice. All
+ * server-provided strings (filenames, line content, archive names) are assigned
+ * via textContent to prevent XSS.
+ *
+ * @param {Object}      data      - API response with results, shown, total_matches, truncated fields.
+ * @param {HTMLElement} container - DOM element to render into (cleared before rendering).
+ */
+function _fdRenderSearchResults(data, container) {
+  container.textContent = '';
+
+  if (!data.results || data.results.length === 0) {
+    container.textContent = 'No matches found.';
+    return;
+  }
+
+  var summary = document.createElement('p');
+  summary.style.cssText = 'font-size:12px;color:var(--text-secondary);margin-bottom:6px';
+  summary.textContent = 'Showing ' + data.shown + ' of ' + data.total_matches + ' match(es)';
+  container.appendChild(summary);
+
+  var hasArchive = data.results.some(function(r) { return r.archive; });
+  var headers = hasArchive ? ['Archive', 'File', 'Line', 'Content'] : ['File', 'Line', 'Content'];
+
+  var table = document.createElement('table');
+  table.className = 'fd-table';
+
+  var thead = document.createElement('thead');
+  var headRow = document.createElement('tr');
+  headers.forEach(function(h) {
+    var th = document.createElement('th');
+    th.textContent = h;
+    headRow.appendChild(th);
+  });
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+
+  var tbody = document.createElement('tbody');
+  data.results.forEach(function(hit) {
+    var tr = document.createElement('tr');
+    var cells = hasArchive
+      ? [hit.archive || '', hit.file, String(hit.line), hit.content]
+      : [hit.file, String(hit.line), hit.content];
+    cells.forEach(function(val) {
+      var td = document.createElement('td');
+      td.textContent = val;
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  container.appendChild(table);
+
+  if (data.truncated) {
+    if (data.download_ref) {
+      var warn = document.createElement('div');
+      warn.className = 'fd-truncation-warn';
+
+      var warnText = document.createElement('span');
+      warnText.textContent = '\u26A0 Results truncated at 50 lines';
+      warn.appendChild(warnText);
+
+      var dlBtn = document.createElement('button');
+      dlBtn.className = 'btn btn-primary';
+      dlBtn.style.cssText = 'font-size:11px';
+      var fname = data.download_ref.filename.split('/').pop();
+      var arcLabel = data.download_ref.archive ? ' from ' + data.download_ref.archive : '';
+      dlBtn.textContent = '\u2B07 Download ' + fname + arcLabel;
+      dlBtn.onclick = (function(ref) {
+        return function() { fdDownload(ref.path, ref.filename, ref.archive || null); };
+      })(data.download_ref);
+      warn.appendChild(dlBtn);
+      container.appendChild(warn);
+    } else {
+      var refine = document.createElement('div');
+      refine.className = 'fd-refine-prompt';
+      refine.textContent = 'Too many results across multiple files \u2014 please refine your search using a single exact filename.';
+      container.appendChild(refine);
+    }
+  }
+}
+
+// ===========================================================================
+// File Downloader — Search Archives
+// ===========================================================================
+
+/**
+ * Search for a string inside files within archives matching a pattern.
+ *
+ * Reads inputs from #fdArchSearchPattern, #fdArchFilePattern, and
+ * #fdArchSearchString, then renders results in #fdArchSearchResults using
+ * the shared _fdRenderSearchResults renderer.
+ */
+function fdSearchArchive() {
+  var path = document.getElementById('fdPathSelect').value;
+  if (!path) { alert('Please select a path first.'); return; }
+  var archivePattern = document.getElementById('fdArchSearchPattern').value.trim();
+  var filePattern    = document.getElementById('fdArchFilePattern').value.trim();
+  var searchString   = document.getElementById('fdArchSearchString').value.trim();
+  if (!archivePattern || !filePattern || !searchString) {
+    alert('Please fill in the archive pattern, file pattern, and search string.');
+    return;
+  }
+  var container = document.getElementById('fdArchSearchResults');
+  container.textContent = 'Searching\u2026';
+
+  fetch('/api/v1/downloader/search-archive', {
+    method: 'POST',
+    headers: Object.assign({ 'Content-Type': 'application/json' }, _apiHeaders()),
+    body: JSON.stringify({
+      path: path,
+      archive_pattern: archivePattern,
+      file_pattern: filePattern,
+      search_string: searchString,
+    }),
+  })
+    .then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
+    .then(function(data) { _fdRenderSearchResults(data, container); })
+    .catch(function(err) { container.textContent = 'Search failed: ' + err; });
+}
 
 // ===========================================================================
 // DB Compare — named connection dropdown (#296)

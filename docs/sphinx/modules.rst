@@ -235,6 +235,17 @@ API Tester
    :members:
    :undoc-members:
 
+File Downloader
+~~~~~~~~~~~~~~~
+
+.. automodule:: src.api.routers.downloader
+   :members:
+   :undoc-members:
+
+.. automodule:: src.api.routers.system
+   :members:
+   :undoc-members:
+
 Services
 --------
 
@@ -267,6 +278,14 @@ Services
    :undoc-members:
 
 .. automodule:: src.services.error_extractor
+   :members:
+   :undoc-members:
+
+.. automodule:: src.services.downloader_service
+   :members:
+   :undoc-members:
+
+.. automodule:: src.services.downloader_logger
    :members:
    :undoc-members:
 

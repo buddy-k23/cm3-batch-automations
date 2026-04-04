@@ -1,0 +1,9 @@
+# Tab visibility — set to true to show, false (or omit) to hide.
+# All keys default to false if absent. The file must exist for any tab to appear.
+tabs:
+  quick: true
+  runs: true
+  mapping: true
+  tester: true
+  dbcompare: true
+  downloader: false

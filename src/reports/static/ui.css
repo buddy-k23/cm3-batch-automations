@@ -1889,3 +1889,70 @@
 .dbc-metric-label { font-size: 10px; opacity: 0.6; margin-top: 2px; }
 
 .dbc-download-row { text-align: center; }
+
+/* =========================================================
+   File Downloader Tab
+   ========================================================= */
+.fd-path-row { display:flex; align-items:center; gap:10px; margin-bottom:16px; }
+
+.fd-label {
+  font-size:12px; font-weight:600; color:var(--text-secondary);
+  text-transform:uppercase; letter-spacing:.04em; white-space:nowrap; min-width:110px;
+}
+
+.fd-select, .fd-input {
+  flex:1; background:var(--surface); border:1px solid var(--border);
+  border-radius:8px; padding:7px 12px; color:var(--text-primary); font-size:13px;
+}
+.fd-select:focus, .fd-input:focus { outline:none; border-color:var(--accent); }
+
+.fd-subtabs {
+  display:flex; gap:2px; background:var(--surface);
+  border-radius:10px; padding:3px; margin-bottom:16px;
+}
+.fd-subtab {
+  flex:1; padding:7px 12px; background:transparent; border:none;
+  border-radius:8px; color:var(--text-secondary); font-size:13px;
+  cursor:pointer; transition:background .15s, color .15s;
+}
+.fd-subtab.active { background:var(--accent); color:#fff; }
+.fd-subtab:hover:not(.active) { background:var(--border); color:var(--text-primary); }
+
+.fd-subpanel--hidden { display:none; }
+
+.fd-row { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+
+.fd-results { margin-top:8px; }
+
+.fd-entry {
+  display:flex; align-items:center; gap:10px;
+  padding:7px 10px; border-radius:6px; background:var(--surface); margin-bottom:4px;
+}
+.fd-entry-name { flex:1; font-size:13px; }
+.fd-entry-meta { font-size:11px; color:var(--text-secondary); }
+.fd-entry-children {
+  margin-left:24px; border-left:2px solid var(--border);
+  padding-left:10px; margin-bottom:4px;
+}
+
+.fd-table { width:100%; border-collapse:collapse; font-size:12px; margin-top:8px; }
+.fd-table th {
+  text-align:left; padding:5px 8px; border-bottom:1px solid var(--border);
+  color:var(--text-secondary); font-weight:600;
+  text-transform:uppercase; letter-spacing:.04em; font-size:11px;
+}
+.fd-table td {
+  padding:5px 8px; border-bottom:1px solid var(--border);
+  color:var(--text-primary); font-family:monospace;
+}
+
+.fd-truncation-warn {
+  display:flex; align-items:center; gap:10px; padding:8px 12px;
+  background:var(--surface); border:1px solid #f59e0b;
+  border-radius:8px; margin-top:8px; font-size:12px; color:var(--text-secondary);
+}
+.fd-refine-prompt {
+  padding:8px 12px; background:var(--surface); border:1px solid var(--border);
+  border-radius:8px; margin-top:8px; font-size:12px;
+  color:var(--text-secondary); font-style:italic;
+}

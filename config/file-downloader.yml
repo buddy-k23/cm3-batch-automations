@@ -1,0 +1,9 @@
+# Configured server paths exposed in the File Downloader tab.
+# Only paths listed here are accessible — no arbitrary filesystem access.
+paths:
+  - label: "Batch Output"
+    path: /data/batch/output
+  - label: "ETL Logs"
+    path: /opt/etl/logs
+  - label: "Report Archive"
+    path: /data/reports
