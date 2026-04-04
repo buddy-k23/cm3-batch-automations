@@ -3737,6 +3737,45 @@ function _fdRenderSearchResults(data, container) {
 }
 
 // ===========================================================================
+// File Downloader — Search Archives
+// ===========================================================================
+
+/**
+ * Search for a string inside files within archives matching a pattern.
+ *
+ * Reads inputs from #fdArchSearchPattern, #fdArchFilePattern, and
+ * #fdArchSearchString, then renders results in #fdArchSearchResults using
+ * the shared _fdRenderSearchResults renderer.
+ */
+function fdSearchArchive() {
+  var path = document.getElementById('fdPathSelect').value;
+  if (!path) { alert('Please select a path first.'); return; }
+  var archivePattern = document.getElementById('fdArchSearchPattern').value.trim();
+  var filePattern    = document.getElementById('fdArchFilePattern').value.trim();
+  var searchString   = document.getElementById('fdArchSearchString').value.trim();
+  if (!archivePattern || !filePattern || !searchString) {
+    alert('Please fill in the archive pattern, file pattern, and search string.');
+    return;
+  }
+  var container = document.getElementById('fdArchSearchResults');
+  container.textContent = 'Searching\u2026';
+
+  fetch('/api/v1/downloader/search-archive', {
+    method: 'POST',
+    headers: Object.assign({ 'Content-Type': 'application/json' }, _apiHeaders()),
+    body: JSON.stringify({
+      path: path,
+      archive_pattern: archivePattern,
+      file_pattern: filePattern,
+      search_string: searchString,
+    }),
+  })
+    .then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
+    .then(function(data) { _fdRenderSearchResults(data, container); })
+    .catch(function(err) { container.textContent = 'Search failed: ' + err; });
+}
+
+// ===========================================================================
 // DB Compare — named connection dropdown (#296)
 // ===========================================================================
 
