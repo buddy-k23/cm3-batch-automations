@@ -93,7 +93,7 @@ def resolve_client_info(request) -> Tuple[str, str]:
         Tuple of ``(ip_address, hostname)``. Hostname falls back to IP on failure.
     """
     forwarded = request.headers.get("X-Forwarded-For")
-    ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host or "unknown")
+    ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else "unknown")
     try:
         host = socket.gethostbyaddr(ip)[0]
     except (socket.herror, socket.gaierror, OSError):
