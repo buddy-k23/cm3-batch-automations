@@ -53,6 +53,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reintroduction. All subprocess calls use explicit arg-arrays.
 
 ### Added
+- EB-S2: CI guardrail (`tests/unit/test_source_yaml_guardrails.py`)
+  rejects reintroduction of legacy multi-record keys (`multi_record`,
+  `discriminator_field`) and default-equal boilerplate
+  (`strict_fixed_width: true`, `strict_level: all`, all-zero
+  `tolerance` / `thresholds` blocks) in any `config/e2e/sources/*.yml`.
+  Each violation gets an actionable, citation-linked error message.
 - EF-S2: Three read-only MCP tools — `list_sources`, `get_source_spec`,
   `list_recent_runs`. All wrap the existing service layer (no duplicated
   business logic). `get_source_spec` returns the bundle of existing
