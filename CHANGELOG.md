@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- ED-S2 (Sprint 3 / Move 4): `src/onboarding/emitters/sql_emitter.py`
+  emits Oracle-dialect `expected_*.sql` files from mapping artefacts
+  + workbook `Reconciliation_<FILETYPE>.staging_table`/`predicate`.
+  DASH-quoted aliases (`AS "LN-NUM-ERT"`). Activated when
+  reconciliation row's `expected_sql_override` is blank (uses ED-S1's
+  `expected_sql: auto` marker). Hand-authored overrides preserved.
+  CTAS-vs-view fallback (ED-S3) and full byte-equivalence polish
+  (ED-S4) deferred to Sprint 4. Wired into `valdo onboard-source` CLI.
+  Closes Sprint 3.
 - ED-S1 (Sprint 3 / Move 4): `src/onboarding/emitters/reconciliation_emitter.py`
   emits reconciliation YAML artefacts from `Reconciliation_<FILETYPE>`
   workbook sheets to `config/e2e/sources/<NAME>/reconciliation/<filetype>.yml`.

@@ -52,11 +52,18 @@ EXPECTED_RULES_COUNT = 28
 # ED-S1 added the Reconciliation_<FILETYPE> -> reconciliation YAML emitter.
 # SHAW currently carries one reconciliation sheet (TRANERT).
 EXPECTED_RECONCILIATION_COUNT = 1
+# ED-S2: the SQL emitter only produces files for reconciliation rows
+# WITHOUT an ``expected_sql_override``. Every SHAW TRANERT row carries an
+# override (the EC-S9 reverse-engineered state), so the SQL emitter
+# produces zero artefacts for SHAW today. New sources without operator
+# overrides will produce one ``expected_*.sql`` file per record type.
+EXPECTED_SQL_COUNT = 0
 EXPECTED_TOTAL_COUNT = (
     EXPECTED_SOURCE_YAML_COUNT
     + EXPECTED_MAPPING_COUNT
     + EXPECTED_RULES_COUNT
     + EXPECTED_RECONCILIATION_COUNT
+    + EXPECTED_SQL_COUNT
 )
 
 
@@ -427,6 +434,16 @@ def test_summary_counts_match_emitter_counts(tmp_path):
     assert (
         f"{EXPECTED_RECONCILIATION_COUNT} files" in out
     ), f"Expected '{EXPECTED_RECONCILIATION_COUNT} files' in recon summary:\n{out}"
+    # ED-S2 expected SQL summary line.
+    assert "expected SQL artefacts" in out, (
+        f"Expected SQL summary line in:\n{out}"
+    )
+    assert (
+        f"config/e2e/sources/SHAW/sql/" in out
+    ), f"Expected SQL path summary in:\n{out}"
+    assert (
+        f"{EXPECTED_SQL_COUNT} files" in out
+    ), f"Expected '{EXPECTED_SQL_COUNT} files' in SQL summary:\n{out}"
     # Total.
     assert f"{EXPECTED_TOTAL_COUNT} files written" in out, (
         f"Expected '{EXPECTED_TOTAL_COUNT} files written' total:\n{out}"
@@ -768,6 +785,7 @@ def test_help_lists_all_flags():
         "--mapping-dir",
         "--rules-dir",
         "--reconciliation-dir",
+        "--sql-dir",
     ):
         assert flag in help_text, (
             f"Expected flag '{flag}' in --help output; missing.\n"

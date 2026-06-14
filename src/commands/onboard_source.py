@@ -71,6 +71,10 @@ from src.onboarding.emitters.rules_emitter import (
     emit_rules_artefacts,
 )
 from src.onboarding.emitters.source_yaml_emitter import emit_source_yaml
+from src.onboarding.emitters.sql_emitter import (
+    EmittedSqlArtefact,
+    emit_sql_artefacts,
+)
 from src.onboarding.models import OnboardingWorkbook, WorkbookReadError
 from src.onboarding.workbook_reader import read_workbook
 from src.onboarding.workbook_schema import WorkbookSchemaError
@@ -181,6 +185,7 @@ def _plan_writes(
     mapping_dir: Path | None,
     rules_dir: Path | None,
     reconciliation_dir: Path | None = None,
+    sql_dir: Path | None = None,
     frozen_timestamp: str | None = None,
 ) -> list[_PlannedWrite]:
     """Run all three emitters and resolve every artefact's destination path.
@@ -233,7 +238,10 @@ def _plan_writes(
         )
     )
 
-    # 2. Mapping artefacts.
+    # 2. Mapping artefacts. Retained as a local handle so ED-S2's SQL
+    # emitter can consume them as input (the SQL emitter needs each
+    # field's converter-resolved ``target_name`` / ``data_type`` /
+    # ``format`` to pick the right Oracle wrapping per column).
     mapping_artefacts: list[EmittedMappingArtefact] = emit_mapping_artefacts(
         workbook, frozen_timestamp=frozen_timestamp
     )
@@ -291,6 +299,31 @@ def _plan_writes(
                 content=recon_artefact.content,
                 category="reconciliation",
                 kind="reconciliation_yaml",
+            )
+        )
+
+    # 5. Expected SQL artefacts (ED-S2). One per reconciliation row
+    # WITHOUT an ``expected_sql_override`` (BA-authored SQL wins). The
+    # SQL emitter consumes ``mapping_artefacts`` to look up each
+    # field's ``target_name`` / ``data_type`` / ``format`` (Oracle
+    # wrapping per column). For sources whose BA has populated overrides
+    # for every record type (the EC-S9 SHAW state) this produces zero
+    # artefacts.
+    sql_artefacts: list[EmittedSqlArtefact] = emit_sql_artefacts(
+        workbook, mapping_artefacts, source_code=source_code
+    )
+    for sql_artefact in sql_artefacts:
+        plans.append(
+            _PlannedWrite(
+                path=_resolve_artefact_path(
+                    sql_artefact.path,
+                    default_subdir="config/e2e/sources",
+                    output_root=output_root,
+                    override_dir=sql_dir,
+                ),
+                content=sql_artefact.content,
+                category="sql",
+                kind="expected_sql",
             )
         )
 
@@ -411,6 +444,38 @@ def _normalise_metadata_for_compare(
         committed_copy["metadata"] = committed_meta
 
     return emitted_copy, committed_copy
+
+
+def _normalise_sql_for_compare(text: str) -> str:
+    """Collapse SQL text for whitespace-tolerant structural comparison (ED-S2).
+
+    The committed ``expected_*.sql`` files use hand-curated multi-space
+    column alignment, leading comment blocks, and trailing-newline
+    quirks; the emitter produces a canonical single-space layout. ED-S2
+    targets structural equivalence (same columns, same FROM, same
+    WHERE) and defers byte-equality to ED-S4 (Sprint 4). The comparison
+    therefore:
+
+      * Strips ``-- ...`` line comments (committed files document the
+        record type; the emitter does not yet emit comments).
+      * Collapses every run of whitespace (including newlines) to a
+        single space.
+      * Strips leading/trailing whitespace from the final string.
+
+    Two SQL strings comparing equal after this transformation have
+    the same column count, same alias spellings, same FROM clause,
+    same WHERE clause -- the structural contract ED-S2 promises.
+
+    Args:
+        text: A SQL document (emitted or committed).
+
+    Returns:
+        The whitespace-collapsed, comment-stripped form.
+    """
+    import re as _re
+
+    no_comments = _re.sub(r"--[^\n]*", "", text)
+    return _re.sub(r"\s+", " ", no_comments).strip()
 
 
 def _path_basename(value: Any) -> Any:
@@ -536,6 +601,21 @@ def _compare_artefact(
         message is ``None``. Otherwise the message is a single-line
         explanation suitable for inclusion in the CLI drift report.
     """
+    # ED-S2: expected SQL artefacts are compared whitespace-normalised
+    # because the committed files use hand-curated column alignment
+    # (multi-space padding for readability) while the emitter produces
+    # canonical single-space spacing. Byte-equivalence is an explicit
+    # ED-S4 polish goal; ED-S2 ships structural equivalence only.
+    if plan.category == "sql":
+        if not plan.path.exists():
+            return False, "committed file does not exist (would be created)"
+        committed_sql = plan.path.read_text(encoding="utf-8")
+        if _normalise_sql_for_compare(plan.content) == _normalise_sql_for_compare(
+            committed_sql
+        ):
+            return True, None
+        return False, "SQL structural drift (whitespace-normalised diff)"
+
     emitted_data = _parse_emitted_artefact(plan)
     committed_data, exists = _load_committed_artefact(plan.path, plan.category)
 
@@ -652,7 +732,8 @@ def _render_summary_block(
     mapping_count, mapping_bytes = _category_summary(plans, "mapping")
     rules_count, rules_bytes = _category_summary(plans, "rules")
     recon_count, recon_bytes = _category_summary(plans, "reconciliation")
-    total = source_count + mapping_count + rules_count + recon_count
+    sql_count, sql_bytes = _category_summary(plans, "sql")
+    total = source_count + mapping_count + rules_count + recon_count + sql_count
 
     if dry_run:
         verb = "would write"
@@ -668,6 +749,11 @@ def _render_summary_block(
             f"  reconciliation artefacts -> "
             f"config/e2e/sources/{source_code}/reconciliation/* "
             f"({recon_count} files, {recon_bytes} bytes)"
+        ),
+        (
+            f"  expected SQL artefacts   -> "
+            f"config/e2e/sources/{source_code}/sql/* "
+            f"({sql_count} files, {sql_bytes} bytes)"
         ),
         "  " + ("-" * 60),
         f"  {total} files {verb}.",
@@ -804,6 +890,7 @@ def run_onboard_source(
     mapping_dir: str | None = None,
     rules_dir: str | None = None,
     reconciliation_dir: str | None = None,
+    sql_dir: str | None = None,
     dry_run: bool = False,
     check: bool = False,
     quiet: bool = False,
@@ -863,6 +950,7 @@ def run_onboard_source(
     reconciliation_dir_path = (
         Path(reconciliation_dir) if reconciliation_dir else None
     )
+    sql_dir_path = Path(sql_dir) if sql_dir else None
 
     # 1. Read the workbook.
     try:
@@ -889,6 +977,7 @@ def run_onboard_source(
             mapping_dir=mapping_dir_path,
             rules_dir=rules_dir_path,
             reconciliation_dir=reconciliation_dir_path,
+            sql_dir=sql_dir_path,
             frozen_timestamp=frozen_timestamp,
         )
     except EmitterError as exc:
@@ -953,6 +1042,17 @@ def run_onboard_source(
     ),
 )
 @click.option(
+    "--sql-dir",
+    default=None,
+    type=click.Path(file_okay=False),
+    help=(
+        "Directory for emitted expected_*.sql artefacts (default: "
+        '"config/e2e/sources/<SOURCE>/sql/<filetype>/20_query/"). When '
+        "provided, every emitted SQL file is flattened into the supplied "
+        "directory (ED-S2)."
+    ),
+)
+@click.option(
     "--dry-run",
     is_flag=True,
     default=False,
@@ -992,6 +1092,7 @@ def onboard_source(
     mapping_dir: str | None,
     rules_dir: str | None,
     reconciliation_dir: str | None,
+    sql_dir: str | None,
     dry_run: bool,
     check: bool,
     quiet: bool,
@@ -1020,6 +1121,7 @@ def onboard_source(
         mapping_dir=mapping_dir,
         rules_dir=rules_dir,
         reconciliation_dir=reconciliation_dir,
+        sql_dir=sql_dir,
         dry_run=dry_run,
         check=check,
         quiet=quiet,
