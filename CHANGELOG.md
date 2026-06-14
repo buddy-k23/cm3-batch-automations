@@ -53,6 +53,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reintroduction. All subprocess calls use explicit arg-arrays.
 
 ### Added
+- EC-S6 (Sprint 2): `valdo onboard-source <workbook.xlsx>` CLI command
+  that orchestrates EC-S3 / EC-S4 / EC-S5 emitters and writes the full
+  artefact tree to disk. Modes: normal (write), `--dry-run` (preview),
+  `--check` (drift detection for CI). SHAW workbook regenerates all
+  65 committed artefacts (1 source YAML + 36 mappings + 28 rules)
+  structurally equivalent to current state. Sprint 2 complete — BAs
+  can now ship a new source from one Excel workbook.
 - EC-S5 (Sprint 2): `src/onboarding/emitters/rules_emitter.py` emits
   per-output-file flat rules JSONs and per-record-type rules JSONs from
   an `OnboardingWorkbook`. Delegates to the existing

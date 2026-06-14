@@ -1155,7 +1155,9 @@ def serve(host, port):
 def main():
     """Main entry point."""
     from src.commands.schedule_command import schedule
+    from src.commands.onboard_source import onboard_source
     cli.add_command(schedule)
+    cli.add_command(onboard_source)
     cli()
 
 
