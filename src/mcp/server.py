@@ -1,18 +1,22 @@
-"""MCP (Model Context Protocol) server scaffold for Valdo (EF-S1 + EF-S3).
+"""MCP (Model Context Protocol) server scaffold for Valdo (EF-S1 + EF-S2 + EF-S3).
 
 This module wires a Streamable-HTTP MCP server (built on `mcp.server.fastmcp`)
 into the existing FastAPI process. The server registers the following
 capabilities:
 
-* Tools: empty (EF-S2 introduces the validation tool surface).
+* Tools: three read-only tools (EF-S2) — ``list_sources``,
+  ``get_source_spec``, ``list_recent_runs``. All wrap the existing Valdo
+  service layer; implementations live in :mod:`src.mcp.tools` to keep
+  this module focused on FastMCP registration. EF-S4 will introduce the
+  first mutating tool surface (validate / submit_run).
 * Resources: ``taxonomy://violations`` and ``taxonomy://rules`` (EF-S3 —
   live introspection of the engine's violation kinds and rule check names;
   see :mod:`src.mcp.taxonomy`).
 * Prompts: empty (EF-S6 will introduce prompt templates).
 
 The MCP capability advertisement therefore exposes tools, resources, and
-prompts — ``resources/list`` returns the two taxonomy URIs while the other
-``*/list`` calls return empty arrays.
+prompts — ``tools/list`` returns the three EF-S2 tools, ``resources/list``
+returns the two taxonomy URIs, and ``prompts/list`` returns an empty array.
 
 Auth posture (dev-only, replaced in EF-S7):
     The MCP sub-app is protected by a small Starlette ``BaseHTTPMiddleware``
@@ -38,6 +42,8 @@ import json
 import os
 from typing import Tuple
 
+from typing import Any, Dict, List, Optional
+
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.applications import Starlette
@@ -46,6 +52,14 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from src.mcp.taxonomy import list_rule_taxonomy, list_violation_taxonomy
+from src.mcp.tools import (
+    GET_SOURCE_SPEC_DESCRIPTION,
+    LIST_RECENT_RUNS_DESCRIPTION,
+    LIST_SOURCES_DESCRIPTION,
+    get_source_spec_bundle,
+    list_recent_runs_payload,
+    list_sources_payload,
+)
 
 __all__ = ["build_mcp_server", "MCPAuthMiddleware"]
 
@@ -128,15 +142,17 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
           to ``FastAPI.mount("/mcp", mounted_app)``.
 
     Notes:
-        Tools and prompts remain empty in EF-S3 (they land in EF-S2 and
-        EF-S6 respectively). Two resources are registered here —
-        ``taxonomy://violations`` and ``taxonomy://rules`` — backed by
-        live introspection of the engine via :mod:`src.mcp.taxonomy`. We
-        deliberately do NOT cache the taxonomy snapshots at registration
-        time: each ``resources/read`` call re-runs the introspection so
-        an in-process engine edit (during development or hot-reload) is
-        reflected immediately, and stale snapshots cannot accidentally
-        mislead an agent.
+        Prompts remain empty (EF-S6). Three read-only tools are
+        registered (EF-S2) — ``list_sources``, ``get_source_spec``,
+        ``list_recent_runs`` — all thin adapters over :mod:`src.mcp.tools`
+        so business logic stays in the service layer. Two resources are
+        registered here — ``taxonomy://violations`` and
+        ``taxonomy://rules`` — backed by live introspection of the engine
+        via :mod:`src.mcp.taxonomy`. We deliberately do NOT cache the
+        taxonomy snapshots at registration time: each ``resources/read``
+        call re-runs the introspection so an in-process engine edit
+        (during development or hot-reload) is reflected immediately, and
+        stale snapshots cannot accidentally mislead an agent.
     """
     # DNS-rebinding protection is disabled only when we are explicitly in
     # dev mode (the same flag that opens the auth middleware). Production
@@ -154,9 +170,9 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
         # the FastAPI app version. We pin them to the same string so MCP
         # clients see consistent server identity.
         instructions=(
-            "Valdo MCP scaffold (EF-S1). Tool, resource, and prompt "
-            "registries are intentionally empty; concrete capabilities "
-            "land in EF-S2, EF-S3, and EF-S6."
+            "Valdo MCP server. Read-only tools (EF-S2) and taxonomy "
+            "resources (EF-S3) are registered. Mutating tools and prompt "
+            "templates land in EF-S4 and EF-S6 respectively."
         ),
         stateless_http=True,
         json_response=True,
@@ -223,6 +239,49 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
     )
     def _rule_taxonomy_resource() -> str:
         return json.dumps(list_rule_taxonomy(), ensure_ascii=False, indent=2)
+
+    # ------------------------------------------------------------------
+    # EF-S2 — read-only MCP tools.
+    #
+    # Each tool is a 1-3 line adapter around :mod:`src.mcp.tools`. The
+    # business logic for source enumeration, artefact bundling, and
+    # run-history fetching lives in that module so this file stays
+    # focused on FastMCP registration. The descriptions are imported as
+    # module-level constants so tests can assert on them without
+    # round-tripping through the JSON-RPC ``tools/list`` payload.
+    #
+    # All three tools are READ-ONLY. The first mutating tool
+    # (``validate_file`` / ``submit_run``) is EF-S4's scope and MUST land
+    # in its own story to keep the read/write surface separation
+    # explicit.
+    # ------------------------------------------------------------------
+
+    @mcp_server.tool(
+        name="list_sources",
+        title="List Valdo sources",
+        description=LIST_SOURCES_DESCRIPTION,
+    )
+    def _list_sources_tool() -> List[Dict[str, Any]]:
+        return list_sources_payload()
+
+    @mcp_server.tool(
+        name="get_source_spec",
+        title="Get Valdo source spec bundle",
+        description=GET_SOURCE_SPEC_DESCRIPTION,
+    )
+    def _get_source_spec_tool(name: str) -> Dict[str, Any]:
+        return get_source_spec_bundle(name)
+
+    @mcp_server.tool(
+        name="list_recent_runs",
+        title="List recent Valdo runs",
+        description=LIST_RECENT_RUNS_DESCRIPTION,
+    )
+    def _list_recent_runs_tool(
+        source: Optional[str] = None,
+        limit: int = 20,
+    ) -> List[Dict[str, Any]]:
+        return list_recent_runs_payload(source=source, limit=limit)
 
     # Materialise the Streamable HTTP transport. This call is what creates
     # the session manager; accessing `mcp_server.session_manager` before

@@ -172,11 +172,13 @@ def test_mcp_without_dev_auth_returns_401(monkeypatch):
 
 
 def test_mcp_capabilities_advertise_expected_registries(monkeypatch):
-    """Registry shape guard: ``*/list`` returns the EF-S3 baseline.
+    """Registry shape guard: ``*/list`` returns the current sprint baseline.
 
     Baseline pinned after each MCP-track story lands:
 
-    * ``tools/list``     — empty array (EF-S2 will populate).
+    * ``tools/list``     — exactly three entries added by EF-S2:
+      ``list_sources``, ``get_source_spec``, ``list_recent_runs``.
+      Stories EF-S4 and onwards will extend this set.
     * ``resources/list`` — exactly two entries, the
       ``taxonomy://violations`` and ``taxonomy://rules`` URIs added by
       EF-S3. Stories EF-S4 and onwards will extend this; this test pins
@@ -222,9 +224,19 @@ def test_mcp_capabilities_advertise_expected_registries(monkeypatch):
             assert "result" in body, f"{method} body missing 'result': {body!r}"
             list_results[method] = body["result"].get(result_key, [])
 
-    # EF-S2 / EF-S6 still pending — these stay empty.
-    assert list_results["tools/list"] == [], list_results["tools/list"]
+    # EF-S6 still pending — prompts stay empty.
     assert list_results["prompts/list"] == [], list_results["prompts/list"]
+
+    # EF-S2 — exactly the three read-only tools, no more, no less. The
+    # full input-schema shape of each tool is asserted in
+    # ``test_mcp_read_tools.py``; here we only pin the registry size and
+    # tool names so accidental drift is caught at the registry level.
+    tool_names = sorted(t["name"] for t in list_results["tools/list"])
+    assert tool_names == [
+        "get_source_spec",
+        "list_recent_runs",
+        "list_sources",
+    ], f"tools/list names drifted from EF-S2 baseline: {tool_names!r}"
 
     # EF-S3 — exactly the two taxonomy resources, no more, no less. The
     # shape of each entry is asserted in

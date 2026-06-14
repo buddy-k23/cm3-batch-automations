@@ -43,6 +43,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reintroduction. All subprocess calls use explicit arg-arrays.
 
 ### Added
+- EF-S2: Three read-only MCP tools — `list_sources`, `get_source_spec`,
+  `list_recent_runs`. All wrap the existing service layer (no duplicated
+  business logic). `get_source_spec` returns the bundle of existing
+  artefacts (source YAML + mapping JSONs/YAMLs + rules JSONs +
+  reconciliation YAML + expected SQL files). `list_recent_runs`
+  degrades gracefully when run history is offline. Auth: same dev-mode
+  gate from EF-S1.
 - EF-S3: MCP resources `taxonomy://violations` and `taxonomy://rules`.
   Live taxonomies introspected from the engine (no hardcoded duplicates).
   Agents can pull both via MCP `resources/read` to ground violation
