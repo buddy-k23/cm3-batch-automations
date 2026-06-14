@@ -53,6 +53,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reintroduction. All subprocess calls use explicit arg-arrays.
 
 ### Added
+- EC-S5 (Sprint 2): `src/onboarding/emitters/rules_emitter.py` emits
+  per-output-file flat rules JSONs and per-record-type rules JSONs from
+  an `OnboardingWorkbook`. Delegates to the existing
+  `src/config/ba_rules_template_converter.py` (no duplicated rules
+  logic). Returns `EmittedRulesArtefact` instances; does not write to
+  disk (EC-S6 CLI handles persistence). Layout-tag de-duplication
+  (shared with EC-S4) collapses record-types sharing a mapping layout
+  to a single rules artefact. SHAW workbook round-trips to artefacts
+  structurally equivalent to committed `config/rules/SHAW_*.json`.
 - EC-S4 (Sprint 2): `src/onboarding/emitters/mapping_emitter.py`
   emits per-file flat mapping JSONs and per-multi-record umbrella YAMLs
   + per-record-type JSONs from an `OnboardingWorkbook`. Delegates field-

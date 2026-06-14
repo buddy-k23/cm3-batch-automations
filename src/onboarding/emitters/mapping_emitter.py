@@ -126,7 +126,7 @@ import pandas as pd
 import yaml
 
 from src.config.template_converter import TemplateConverter
-from src.onboarding.emitters import EmitterError
+from src.onboarding.emitters import EmitterError, derive_layout_tag
 from src.onboarding.models import (
     InputFileSpec,
     MappingFieldRow,
@@ -343,22 +343,13 @@ def _convert_mapping_sheet_to_dict(
 
 
 def _derive_layout_tag(file_type: str, sheet_name: str) -> str:
-    """Derive the layout tag used in per-record-type filenames.
+    """Derive the layout tag for a per-record-type *mapping* sheet.
 
-    The per-record-type mapping JSON is named after the LAYOUT (the
-    mapping sheet), not after the discriminator value. This matches
-    the committed convention where ``rt_32000`` and ``rt_32001`` (two
-    discriminator values) both reference the single
-    ``SHAW_TRANERT_NEW1_mapping.json`` (one layout).
-
-    Algorithm:
-        Strip the ``<FILE_TYPE>_`` prefix and the ``_Mapping`` suffix
-        from the sheet name. Anything between is the layout tag.
-
-    Tilde-shortened tabs (``CDSTRANS_EF~AIVERS_Mapping``) yield the
-    shortened layout tag (``EF~AIVERS``). The emitter does not attempt
-    to "unshorten" -- the layout tag becomes part of the filename and
-    the BA can rename if needed.
+    Thin shim around :func:`src.onboarding.emitters.derive_layout_tag`
+    that pins the EC-S4 suffix (``"_Mapping"``). Preserved as a
+    module-level name so existing imports inside this file (and any
+    tests referencing it) keep working after the shared helper was
+    extracted into the package ``__init__`` for reuse by EC-S5.
 
     Args:
         file_type: The output-file file type (e.g. ``"TRANERT"``).
@@ -372,18 +363,7 @@ def _derive_layout_tag(file_type: str, sheet_name: str) -> str:
         EmitterError: When the sheet name does not follow the
             ``<FILE_TYPE>_<LAYOUT>_Mapping`` convention.
     """
-    expected_prefix = f"{file_type}_"
-    expected_suffix = "_Mapping"
-    if not (
-        sheet_name.startswith(expected_prefix)
-        and sheet_name.endswith(expected_suffix)
-    ):
-        raise EmitterError(
-            f"Multi-record mapping sheet '{sheet_name}' does not follow the "
-            f"'{expected_prefix}<LAYOUT>{expected_suffix}' convention; "
-            f"cannot derive per-record-type filename."
-        )
-    return sheet_name[len(expected_prefix) : -len(expected_suffix)]
+    return derive_layout_tag(file_type, sheet_name, suffix="_Mapping")
 
 
 def _build_record_type_entry(
