@@ -50,6 +50,8 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
 from src.onboarding.models import (
+    CrossTypeRuleRow,
+    CrossTypeRulesSheet,
     InputFileSpec,
     MappingFieldRow,
     MappingSheet,
@@ -65,6 +67,7 @@ from src.onboarding.models import (
     WorkbookReadError,
 )
 from src.onboarding.workbook_schema import (
+    CROSS_TYPE_RULES_REQUIRED_COLUMNS,
     DYNAMIC_SHEET_PREFIXES,
     assert_workbook_valid,
 )
@@ -220,6 +223,39 @@ def _cell_bool(value: object, *, sheet: str, cell: str, column: str) -> bool:
         f"{sheet}!{cell}: column '{column}' has unrecognised boolean value "
         f"'{value}'. Expected one of true/false/yes/no/1/0 (case-insensitive)."
     )
+
+
+def _cell_bool_or_default(
+    value: object,
+    *,
+    default: bool,
+    sheet: str,
+    cell: str,
+    column: str,
+) -> bool:
+    """Bool variant that returns ``default`` for blank cells (EC-S8).
+
+    The strict :func:`_cell_bool` raises on blank cells (used by ``Source``
+    sheet gate columns where a missing value is unambiguously a BA mistake).
+    Cross-type-rules columns like ``allow_empty_batch`` / ``enabled`` are
+    "optional flags" where blank means "use the engine default" -- this
+    helper preserves that intent.
+
+    Args:
+        value: Raw cell value from openpyxl.
+        default: Value to return when the cell is blank.
+        sheet: Sheet name (for error reporting).
+        cell: Excel cell address (for error reporting).
+        column: Column name (for error reporting).
+
+    Raises:
+        WorkbookReadError: If the cell is non-blank and not coercible.
+    """
+    if value is None:
+        return default
+    if isinstance(value, str) and not value.strip():
+        return default
+    return _cell_bool(value, sheet=sheet, cell=cell, column=column)
 
 
 def _split_pipe_list(value: object) -> list[str]:
@@ -577,6 +613,91 @@ def _parse_reconciliation_sheet(
     )
 
 
+def _parse_cross_type_rules_sheet(
+    ws: Worksheet, file_type: str
+) -> CrossTypeRulesSheet:
+    """Parse a ``CrossTypeRules_<FILETYPE>`` sheet (EC-S8).
+
+    Rows with a blank ``rule_id`` are skipped (matches the EC-S5
+    :class:`RulesRow` convention). Optional columns beyond the canonical
+    set (``CROSS_TYPE_RULES_REQUIRED_COLUMNS``) are captured in
+    :attr:`CrossTypeRuleRow.extra` so the EC-S4 mapping emitter can pass
+    them through to the umbrella YAML without the workbook needing a
+    schema-version bump every time a new rule-type field is exercised.
+    """
+    headers = _read_header_index(ws)
+    sheet_name = ws.title
+    # ``enabled`` is captured into its own bool field on the dataclass
+    # (defaults to True when blank), NOT into ``extra`` — it is a
+    # workbook-only soft toggle the emitter consumes to skip disabled
+    # rows. Adding it to ``canonical`` here keeps it out of ``extra``.
+    canonical = set(CROSS_TYPE_RULES_REQUIRED_COLUMNS) | {"enabled"}
+    rows: list[CrossTypeRuleRow] = []
+    for row_number, row in _iter_data_rows(ws):
+        rule_id = _cell_str_or_empty(_column_value(row, headers, "rule_id"))
+        if not rule_id:
+            # Match the EC-S5 RulesRow convention: blank rule_id => skip.
+            continue
+
+        allow_empty_addr = _column_address(
+            headers, "allow_empty_batch", row_number
+        )
+        enabled_addr = _column_address(headers, "enabled", row_number)
+
+        allow_empty_batch = _cell_bool_or_default(
+            _column_value(row, headers, "allow_empty_batch"),
+            default=False,
+            sheet=sheet_name,
+            cell=allow_empty_addr,
+            column="allow_empty_batch",
+        )
+        enabled = _cell_bool_or_default(
+            _column_value(row, headers, "enabled"),
+            default=True,
+            sheet=sheet_name,
+            cell=enabled_addr,
+            column="enabled",
+        )
+
+        # Capture any non-canonical columns the BA added (e.g. header_field,
+        # detail_field, sum_field, sum_of, when_type, requires_type,
+        # expected_order, exactly). Blank cells are NOT included so the
+        # emitter's "is-set" check uses dict membership rather than
+        # falsy-value checks.
+        extra: dict[str, str] = {}
+        for header_norm, col_idx in headers.items():
+            if header_norm in canonical or header_norm == "rule_id":
+                continue
+            raw = _column_value(row, headers, header_norm)
+            text = _cell_str_or_empty(raw)
+            if text:
+                extra[header_norm] = text
+
+        rows.append(
+            CrossTypeRuleRow(
+                rule_id=rule_id,
+                check=_cell_str_or_empty(_column_value(row, headers, "check")),
+                record_type=_cell_str_or_empty(
+                    _column_value(row, headers, "record_type")
+                ),
+                trailer_field=_cell_str_or_empty(
+                    _column_value(row, headers, "trailer_field")
+                ),
+                count_of=_cell_str_or_empty(
+                    _column_value(row, headers, "count_of")
+                ),
+                allow_empty_batch=allow_empty_batch,
+                severity=_cell_str_or_empty(
+                    _column_value(row, headers, "severity")
+                ),
+                message=_cell_str_or_empty(_column_value(row, headers, "message")),
+                enabled=enabled,
+                extra=extra,
+            )
+        )
+    return CrossTypeRulesSheet(file_type=file_type, rows=rows)
+
+
 def _parse_mapping_sheet(ws: Worksheet) -> MappingSheet:
     """Parse a ``*_Mapping`` sheet into :class:`MappingSheet`.
 
@@ -724,25 +845,41 @@ class WorkbookReader:
 
             multi_record_sheets: dict[str, MultiRecordSheet] = {}
             reconciliation_sheets: dict[str, ReconciliationSheet] = {}
+            cross_type_rules_sheets: dict[str, CrossTypeRulesSheet] = {}
             mapping_sheets: dict[str, MappingSheet] = {}
             rules_sheets: dict[str, RulesSheet] = {}
+
+            # The DYNAMIC_SHEET_PREFIXES tuple order is significant: the
+            # CrossTypeRules_ prefix MUST be checked before any future
+            # prefix that could share a common stem. The lookup is
+            # explicit-by-name (not positional) to make this robust.
+            mr_prefix = "MultiRecord_"
+            recon_prefix = "Reconciliation_"
+            ctr_prefix = "CrossTypeRules_"
 
             for sheet_name in wb.sheetnames:
                 if sheet_name in {"Source", "InputFiles", "OutputFiles"}:
                     continue
                 ws = wb[sheet_name]
                 # MultiRecord_<FILETYPE>
-                if sheet_name.startswith(DYNAMIC_SHEET_PREFIXES[0]):
-                    file_type = sheet_name[len(DYNAMIC_SHEET_PREFIXES[0]):]
+                if sheet_name.startswith(mr_prefix):
+                    file_type = sheet_name[len(mr_prefix):]
                     multi_record_sheets[file_type] = _parse_multi_record_sheet(
                         ws, file_type
                     )
                     continue
                 # Reconciliation_<FILETYPE>
-                if sheet_name.startswith(DYNAMIC_SHEET_PREFIXES[1]):
-                    file_type = sheet_name[len(DYNAMIC_SHEET_PREFIXES[1]):]
+                if sheet_name.startswith(recon_prefix):
+                    file_type = sheet_name[len(recon_prefix):]
                     reconciliation_sheets[file_type] = _parse_reconciliation_sheet(
                         ws, file_type
+                    )
+                    continue
+                # CrossTypeRules_<FILETYPE> (EC-S8)
+                if sheet_name.startswith(ctr_prefix):
+                    file_type = sheet_name[len(ctr_prefix):]
+                    cross_type_rules_sheets[file_type] = (
+                        _parse_cross_type_rules_sheet(ws, file_type)
                     )
                     continue
                 # *_Mapping
@@ -762,6 +899,7 @@ class WorkbookReader:
                 output_files=output_files,
                 multi_record_sheets=multi_record_sheets,
                 reconciliation_sheets=reconciliation_sheets,
+                cross_type_rules_sheets=cross_type_rules_sheets,
                 mapping_sheets=mapping_sheets,
                 rules_sheets=rules_sheets,
             )

@@ -428,3 +428,156 @@ def test_class_and_function_apis_equivalent():
     assert via_class.source == via_func.source
     assert len(via_class.input_files) == len(via_func.input_files)
     assert len(via_class.output_files) == len(via_func.output_files)
+
+
+# ---------------------------------------------------------------------------
+# 13. EC-S8 — CrossTypeRules_<FILETYPE> sheet parses into typed dataclasses.
+# ---------------------------------------------------------------------------
+
+
+def test_cross_type_rules_sheet_parses():
+    """The SHAW workbook's ``CrossTypeRules_TRANERT`` sheet parses into
+    ``workbook.cross_type_rules_sheets['TRANERT']`` with the expected row.
+
+    Verifies EC-S8 acceptance criterion #4: the reader discovers
+    ``CrossTypeRules_*`` sheets, parses them into ``CrossTypeRulesSheet``
+    dataclasses, and keys them by file_type (the suffix). The fixture's
+    single row carries the SHAW TRANERT ``header_trailer_count`` rule
+    matching the committed umbrella overlay.
+    """
+    workbook = read_workbook(SHAW_WORKBOOK)
+    assert "TRANERT" in workbook.cross_type_rules_sheets, (
+        f"Expected CrossTypeRules_TRANERT to parse; got keys "
+        f"{sorted(workbook.cross_type_rules_sheets)}"
+    )
+    # ATOCTRAN does not have a cross-type-rules overlay → no sheet → no key.
+    assert "ATOCTRAN" not in workbook.cross_type_rules_sheets
+
+    sheet = workbook.cross_type_rules_sheets["TRANERT"]
+    assert sheet.file_type == "TRANERT"
+    assert len(sheet.rows) == 1
+
+    row = sheet.rows[0]
+    assert row.rule_id == "CT001"
+    assert row.check == "header_trailer_count"
+    assert row.record_type == "batch_header"
+    # DASH-style field preserved verbatim.
+    assert row.trailer_field == "ITM-CNT-BRT"
+    assert row.count_of == "detail"
+    assert row.allow_empty_batch is True
+    assert row.severity == "error"
+    assert "ITM-CNT-BRT" in row.message
+    # enabled defaults to True when the cell is truthy.
+    assert row.enabled is True
+    # Non-canonical optional columns left blank → empty extra dict.
+    assert row.extra == {}
+
+
+def test_cross_type_rules_sheet_blank_rule_id_row_skipped(tmp_path):
+    """Rows whose ``rule_id`` cell is blank are skipped at read time.
+
+    Mirrors the EC-S5 ``RulesRow`` convention so BAs can leave example
+    template rows in place during draft authoring without polluting the
+    parsed row list.
+    """
+    from src.onboarding.workbook_schema import (
+        CROSS_TYPE_RULES_REQUIRED_COLUMNS,
+    )
+
+    wb_obj = Workbook()
+    wb_obj.remove(wb_obj.active)
+
+    # Source / InputFiles / OutputFiles minimal valid shape.
+    ws = wb_obj.create_sheet("Source")
+    _write_row(ws, 1, list(SOURCE_SHEET_REQUIRED_COLUMNS))
+    _write_row(
+        ws, 2, [_DEFAULT_SOURCE_DATA[col] for col in SOURCE_SHEET_REQUIRED_COLUMNS]
+    )
+    ws = wb_obj.create_sheet("InputFiles")
+    _write_row(ws, 1, list(INPUT_FILES_REQUIRED_COLUMNS))
+    ws = wb_obj.create_sheet("OutputFiles")
+    _write_row(ws, 1, list(OUTPUT_FILES_REQUIRED_COLUMNS))
+
+    # CrossTypeRules_TEST sheet: header + one blank-id row + one real row.
+    ws = wb_obj.create_sheet("CrossTypeRules_TEST")
+    _write_row(ws, 1, list(CROSS_TYPE_RULES_REQUIRED_COLUMNS))
+    _write_row(ws, 2, ["", "header_trailer_count", "", "", "", "", "", ""])
+    _write_row(
+        ws,
+        3,
+        [
+            "CT001",
+            "header_trailer_count",
+            "batch_header",
+            "ITM-CNT",
+            "detail",
+            "true",
+            "error",
+            "msg",
+        ],
+    )
+
+    out = tmp_path / "ctr_blank.xlsx"
+    wb_obj.save(str(out))
+    workbook = read_workbook(out)
+
+    sheet = workbook.cross_type_rules_sheets["TEST"]
+    assert len(sheet.rows) == 1
+    assert sheet.rows[0].rule_id == "CT001"
+
+
+def test_cross_type_rules_extra_columns_captured(tmp_path):
+    """Non-canonical optional columns are captured into
+    :attr:`CrossTypeRuleRow.extra` so non-``header_trailer_count`` rule
+    types round-trip cleanly without a schema-version bump.
+    """
+    from src.onboarding.workbook_schema import (
+        CROSS_TYPE_RULES_REQUIRED_COLUMNS,
+    )
+
+    wb_obj = Workbook()
+    wb_obj.remove(wb_obj.active)
+    ws = wb_obj.create_sheet("Source")
+    _write_row(ws, 1, list(SOURCE_SHEET_REQUIRED_COLUMNS))
+    _write_row(
+        ws, 2, [_DEFAULT_SOURCE_DATA[col] for col in SOURCE_SHEET_REQUIRED_COLUMNS]
+    )
+    wb_obj.create_sheet("InputFiles").cell(row=1, column=1, value="file_type")
+    ws_in = wb_obj["InputFiles"]
+    _write_row(ws_in, 1, list(INPUT_FILES_REQUIRED_COLUMNS))
+    ws_out = wb_obj.create_sheet("OutputFiles")
+    _write_row(ws_out, 1, list(OUTPUT_FILES_REQUIRED_COLUMNS))
+
+    # CrossTypeRules sheet with two extras (header_field, sum_of).
+    ws = wb_obj.create_sheet("CrossTypeRules_TEST")
+    cols = list(CROSS_TYPE_RULES_REQUIRED_COLUMNS) + [
+        "header_field",
+        "sum_of",
+    ]
+    _write_row(ws, 1, cols)
+    _write_row(
+        ws,
+        2,
+        [
+            "CT001",
+            "header_trailer_sum",
+            "batch_header",
+            "TOTAL",
+            "detail",
+            "false",
+            "error",
+            "totals mismatch",
+            "HDR-TOTAL",
+            "AMT_A|AMT_B|AMT_C",
+        ],
+    )
+
+    out = tmp_path / "ctr_extras.xlsx"
+    wb_obj.save(str(out))
+    workbook = read_workbook(out)
+
+    row = workbook.cross_type_rules_sheets["TEST"].rows[0]
+    assert row.extra == {
+        "header_field": "HDR-TOTAL",
+        "sum_of": "AMT_A|AMT_B|AMT_C",
+    }

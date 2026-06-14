@@ -18,6 +18,7 @@ import pytest
 from openpyxl import Workbook
 
 from src.onboarding.workbook_schema import (
+    CROSS_TYPE_RULES_REQUIRED_COLUMNS,
     SOURCE_SHEET_REQUIRED_COLUMNS,
     WorkbookSchemaError,
     assert_workbook_valid,
@@ -225,3 +226,64 @@ def test_unknown_sheet_warns_not_fails(tmp_path):
     assert errors == [], f"Did not expect errors, got: {errors}"
     assert warnings, "Expected at least one warning for the unrecognised 'Notes' sheet."
     assert "Notes" in str(warnings[0])
+
+
+# ---------------------------------------------------------------------------
+# EC-S8 — CrossTypeRules_<FILETYPE> sheet recognition.
+# ---------------------------------------------------------------------------
+
+
+def test_cross_type_rules_sheet_recognized(tmp_path):
+    """A synthetic workbook carrying a ``CrossTypeRules_TRANERT`` sheet with
+    the canonical column set validates clean.
+
+    Guards EC-S8 acceptance criterion #2: the schema validator must
+    classify ``CrossTypeRules_<FILETYPE>`` as a known dynamic-prefix
+    sheet, NOT raise an "unknown sheet" warning, and apply the
+    canonical column check against it.
+    """
+    extra_sheets = {
+        "CrossTypeRules_TRANERT": list(CROSS_TYPE_RULES_REQUIRED_COLUMNS),
+    }
+    path = _build_minimal_workbook(tmp_path, extra_sheets=extra_sheets)
+
+    # No exception expected.
+    assert_workbook_valid(path)
+
+    findings = validate_workbook(path)
+    errors = [f for f in findings if f.severity == "error"]
+    assert errors == [], (
+        f"Did not expect errors for CrossTypeRules sheet; got: {errors}"
+    )
+    # And NOT classified as an unknown sheet (no warning for it either).
+    unknown_warnings = [
+        f
+        for f in findings
+        if f.severity == "warning" and f.sheet == "CrossTypeRules_TRANERT"
+    ]
+    assert unknown_warnings == [], (
+        f"CrossTypeRules_TRANERT should be recognised, not warned about; "
+        f"got: {unknown_warnings}"
+    )
+
+
+def test_cross_type_rules_sheet_missing_required_column_raises(tmp_path):
+    """A ``CrossTypeRules_<FILETYPE>`` sheet missing one of the canonical
+    required columns (``check``) must fail validation with a
+    cell-addressable error pointing at the missing column.
+    """
+    columns_without_check = [
+        c for c in CROSS_TYPE_RULES_REQUIRED_COLUMNS if c != "check"
+    ]
+    extra_sheets = {"CrossTypeRules_TRANERT": columns_without_check}
+    path = _build_minimal_workbook(tmp_path, extra_sheets=extra_sheets)
+
+    with pytest.raises(WorkbookSchemaError) as exc_info:
+        assert_workbook_valid(path)
+
+    msg = str(exc_info.value)
+    assert "check" in msg
+    assert any(
+        f.sheet == "CrossTypeRules_TRANERT" and "check" in f.reason
+        for f in exc_info.value.findings
+    )

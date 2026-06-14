@@ -269,6 +269,99 @@ class ReconciliationSheet:
 
 
 # ---------------------------------------------------------------------------
+# Cross-type rules sheets — workbook-authored cross-record-type validation
+# rules for multi-record output files (EC-S8).
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class CrossTypeRuleRow:
+    """One workbook-authored cross-record-type rule (EC-S8).
+
+    Captures operator-authored cross-record-type assertions that previously
+    lived as hand-edited overlays inside the umbrella YAML (e.g. the SHAW
+    TRANERT ``header_trailer_count`` overlay on ``ITM-CNT-BRT``). EC-S4's
+    mapping emitter consumes this row and emits the umbrella YAML's
+    ``cross_type_rules:`` array entries.
+
+    The column set is the minimal cross-cut of fields the engine's
+    :class:`src.config.multi_record_config.CrossTypeRule` model unpacks for
+    the rule type currently exercised end-to-end against real SHAW data
+    (``header_trailer_count``). Additional engine-supported fields
+    (``header_field``, ``detail_field``, ``sum_field``, ``sum_of``,
+    ``when_type``, ``requires_type``, ``expected_order``, ``exactly``) are
+    accepted as OPTIONAL workbook columns (the EC-S1 validator tolerates
+    unknown columns; the EC-S2 reader populates ``extra`` from any present)
+    so new rule types can be authored without a schema-version bump.
+
+    Attributes:
+        rule_id: Stable identifier (``R001``, ``CT001``). Blank-``rule_id``
+            rows are skipped at read time (same convention as
+            :class:`RulesRow`).
+        check: Rule-type token consumed by
+            :class:`src.validators.cross_type_validator.CrossTypeValidator`
+            (``header_trailer_count``, ``header_trailer_sum``, etc.). The
+            engine dispatches on this verbatim — the workbook value is
+            preserved as-is.
+        record_type: Record-type key the rule targets (e.g.
+            ``batch_header``). Matches a key in the corresponding
+            ``MultiRecord_<FILETYPE>`` sheet.
+        trailer_field: Field name on ``record_type`` carrying the asserted
+            value (e.g. ``ITM-CNT-BRT``). DASH-style preserved verbatim.
+            ``""`` if not applicable to the rule type.
+        count_of: For ``header_trailer_count`` — which record-type group to
+            count (defaults to ``detail`` which the engine treats as
+            "every non-header record type"). ``""`` defers to the engine
+            default.
+        allow_empty_batch: ADR 0013 (Option A) opt-in. ``True`` -> a
+            legitimately empty batch (declared count == 0 AND zero detail
+            rows) is treated as valid; truncated files still fail.
+            ``False`` (default) preserves the legacy strict behaviour.
+        severity: ``error`` / ``warning``. ``""`` defers to the engine
+            default (``error``).
+        message: Custom violation message template. May reference
+            ``{header_value}`` and ``{actual_count}`` placeholders the
+            engine fills in. ``""`` defers to the engine default.
+        enabled: ``Y``/``Yes``/``True``/``1`` is truthy; defaults to
+            enabled when blank. The mapping emitter SKIPS rows whose
+            ``enabled`` is explicitly false so an operator can soft-disable
+            a rule without deleting the row.
+        extra: Dict of any additional cells the workbook carries beyond
+            the canonical column set. EC-S4 merges this dict into the
+            emitted YAML entry so rule types that need fields not yet
+            promoted to canonical columns (``header_field``, ``sum_of``,
+            ``expected_order``, etc.) round-trip cleanly. Blank cells are
+            NOT included.
+    """
+
+    rule_id: str
+    check: str
+    record_type: str
+    trailer_field: str
+    count_of: str
+    allow_empty_batch: bool
+    severity: str
+    message: str
+    enabled: bool
+    extra: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class CrossTypeRulesSheet:
+    """A complete ``CrossTypeRules_<FILETYPE>`` sheet (EC-S8).
+
+    Attributes:
+        file_type: Extracted from the sheet name suffix (``TRANERT``).
+        rows: Ordered list of cross-type rule rows. Rows whose ``rule_id``
+            cell was blank are skipped at read time and never reach this
+            list.
+    """
+
+    file_type: str
+    rows: list[CrossTypeRuleRow]
+
+
+# ---------------------------------------------------------------------------
 # Mapping sheets — column set matches scripts/bulk_convert_mappings.py and
 # src/config/template_converter.py exactly. Every cell is preserved as a
 # string (or ``None``); EC-S4 does the int/format coercion in one place.
@@ -425,6 +518,11 @@ class OnboardingWorkbook:
             ``MultiRecord_``). Iteration order follows workbook order.
         reconciliation_sheets: Keyed by ``file_type`` (the suffix after
             ``Reconciliation_``).
+        cross_type_rules_sheets: Keyed by ``file_type`` (the suffix after
+            ``CrossTypeRules_``). Optional — multi-record output files
+            without cross-record-type assertions have no entry. EC-S4
+            consumes this dict to populate the umbrella YAML's
+            ``cross_type_rules:`` array.
         mapping_sheets: Keyed by exact sheet name as written in the
             workbook. Lookups from ``InputFileSpec.mapping_sheet``,
             ``OutputFileSpec.mapping_sheet``, and
@@ -440,6 +538,9 @@ class OnboardingWorkbook:
     output_files: list[OutputFileSpec] = field(default_factory=list)
     multi_record_sheets: dict[str, MultiRecordSheet] = field(default_factory=dict)
     reconciliation_sheets: dict[str, ReconciliationSheet] = field(default_factory=dict)
+    cross_type_rules_sheets: dict[str, CrossTypeRulesSheet] = field(
+        default_factory=dict
+    )
     mapping_sheets: dict[str, MappingSheet] = field(default_factory=dict)
     rules_sheets: dict[str, RulesSheet] = field(default_factory=dict)
 
@@ -453,6 +554,8 @@ __all__ = [
     "MultiRecordSheet",
     "ReconciliationRow",
     "ReconciliationSheet",
+    "CrossTypeRuleRow",
+    "CrossTypeRulesSheet",
     "MappingFieldRow",
     "MappingSheet",
     "RulesRow",

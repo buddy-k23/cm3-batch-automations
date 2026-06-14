@@ -75,14 +75,16 @@ Design contract
       ``many_per_driver_row``        -> ``any``
       ``zero_or_one_per_driver_row`` -> ``any``
 
-  The umbrella never writes ``cross_type_rules`` content -- the
-  workbook does not (yet) carry a cross-type-rules sheet, and the
-  committed SHAW umbrellas embed those rules as hand-edited overlays.
-  The emitter emits an empty ``cross_type_rules: []`` so the
-  ``MultiRecordConfig`` shape is well-formed; operators add cross-type
-  rules to the umbrella YAML after EC-S6 writes it (the EC-S6 CLI
-  preserves an existing umbrella's ``cross_type_rules`` block when
-  re-emitting -- see EC-S6).
+  The umbrella's ``cross_type_rules`` array is populated (EC-S8) from
+  the optional ``CrossTypeRules_<FILETYPE>`` workbook sheet. Each
+  enabled row is converted to a block-style dict matching the engine's
+  :class:`src.config.multi_record_config.CrossTypeRule` model
+  (``check``, ``record_type``, ``trailer_field``, ``count_of``,
+  ``allow_empty_batch``, ``severity``, ``message``; non-canonical
+  cells in :attr:`CrossTypeRuleRow.extra` pass through verbatim for
+  rule types that need additional engine fields). When no
+  ``CrossTypeRules_<FILETYPE>`` sheet exists for the output file the
+  emitter falls back to ``cross_type_rules: []`` (the legacy shape).
 * **DASH-style field names preserved verbatim.** The emitter never
   snake_cases the ``field_name`` cell. The downstream converter
   derives the ``target_name`` (snake_case SQL alias) only when the
@@ -132,6 +134,8 @@ from src.onboarding.emitters import (
     derive_rules_artefact_path,
 )
 from src.onboarding.models import (
+    CrossTypeRuleRow,
+    CrossTypeRulesSheet,
     InputFileSpec,
     MappingFieldRow,
     MappingSheet,
@@ -436,10 +440,95 @@ def _build_record_type_entry(
     return entry
 
 
+def _build_cross_type_rule_entry(row: CrossTypeRuleRow) -> dict[str, Any]:
+    """Build one umbrella YAML ``cross_type_rules`` array entry from a
+    workbook-authored :class:`CrossTypeRuleRow` (EC-S8).
+
+    The emitted dict matches the shape consumed by
+    :class:`src.config.multi_record_config.CrossTypeRule` and the committed
+    SHAW TRANERT overlay (``check``, ``record_type``, ``trailer_field``,
+    ``count_of``, ``allow_empty_batch``, ``severity``, ``message``). Blank
+    workbook cells are OMITTED from the dict so the Pydantic defaults take
+    effect, matching how an operator would author the YAML by hand.
+
+    The workbook's ``enabled`` flag is a workbook-only soft toggle and is
+    NOT emitted -- :meth:`MappingEmitter._build_umbrella_document` skips
+    disabled rows entirely before reaching this helper.
+
+    The :attr:`CrossTypeRuleRow.extra` dict carries any non-canonical
+    columns the BA added (e.g. ``header_field``, ``sum_field``,
+    ``sum_of``, ``expected_order``); they are merged into the emitted
+    entry under their original (lowercased) header names so the engine
+    receives them verbatim. Pipe-separated ``extra`` values are split
+    into lists for the two list-valued engine fields (``sum_of``,
+    ``expected_order``) so the BA can author them naturally as
+    ``A|B|C``; other ``extra`` fields are emitted as raw strings.
+
+    Args:
+        row: The parsed workbook row.
+
+    Returns:
+        The block-style dict for one ``cross_type_rules`` entry.
+    """
+    entry: dict[str, Any] = {"check": row.check}
+    if row.record_type:
+        entry["record_type"] = row.record_type
+    if row.trailer_field:
+        entry["trailer_field"] = row.trailer_field
+    if row.count_of:
+        entry["count_of"] = row.count_of
+    if row.allow_empty_batch:
+        # Default is False (matching the engine default) -- only emit when
+        # the BA opted in to ADR 0013 Option A.
+        entry["allow_empty_batch"] = True
+    if row.severity:
+        entry["severity"] = row.severity
+    if row.message:
+        entry["message"] = row.message
+
+    # Pass-through for non-canonical engine fields (e.g. header_field,
+    # detail_field, sum_field, sum_of, when_type, requires_type,
+    # expected_order, exactly). Pipe-separated for list-valued fields.
+    _LIST_VALUED = {"sum_of", "expected_order"}
+    for key, raw in row.extra.items():
+        if key in _LIST_VALUED:
+            entry[key] = [part.strip() for part in raw.split("|") if part.strip()]
+        else:
+            entry[key] = raw
+    return entry
+
+
+def _build_cross_type_rules_block(
+    sheet: CrossTypeRulesSheet | None,
+) -> list[dict[str, Any]]:
+    """Build the umbrella YAML ``cross_type_rules:`` array from a
+    workbook-authored :class:`CrossTypeRulesSheet` (EC-S8).
+
+    Returns an empty list when ``sheet`` is ``None`` (no
+    ``CrossTypeRules_<FILETYPE>`` sheet for this output file) OR when
+    every row is disabled. Disabled rows are filtered here so the YAML
+    only carries actively-asserted rules.
+
+    Args:
+        sheet: The parsed :class:`CrossTypeRulesSheet` or ``None``.
+
+    Returns:
+        List of block-style dicts ready for ``yaml.safe_dump``.
+    """
+    if sheet is None:
+        return []
+    return [
+        _build_cross_type_rule_entry(row)
+        for row in sheet.rows
+        if row.enabled
+    ]
+
+
 def _build_umbrella_document(
     source_code: str,
     spec: OutputFileSpec,
     mr_sheet: MultiRecordSheet,
+    cross_type_rules_sheet: CrossTypeRulesSheet | None = None,
 ) -> dict[str, Any]:
     """Build the top-level umbrella YAML document.
 
@@ -490,7 +579,7 @@ def _build_umbrella_document(
     return {
         "discriminator": discriminator,
         "record_types": record_types,
-        "cross_type_rules": [],
+        "cross_type_rules": _build_cross_type_rules_block(cross_type_rules_sheet),
         "default_action": _DEFAULT_ACTION,
     }
 
@@ -686,7 +775,15 @@ class MappingEmitter:
             )
 
         # 3b. Umbrella YAML.
-        document = _build_umbrella_document(self.source_code, spec, mr_sheet)
+        cross_type_rules_sheet = workbook.cross_type_rules_sheets.get(
+            spec.file_type
+        )
+        document = _build_umbrella_document(
+            self.source_code,
+            spec,
+            mr_sheet,
+            cross_type_rules_sheet=cross_type_rules_sheet,
+        )
         artefacts.append(
             EmittedMappingArtefact(
                 path=f"{self.output_dir}/{self.source_code}_{spec.file_type}.yaml",

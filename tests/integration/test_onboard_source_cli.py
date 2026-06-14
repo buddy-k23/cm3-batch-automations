@@ -529,6 +529,16 @@ def test_check_mode_umbrella_rules_drift_resolved():
             f"Full stderr:\n{result.stderr}"
         )
 
+    # EC-S8 contract: SHAW_TRANERT.yaml now matches on cross_type_rules
+    # as well -- the workbook's CrossTypeRules_TRANERT sheet drives the
+    # umbrella's cross_type_rules array. After EC-S8 there should be NO
+    # drift line at all for SHAW_TRANERT.yaml.
+    assert not tranert_drift_lines, (
+        "EC-S8 contract violation: SHAW_TRANERT.yaml still shows drift "
+        f"lines after the cross_type_rules fix:\n{tranert_drift_lines}\n"
+        f"Full stderr:\n{result.stderr}"
+    )
+
 
 # ---------------------------------------------------------------------------
 # 11. --help lists every flag.

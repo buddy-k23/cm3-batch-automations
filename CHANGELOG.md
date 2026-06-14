@@ -60,6 +60,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reintroduction. All subprocess calls use explicit arg-arrays.
 
 ### Added
+- EC-S8 (Sprint 3 drift-fix): New `CrossTypeRules_<FILETYPE>` workbook
+  sheet type carries operator-authored cross-record-type rules
+  (`header_trailer_count`, etc.) for multi-record output files. EC-S2
+  reader parses into `CrossTypeRulesSheet`; EC-S4 mapping emitter
+  populates umbrella YAML's `cross_type_rules:` array from workbook
+  rows. `templates/SHAW_onboarding.xlsx` extended with the SHAW TRANERT
+  cross-type rule from committed state. Resolves the `cross_type_rules`
+  drift category in `valdo onboard-source --check`.
 - EC-S6 (Sprint 2): `valdo onboard-source <workbook.xlsx>` CLI command
   that orchestrates EC-S3 / EC-S4 / EC-S5 emitters and writes the full
   artefact tree to disk. Modes: normal (write), `--dry-run` (preview),

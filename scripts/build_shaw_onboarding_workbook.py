@@ -123,6 +123,33 @@ RECONCILIATION_COLUMNS = [
     "expected_sql_override",
 ]
 
+# CrossTypeRules_<FILETYPE> sheet column set (EC-S8). Mirrors
+# src/onboarding/workbook_schema.CROSS_TYPE_RULES_REQUIRED_COLUMNS plus the
+# optional non-canonical columns the engine's CrossTypeRule model unpacks
+# for rule types beyond ``header_trailer_count`` (e.g. ``header_field``,
+# ``sum_field``, ``sum_of``). Optional columns may be left blank — the
+# reader records non-blank cells into CrossTypeRuleRow.extra and the
+# emitter passes them through to the umbrella YAML verbatim.
+CROSS_TYPE_RULES_COLUMNS = [
+    "rule_id",
+    "check",
+    "record_type",
+    "trailer_field",
+    "count_of",
+    "allow_empty_batch",
+    "severity",
+    "message",
+    "enabled",
+    "header_field",
+    "detail_field",
+    "sum_field",
+    "sum_of",
+    "when_type",
+    "requires_type",
+    "expected_order",
+    "exactly",
+]
+
 MAPPING_COLUMNS = [
     "Field Name",
     "Data Type",
@@ -230,6 +257,15 @@ def _add_reconciliation_sheet(wb: Workbook, sheet_name: str, rows: list[dict[str
     ws = wb.create_sheet(_shorten_sheet_name(sheet_name))
     _write_header(ws, RECONCILIATION_COLUMNS)
     _write_rows(ws, RECONCILIATION_COLUMNS, rows)
+
+
+def _add_cross_type_rules_sheet(
+    wb: Workbook, sheet_name: str, rows: list[dict[str, Any]]
+) -> None:
+    """Add an optional CrossTypeRules_<FILETYPE> sheet (EC-S8)."""
+    ws = wb.create_sheet(_shorten_sheet_name(sheet_name))
+    _write_header(ws, CROSS_TYPE_RULES_COLUMNS)
+    _write_rows(ws, CROSS_TYPE_RULES_COLUMNS, rows)
 
 
 def _add_mapping_sheet(wb: Workbook, sheet_name: str, rows: list[dict[str, Any]]) -> None:
@@ -456,6 +492,57 @@ def _rules_path_to_sheet_name(rules_path: str, file_type: str, rt_name: str) -> 
     if parts and parts[-1].lower() == "rules":
         parts = parts[:-1]
     return "_".join(parts) + "_Rules"
+
+
+def _cross_type_rules_rows_from_umbrella(
+    umbrella: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Convert a committed umbrella YAML's ``cross_type_rules`` array into
+    workbook-row dicts for the EC-S8 ``CrossTypeRules_<FILETYPE>`` sheet.
+
+    Each emitted dict carries the canonical CrossTypeRules columns plus
+    any non-canonical engine fields the original rule specified
+    (``header_field``, ``sum_of``, etc.). ``rule_id`` is generated
+    sequentially (``CT001``, ``CT002``, ...) since the committed YAML
+    overlay does not carry rule IDs (operators rely on order alone).
+
+    Args:
+        umbrella: Parsed umbrella YAML dict.
+
+    Returns:
+        List of row-dicts keyed by ``CROSS_TYPE_RULES_COLUMNS`` entries.
+        Empty list when the umbrella carries no ``cross_type_rules:``
+        block (so the sheet is omitted entirely).
+    """
+    rules = umbrella.get("cross_type_rules") or []
+    return [
+        _materialise_cross_type_rule_row(rule, idx)
+        for idx, rule in enumerate(rules, start=1)
+        if isinstance(rule, dict)
+    ]
+
+
+def _materialise_cross_type_rule_row(
+    rule: dict[str, Any], rule_id_idx: int
+) -> dict[str, Any]:
+    """Build one CrossTypeRules sheet row dict from a committed umbrella
+    YAML ``cross_type_rules`` array entry. Helper for
+    :func:`_cross_type_rules_rows_from_umbrella` so the iteration stays
+    flat and readable.
+    """
+    row: dict[str, Any] = {col: "" for col in CROSS_TYPE_RULES_COLUMNS}
+    row["rule_id"] = f"CT{rule_id_idx:03d}"
+    row["enabled"] = True
+    for key, value in rule.items():
+        if key in {"sum_of", "expected_order"} and isinstance(value, list):
+            row[key] = "|".join(str(v) for v in value)
+        elif isinstance(value, bool):
+            row[key] = value
+        elif value is None:
+            row[key] = ""
+        else:
+            row[key] = value
+    return row
 
 
 def _reconciliation_rows_from_yaml(spec: dict[str, Any]) -> list[dict[str, Any]]:
@@ -686,6 +773,9 @@ def build_shaw_workbook(out_path: Path) -> None:
 
     # --- 2. MultiRecord sheets for each .yaml-mapping output. ---
     multi_record_record_types: dict[str, list[str]] = {}
+    # Cache committed umbrella YAMLs so the cross-type-rules pass (EC-S8)
+    # below can re-use the parse without reloading from disk.
+    committed_umbrellas: dict[str, dict[str, Any]] = {}
     for entry in src.get("output_files", []):
         mapping_path = entry.get("mapping", "")
         if not mapping_path.endswith(".yaml"):
@@ -695,9 +785,23 @@ def build_shaw_workbook(out_path: Path) -> None:
         if not umbrella_path.exists():
             continue
         umbrella = _load_yaml(umbrella_path)
+        committed_umbrellas[file_type] = umbrella
         mr_rows = _multi_record_rows_from_umbrella(file_type, umbrella)
         _add_multi_record_sheet(wb, f"MultiRecord_{file_type}", mr_rows)
         multi_record_record_types[file_type] = [r["record_type_name"] for r in mr_rows]
+
+    # --- 2b. CrossTypeRules_<FILETYPE> sheets (EC-S8). Sheet is OPTIONAL —
+    # only emitted for output files whose committed umbrella YAML carries
+    # an operator-authored ``cross_type_rules:`` overlay. SHAW TRANERT has
+    # one; SHAW ATOCTRAN does not. The empty case (sheet absent) yields
+    # ``cross_type_rules: []`` in the emitted umbrella, preserving the
+    # legacy shape. ---
+    for file_type, umbrella in committed_umbrellas.items():
+        ctr_rows = _cross_type_rules_rows_from_umbrella(umbrella)
+        if ctr_rows:
+            _add_cross_type_rules_sheet(
+                wb, f"CrossTypeRules_{file_type}", ctr_rows
+            )
 
     # --- 3. Reconciliation sheets (anything under SHAW/reconciliation/). ---
     if SHAW_RECONCILIATION_DIR.exists():

@@ -50,6 +50,7 @@ from src.onboarding.emitters.mapping_emitter import (
 )
 from src.onboarding.workbook_reader import read_workbook
 from src.onboarding.workbook_schema import (
+    CROSS_TYPE_RULES_REQUIRED_COLUMNS,
     INPUT_FILES_REQUIRED_COLUMNS,
     MAPPING_SHEET_REQUIRED_COLUMNS,
     MULTI_RECORD_REQUIRED_COLUMNS,
@@ -116,6 +117,7 @@ def _build_synthetic_workbook(
     mapping_sheets: dict[str, list[dict[str, object]]] | None = None,
     multi_record_sheets: dict[str, list[dict[str, object]]] | None = None,
     rules_sheets: dict[str, list[dict[str, object]]] | None = None,
+    cross_type_rules_sheets: dict[str, list[dict[str, object]]] | None = None,
     filename: str = "synthetic.xlsx",
 ) -> Path:
     """Synthesise a minimal valid-shape workbook with arbitrary mapping sheets.
@@ -145,6 +147,7 @@ def _build_synthetic_workbook(
     mapping_sheets = mapping_sheets or {}
     multi_record_sheets = multi_record_sheets or {}
     rules_sheets = rules_sheets or {}
+    cross_type_rules_sheets = cross_type_rules_sheets or {}
 
     wb = Workbook()
     wb.remove(wb.active)
@@ -177,6 +180,32 @@ def _build_synthetic_workbook(
             _write_row(
                 ws, idx, [row_dict.get(col) for col in MULTI_RECORD_REQUIRED_COLUMNS]
             )
+
+    # CrossTypeRules_<FILETYPE> sheets (EC-S8). Tests may include extra
+    # non-canonical columns by passing column keys beyond the canonical
+    # set in the row dicts; this helper writes only canonical columns
+    # plus ``enabled`` plus any extra keys present in the first row.
+    for sheet_name, rows in cross_type_rules_sheets.items():
+        ws = wb.create_sheet(sheet_name)
+        # Discover any extra columns the test rows carry.
+        extra_cols: list[str] = []
+        seen: set[str] = set()
+        canonical_lower = {c.lower() for c in CROSS_TYPE_RULES_REQUIRED_COLUMNS}
+        for row_dict in rows:
+            for key in row_dict.keys():
+                if (
+                    key.lower() not in canonical_lower
+                    and key.lower() != "enabled"
+                    and key not in seen
+                ):
+                    extra_cols.append(key)
+                    seen.add(key)
+        cols = (
+            list(CROSS_TYPE_RULES_REQUIRED_COLUMNS) + ["enabled"] + extra_cols
+        )
+        _write_row(ws, 1, cols)
+        for idx, row_dict in enumerate(rows, start=2):
+            _write_row(ws, idx, [row_dict.get(col) for col in cols])
 
     # Full mapping-sheet column set the EC-S2 reader looks up.
     mapping_columns = [
@@ -804,3 +833,278 @@ def test_emit_mapping_artefacts_returns_emitted_mapping_artefact_instances():
         assert art.kind in {"flat_json", "umbrella_yaml", "per_type_json"}
         assert art.path.startswith("config/mappings/")
         assert art.content.endswith("\n")
+
+
+# ---------------------------------------------------------------------------
+# 11. EC-S8: umbrella YAML populates cross_type_rules from workbook sheet.
+# ---------------------------------------------------------------------------
+
+
+def test_umbrella_yaml_emits_cross_type_rules_from_workbook():
+    """The SHAW workbook now ships a ``CrossTypeRules_TRANERT`` sheet and
+    the emitted ``SHAW_TRANERT.yaml`` umbrella carries the
+    ``header_trailer_count`` rule from that sheet — matching the
+    committed overlay exactly.
+
+    This is the headline EC-S8 acceptance criterion: previously the
+    emitter unconditionally rendered ``cross_type_rules: []`` and the
+    operator-authored overlay drifted; after EC-S8 the workbook drives
+    the overlay shape end-to-end.
+    """
+    workbook = read_workbook(SHAW_WORKBOOK)
+    artefacts = emit_mapping_artefacts(workbook)
+
+    emitted = next(
+        a for a in artefacts if a.path == "config/mappings/SHAW_TRANERT.yaml"
+    )
+    emitted_data = yaml.safe_load(emitted.content)
+
+    committed_path = COMMITTED_MAPPINGS_DIR / "SHAW_TRANERT.yaml"
+    committed_data = yaml.safe_load(committed_path.read_text(encoding="utf-8"))
+
+    # Headline check: the cross_type_rules arrays are byte-equal.
+    assert emitted_data["cross_type_rules"] == committed_data["cross_type_rules"], (
+        f"cross_type_rules diverges from committed.\n"
+        f"emitted:  {emitted_data['cross_type_rules']}\n"
+        f"committed: {committed_data['cross_type_rules']}"
+    )
+    # And the umbrella still loads cleanly through MultiRecordConfig.
+    MultiRecordConfig.model_validate(emitted_data)
+
+
+def test_umbrella_yaml_emits_empty_cross_type_rules_when_sheet_absent(tmp_path):
+    """Synthetic workbook without a ``CrossTypeRules_<FILETYPE>`` sheet
+    falls back to ``cross_type_rules: []`` (the legacy shape).
+
+    Guards EC-S8 acceptance criterion #5 ("If absent or empty, emit
+    cross_type_rules: [] as today"): the new code path is OPT-IN and
+    multi-record outputs without operator overlays are unaffected.
+    """
+    wb_path = _build_synthetic_workbook(
+        tmp_path,
+        output_files_rows=[
+            {
+                "file_type": "NORULES",
+                "glob": "norules_*.txt",
+                "mapping_sheet": "(umbrella)",
+                "rules_sheet": "(umbrella)",
+                "tolerance_max_errors": None,
+                "tolerance_max_error_pct": None,
+                "tolerance_ignore_fields": None,
+            },
+        ],
+        multi_record_sheets={
+            "MultiRecord_NORULES": [
+                {
+                    "record_type_name": "rt_100",
+                    "discriminator_field": "TYPE",
+                    "discriminator_position": 1,
+                    "discriminator_length": 3,
+                    "match_kind": "discriminator_equals",
+                    "match_value": "100",
+                    "mapping_sheet": "NORULES_HDR_Mapping",
+                    "rules_sheet": "",
+                    "cardinality": "one_per_driver_row",
+                },
+            ],
+        },
+        mapping_sheets={
+            "NORULES_HDR_Mapping": [
+                {
+                    "Field Name": "TYPE",
+                    "Data Type": "String",
+                    "Position": 1,
+                    "Length": 3,
+                    "Required": "Yes",
+                }
+            ],
+        },
+    )
+
+    workbook = read_workbook(wb_path)
+    # Sanity: no CrossTypeRules sheet was emitted into the workbook.
+    assert workbook.cross_type_rules_sheets == {}
+
+    artefacts = emit_mapping_artefacts(workbook)
+    umbrella = next(
+        a for a in artefacts if a.path == "config/mappings/TEST_NORULES.yaml"
+    )
+    data = yaml.safe_load(umbrella.content)
+    assert data["cross_type_rules"] == [], (
+        f"Expected empty list when CrossTypeRules sheet absent; "
+        f"got {data['cross_type_rules']!r}"
+    )
+
+
+def test_umbrella_yaml_skips_disabled_cross_type_rules(tmp_path):
+    """Workbook rows with ``enabled=false`` are skipped at emission.
+
+    The ``enabled`` flag is a workbook-only soft toggle so an operator
+    can soft-disable an overlay rule without deleting the row (preserving
+    the audit trail). The emitter MUST drop disabled rows so the engine
+    only evaluates active rules.
+    """
+    wb_path = _build_synthetic_workbook(
+        tmp_path,
+        output_files_rows=[
+            {
+                "file_type": "MIX",
+                "glob": "mix_*.txt",
+                "mapping_sheet": "(umbrella)",
+                "rules_sheet": "(umbrella)",
+                "tolerance_max_errors": None,
+                "tolerance_max_error_pct": None,
+                "tolerance_ignore_fields": None,
+            },
+        ],
+        multi_record_sheets={
+            "MultiRecord_MIX": [
+                {
+                    "record_type_name": "batch_header",
+                    "discriminator_field": "TYPE",
+                    "discriminator_position": 1,
+                    "discriminator_length": 3,
+                    "match_kind": "position_first",
+                    "match_value": "first",
+                    "mapping_sheet": "MIX_HDR_Mapping",
+                    "rules_sheet": "",
+                    "cardinality": "one_per_driver_row",
+                },
+            ],
+        },
+        mapping_sheets={
+            "MIX_HDR_Mapping": [
+                {
+                    "Field Name": "TYPE",
+                    "Data Type": "String",
+                    "Position": 1,
+                    "Length": 3,
+                    "Required": "Yes",
+                }
+            ],
+        },
+        cross_type_rules_sheets={
+            "CrossTypeRules_MIX": [
+                {
+                    "rule_id": "CT001",
+                    "check": "header_trailer_count",
+                    "record_type": "batch_header",
+                    "trailer_field": "ITM-CNT",
+                    "count_of": "detail",
+                    "allow_empty_batch": "false",
+                    "severity": "error",
+                    "message": "active rule",
+                    "enabled": "true",
+                },
+                {
+                    "rule_id": "CT002",
+                    "check": "header_trailer_count",
+                    "record_type": "batch_header",
+                    "trailer_field": "SUM-AMT",
+                    "count_of": "detail",
+                    "allow_empty_batch": "false",
+                    "severity": "warning",
+                    "message": "disabled rule",
+                    "enabled": "false",
+                },
+            ],
+        },
+    )
+
+    workbook = read_workbook(wb_path)
+    artefacts = emit_mapping_artefacts(workbook)
+    umbrella = next(
+        a for a in artefacts if a.path == "config/mappings/TEST_MIX.yaml"
+    )
+    data = yaml.safe_load(umbrella.content)
+    rules = data["cross_type_rules"]
+    assert len(rules) == 1, (
+        f"Expected only the active rule; got {len(rules)} entries: {rules}"
+    )
+    assert rules[0]["message"] == "active rule"
+    # The disabled rule must not appear under any key.
+    assert all("disabled" not in (r.get("message") or "") for r in rules)
+
+
+def test_umbrella_yaml_cross_type_rules_passes_through_extra_columns(tmp_path):
+    """Non-canonical columns (``sum_of``, ``header_field``, etc.) on a
+    workbook ``CrossTypeRules_*`` row pass through to the emitted YAML
+    entry verbatim, with pipe-separated lists split into YAML arrays.
+
+    Guards EC-S8 acceptance criterion: the canonical column set is
+    minimal; other engine-supported fields ride through via ``extra``
+    so authoring a ``header_trailer_sum`` overlay (which needs ``sum_of``)
+    does not require a schema-version bump.
+    """
+    wb_path = _build_synthetic_workbook(
+        tmp_path,
+        output_files_rows=[
+            {
+                "file_type": "SUM",
+                "glob": "sum_*.txt",
+                "mapping_sheet": "(umbrella)",
+                "rules_sheet": "(umbrella)",
+                "tolerance_max_errors": None,
+                "tolerance_max_error_pct": None,
+                "tolerance_ignore_fields": None,
+            },
+        ],
+        multi_record_sheets={
+            "MultiRecord_SUM": [
+                {
+                    "record_type_name": "batch_header",
+                    "discriminator_field": "TYPE",
+                    "discriminator_position": 1,
+                    "discriminator_length": 3,
+                    "match_kind": "position_first",
+                    "match_value": "first",
+                    "mapping_sheet": "SUM_HDR_Mapping",
+                    "rules_sheet": "",
+                    "cardinality": "one_per_driver_row",
+                },
+            ],
+        },
+        mapping_sheets={
+            "SUM_HDR_Mapping": [
+                {
+                    "Field Name": "TYPE",
+                    "Data Type": "String",
+                    "Position": 1,
+                    "Length": 3,
+                    "Required": "Yes",
+                }
+            ],
+        },
+        cross_type_rules_sheets={
+            "CrossTypeRules_SUM": [
+                {
+                    "rule_id": "CT001",
+                    "check": "header_trailer_sum",
+                    "record_type": "batch_header",
+                    "trailer_field": "TOTAL",
+                    "count_of": "",
+                    "allow_empty_batch": "false",
+                    "severity": "error",
+                    "message": "sum mismatch",
+                    "enabled": "true",
+                    "header_field": "HDR-TOTAL",
+                    "sum_of": "AMT_A|AMT_B|AMT_C",
+                },
+            ],
+        },
+    )
+
+    workbook = read_workbook(wb_path)
+    artefacts = emit_mapping_artefacts(workbook)
+    umbrella = next(
+        a for a in artefacts if a.path == "config/mappings/TEST_SUM.yaml"
+    )
+    data = yaml.safe_load(umbrella.content)
+    rule = data["cross_type_rules"][0]
+
+    assert rule["check"] == "header_trailer_sum"
+    assert rule["header_field"] == "HDR-TOTAL"
+    # sum_of split from pipe-list to YAML array (engine expects a list).
+    assert rule["sum_of"] == ["AMT_A", "AMT_B", "AMT_C"]
+    # The umbrella still loads cleanly through MultiRecordConfig.
+    MultiRecordConfig.model_validate(data)

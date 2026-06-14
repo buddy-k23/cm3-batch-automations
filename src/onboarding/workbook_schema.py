@@ -51,8 +51,16 @@ from openpyxl.utils import get_column_letter
 REQUIRED_FIXED_SHEETS: tuple[str, ...] = ("Source", "InputFiles", "OutputFiles")
 """Sheets that MUST be present in every onboarding workbook (exact match)."""
 
-DYNAMIC_SHEET_PREFIXES: tuple[str, ...] = ("MultiRecord_", "Reconciliation_")
-"""Dynamic sheets keyed by file type (case-sensitive prefix)."""
+DYNAMIC_SHEET_PREFIXES: tuple[str, ...] = (
+    "MultiRecord_",
+    "Reconciliation_",
+    "CrossTypeRules_",
+)
+"""Dynamic sheets keyed by file type (case-sensitive prefix).
+
+``CrossTypeRules_<FILETYPE>`` (EC-S8) is optional — multi-record output files
+without cross-record-type assertions simply omit it, and the emitter renders
+``cross_type_rules: []`` in the umbrella YAML."""
 
 DYNAMIC_SHEET_SUFFIXES: tuple[str, ...] = ("_Mapping", "_Rules")
 """Dynamic per-layout sheets (case-sensitive suffix). Per-record-type variants
@@ -124,6 +132,28 @@ RECONCILIATION_REQUIRED_COLUMNS: tuple[str, ...] = (
     "expected_sql_override",
 )
 
+CROSS_TYPE_RULES_REQUIRED_COLUMNS: tuple[str, ...] = (
+    "rule_id",
+    "check",
+    "record_type",
+    "trailer_field",
+    "count_of",
+    "allow_empty_batch",
+    "severity",
+    "message",
+)
+"""Required columns for a ``CrossTypeRules_<FILETYPE>`` sheet (EC-S8).
+
+The column set is the minimal cross-cut of fields the engine's
+:class:`src.config.multi_record_config.CrossTypeRule` model actually unpacks
+for the rule types currently emitted by operators in the SHAW worked example
+(``header_trailer_count``). Additional fields used by other rule types
+(``header_field``, ``detail_field``, ``sum_field``, ``sum_of``, ``when_type``,
+``requires_type``, ``expected_order``, ``exactly``, ``enabled``) are accepted
+as OPTIONAL columns (unknown columns are tolerated — emitters skip them) so
+the sheet can grow over time without a schema-version bump.
+"""
+
 MAPPING_SHEET_REQUIRED_COLUMNS: tuple[str, ...] = (
     "Field Name",
     "Data Type",
@@ -148,6 +178,7 @@ REQUIRED_COLUMNS_BY_SHEET_TYPE: dict[str, tuple[str, ...]] = {
     "OutputFiles": OUTPUT_FILES_REQUIRED_COLUMNS,
     "MultiRecord_*": MULTI_RECORD_REQUIRED_COLUMNS,
     "Reconciliation_*": RECONCILIATION_REQUIRED_COLUMNS,
+    "CrossTypeRules_*": CROSS_TYPE_RULES_REQUIRED_COLUMNS,
     "*_Mapping": MAPPING_SHEET_REQUIRED_COLUMNS,
     "*_Rules": RULES_SHEET_REQUIRED_COLUMNS,
 }
@@ -432,6 +463,7 @@ __all__ = [
     "OUTPUT_FILES_REQUIRED_COLUMNS",
     "MULTI_RECORD_REQUIRED_COLUMNS",
     "RECONCILIATION_REQUIRED_COLUMNS",
+    "CROSS_TYPE_RULES_REQUIRED_COLUMNS",
     "MAPPING_SHEET_REQUIRED_COLUMNS",
     "RULES_SHEET_REQUIRED_COLUMNS",
     "REQUIRED_COLUMNS_BY_SHEET_TYPE",
