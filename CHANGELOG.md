@@ -24,6 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reintroduction. All subprocess calls use explicit arg-arrays.
 
 ### Added
+- EA-S1: `SourceConfig`, `OutputFileConfig`, `InputFileConfig`,
+  `ToleranceConfig`, `ThresholdsConfig` Pydantic models in
+  `src/pipeline/etl_config.py` with implicit defaults for
+  `strict_fixed_width`, `strict_level`, `tolerance.*`,
+  `thresholds.max_errors`. Not yet wired into the source-YAML loader -- 
+  follow-up story.
 - R-13 (#42): `build_rollup_index.py` now discovers and links per-source
   `multi_record/<file_type>/index.html` reports into the global rollup HTML
   and `summary.json`. Sources without multi-record reports show `&mdash;`
