@@ -541,14 +541,15 @@ def test_check_mode_umbrella_rules_drift_resolved():
 
 
 # ---------------------------------------------------------------------------
-# 11. EC-S9: --check clean against committed state modulo timestamps + the
-# documented R028B carve-out.
+# 11. EC-S9 + EC-S10: --check clean against committed state with the
+# documented R028B carve-out as the SOLE remaining drift.
 # ---------------------------------------------------------------------------
 
 
-def test_check_mode_clean_modulo_timestamps():
-    """EC-S9 contract: ``--check`` against the REAL committed SHAW config
-    tree exits 0 modulo the documented carve-outs.
+def test_check_mode_clean_against_committed_state():
+    """EC-S9 + EC-S10 contract: ``--check`` against the REAL committed
+    SHAW config tree reports exactly one drift line -- the R028B
+    carve-out -- with NO timestamp-related noise.
 
     Background: Sprint 3's EC-S9 reverse-engineered the SHAW workbook
     from the currently committed ``config/mappings/`` + ``config/rules/``
@@ -570,25 +571,27 @@ def test_check_mode_clean_modulo_timestamps():
           ``sequence_field``/``start``/``step`` shape that BA columns
           cannot express.
 
-    Post-EC-S9 the contract is:
+    Post-EC-S9 the artefact count drift dropped to 1 of 65 (R028B).
 
-        * 64 of 65 artefacts match (a quantum leap from 29 of 65);
+    Post-EC-S10 (this contract):
+
+        * 64 of 65 artefacts match (unchanged from EC-S9);
         * the SOLE remaining drift line points at
           ``SHAW_TRANERT_CUS_rules.json`` and cites the ``rules:`` array
           mismatch (the R028B carve-out, documented in EC-S9 and the
           ``scripts/build_shaw_onboarding_workbook.py`` module
           docstring);
-        * NO mapping JSON shows drift (the TRANERT_CUS reverse-engineer
-          fixed the only structural drift on a mapping artefact);
-        * NO ``committed file does not exist (would be created)`` lines
-          (the 34 TODO-stub artefacts are now committed alongside the
-          workbook regeneration).
+        * NO mapping JSON shows drift;
+        * NO ``committed file does not exist (would be created)`` lines;
+        * NO ``metadata`` / timestamp drift -- ``--check`` now
+          auto-extracts the committed ``created_date`` per artefact
+          and normalises ``source_template`` / ``template_path`` to
+          basename, so byte-equal modulo R028B is now reported
+          directly without the historical metadata-strip hack.
 
-    Per the story (timestamps still embed ``datetime.utcnow()`` in
-    every emitted JSON's ``metadata`` block — EC-S10 will land
-    deterministic timestamps to close that gap), the check's metadata
-    strip is what makes the 64 of 65 figure stable across reruns; the
-    test treats any metadata-stripped equivalence as a pass.
+    The R028B drift keeps the exit code at 1 (drift detected). EC-S10
+    only neutralises the metadata noise; it does not change the
+    underlying R028B rules-array mismatch.
     """
     result = _invoke(
         [

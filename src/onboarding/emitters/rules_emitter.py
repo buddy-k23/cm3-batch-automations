@@ -252,7 +252,10 @@ def _rules_rows_to_dataframe(rows: list[RulesRow]) -> pd.DataFrame:
 
 
 def _convert_rules_sheet_to_dict(
-    sheet: RulesSheet, rules_id: str
+    sheet: RulesSheet,
+    rules_id: str,
+    *,
+    frozen_timestamp: str | None = None,
 ) -> dict[str, Any]:
     """Run a parsed rules sheet through the existing
     :class:`BARulesTemplateConverter` and return the resulting dict.
@@ -285,7 +288,10 @@ def _convert_rules_sheet_to_dict(
             original ``ValueError`` is chained as ``__cause__``.
     """
     df = _rules_rows_to_dataframe(sheet.rows)
-    converter = BARulesTemplateConverter()
+    # EC-S10: propagate ``frozen_timestamp`` (if set by the caller) so
+    # the converter's ``metadata.created_date`` becomes deterministic.
+    # Default ``None`` preserves wall-clock behaviour.
+    converter = BARulesTemplateConverter(frozen_timestamp=frozen_timestamp)
     try:
         return converter._convert_dataframe(  # noqa: SLF001 -- documented entry point
             df, template_path=f"{rules_id}.csv"
@@ -343,11 +349,27 @@ class RulesEmitter:
         output_dir: Repo-relative directory the emitted artefacts will
             live under. Defaults to ``"config/rules"`` to match the
             committed convention.
+        frozen_timestamp: Optional deterministic value plumbed through
+            to the underlying
+            :class:`~src.config.ba_rules_template_converter.BARulesTemplateConverter`'s
+            ``metadata.created_date`` field. When set, emitted
+            artefacts are byte-stable across runs -- two consecutive
+            ``emit_all`` calls produce byte-identical JSON,
+            eliminating the metadata-strip hack EC-S4 / EC-S5 tests
+            previously needed (EC-S10). When ``None`` (default) the
+            converter falls back to ``datetime.utcnow()`` for full
+            backwards compatibility.
     """
 
-    def __init__(self, source_code: str, output_dir: str = "config/rules"):
+    def __init__(
+        self,
+        source_code: str,
+        output_dir: str = "config/rules",
+        frozen_timestamp: str | None = None,
+    ):
         self.source_code = source_code
         self.output_dir = output_dir.rstrip("/")
+        self.frozen_timestamp = frozen_timestamp
 
     # -- public ----------------------------------------------------------
 
@@ -425,7 +447,9 @@ class RulesEmitter:
             return None
         sheet = _resolve_rules_sheet(workbook, spec.rules_sheet)
         rules_id = Path(artefact_path).stem  # e.g. "SHAW_CDSTRANS_EFB"
-        data = _convert_rules_sheet_to_dict(sheet, rules_id)
+        data = _convert_rules_sheet_to_dict(
+            sheet, rules_id, frozen_timestamp=self.frozen_timestamp
+        )
         return EmittedRulesArtefact(
             path=artefact_path,
             content=_serialise_json(data),
@@ -488,7 +512,9 @@ class RulesEmitter:
 
             sheet = _resolve_rules_sheet(workbook, row.rules_sheet)
             rules_id = Path(artefact_path).stem  # e.g. "SHAW_TRANERT_NEW1_rules"
-            data = _convert_rules_sheet_to_dict(sheet, rules_id)
+            data = _convert_rules_sheet_to_dict(
+                sheet, rules_id, frozen_timestamp=self.frozen_timestamp
+            )
             artefacts.append(
                 EmittedRulesArtefact(
                     path=artefact_path,
@@ -501,7 +527,10 @@ class RulesEmitter:
 
 
 def emit_rules_artefacts(
-    workbook: OnboardingWorkbook, output_dir: str = "config/rules"
+    workbook: OnboardingWorkbook,
+    output_dir: str = "config/rules",
+    *,
+    frozen_timestamp: str | None = None,
 ) -> list[EmittedRulesArtefact]:
     """Module-level convenience wrapper around :meth:`RulesEmitter.emit_all`.
 
@@ -513,6 +542,13 @@ def emit_rules_artefacts(
         workbook: The parsed onboarding workbook from EC-S2.
         output_dir: Repo-relative directory the emitted artefacts will
             live under. Defaults to ``"config/rules"``.
+        frozen_timestamp: Optional deterministic value plumbed through
+            to the underlying ``BARulesTemplateConverter``'s
+            ``metadata.created_date`` field (EC-S10). When set,
+            emitted artefacts are byte-stable across runs; when
+            ``None`` (default), the converter falls back to its
+            historical ``datetime.utcnow()`` behaviour for full
+            backwards compatibility.
 
     Returns:
         A list of :class:`EmittedRulesArtefact`.
@@ -524,7 +560,9 @@ def emit_rules_artefacts(
             ``<FILE_TYPE>_<LAYOUT>_Rules`` convention.
     """
     return RulesEmitter(
-        source_code=workbook.source.source_code, output_dir=output_dir
+        source_code=workbook.source.source_code,
+        output_dir=output_dir,
+        frozen_timestamp=frozen_timestamp,
     ).emit_all(workbook)
 
 

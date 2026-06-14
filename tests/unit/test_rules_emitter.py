@@ -70,16 +70,36 @@ COMMITTED_RULES_DIR = REPO_ROOT / "config" / "rules"
 # ---------------------------------------------------------------------------
 
 
-def _drop_metadata(data: dict) -> dict:
-    """Return ``data`` with the converter-generated ``metadata`` block dropped.
+def _basename(value: str) -> str:
+    """Return the trailing path component, treating ``\\`` like ``/``.
 
-    The converter embeds a fresh ``datetime.utcnow()`` in
-    ``metadata.created_date`` and a host-specific
-    ``metadata.template_path`` -- both irreducibly variable. Stripping
-    ``metadata`` yields a comparable, deterministic shape for
-    regression checks.
+    The committed rules JSONs were originally generated on a Windows
+    host so their ``metadata.template_path`` field carries a
+    backslash-separated path (``mappings\\csv\\shaw_tranert\\...``).
+    The workbook-driven emitter produces a synthetic POSIX-style
+    basename. Both sides agree on the basename -- which is what we
+    need for regression comparisons. Out of EC-S10 scope to unify the
+    paths fully.
     """
-    return {k: v for k, v in data.items() if k != "metadata"}
+    from pathlib import Path as _Path
+    return _Path(value.replace("\\", "/")).name
+
+
+def _normalise_path_metadata(data: dict) -> dict:
+    """Coerce ``metadata.template_path`` to its basename.
+
+    Used by the EC-S10 byte-equality regression test against the
+    committed rules JSONs to neutralise the Windows-vs-POSIX path
+    divergence that lives in the committed files (separate concern
+    from EC-S10's timestamp work).
+    """
+    result = {**data}
+    metadata = result.get("metadata")
+    if isinstance(metadata, dict) and "template_path" in metadata:
+        metadata = {**metadata}
+        metadata["template_path"] = _basename(metadata["template_path"])
+        result["metadata"] = metadata
+    return result
 
 
 _DEFAULT_SOURCE_DATA: dict[str, object] = {
@@ -262,7 +282,7 @@ def test_shaw_workbook_emits_expected_rules_artefact_count():
 
 def test_emitted_flat_rules_json_matches_committed_for_known_good_file():
     """The emitted TRANERT BATCH_HEADER rules JSON matches the committed
-    file structurally.
+    file dict-equal (post EC-S10).
 
     The committed
     ``config/rules/SHAW_TRANERT_BATCH_HEADER_rules.json`` was originally
@@ -271,13 +291,26 @@ def test_emitted_flat_rules_json_matches_committed_for_known_good_file():
     that EC-S5 delegates to (from the CSV at
     ``mappings/csv/shaw_tranert/SHAW_TRANERT_BATCH_HEADER_rules.csv``).
     The workbook's ``TRANERT_BATCH_HEADER_Rules`` sheet carries the
-    same rule rows. Therefore the emitted artefact's content should be
-    structurally identical EXCEPT for the converter's ``metadata`` block,
-    which embeds a fresh ``datetime.utcnow()`` and a host-specific
-    ``template_path``. The regression compares everything else.
+    same rule rows.
+
+    Post EC-S10 the test pulls the committed file's
+    ``metadata.created_date`` and feeds it back to the emitter via
+    ``frozen_timestamp=<committed_value>`` so the timestamps in both
+    JSONs match exactly. The only remaining (out-of-scope-for-EC-S10)
+    divergence is ``metadata.template_path`` where the committed file
+    carries a Windows-style absolute path
+    (``mappings\\csv\\shaw_tranert\\...``) and the emitter produces a
+    POSIX-style basename. Both sides are normalised to the basename
+    via :func:`_normalise_path_metadata` so the dict equality is
+    meaningful for every other field.
     """
     workbook = read_workbook(SHAW_WORKBOOK)
-    artefacts = emit_rules_artefacts(workbook)
+
+    committed_path = COMMITTED_RULES_DIR / "SHAW_TRANERT_BATCH_HEADER_rules.json"
+    committed_data = json.loads(committed_path.read_text(encoding="utf-8"))
+    committed_ts = committed_data["metadata"]["created_date"]
+
+    artefacts = emit_rules_artefacts(workbook, frozen_timestamp=committed_ts)
 
     emitted = next(
         a
@@ -286,13 +319,44 @@ def test_emitted_flat_rules_json_matches_committed_for_known_good_file():
     )
     emitted_data = json.loads(emitted.content)
 
-    committed_path = COMMITTED_RULES_DIR / "SHAW_TRANERT_BATCH_HEADER_rules.json"
-    committed_data = json.loads(committed_path.read_text(encoding="utf-8"))
-
-    assert _drop_metadata(emitted_data) == _drop_metadata(committed_data), (
+    assert _normalise_path_metadata(emitted_data) == _normalise_path_metadata(
+        committed_data
+    ), (
         "Emitted TRANERT BATCH_HEADER rules JSON diverges from committed file "
-        "(after stripping the variable metadata block)."
+        "(after normalising template_path to basename; timestamps are "
+        "synchronised via frozen_timestamp -- EC-S10)."
     )
+
+
+def test_rules_emitter_is_byte_stable_with_frozen_timestamp():
+    """EC-S10 contract: two back-to-back ``emit_all`` calls with the same
+    ``frozen_timestamp`` produce byte-identical output for every artefact.
+
+    The historical idempotence gap (``datetime.utcnow()`` baked into
+    every rules JSON's ``metadata`` block) is closed; running
+    ``valdo onboard-source --frozen-timestamp <value>`` twice now
+    leaves the rules artefact tree's mtimes unchanged byte-for-byte.
+    """
+    import hashlib
+
+    workbook = read_workbook(SHAW_WORKBOOK)
+
+    artefacts_a = emit_rules_artefacts(workbook, frozen_timestamp="GENERATED")
+    artefacts_b = emit_rules_artefacts(workbook, frozen_timestamp="GENERATED")
+
+    assert len(artefacts_a) == len(artefacts_b), (
+        f"Different rules artefact counts between runs: "
+        f"{len(artefacts_a)} vs {len(artefacts_b)}"
+    )
+
+    for art_a, art_b in zip(artefacts_a, artefacts_b):
+        assert art_a.path == art_b.path
+        hash_a = hashlib.sha256(art_a.content.encode("utf-8")).hexdigest()
+        hash_b = hashlib.sha256(art_b.content.encode("utf-8")).hexdigest()
+        assert hash_a == hash_b, (
+            f"EC-S10 byte-stability violation for {art_a.path}: "
+            f"sha256 {hash_a} != {hash_b}"
+        )
 
 
 # ---------------------------------------------------------------------------

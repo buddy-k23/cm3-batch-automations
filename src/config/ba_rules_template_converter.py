@@ -83,8 +83,27 @@ class BARulesTemplateConverter:
         'cross_row:group_sum': ('cross_row', 'group_sum'),
     }
 
-    def __init__(self):
+    def __init__(self, frozen_timestamp: str | None = None):
+        """Initialise converter.
+
+        Args:
+            frozen_timestamp: Optional deterministic value to substitute
+                for ``datetime.utcnow().isoformat() + 'Z'`` in
+                ``metadata.created_date``.
+
+                When ``None`` (default) the converter keeps its
+                historical ``datetime.utcnow()`` behaviour so existing
+                callers continue producing wall-clock-stamped rules
+                JSON with no behaviour change.
+
+                When set to a string (e.g. ``"GENERATED"`` for tests,
+                or a real ISO 8601 timestamp pulled from a committed
+                artefact for ``--check`` round-trips) that exact string
+                replaces the timestamp field verbatim, making the
+                emitted JSON byte-stable across runs (EC-S10).
+        """
         self.rules_config: Dict[str, Any] | None = None
+        self.frozen_timestamp = frozen_timestamp
 
     def from_csv(self, csv_path: str) -> Dict[str, Any]:
         """Convert a BA-friendly rules CSV template to rule-engine JSON config.
@@ -182,7 +201,16 @@ class BARulesTemplateConverter:
                 'name': Path(template_path).stem,
                 'description': f"Generated from BA-friendly template: {Path(template_path).name}",
                 'created_by': 'ba_rules_template_converter',
-                'created_date': datetime.utcnow().isoformat() + 'Z',
+                # Per EC-S10: a non-None ``frozen_timestamp`` replaces
+                # the wall-clock ``datetime.utcnow()`` value so two
+                # back-to-back conversions of the same template produce
+                # byte-identical JSON. Default ``None`` preserves the
+                # pre-EC-S10 behaviour (wall-clock UTC timestamp).
+                'created_date': (
+                    self.frozen_timestamp
+                    if self.frozen_timestamp is not None
+                    else datetime.utcnow().isoformat() + 'Z'
+                ),
                 'template_path': str(template_path),
                 'template_type': 'ba_friendly',
             },

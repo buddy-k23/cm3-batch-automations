@@ -305,7 +305,10 @@ def _mapping_rows_to_dataframe(rows: list[MappingFieldRow]) -> pd.DataFrame:
 
 
 def _convert_mapping_sheet_to_dict(
-    sheet: MappingSheet, mapping_id: str
+    sheet: MappingSheet,
+    mapping_id: str,
+    *,
+    frozen_timestamp: str | None = None,
 ) -> dict[str, Any]:
     """Run a parsed mapping sheet through the existing
     :class:`TemplateConverter` and return the resulting dict.
@@ -336,7 +339,10 @@ def _convert_mapping_sheet_to_dict(
             chained.
     """
     df = _mapping_rows_to_dataframe(sheet.rows)
-    converter = TemplateConverter()
+    # EC-S10: propagate ``frozen_timestamp`` (if set by the caller) so
+    # the converter's ``metadata.created_date`` / ``metadata.last_modified``
+    # become deterministic. Default ``None`` preserves wall-clock behaviour.
+    converter = TemplateConverter(frozen_timestamp=frozen_timestamp)
     try:
         return converter._convert_dataframe(  # noqa: SLF001 -- documented entry point
             df,
@@ -655,11 +661,27 @@ class MappingEmitter:
         output_dir: Repo-relative directory the emitted artefacts will
             live under. Defaults to ``"config/mappings"`` to match the
             committed convention.
+        frozen_timestamp: Optional deterministic value plumbed through
+            to the underlying
+            :class:`~src.config.template_converter.TemplateConverter`'s
+            ``metadata.created_date`` / ``metadata.last_modified``
+            fields. When set, emitted artefacts are byte-stable across
+            runs -- two consecutive ``emit_all`` calls produce
+            byte-identical JSON, eliminating the metadata-strip hack
+            EC-S4 / EC-S5 tests previously needed (EC-S10). When
+            ``None`` (default) the converter falls back to
+            ``datetime.utcnow()`` for full backwards compatibility.
     """
 
-    def __init__(self, source_code: str, output_dir: str = "config/mappings"):
+    def __init__(
+        self,
+        source_code: str,
+        output_dir: str = "config/mappings",
+        frozen_timestamp: str | None = None,
+    ):
         self.source_code = source_code
         self.output_dir = output_dir.rstrip("/")
+        self.frozen_timestamp = frozen_timestamp
 
     # -- public ----------------------------------------------------------
 
@@ -715,7 +737,9 @@ class MappingEmitter:
         """Emit the flat mapping JSON for one ``InputFileSpec``."""
         sheet = _resolve_mapping_sheet(workbook, spec.mapping_sheet)
         mapping_id = f"{self.source_code}_{spec.file_type}"
-        data = _convert_mapping_sheet_to_dict(sheet, mapping_id)
+        data = _convert_mapping_sheet_to_dict(
+            sheet, mapping_id, frozen_timestamp=self.frozen_timestamp
+        )
         return EmittedMappingArtefact(
             path=f"{self.output_dir}/{mapping_id}.json",
             content=_serialise_json(data),
@@ -728,7 +752,9 @@ class MappingEmitter:
         """Emit the flat mapping JSON for one non-multi-record ``OutputFileSpec``."""
         sheet = _resolve_mapping_sheet(workbook, spec.mapping_sheet)
         mapping_id = f"{self.source_code}_{spec.file_type}"
-        data = _convert_mapping_sheet_to_dict(sheet, mapping_id)
+        data = _convert_mapping_sheet_to_dict(
+            sheet, mapping_id, frozen_timestamp=self.frozen_timestamp
+        )
         return EmittedMappingArtefact(
             path=f"{self.output_dir}/{mapping_id}.json",
             content=_serialise_json(data),
@@ -765,7 +791,9 @@ class MappingEmitter:
             mapping_id = (
                 f"{self.source_code}_{spec.file_type}_{layout_tag}_mapping"
             )
-            data = _convert_mapping_sheet_to_dict(sheet, mapping_id)
+            data = _convert_mapping_sheet_to_dict(
+                sheet, mapping_id, frozen_timestamp=self.frozen_timestamp
+            )
             artefacts.append(
                 EmittedMappingArtefact(
                     path=f"{self.output_dir}/{mapping_id}.json",
@@ -796,7 +824,10 @@ class MappingEmitter:
 
 
 def emit_mapping_artefacts(
-    workbook: OnboardingWorkbook, output_dir: str = "config/mappings"
+    workbook: OnboardingWorkbook,
+    output_dir: str = "config/mappings",
+    *,
+    frozen_timestamp: str | None = None,
 ) -> list[EmittedMappingArtefact]:
     """Module-level convenience wrapper around :meth:`MappingEmitter.emit_all`.
 
@@ -808,6 +839,13 @@ def emit_mapping_artefacts(
         workbook: The parsed onboarding workbook from EC-S2.
         output_dir: Repo-relative directory the emitted artefacts will
             live under. Defaults to ``"config/mappings"``.
+        frozen_timestamp: Optional deterministic value plumbed through
+            to the underlying ``TemplateConverter``'s ``metadata``
+            timestamps (EC-S10). When set, emitted artefacts are
+            byte-stable across runs; when ``None`` (default), the
+            converter falls back to its historical
+            ``datetime.utcnow()`` behaviour for full backwards
+            compatibility.
 
     Returns:
         A list of :class:`EmittedMappingArtefact`.
@@ -818,7 +856,9 @@ def emit_mapping_artefacts(
             YAML cannot be assembled.
     """
     return MappingEmitter(
-        source_code=workbook.source.source_code, output_dir=output_dir
+        source_code=workbook.source.source_code,
+        output_dir=output_dir,
+        frozen_timestamp=frozen_timestamp,
     ).emit_all(workbook)
 
 

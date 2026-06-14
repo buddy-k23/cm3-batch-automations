@@ -17,9 +17,27 @@ class TemplateConverter:
         'Description', 'Default Value', 'Target Name', 'Valid Values'
     ]
     
-    def __init__(self):
-        """Initialize converter."""
+    def __init__(self, frozen_timestamp: str | None = None):
+        """Initialize converter.
+
+        Args:
+            frozen_timestamp: Optional deterministic value to substitute
+                for ``datetime.utcnow().isoformat() + "Z"`` in
+                ``metadata.created_date`` and ``metadata.last_modified``.
+
+                When ``None`` (default) the converter keeps its
+                historical ``datetime.utcnow()`` behaviour so existing
+                callers continue producing wall-clock-stamped artefacts
+                with no behaviour change.
+
+                When set to a string (e.g. ``"GENERATED"`` for tests,
+                or a real ISO 8601 timestamp pulled from a committed
+                artefact for ``--check`` round-trips) that exact string
+                replaces both timestamp fields verbatim, making the
+                emitted JSON byte-stable across runs (EC-S10).
+        """
         self.mapping = None
+        self.frozen_timestamp = frozen_timestamp
     
     def from_excel(self, excel_path: str, sheet_name: str = None, 
                    mapping_name: str = None, file_format: str = None) -> dict:
@@ -116,8 +134,21 @@ class TemplateConverter:
             "key_columns": [],
             "metadata": {
                 "created_by": "template_converter",
-                "created_date": datetime.utcnow().isoformat() + "Z",
-                "last_modified": datetime.utcnow().isoformat() + "Z",
+                # Per EC-S10: a non-None ``frozen_timestamp`` replaces
+                # the wall-clock ``datetime.utcnow()`` value so two
+                # back-to-back conversions of the same template produce
+                # byte-identical JSON. Default ``None`` preserves the
+                # pre-EC-S10 behaviour (wall-clock UTC timestamp).
+                "created_date": (
+                    self.frozen_timestamp
+                    if self.frozen_timestamp is not None
+                    else datetime.utcnow().isoformat() + "Z"
+                ),
+                "last_modified": (
+                    self.frozen_timestamp
+                    if self.frozen_timestamp is not None
+                    else datetime.utcnow().isoformat() + "Z"
+                ),
                 "source_template": str(template_path)
             }
         }

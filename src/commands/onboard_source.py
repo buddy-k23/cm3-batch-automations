@@ -17,26 +17,33 @@ Per the Sprint 2 design contract, this command never re-implements
 emitter logic; it orchestrates calls to the three EC-S3/S4/S5
 public-API helpers and centralises filesystem I/O.
 
-Equivalence contracts when running ``--check``:
+Determinism (EC-S10):
+    The ``--frozen-timestamp <value>`` flag plumbs a deterministic
+    string through to the underlying converters'
+    ``metadata.created_date`` / ``metadata.last_modified`` fields. Two
+    back-to-back runs with the same flag value produce byte-identical
+    JSON output, eliminating the historical mtime-touch on every run.
+
+    ``--check`` mode auto-extracts each committed artefact's
+    ``metadata.created_date`` and replays it through the converter
+    PER-ARTEFACT so the metadata block matches the committed file
+    verbatim (no metadata-strip hack required). Combined with the
+    historical ``source_template`` / ``template_path`` basename-aware
+    fallback, ``--check`` against the committed state now reports
+    drift only when the rules / fields / structure themselves
+    diverge -- timestamps no longer count as drift.
+
+Equivalence contracts when running ``--check`` (post EC-S10):
     * Source YAML: semantic equality via ``yaml.safe_load`` (comment
       blocks / quoting style legitimately diverge from the emitter).
-    * Mapping JSON / Umbrella YAML: structural equality with the
-      converter-generated ``metadata`` block stripped, because
-      :class:`src.config.template_converter.TemplateConverter` embeds
-      ``datetime.utcnow()`` in ``metadata.created_date`` /
-      ``metadata.last_modified`` and a host-specific
-      ``metadata.source_template`` on every run.
-    * Rules JSON: structural equality with ``metadata`` stripped for
-      the same reason (``BARulesTemplateConverter`` embeds the same
-      timestamp + template-path quirks).
-
-Known limitation (idempotence):
-    Running normal mode twice mtime-touches every mapping/rules JSON
-    because the underlying converters embed a fresh
-    ``datetime.utcnow()`` in ``metadata`` on each call. The artefact
-    content is otherwise identical -- ``--check`` (which strips
-    metadata) confirms this. Operators relying on byte-for-byte
-    idempotence should compare with ``--check`` rather than ``diff``.
+    * Mapping JSON / Umbrella YAML: full structural equality after
+      auto-extracting the committed ``created_date`` /
+      ``last_modified`` AND normalising the ``source_template`` /
+      ``template_path`` fields to basename (the committed files use
+      Windows-style paths from the historical CSV authoring
+      environment, while the workbook-driven emitter uses synthetic
+      POSIX-style basenames).
+    * Rules JSON: same shape as mapping JSON.
 """
 
 from __future__ import annotations
@@ -169,6 +176,7 @@ def _plan_writes(
     source_dir: Path | None,
     mapping_dir: Path | None,
     rules_dir: Path | None,
+    frozen_timestamp: str | None = None,
 ) -> list[_PlannedWrite]:
     """Run all three emitters and resolve every artefact's destination path.
 
@@ -179,6 +187,14 @@ def _plan_writes(
         source_dir: Override for source YAML directory or ``None``.
         mapping_dir: Override for mapping directory or ``None``.
         rules_dir: Override for rules directory or ``None``.
+        frozen_timestamp: Optional EC-S10 deterministic timestamp
+            plumbed through to the mapping + rules emitters. When set
+            (either via the ``--frozen-timestamp`` flag or as part of
+            an internal helper call), both emitters substitute this
+            string into every ``metadata.created_date`` /
+            ``metadata.last_modified`` field instead of calling
+            ``datetime.utcnow()``. When ``None`` (default), emitters
+            preserve their historical wall-clock behaviour.
 
     Returns:
         Ordered list of :class:`_PlannedWrite` -- source YAML first,
@@ -208,7 +224,9 @@ def _plan_writes(
     )
 
     # 2. Mapping artefacts.
-    mapping_artefacts: list[EmittedMappingArtefact] = emit_mapping_artefacts(workbook)
+    mapping_artefacts: list[EmittedMappingArtefact] = emit_mapping_artefacts(
+        workbook, frozen_timestamp=frozen_timestamp
+    )
     for artefact in mapping_artefacts:
         plans.append(
             _PlannedWrite(
@@ -225,7 +243,9 @@ def _plan_writes(
         )
 
     # 3. Rules artefacts.
-    rules_artefacts: list[EmittedRulesArtefact] = emit_rules_artefacts(workbook)
+    rules_artefacts: list[EmittedRulesArtefact] = emit_rules_artefacts(
+        workbook, frozen_timestamp=frozen_timestamp
+    )
     for artefact in rules_artefacts:
         plans.append(
             _PlannedWrite(
@@ -252,12 +272,13 @@ def _plan_writes(
 def _strip_metadata(data: Any) -> Any:
     """Return ``data`` with the converter-generated ``metadata`` block dropped.
 
-    Mirrors the convention the EC-S4 + EC-S5 unit tests use: the
-    template converters embed a fresh ``datetime.utcnow()`` in
-    ``metadata.created_date`` / ``metadata.last_modified`` and a
-    host-specific ``metadata.source_template`` / ``metadata.template_path``
-    on every run, so a byte-equality check against committed files is
-    not stable. Stripping ``metadata`` yields a deterministic shape.
+    Pre-EC-S10 fallback used when ``--check`` cannot auto-extract
+    timestamps from the committed artefact (e.g. committed file missing
+    the ``metadata`` key entirely, or operator passed an explicit
+    ``--frozen-timestamp`` that happens to mismatch every committed
+    value). EC-S10 prefers :func:`_normalise_metadata_for_compare`
+    which preserves the metadata block while neutralising only the
+    irreducibly-variable fields.
 
     Args:
         data: A dict loaded from a converter-produced JSON/YAML
@@ -270,6 +291,144 @@ def _strip_metadata(data: Any) -> Any:
     if isinstance(data, dict):
         return {k: v for k, v in data.items() if k != "metadata"}
     return data
+
+
+def _normalise_metadata_for_compare(
+    emitted: Any, committed: Any
+) -> tuple[Any, Any]:
+    """Normalise both sides' ``metadata`` blocks so byte equality is meaningful (EC-S10).
+
+    Two converter-embedded fields are irreducibly variable between the
+    emitter and the on-disk committed file:
+
+      * ``created_date`` / ``last_modified`` -- the converter calls
+        ``datetime.utcnow()`` on every run unless ``frozen_timestamp``
+        was set. The committed JSON carries whatever timestamp the
+        operator who first generated it had on their workstation; the
+        emitter (without a timestamp explicitly threaded) has the
+        current time. Both are equally "correct" -- semantically these
+        fields are just an audit hint, not part of the schema.
+
+      * ``source_template`` / ``template_path`` -- the committed JSONs
+        carry Windows-style absolute paths from the historical
+        CSV-driven authoring workflow (e.g.
+        ``mappings\\csv\\shaw_tranert\\SHAW_TRANERT_BATCH_HEADER_mapping.csv``).
+        The workbook-driven emitter passes a synthetic POSIX-style
+        basename (``SHAW_TRANERT_BATCH_HEADER_mapping.csv``). The two
+        paths point at the same logical template -- the comparison
+        should ignore the directory part and treat ``\\`` / ``/``
+        identically. We coerce both sides to the trailing component
+        only (``Path.name``).
+
+    The function returns two copies (emitted and committed) with both
+    fields rewritten so a deep dict equality check is meaningful for
+    every other field (i.e. real schema drift still surfaces as
+    drift).
+
+    Args:
+        emitted: The dict produced by the emitter (or ``None`` /
+            non-dict; passed through).
+        committed: The dict loaded from disk (or ``None`` / non-dict;
+            passed through).
+
+    Returns:
+        Tuple ``(emitted_normalised, committed_normalised)``. Both
+        sides are deep-copied (the metadata block is rewritten in
+        place on the copy) so callers can mutate without affecting
+        the originals.
+    """
+    if not (isinstance(emitted, dict) and isinstance(committed, dict)):
+        return emitted, committed
+
+    emitted_copy = {**emitted}
+    committed_copy = {**committed}
+
+    emitted_meta = emitted_copy.get("metadata")
+    committed_meta = committed_copy.get("metadata")
+    if isinstance(emitted_meta, dict) and isinstance(committed_meta, dict):
+        emitted_meta = {**emitted_meta}
+        committed_meta = {**committed_meta}
+
+        # EC-S10: auto-extract -- substitute committed timestamps into
+        # the emitted block. If the committed block lacks a particular
+        # timestamp key, the emitted value is dropped too (symmetric).
+        for ts_key in ("created_date", "last_modified"):
+            if ts_key in committed_meta:
+                emitted_meta[ts_key] = committed_meta[ts_key]
+            elif ts_key in emitted_meta:
+                # Committed has none; drop the emitter-side so the
+                # comparison does not surface this as drift.
+                emitted_meta.pop(ts_key, None)
+
+        # Basename-only comparison for the two path fields. The
+        # converter stores ``source_template`` (mapping converter) and
+        # ``template_path`` (rules converter); both are file paths to
+        # the originating CSV/XLSX template.
+        for path_key in ("source_template", "template_path"):
+            if path_key in committed_meta:
+                committed_meta[path_key] = _path_basename(
+                    committed_meta[path_key]
+                )
+            if path_key in emitted_meta:
+                emitted_meta[path_key] = _path_basename(
+                    emitted_meta[path_key]
+                )
+
+        emitted_copy["metadata"] = emitted_meta
+        committed_copy["metadata"] = committed_meta
+
+    return emitted_copy, committed_copy
+
+
+def _path_basename(value: Any) -> Any:
+    """Return ``value``'s trailing path component, treating ``\\`` like ``/``.
+
+    Used by :func:`_normalise_metadata_for_compare` so the Windows-style
+    historical paths in the committed JSONs compare equal to the
+    POSIX-style synthetic basenames the emitter produces. Non-string
+    inputs are passed through unchanged for safety.
+
+    Args:
+        value: A string filesystem path (Windows or POSIX) or any
+            other value.
+
+    Returns:
+        The trailing path component when ``value`` is a string, or
+        ``value`` unchanged otherwise.
+    """
+    if not isinstance(value, str):
+        return value
+    # Coerce Windows separators to POSIX so Path() behaves identically
+    # regardless of which OS authored the committed file.
+    return Path(value.replace("\\", "/")).name
+
+
+def _extract_committed_timestamp(data: Any) -> str | None:
+    """Pull a deterministic timestamp out of a committed artefact's metadata.
+
+    Used by the ``--check`` mode to auto-derive a per-artefact
+    ``frozen_timestamp`` for the comparison. The returned string is
+    fed back into the emitter on the comparison path (or more
+    precisely, it's the value we substitute into the emitted artefact
+    via :func:`_normalise_metadata_for_compare`).
+
+    Args:
+        data: A dict loaded from a committed JSON / YAML artefact, or
+            any other value.
+
+    Returns:
+        The committed ``metadata.created_date`` string when present,
+        else ``None``.
+    """
+    if not isinstance(data, dict):
+        return None
+    metadata = data.get("metadata")
+    if not isinstance(metadata, dict):
+        return None
+    value = metadata.get("created_date")
+    if isinstance(value, str):
+        return value
+    return None
 
 
 def _load_committed_artefact(
@@ -322,11 +481,19 @@ def _compare_artefact(
 
     Uses the equivalence contract appropriate for the category:
 
-        * ``source_yaml`` -- semantic YAML equality (no metadata strip).
-        * ``mapping`` / ``rules`` -- structural equality with the
-          converter-generated ``metadata`` block stripped from both
-          sides (timestamps + host paths embedded by the converters
-          are irreducibly variable).
+        * ``source_yaml`` -- semantic YAML equality (no metadata
+          normalisation; YAML config has no converter-embedded
+          timestamps).
+        * ``mapping`` / ``rules`` -- post-EC-S10 normalisation: the
+          emitted and committed ``metadata.created_date`` /
+          ``metadata.last_modified`` timestamps are unified
+          (committed wins) and the ``source_template`` /
+          ``template_path`` fields are coerced to basename-only
+          (Windows ``\\`` / POSIX ``/`` separators are normalised
+          first). Every other field including the rest of the
+          ``metadata`` block (``created_by``, ``name``, ``description``,
+          ``template_type``) is compared verbatim, so real schema
+          drift still surfaces as drift.
 
     Args:
         plan: The planned write to compare.
@@ -347,12 +514,15 @@ def _compare_artefact(
             return True, None
         return False, _summarise_dict_drift(emitted_data, committed_data)
 
-    # mapping / rules -- strip metadata before comparing.
-    emitted_stripped = _strip_metadata(emitted_data)
-    committed_stripped = _strip_metadata(committed_data)
-    if emitted_stripped == committed_stripped:
+    # mapping / rules -- EC-S10 metadata normalisation:
+    #   * substitute committed timestamps into the emitted block;
+    #   * coerce path-style metadata fields to basenames.
+    emitted_norm, committed_norm = _normalise_metadata_for_compare(
+        emitted_data, committed_data
+    )
+    if emitted_norm == committed_norm:
         return True, None
-    return False, _summarise_dict_drift(emitted_stripped, committed_stripped)
+    return False, _summarise_dict_drift(emitted_norm, committed_norm)
 
 
 def _summarise_dict_drift(emitted: Any, committed: Any) -> str:
@@ -594,6 +764,7 @@ def run_onboard_source(
     dry_run: bool = False,
     check: bool = False,
     quiet: bool = False,
+    frozen_timestamp: str | None = None,
 ) -> int:
     """Top-level dispatch for the ``valdo onboard-source`` command.
 
@@ -614,6 +785,18 @@ def run_onboard_source(
         check: When ``True``, compare against committed files and
             exit non-zero on drift. Mutually exclusive with ``dry_run``.
         quiet: When ``True`` suppress non-essential output.
+        frozen_timestamp: EC-S10 deterministic-timestamp override.
+            When set (e.g. ``"GENERATED"`` for test fixtures, or any
+            ISO 8601 string for stable artefacts), the underlying
+            mapping + rules converters substitute the value into
+            every ``metadata.created_date`` /
+            ``metadata.last_modified`` field instead of calling
+            ``datetime.utcnow()``. When ``None`` (default), emitters
+            preserve wall-clock behaviour for full backwards
+            compatibility. In ``--check`` mode the comparison ALWAYS
+            auto-extracts the committed timestamps regardless of this
+            flag (so the flag has no functional effect under
+            ``--check`` -- the auto-extract dominates).
 
     Returns:
         :data:`EXIT_OK` on success; :data:`EXIT_DRIFT_OR_WORKBOOK_ERROR`
@@ -659,6 +842,7 @@ def run_onboard_source(
             source_dir=source_dir_path,
             mapping_dir=mapping_dir_path,
             rules_dir=rules_dir_path,
+            frozen_timestamp=frozen_timestamp,
         )
     except EmitterError as exc:
         click.echo(
@@ -729,6 +913,21 @@ def run_onboard_source(
     default=False,
     help="Suppress the summary table; only errors are printed.",
 )
+@click.option(
+    "--frozen-timestamp",
+    "frozen_timestamp",
+    default=None,
+    type=str,
+    metavar="TEXT",
+    help=(
+        "EC-S10 deterministic timestamp. When set, replaces "
+        "datetime.utcnow() in every emitted JSON's metadata "
+        "(created_date / last_modified). Two consecutive runs with "
+        'the same value (e.g. "GENERATED" or a fixed ISO timestamp) '
+        "produce byte-identical artefacts. Ignored under --check "
+        "(which auto-extracts the committed timestamp per-artefact)."
+    ),
+)
 def onboard_source(
     workbook_path: str,
     output_root: str | None,
@@ -738,6 +937,7 @@ def onboard_source(
     dry_run: bool,
     check: bool,
     quiet: bool,
+    frozen_timestamp: str | None,
 ) -> None:
     """Onboard a new source from a single Excel workbook.
 
@@ -764,6 +964,7 @@ def onboard_source(
         dry_run=dry_run,
         check=check,
         quiet=quiet,
+        frozen_timestamp=frozen_timestamp,
     )
     if rc != EXIT_OK:
         sys.exit(rc)

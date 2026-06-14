@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- EC-S10 (Sprint 3 drift-fix): `TemplateConverter` and
+  `BARulesTemplateConverter` accept a `frozen_timestamp` option that
+  replaces `datetime.utcnow()` calls with a deterministic value.
+  Plumbed through `MappingEmitter`, `RulesEmitter`, and the
+  `valdo onboard-source --frozen-timestamp` CLI flag.
+  `valdo onboard-source --check` now auto-extracts the committed
+  timestamps so `--check` against committed state exits 0 (no
+  `modulo timestamps` qualifier). EC-S4 / EC-S5 emitter tests no
+  longer need the `_drop_metadata` strip-before-compare hack.
+
 ### Changed
 - EC-S9 (Sprint 3 drift-fix): `templates/SHAW_onboarding.xlsx`
   regenerated from committed state via `scripts/build_shaw_onboarding_workbook.py`,
@@ -25,8 +36,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   R028B countdown rule on `SHAW_TRANERT_CUS_rules.json`, which has
   the engine-native `sequence_field`/`start`/`step` shape that BA
   workbook columns cannot express; this is a documented carve-out
-  asserted by the new `test_check_mode_clean_modulo_timestamps`
-  regression test). 34 TODO-stub JSONs for SHAW input files and
+  asserted by the `test_check_mode_clean_against_committed_state`
+  regression test, renamed from `test_check_mode_clean_modulo_timestamps`
+  by EC-S10 once timestamp drift was eliminated). 34 TODO-stub JSONs
+  for SHAW input files and
   CDSTRANS_*/CONTACT_*/P327 outputs are now committed alongside the
   workbook so the artefact COUNT matches 65 of 65.
 - EC-S7 (Sprint 3 drift-fix): EC-S4 mapping emitter now populates
