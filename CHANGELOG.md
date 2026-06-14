@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- EC-S11 (Sprint 3): GitHub Actions workflow
+  `.github/workflows/workbook-drift-check.yml` runs
+  `valdo onboard-source <workbook> --check` for every committed
+  `templates/*_onboarding.xlsx` on every PR + push. Drift lines
+  matching an allowlist (`.github/workflows/workbook-drift-allowlist.txt`)
+  are tolerated; the SHAW R028B engine-native cross-row rule is the
+  sole initial entry per EC-S9. Local-equivalent helper at
+  `scripts/check_workbook_drift.sh`.
 - EC-S10 (Sprint 3 drift-fix): `TemplateConverter` and
   `BARulesTemplateConverter` accept a `frozen_timestamp` option that
   replaces `datetime.utcnow()` calls with a deterministic value.

@@ -1,0 +1,23 @@
+# Workbook drift allowlist (EC-S11, Sprint 3)
+#
+# One substring per non-blank, non-comment line. Drift lines reported by
+# `valdo onboard-source --check` that contain ANY listed substring are
+# tolerated; everything else fails the CI guardrail.
+#
+# CONVENTION: every entry MUST be accompanied by a comment immediately
+# above it explaining (a) which workbook + artefact it covers and (b) why
+# the drift is irreducible (link to an ADR / changelog entry / sprint
+# story). Adding a bare substring with no rationale is a review-block.
+#
+# To remove an entry: ensure the underlying drift has actually been fixed
+# in the workbook + emitter, run `scripts/check_workbook_drift.sh`
+# locally, and only then delete the line.
+
+# SHAW TRANERT_CUS hand-authored cross_row:sequential R028B countdown
+# rule. The committed JSON uses the engine-native
+# `sequence_field`/`start`/`step` shape that the BA workbook columns
+# cannot express; documented as an irreducible carve-out by EC-S9 /
+# EC-S10 and asserted by the
+# `test_check_mode_clean_against_committed_state` regression test.
+# See CHANGELOG.md entry for EC-S9 (Sprint 3 drift-fix).
+config/rules/SHAW_TRANERT_CUS_rules.json
