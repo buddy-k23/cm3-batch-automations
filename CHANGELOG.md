@@ -53,6 +53,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reintroduction. All subprocess calls use explicit arg-arrays.
 
 ### Added
+- EC-S1 (Sprint 2): Canonical source-onboarding Excel workbook template
+  at `templates/source_onboarding_template.xlsx` + worked-example
+  `templates/SHAW_onboarding.xlsx`. Schema validator at
+  `src/onboarding/workbook_schema.py` enforces required sheets and
+  columns with cell-addressable error messages. Documentation at
+  `templates/source_onboarding_template_README.md`. EC-S2 reader, EC-S3
+  source YAML emitter, EC-S4 mapping emitter, EC-S5 rules emitter, and
+  EC-S6 `valdo onboard-source` CLI all consume this template.
 - EB-S2: CI guardrail (`tests/unit/test_source_yaml_guardrails.py`)
   rejects reintroduction of legacy multi-record keys (`multi_record`,
   `discriminator_field`) and default-equal boilerplate
