@@ -1,0 +1,212 @@
+{
+    "mapping_name": "pipe_delimited_example",
+    "version": "1.0.0",
+    "description": "Example mapping for pipe-delimited file format",
+    "source": {
+        "type": "file",
+        "format": "pipe_delimited",
+        "delimiter": "|",
+        "encoding": "UTF-8",
+        "has_header": false
+    },
+    "target": {
+        "type": "database",
+        "table_name": "CUSTOMER"
+    },
+    "fields": [
+        {
+            "name": "customer_id",
+            "target_name": "CUSTOMER_ID",
+            "data_type": "string",
+            "required": true,
+            "transformations": [
+                {
+                    "type": "trim"
+                },
+                {
+                    "type": "upper"
+                }
+            ],
+            "validation_rules": [
+                {
+                    "type": "not_null"
+                },
+                {
+                    "type": "regex",
+                    "parameters": {
+                        "pattern": "^CUST[0-9]{6}$"
+                    }
+                }
+            ],
+            "description": "Unique customer identifier"
+        },
+        {
+            "name": "first_name",
+            "target_name": "FIRST_NAME",
+            "data_type": "string",
+            "required": true,
+            "transformations": [
+                {
+                    "type": "trim"
+                }
+            ],
+            "validation_rules": [
+                {
+                    "type": "not_null"
+                },
+                {
+                    "type": "min_length",
+                    "parameters": {
+                        "length": 1
+                    }
+                },
+                {
+                    "type": "max_length",
+                    "parameters": {
+                        "length": 50
+                    }
+                }
+            ],
+            "description": "Customer first name"
+        },
+        {
+            "name": "last_name",
+            "target_name": "LAST_NAME",
+            "data_type": "string",
+            "required": true,
+            "transformations": [
+                {
+                    "type": "trim"
+                }
+            ],
+            "validation_rules": [
+                {
+                    "type": "not_null"
+                },
+                {
+                    "type": "max_length",
+                    "parameters": {
+                        "length": 50
+                    }
+                }
+            ],
+            "description": "Customer last name"
+        },
+        {
+            "name": "email",
+            "target_name": "EMAIL",
+            "data_type": "string",
+            "required": false,
+            "transformations": [
+                {
+                    "type": "trim"
+                },
+                {
+                    "type": "lower"
+                }
+            ],
+            "validation_rules": [
+                {
+                    "type": "regex",
+                    "parameters": {
+                        "pattern": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+                    }
+                }
+            ],
+            "description": "Customer email address"
+        },
+        {
+            "name": "phone",
+            "target_name": "PHONE_NUMBER",
+            "data_type": "string",
+            "required": false,
+            "transformations": [
+                {
+                    "type": "trim"
+                },
+                {
+                    "type": "replace",
+                    "parameters": {
+                        "old": "-",
+                        "new": ""
+                    }
+                }
+            ],
+            "validation_rules": [
+                {
+                    "type": "regex",
+                    "parameters": {
+                        "pattern": "^[0-9]{10}$"
+                    }
+                }
+            ],
+            "description": "Customer phone number"
+        },
+        {
+            "name": "account_balance",
+            "target_name": "ACCOUNT_BALANCE",
+            "data_type": "decimal",
+            "required": true,
+            "transformations": [
+                {
+                    "type": "cast",
+                    "parameters": {
+                        "to_type": "decimal"
+                    }
+                }
+            ],
+            "validation_rules": [
+                {
+                    "type": "not_null"
+                },
+                {
+                    "type": "range",
+                    "parameters": {
+                        "min": 0,
+                        "max": 999999.99
+                    }
+                }
+            ],
+            "description": "Account balance amount"
+        },
+        {
+            "name": "status",
+            "target_name": "STATUS",
+            "data_type": "string",
+            "required": true,
+            "transformations": [
+                {
+                    "type": "trim"
+                },
+                {
+                    "type": "upper"
+                }
+            ],
+            "validation_rules": [
+                {
+                    "type": "not_null"
+                },
+                {
+                    "type": "in_list",
+                    "parameters": {
+                        "values": [
+                            "ACTIVE",
+                            "INACTIVE",
+                            "SUSPENDED"
+                        ]
+                    }
+                }
+            ],
+            "description": "Account status"
+        }
+    ],
+    "key_columns": [
+        "customer_id"
+    ],
+    "metadata": {
+        "created_by": "data_team",
+        "created_date": "2026-02-07T13:30:00Z",
+        "last_modified": "2026-02-07T13:30:00Z",
+        "notes": "Standard customer file mapping"
+    }
+}

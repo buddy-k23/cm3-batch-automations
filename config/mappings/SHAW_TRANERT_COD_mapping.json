@@ -1,0 +1,1200 @@
+{
+  "mapping_name": "SHAW_TRANERT_COD_mapping",
+  "version": "1.0.0",
+  "description": "Generated from template: SHAW_TRANERT_COD_mapping.csv",
+  "source": {
+    "type": "file",
+    "format": "fixed_width",
+    "encoding": "UTF-8"
+  },
+  "target": {
+    "type": "database"
+  },
+  "fields": [
+    {
+      "name": "BK-NUM-ERT",
+      "data_type": "decimal",
+      "target_name": "bk_num_ert",
+      "position": 1,
+      "length": 5,
+      "format": "9(5)",
+      "required": true,
+      "description": "A number, defined on the Bank Control Operation tables, which identifies the ...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "00040"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "00040"
+      ]
+    },
+    {
+      "name": "APP-ERT",
+      "data_type": "decimal",
+      "target_name": "app_ert",
+      "position": 6,
+      "length": 3,
+      "format": "9(3)",
+      "required": true,
+      "description": "The application to which the account is to be associated.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "001"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "001"
+      ]
+    },
+    {
+      "name": "LN-NUM-ERT",
+      "data_type": "string",
+      "target_name": "ln_num_ert",
+      "position": 9,
+      "length": 18,
+      "required": true,
+      "description": "The account number that is associated with the account.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "REF-NUM-ERT",
+      "data_type": "string",
+      "target_name": "ref_num_ert",
+      "position": 27,
+      "length": 3,
+      "required": false,
+      "description": "The applicable reference number for the transaction.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "FILLER",
+      "data_type": "string",
+      "target_name": "filler",
+      "position": 30,
+      "length": 130,
+      "required": false,
+      "description": "Filler for account key",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "EFF-DAT-ERT",
+      "data_type": "date",
+      "target_name": "eff_dat_ert",
+      "position": 160,
+      "length": 10,
+      "format": "MM/DD/CCYY",
+      "required": true,
+      "description": "The date the transaction was effective.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "TRN-COD-ERT",
+      "data_type": "decimal",
+      "target_name": "trn_cod_ert",
+      "position": 170,
+      "length": 5,
+      "format": "9(5)",
+      "required": true,
+      "description": "The transaction code for the transaction.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "32025"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "32025"
+      ]
+    },
+    {
+      "name": "BAT-ITM-NUM-ERT",
+      "data_type": "decimal",
+      "target_name": "bat_itm_num_ert",
+      "position": 175,
+      "length": 9,
+      "format": "9(9)",
+      "required": true,
+      "description": "The sequential number for this item within the batch.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "INP-SRC-COD-ERT",
+      "data_type": "decimal",
+      "target_name": "inp_src_cod_ert",
+      "position": 184,
+      "length": 3,
+      "format": "9(3)",
+      "required": false,
+      "description": "The source of the transaction.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "TRN-CNT-ERT",
+      "data_type": "decimal",
+      "target_name": "trn_cnt_ert",
+      "position": 187,
+      "length": 3,
+      "format": "9(3)",
+      "required": false,
+      "description": "The total number of transactions in the batch.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "TRN-MOR-DTA-FLG-ERT",
+      "data_type": "string",
+      "target_name": "trn_mor_dta_flg_ert",
+      "position": 190,
+      "length": 1,
+      "required": false,
+      "description": "Indicates if more data is available.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "STP-ACR-ATY-COD-COD",
+      "data_type": "decimal",
+      "target_name": "stp_acr_aty_cod_cod",
+      "position": 191,
+      "length": 1,
+      "format": "9(1)",
+      "required": false,
+      "description": "Indicates if accruals have been stopped or monetary activity is to continue w...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "DAT-PLC-IN-STP-COD",
+      "data_type": "date",
+      "target_name": "dat_plc_in_stp_cod",
+      "position": 192,
+      "length": 10,
+      "format": "MM/DD/CCYY",
+      "required": false,
+      "description": "The date the account was placed in stop accrual status prior to charge-off.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "DAT-STP-ACR-RMD-COD",
+      "data_type": "date",
+      "target_name": "dat_stp_acr_rmd_cod",
+      "position": 202,
+      "length": 10,
+      "format": "MM/DD/CCYY",
+      "required": false,
+      "description": "The date the account was removed from a stop accrual status.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "INT-ACR-WHI-STP-COD",
+      "data_type": "decimal",
+      "target_name": "int_acr_whi_stp_cod",
+      "position": 212,
+      "length": 22,
+      "format": "-Z(12).9(2)",
+      "required": false,
+      "description": "The amount of interest accrued while the account\u2019s stop accrual status is Mem...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LGL-STA-COD-COD",
+      "data_type": "string",
+      "target_name": "lgl_sta_cod_cod",
+      "position": 234,
+      "length": 3,
+      "required": false,
+      "description": "Indicates the account\u2019s legal status.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "TBD",
+              "R",
+              "P",
+              "N",
+              "RPO",
+              "B",
+              "J",
+              "B06",
+              "F",
+              "FCL",
+              "X",
+              "PRP"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "TBD",
+        "R",
+        "P",
+        "N",
+        "RPO",
+        "B",
+        "J",
+        "B06",
+        "F",
+        "FCL",
+        "X",
+        "PRP"
+      ]
+    },
+    {
+      "name": "DAT-LAS-RPO-COD",
+      "data_type": "date",
+      "target_name": "dat_las_rpo_cod",
+      "position": 237,
+      "length": 10,
+      "format": "MM/DD/CCYY",
+      "required": false,
+      "description": "The date of the last repossession/voluntary surrender on the account prior to...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "R",
+              "P",
+              "X",
+              "N"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "R",
+        "P",
+        "X",
+        "N"
+      ]
+    },
+    {
+      "name": "RPO-COD-COD",
+      "data_type": "decimal",
+      "target_name": "rpo_cod_cod",
+      "position": 247,
+      "length": 1,
+      "format": "9(1)",
+      "required": false,
+      "description": "Vehicle Collateral Status, related to repossession / voluntary surrender.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "R",
+              "P",
+              "X",
+              "N",
+              "1",
+              "0"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "R",
+        "P",
+        "X",
+        "N",
+        "1",
+        "0"
+      ]
+    },
+    {
+      "name": "DUE-DAT-DAY-COD",
+      "data_type": "decimal",
+      "target_name": "due_dat_day_cod",
+      "position": 248,
+      "length": 2,
+      "format": "9(2)",
+      "required": true,
+      "description": "The cycle ID used to control processing in APPS Enterprise.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "DAT-RMD-RPO-COD",
+      "data_type": "date",
+      "target_name": "dat_rmd_rpo_cod",
+      "position": 250,
+      "length": 10,
+      "format": "MM/DD/CCYY",
+      "required": false,
+      "description": "The date the account was removed from repossession/surrender status prior to ...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "FCL-STA-IND-COD",
+      "data_type": "string",
+      "target_name": "fcl_sta_ind_cod",
+      "position": 260,
+      "length": 1,
+      "required": false,
+      "description": "Real Estate Collateral Status",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ORG-LVL-NUM-1-COD",
+      "data_type": "decimal",
+      "target_name": "org_lvl_num_1_cod",
+      "position": 261,
+      "length": 7,
+      "format": "9(7)",
+      "required": false,
+      "description": "Organization control level 1 for the bank that the account resides in.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "0000001"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "0000001"
+      ]
+    },
+    {
+      "name": "ORG-LVL-NUM-2-COD",
+      "data_type": "decimal",
+      "target_name": "org_lvl_num_2_cod",
+      "position": 268,
+      "length": 7,
+      "format": "9(7)",
+      "required": false,
+      "description": "Organization control level 2 for the bank that the account resides in.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "0000001"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "0000001"
+      ]
+    },
+    {
+      "name": "ORG-LVL-NUM-3-COD",
+      "data_type": "decimal",
+      "target_name": "org_lvl_num_3_cod",
+      "position": 275,
+      "length": 7,
+      "format": "9(7)",
+      "required": false,
+      "description": "Organization control level 3 for the bank that the account resides in.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "0000040"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "0000040"
+      ]
+    },
+    {
+      "name": "ORG-LVL-NUM-4-COD",
+      "data_type": "decimal",
+      "target_name": "org_lvl_num_4_cod",
+      "position": 282,
+      "length": 7,
+      "format": "9(7)",
+      "required": false,
+      "description": "Organization control level 4 for the bank that the account resides in.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ORG-LVL-NUM-5-COD",
+      "data_type": "decimal",
+      "target_name": "org_lvl_num_5_cod",
+      "position": 289,
+      "length": 7,
+      "format": "9(7)",
+      "required": false,
+      "description": "Organization control level 5 for the bank that the account resides in.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "0000001"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "0000001"
+      ]
+    },
+    {
+      "name": "ORG-LVL-NUM-6-COD",
+      "data_type": "decimal",
+      "target_name": "org_lvl_num_6_cod",
+      "position": 296,
+      "length": 7,
+      "format": "9(7)",
+      "required": false,
+      "description": "Organization control level 6 for the bank that the account resides in.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ORG-LVL-NUM-7-COD",
+      "data_type": "decimal",
+      "target_name": "org_lvl_num_7_cod",
+      "position": 303,
+      "length": 7,
+      "format": "9(7)",
+      "required": false,
+      "description": "Organization control level 7 for the bank that the account resides in.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ORG-LVL-NUM-8-COD",
+      "data_type": "decimal",
+      "target_name": "org_lvl_num_8_cod",
+      "position": 310,
+      "length": 7,
+      "format": "9(7)",
+      "required": false,
+      "description": "Organization control level 8 for the bank that the account resides in.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ORG-LVL-NUM-9-COD",
+      "data_type": "decimal",
+      "target_name": "org_lvl_num_9_cod",
+      "position": 317,
+      "length": 7,
+      "format": "9(7)",
+      "required": false,
+      "description": "Organization control level 9 for the bank that the account resides in.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ORG-LVL-NUM-10-COD",
+      "data_type": "decimal",
+      "target_name": "org_lvl_num_10_cod",
+      "position": 324,
+      "length": 7,
+      "format": "9(7)",
+      "required": false,
+      "description": "Organization control level 10 for the bank that the account resides in.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ORG-LVL-NUM-11-COD",
+      "data_type": "decimal",
+      "target_name": "org_lvl_num_11_cod",
+      "position": 331,
+      "length": 7,
+      "format": "9(7)",
+      "required": false,
+      "description": "Organization control level 11 for the bank that the account resides in.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ORG-LVL-NUM-12-COD",
+      "data_type": "decimal",
+      "target_name": "org_lvl_num_12_cod",
+      "position": 338,
+      "length": 7,
+      "format": "9(7)",
+      "required": false,
+      "description": "Organization control level 12 for the bank that the account resides in.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "10-98-RPT-IND-COD",
+      "data_type": "string",
+      "target_name": "10_98_rpt_ind_cod",
+      "position": 345,
+      "length": 1,
+      "required": false,
+      "description": "Indicates if form 1098 for mortgage interest reporting and Regulation C compl...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LCE-GEO-COD-COD",
+      "data_type": "string",
+      "target_name": "lce_geo_cod_cod",
+      "position": 346,
+      "length": 9,
+      "required": false,
+      "description": "A numeric code for location of record for lease sales-use tax liability. Comp...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CR-RT-COD",
+      "data_type": "string",
+      "target_name": "cr_rt_cod",
+      "position": 355,
+      "length": 4,
+      "required": false,
+      "description": "The behavioral score developed for this account.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CAL-RPT-COD-COD",
+      "data_type": "string",
+      "target_name": "cal_rpt_cod_cod",
+      "position": 359,
+      "length": 4,
+      "required": false,
+      "description": "The federal Call Report code.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "OGL-LN-POO-NUM-COD",
+      "data_type": "decimal",
+      "target_name": "ogl_ln_poo_num_cod",
+      "position": 363,
+      "length": 7,
+      "format": "9(7)",
+      "required": false,
+      "description": "A number identifying a pool of securitized loans to which the account belonge...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "OGL-LN-OFC-COD",
+      "data_type": "string",
+      "target_name": "ogl_ln_ofc_cod",
+      "position": 370,
+      "length": 9,
+      "required": false,
+      "description": "The loan officer originally assigned to the loan account.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LN-OFC-CUR-COD",
+      "data_type": "string",
+      "target_name": "ln_ofc_cur_cod",
+      "position": 379,
+      "length": 9,
+      "required": false,
+      "description": "The loan officer currently assigned to the loan account.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "OGL-BR-NUM-COD",
+      "data_type": "decimal",
+      "target_name": "ogl_br_num_cod",
+      "position": 388,
+      "length": 6,
+      "format": "9(6)",
+      "required": false,
+      "description": "The original branch number.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LN-PUR-COD-COD",
+      "data_type": "string",
+      "target_name": "ln_pur_cod_cod",
+      "position": 394,
+      "length": 3,
+      "required": false,
+      "description": "Identifies the purpose of the loan.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "3"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "3"
+      ]
+    },
+    {
+      "name": "LN-CAT-COD",
+      "data_type": "decimal",
+      "target_name": "ln_cat_cod",
+      "position": 397,
+      "length": 3,
+      "format": "9(3)",
+      "required": true,
+      "description": "Indicates the associated category for the account.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "DLR-NUM-COD",
+      "data_type": "decimal",
+      "target_name": "dlr_num_cod",
+      "position": 400,
+      "length": 7,
+      "format": "9(7)",
+      "required": false,
+      "description": "A number to indicate the dealer associated with an indirect recovery loan.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "FCL-EFF-DAT-COD",
+      "data_type": "date",
+      "target_name": "fcl_eff_dat_cod",
+      "position": 407,
+      "length": 10,
+      "format": "MM/DD/CCYY",
+      "required": false,
+      "description": "The date the account was placed in Real Estate Collateral Status.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "STM-FRQ-COD",
+      "data_type": "string",
+      "target_name": "stm_frq_cod",
+      "position": 417,
+      "length": 1,
+      "required": true,
+      "description": "Frequency that a statement should be generated",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "M"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "M"
+      ]
+    },
+    {
+      "name": "NATL-CURRENCY-COD",
+      "data_type": "string",
+      "target_name": "natl_currency_cod",
+      "position": 418,
+      "length": 3,
+      "required": true,
+      "description": "The currency (non-Euro) of the nation associated with borrowers of this account.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "USD"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "USD"
+      ]
+    },
+    {
+      "name": "PREF-CURRENCY-COD",
+      "data_type": "string",
+      "target_name": "pref_currency_cod",
+      "position": 421,
+      "length": 3,
+      "required": true,
+      "description": "The currency (national or base), which the borrower prefers to use in dealing...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "USD"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "USD"
+      ]
+    },
+    {
+      "name": "BASE-CURRENCY-COD",
+      "data_type": "string",
+      "target_name": "base_currency_cod",
+      "position": 424,
+      "length": 3,
+      "required": true,
+      "description": "The currency (Euro or national) in which this account is being maintained.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "USD"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "USD"
+      ]
+    },
+    {
+      "name": "PRT-COF-BK-NUM-COD",
+      "data_type": "decimal",
+      "target_name": "prt_cof_bk_num_cod",
+      "position": 427,
+      "length": 5,
+      "format": "9(5)",
+      "required": false,
+      "description": "The bank associated with the partial charge off account being combined with t...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "PRT-COF-APP-COD",
+      "data_type": "decimal",
+      "target_name": "prt_cof_app_cod",
+      "position": 432,
+      "length": 3,
+      "format": "9(3)",
+      "required": false,
+      "description": "The application associated with the partial charge off account being combined...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "PRT-COF-LN-NUM-COD",
+      "data_type": "string",
+      "target_name": "prt_cof_ln_num_cod",
+      "position": 435,
+      "length": 18,
+      "required": false,
+      "description": "The account number for the partial charge off account being combined with the...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "NAS-SRC-COD-COD",
+      "data_type": "decimal",
+      "target_name": "nas_src_cod_cod",
+      "position": 453,
+      "length": 3,
+      "format": "9(3)",
+      "required": false,
+      "description": "The source of the input data.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "130"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "130"
+      ]
+    },
+    {
+      "name": "HMDA-ULI-CODE",
+      "data_type": "string",
+      "target_name": "hmda_uli_code",
+      "position": 456,
+      "length": 45,
+      "required": false,
+      "description": "The HMDA Unique Loan Identifier.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "IRS-PROP-SECURE-TYPE-COD",
+      "data_type": "string",
+      "target_name": "irs_prop_secure_type_cod",
+      "position": 501,
+      "length": 8,
+      "required": false,
+      "description": "The IRS Property Security Type, used to identify the property address that is...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "IRS-PROP-ADDR-DESC-COD",
+      "data_type": "string",
+      "target_name": "irs_prop_addr_desc_cod",
+      "position": 509,
+      "length": 39,
+      "required": false,
+      "description": "The IRS Property Address or Description. Field may also be used in determinat...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "IRS-NUM-OF-MORT-COD",
+      "data_type": "decimal",
+      "target_name": "irs_num_of_mort_cod",
+      "position": 548,
+      "length": 4,
+      "format": "9(4)",
+      "required": false,
+      "description": "The IRS number of mortgaged properties.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "0000"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "0000"
+      ]
+    }
+  ],
+  "key_columns": [
+    "BK-NUM-ERT"
+  ],
+  "metadata": {
+    "created_by": "template_converter",
+    "created_date": "2026-05-26T17:42:56.281987Z",
+    "last_modified": "2026-05-26T17:42:56.281996Z",
+    "source_template": "mappings\\csv\\shaw_tranert\\SHAW_TRANERT_COD_mapping.csv"
+  },
+  "total_record_length": 551,
+  "warnings": []
+}

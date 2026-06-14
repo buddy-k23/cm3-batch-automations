@@ -1,0 +1,122 @@
+{
+  "mapping_name": "transaction_file_to_db",
+  "version": "1.0.0",
+  "description": "Maps transaction data from fixed-width file to TRANSACTION table",
+  "source": {
+    "type": "file",
+    "format": "fixed_width",
+    "file_path": "data/samples/transactions.txt"
+  },
+  "target": {
+    "type": "database",
+    "table_name": "TRANSACTION"
+  },
+  "mappings": [
+    {
+      "source_column": "transaction_id",
+      "target_column": "TRANSACTION_ID",
+      "data_type": "string",
+      "required": true,
+      "transformations": [
+        {"type": "trim"}
+      ],
+      "validation_rules": [
+        {"type": "not_null"},
+        {
+          "type": "regex",
+          "parameters": {"pattern": "^TXN[0-9]{10}$"}
+        }
+      ]
+    },
+    {
+      "source_column": "customer_id",
+      "target_column": "CUSTOMER_ID",
+      "data_type": "string",
+      "required": true,
+      "transformations": [
+        {"type": "trim"},
+        {"type": "upper"}
+      ],
+      "validation_rules": [
+        {"type": "not_null"}
+      ]
+    },
+    {
+      "source_column": "transaction_date",
+      "target_column": "TRANSACTION_DATE",
+      "data_type": "date",
+      "required": true,
+      "transformations": [
+        {"type": "trim"}
+      ],
+      "validation_rules": [
+        {"type": "not_null"},
+        {
+          "type": "regex",
+          "parameters": {"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"}
+        }
+      ]
+    },
+    {
+      "source_column": "amount",
+      "target_column": "AMOUNT",
+      "data_type": "number",
+      "required": true,
+      "transformations": [
+        {"type": "trim"},
+        {
+          "type": "cast",
+          "parameters": {"to_type": "number"}
+        }
+      ],
+      "validation_rules": [
+        {"type": "not_null"},
+        {
+          "type": "range",
+          "parameters": {
+            "min": 0.01,
+            "max": 99999.99
+          }
+        }
+      ]
+    },
+    {
+      "source_column": "transaction_type",
+      "target_column": "TRANSACTION_TYPE",
+      "data_type": "string",
+      "required": true,
+      "transformations": [
+        {"type": "trim"},
+        {"type": "upper"}
+      ],
+      "validation_rules": [
+        {"type": "not_null"},
+        {
+          "type": "regex",
+          "parameters": {"pattern": "^(DEBIT|CREDIT|TRANSFER)$"}
+        }
+      ]
+    },
+    {
+      "source_column": "description",
+      "target_column": "DESCRIPTION",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {"type": "trim"}
+      ],
+      "validation_rules": [
+        {
+          "type": "max_length",
+          "parameters": {"length": 200}
+        }
+      ]
+    }
+  ],
+  "key_columns": ["transaction_id"],
+  "metadata": {
+    "created_by": "data_team",
+    "created_date": "2026-02-06T00:00:00Z",
+    "last_modified": "2026-02-06T00:00:00Z"
+  }
+}

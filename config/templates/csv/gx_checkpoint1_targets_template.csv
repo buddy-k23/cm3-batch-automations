@@ -1,0 +1,2 @@
+target_id,data_file,delimiter,has_header,mapping_file,key_columns,required_columns,enabled
+example_target,data/files/example.txt,|,false,config/mappings/example_mapping.json,BUSINESS_KEY,BUSINESS_KEY|REQUIRED_COL_2,true

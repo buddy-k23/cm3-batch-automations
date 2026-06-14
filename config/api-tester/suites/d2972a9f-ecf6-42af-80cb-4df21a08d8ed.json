@@ -1,0 +1,29 @@
+{
+  "name": "E2E UI Suite",
+  "base_url": "http://127.0.0.1:8000",
+  "requests": [
+    {
+      "id": "req-e2e-2",
+      "name": "Version",
+      "method": "GET",
+      "path": "/api/v1/system/version",
+      "headers": [],
+      "body_type": "none",
+      "body_json": "",
+      "form_fields": [],
+      "assertions": []
+    },
+    {
+      "id": "req-e2e-1",
+      "name": "Health",
+      "method": "GET",
+      "path": "/api/v1/system/health",
+      "headers": [],
+      "body_type": "none",
+      "body_json": "",
+      "form_fields": [],
+      "assertions": []
+    }
+  ],
+  "id": "d2972a9f-ecf6-42af-80cb-4df21a08d8ed"
+}

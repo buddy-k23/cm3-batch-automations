@@ -1,0 +1,37 @@
+{
+  "source_system": "SRC_A",
+  "description": "Production-style sample profile for SRC_A",
+  "stages": {
+    "ingest": {
+      "enabled": true,
+      "command": "echo '[SRC_A] ingest checks completed'"
+    },
+    "sqlloader": {
+      "enabled": true,
+      "log_file": "logs/sqlloader_SRC_A.log",
+      "max_rejected": 0,
+      "max_discarded": 0,
+      "command": "echo '[SRC_A] SQL*Loader stage handled externally; using log evaluation'"
+    },
+    "java_batch": {
+      "enabled": true,
+      "command": "echo '[SRC_A] Java batch completed'"
+    },
+    "output_validation": {
+      "enabled": true,
+      "targets": [
+        {
+          "name": "p327",
+          "file": "outputs/current/SRC_A/p327.txt",
+          "mapping": "config/mappings/P327_full_in_sheet_order.json",
+          "rules": "config/rules/p327_business_rules.json",
+          "strict_fixed_width": true,
+          "strict_level": "all",
+          "report": "reports/SRC_A_p327_validation.html",
+          "baseline_file": "outputs/baseline/SRC_A/p327.txt",
+          "compare_report": "reports/SRC_A_p327_compare.html"
+        }
+      ]
+    }
+  }
+}

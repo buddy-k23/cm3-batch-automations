@@ -1,0 +1,4 @@
+rule_id,rule_name,scope,severity,priority,group_by,expression,message_template,enabled
+FIL_DETAIL_COUNT_NON_NEGATIVE,File detail count non-negative,file,CRITICAL,high,,detail.count >= 0,Detail count must be non-negative,Y
+FIL_DETAIL_COUNT_NON_NEGATIVE,Duplicate id,file,ERROR,20,,detail.count >= 0,Duplicate rule id,Y
+GRP_WITHOUT_GROUPBY,Group rule missing groupby,group,ERROR,30,,count(*) > 0,Group by missing,Y

@@ -1,0 +1,315 @@
+{
+  "metadata": {
+    "name": "SHAW_ATOCTRAN_300_rules",
+    "description": "Generated from BA-friendly template: SHAW_ATOCTRAN_300_rules.csv",
+    "created_by": "ba_rules_template_converter",
+    "created_date": "2026-05-18T19:15:04.775969Z",
+    "template_path": "mappings\\csv\\shaw_atoctran\\SHAW_ATOCTRAN_300_rules.csv",
+    "template_type": "ba_friendly"
+  },
+  "rules": [
+    {
+      "id": "R001",
+      "name": "LOCATION-CODE required",
+      "description": "LOCATION-CODE required",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "not_empty",
+      "field": "LOCATION-CODE",
+      "operator": "not_empty",
+      "message": "LOCATION-CODE must not be empty"
+    },
+    {
+      "id": "R002",
+      "name": "LOCATION-CODE length check",
+      "description": "LOCATION-CODE length check",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "length",
+      "field": "LOCATION-CODE",
+      "operator": "length",
+      "min_length": 1,
+      "max_length": 6
+    },
+    {
+      "id": "R003",
+      "name": "LOCATION-CODE valid values",
+      "description": "LOCATION-CODE valid values",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "valid_values",
+      "field": "LOCATION-CODE",
+      "operator": "valid_values",
+      "values": [
+        "100030"
+      ],
+      "message": "LOCATION-CODE must be one of: 100030"
+    },
+    {
+      "id": "R004",
+      "name": "ACCT-NUM required",
+      "description": "ACCT-NUM required",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "not_empty",
+      "field": "ACCT-NUM",
+      "operator": "not_empty",
+      "message": "ACCT-NUM must not be empty"
+    },
+    {
+      "id": "R005",
+      "name": "ACCT-NUM length check",
+      "description": "ACCT-NUM length check",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "length",
+      "field": "ACCT-NUM",
+      "operator": "length",
+      "min_length": 14,
+      "max_length": 18
+    },
+    {
+      "id": "R006",
+      "name": "TRANSACTION-CODE required",
+      "description": "TRANSACTION-CODE required",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "not_empty",
+      "field": "TRANSACTION-CODE",
+      "operator": "not_empty",
+      "message": "TRANSACTION-CODE must not be empty"
+    },
+    {
+      "id": "R007",
+      "name": "TRANSACTION-CODE length check",
+      "description": "TRANSACTION-CODE length check",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "length",
+      "field": "TRANSACTION-CODE",
+      "operator": "length",
+      "min_length": 1,
+      "max_length": 3
+    },
+    {
+      "id": "R008",
+      "name": "TRANSACTION-CODE valid values",
+      "description": "TRANSACTION-CODE valid values",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "valid_values",
+      "field": "TRANSACTION-CODE",
+      "operator": "valid_values",
+      "values": [
+        "300"
+      ],
+      "message": "TRANSACTION-CODE must be one of: 300"
+    },
+    {
+      "id": "R009",
+      "name": "TRANSACTION-DATE required",
+      "description": "TRANSACTION-DATE required",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "not_empty",
+      "field": "TRANSACTION-DATE",
+      "operator": "not_empty",
+      "message": "TRANSACTION-DATE must not be empty"
+    },
+    {
+      "id": "R010",
+      "name": "TRANSACTION-DATE date format",
+      "description": "TRANSACTION-DATE date format",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "date_format",
+      "field": "TRANSACTION-DATE",
+      "operator": "date_format",
+      "format": "CCYYMMDD",
+      "message": "TRANSACTION-DATE must be a valid date (CCYYMMDD)"
+    },
+    {
+      "id": "R011",
+      "name": "TRANSACTION-DATE length check",
+      "description": "TRANSACTION-DATE length check",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "exact_length",
+      "field": "TRANSACTION-DATE",
+      "operator": "exact_length",
+      "value": 8,
+      "message": "TRANSACTION-DATE must be exactly 8 characters"
+    },
+    {
+      "id": "R012",
+      "name": "TRANSACTION-AMOUNT required",
+      "description": "TRANSACTION-AMOUNT required",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "not_empty",
+      "field": "TRANSACTION-AMOUNT",
+      "operator": "not_empty",
+      "message": "TRANSACTION-AMOUNT must not be empty"
+    },
+    {
+      "id": "R013",
+      "name": "TRANSACTION-AMOUNT numeric",
+      "description": "TRANSACTION-AMOUNT numeric",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "numeric",
+      "field": "TRANSACTION-AMOUNT",
+      "operator": "numeric",
+      "message": "TRANSACTION-AMOUNT must be numeric"
+    },
+    {
+      "id": "R014",
+      "name": "TRANSACTION-AMOUNT length check",
+      "description": "TRANSACTION-AMOUNT length check",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "exact_length",
+      "field": "TRANSACTION-AMOUNT",
+      "operator": "exact_length",
+      "value": 18,
+      "message": "TRANSACTION-AMOUNT must be exactly 18 characters"
+    },
+    {
+      "id": "R015",
+      "name": "NUMBER-OF-DEBITS numeric",
+      "description": "NUMBER-OF-DEBITS numeric",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "numeric",
+      "field": "NUMBER-OF-DEBITS",
+      "operator": "numeric",
+      "message": "NUMBER-OF-DEBITS must be numeric"
+    },
+    {
+      "id": "R016",
+      "name": "NUMBER-OF-DEBITS valid values",
+      "description": "NUMBER-OF-DEBITS valid values",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "valid_values",
+      "field": "NUMBER-OF-DEBITS",
+      "operator": "valid_values",
+      "values": [
+        "00"
+      ],
+      "message": "NUMBER-OF-DEBITS must be one of: 00"
+    },
+    {
+      "id": "R017",
+      "name": "CATEGORY-CODE required",
+      "description": "CATEGORY-CODE required",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "not_empty",
+      "field": "CATEGORY-CODE",
+      "operator": "not_empty",
+      "message": "CATEGORY-CODE must not be empty"
+    },
+    {
+      "id": "R018",
+      "name": "CATEGORY-CODE length check",
+      "description": "CATEGORY-CODE length check",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "length",
+      "field": "CATEGORY-CODE",
+      "operator": "length",
+      "min_length": 1,
+      "max_length": 1
+    },
+    {
+      "id": "R019",
+      "name": "CATEGORY-CODE valid values",
+      "description": "CATEGORY-CODE valid values",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "valid_values",
+      "field": "CATEGORY-CODE",
+      "operator": "valid_values",
+      "values": [
+        "2",
+        "3",
+        "1"
+      ],
+      "message": "CATEGORY-CODE must be one of: 2|3|1"
+    },
+    {
+      "id": "R020",
+      "name": "THIRD-PARTY-COMM-AMT numeric",
+      "description": "THIRD-PARTY-COMM-AMT numeric",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "numeric",
+      "field": "THIRD-PARTY-COMM-AMT",
+      "operator": "numeric",
+      "message": "THIRD-PARTY-COMM-AMT must be numeric"
+    },
+    {
+      "id": "R021",
+      "name": "THIRD-PARTY-COMM-AMT valid values",
+      "description": "THIRD-PARTY-COMM-AMT valid values",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "valid_values",
+      "field": "THIRD-PARTY-COMM-AMT",
+      "operator": "valid_values",
+      "values": [
+        "000000000000000000"
+      ],
+      "message": "THIRD-PARTY-COMM-AMT must be one of: 000000000000000000"
+    },
+    {
+      "id": "R022",
+      "name": "INPUT-SOURCE-CODE numeric",
+      "description": "INPUT-SOURCE-CODE numeric",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "numeric",
+      "field": "INPUT-SOURCE-CODE",
+      "operator": "numeric",
+      "message": "INPUT-SOURCE-CODE must be numeric"
+    },
+    {
+      "id": "R023",
+      "name": "INPUT-SOURCE-CODE valid values",
+      "description": "INPUT-SOURCE-CODE valid values",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "valid_values",
+      "field": "INPUT-SOURCE-CODE",
+      "operator": "valid_values",
+      "values": [
+        "000"
+      ],
+      "message": "INPUT-SOURCE-CODE must be one of: 000"
+    }
+  ]
+}

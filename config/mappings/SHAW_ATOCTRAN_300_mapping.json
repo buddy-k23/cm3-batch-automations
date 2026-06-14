@@ -1,0 +1,353 @@
+{
+  "mapping_name": "SHAW_ATOCTRAN_300_mapping",
+  "version": "1.0.0",
+  "description": "Generated from template: SHAW_ATOCTRAN_300_mapping.csv",
+  "source": {
+    "type": "file",
+    "format": "fixed_width",
+    "encoding": "UTF-8"
+  },
+  "target": {
+    "type": "database"
+  },
+  "fields": [
+    {
+      "name": "LOCATION-CODE",
+      "data_type": "string",
+      "target_name": "location_code",
+      "position": 1,
+      "length": 6,
+      "required": true,
+      "description": "Location Code for Account",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "100030"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "100030"
+      ]
+    },
+    {
+      "name": "ACCT-NUM",
+      "data_type": "string",
+      "target_name": "acct_num",
+      "position": 7,
+      "length": 18,
+      "required": true,
+      "description": "Account Number",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "TRANSACTION-CODE",
+      "data_type": "string",
+      "target_name": "transaction_code",
+      "position": 25,
+      "length": 3,
+      "required": true,
+      "description": "Type of Transaction",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "300"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "300"
+      ]
+    },
+    {
+      "name": "TRANSACTION-DATE",
+      "data_type": "date",
+      "target_name": "transaction_date",
+      "position": 28,
+      "length": 8,
+      "format": "CCYYMMDD",
+      "required": true,
+      "description": "Date of Transaction",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "TRANSACTION-AMOUNT",
+      "data_type": "decimal",
+      "target_name": "transaction_amount",
+      "position": 36,
+      "length": 18,
+      "format": "9(12)V9(6)",
+      "required": true,
+      "description": "The total currency amount of the transaction.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "NUMBER-OF-DEBITS",
+      "data_type": "decimal",
+      "target_name": "number_of_debits",
+      "position": 54,
+      "length": 2,
+      "format": "9(2)",
+      "required": false,
+      "description": "The number of debits in the day. This field must be numeric and is used only ...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "00"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "00"
+      ]
+    },
+    {
+      "name": "CATEGORY-CODE",
+      "data_type": "string",
+      "target_name": "category_code",
+      "position": 56,
+      "length": 1,
+      "required": true,
+      "description": "Type of credit/debit",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "2",
+              "3",
+              "1"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "2",
+        "3",
+        "1"
+      ]
+    },
+    {
+      "name": "THIRD-PARTY-ID",
+      "data_type": "string",
+      "target_name": "third_party_id",
+      "position": 57,
+      "length": 8,
+      "required": false,
+      "description": "The unique identifier of the outside collection agency or other third party.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "THIRD-PARTY-COMM-AMT",
+      "data_type": "decimal",
+      "target_name": "third_party_comm_amt",
+      "position": 65,
+      "length": 18,
+      "format": "9(12)V9(6)",
+      "required": false,
+      "description": "For payments and payment reversals this is the commission amount, for expense...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "000000000000000000"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "000000000000000000"
+      ]
+    },
+    {
+      "name": "BATCH-INFO",
+      "data_type": "string",
+      "target_name": "batch_info",
+      "position": 83,
+      "length": 25,
+      "required": false,
+      "description": "The information describing the batch.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ORIGINAL-TRAN-INFO",
+      "data_type": "string",
+      "target_name": "original_tran_info",
+      "position": 108,
+      "length": 10,
+      "required": false,
+      "description": "The original transaction associated with the account.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "THIRD-PARTY-AMT-AFFECTED",
+      "data_type": "string",
+      "target_name": "third_party_amt_affected",
+      "position": 118,
+      "length": 1,
+      "required": false,
+      "description": "Used to indicate how this transaction affects the Third Party.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "THIRD-PARTY-WITHHELD-FLAG",
+      "data_type": "string",
+      "target_name": "third_party_withheld_flag",
+      "position": 119,
+      "length": 1,
+      "required": false,
+      "description": "An indicator specifying if commissions or expense were withheld by the third ...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "INPUT-SOURCE-CODE",
+      "data_type": "decimal",
+      "target_name": "input_source_code",
+      "position": 120,
+      "length": 3,
+      "format": "9(3)",
+      "required": false,
+      "description": "An optional field that can be used for the General Ledger mapping of Third Pa...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "000"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "000"
+      ]
+    },
+    {
+      "name": "REFERENCE-NUM",
+      "data_type": "string",
+      "target_name": "reference_num",
+      "position": 123,
+      "length": 3,
+      "required": false,
+      "description": "An optional field that can be used to identify the Third Party Expense transa...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    }
+  ],
+  "key_columns": [
+    "LOCATION-CODE"
+  ],
+  "metadata": {
+    "created_by": "template_converter",
+    "created_date": "2026-05-18T15:40:57.119486Z",
+    "last_modified": "2026-05-18T15:40:57.119495Z",
+    "source_template": "mappings\\csv\\shaw_atoctran\\SHAW_ATOCTRAN_300_mapping.csv"
+  },
+  "total_record_length": 125,
+  "warnings": []
+}

@@ -1,0 +1,254 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Universal File Mapping Schema",
+    "description": "Standardized mapping structure for all file formats (pipe-delimited, fixed-width, CSV, TSV)",
+    "type": "object",
+    "required": [
+        "mapping_name",
+        "version",
+        "source",
+        "fields"
+    ],
+    "properties": {
+        "mapping_name": {
+            "type": "string",
+            "description": "Unique identifier for this mapping",
+            "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "version": {
+            "type": "string",
+            "description": "Semantic version number",
+            "pattern": "^\\d+\\.\\d+\\.\\d+$"
+        },
+        "description": {
+            "type": "string",
+            "description": "Human-readable description of this mapping"
+        },
+        "source": {
+            "type": "object",
+            "required": [
+                "type",
+                "format"
+            ],
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "file",
+                        "database"
+                    ],
+                    "description": "Source type"
+                },
+                "format": {
+                    "type": "string",
+                    "enum": [
+                        "pipe_delimited",
+                        "fixed_width",
+                        "csv",
+                        "tsv",
+                        "excel"
+                    ],
+                    "description": "File format (if source type is file)"
+                },
+                "file_path": {
+                    "type": "string",
+                    "description": "Path to source file (optional)"
+                },
+                "delimiter": {
+                    "type": "string",
+                    "description": "Delimiter character for delimited formats",
+                    "maxLength": 5
+                },
+                "encoding": {
+                    "type": "string",
+                    "description": "File encoding",
+                    "default": "UTF-8"
+                },
+                "has_header": {
+                    "type": "boolean",
+                    "description": "Whether file has header row (for delimited formats)",
+                    "default": false
+                }
+            }
+        },
+        "target": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "database",
+                        "file"
+                    ],
+                    "description": "Target type"
+                },
+                "table_name": {
+                    "type": "string",
+                    "description": "Database table name (if target is database)"
+                },
+                "file_path": {
+                    "type": "string",
+                    "description": "Output file path (if target is file)"
+                }
+            }
+        },
+        "fields": {
+            "type": "array",
+            "description": "Array of field specifications",
+            "minItems": 1,
+            "items": {
+                "type": "object",
+                "required": [
+                    "name",
+                    "data_type"
+                ],
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Field name (used as default for source and target)"
+                    },
+                    "source_name": {
+                        "type": "string",
+                        "description": "Source column name (defaults to name if not specified)"
+                    },
+                    "target_name": {
+                        "type": "string",
+                        "description": "Target column name (defaults to name if not specified)"
+                    },
+                    "position": {
+                        "type": "integer",
+                        "description": "Field position (1-indexed, required for fixed-width)",
+                        "minimum": 1
+                    },
+                    "length": {
+                        "type": "integer",
+                        "description": "Field length in characters (required for fixed-width)",
+                        "minimum": 1
+                    },
+                    "data_type": {
+                        "type": "string",
+                        "enum": [
+                            "string",
+                            "number",
+                            "date",
+                            "boolean",
+                            "integer",
+                            "decimal"
+                        ],
+                        "description": "Data type of the field"
+                    },
+                    "format": {
+                        "type": "string",
+                        "description": "Format specification (e.g., CCYYMMDD for dates, 9(12)V9(6) for decimals)"
+                    },
+                    "required": {
+                        "type": "boolean",
+                        "description": "Whether this field is required",
+                        "default": false
+                    },
+                    "default_value": {
+                        "description": "Default value if field is empty"
+                    },
+                    "transformations": {
+                        "type": "array",
+                        "description": "Transformations to apply to field value",
+                        "items": {
+                            "type": "object",
+                            "required": [
+                                "type"
+                            ],
+                            "properties": {
+                                "type": {
+                                    "type": "string",
+                                    "enum": [
+                                        "trim",
+                                        "upper",
+                                        "lower",
+                                        "substring",
+                                        "replace",
+                                        "cast",
+                                        "pad_left",
+                                        "pad_right",
+                                        "strip_chars"
+                                    ],
+                                    "description": "Transformation type"
+                                },
+                                "parameters": {
+                                    "type": "object",
+                                    "description": "Transformation-specific parameters"
+                                }
+                            }
+                        }
+                    },
+                    "validation_rules": {
+                        "type": "array",
+                        "description": "Validation rules for field value",
+                        "items": {
+                            "type": "object",
+                            "required": [
+                                "type"
+                            ],
+                            "properties": {
+                                "type": {
+                                    "type": "string",
+                                    "enum": [
+                                        "not_null",
+                                        "min_length",
+                                        "max_length",
+                                        "regex",
+                                        "range",
+                                        "in_list",
+                                        "date_format"
+                                    ],
+                                    "description": "Validation rule type"
+                                },
+                                "parameters": {
+                                    "type": "object",
+                                    "description": "Validation-specific parameters"
+                                }
+                            }
+                        }
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Human-readable field description"
+                    }
+                }
+            }
+        },
+        "key_columns": {
+            "type": "array",
+            "description": "Columns that uniquely identify a row (for comparison)",
+            "items": {
+                "type": "string"
+            }
+        },
+        "metadata": {
+            "type": "object",
+            "properties": {
+                "created_by": {
+                    "type": "string",
+                    "description": "Creator of this mapping"
+                },
+                "created_date": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Creation date (ISO 8601)"
+                },
+                "last_modified": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Last modification date (ISO 8601)"
+                },
+                "source_template": {
+                    "type": "string",
+                    "description": "Path to source template (Excel/CSV) if generated from template"
+                },
+                "notes": {
+                    "type": "string",
+                    "description": "Additional notes or comments"
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,3 @@
+rule_id,rule_name,scope,severity,priority,group_by,expression,message_template,enabled
+REC_AMOUNT_NONNEG,Payment amount non-negative,record,ERROR,10,,PAYMENT_AMOUNT >= 0,PAYMENT_AMOUNT must be >= 0,Y
+REC_POSTED_DATE_VALID,Posted date must be valid,record,WARN,20,,POSTED_DATE != null,POSTED_DATE should be present,Y

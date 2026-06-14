@@ -1,0 +1,214 @@
+{
+  "mapping_name": "SHAW_ATOCTRAN_200_mapping",
+  "version": "1.0.0",
+  "description": "Generated from template: SHAW_ATOCTRAN_200_mapping.csv",
+  "source": {
+    "type": "file",
+    "format": "fixed_width",
+    "encoding": "UTF-8"
+  },
+  "target": {
+    "type": "database"
+  },
+  "fields": [
+    {
+      "name": "LOCATION-CODE",
+      "data_type": "string",
+      "target_name": "location_code",
+      "position": 1,
+      "length": 6,
+      "required": true,
+      "description": "Location Code for Account",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "100030"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "100030"
+      ]
+    },
+    {
+      "name": "ACCT-NUM",
+      "data_type": "string",
+      "target_name": "acct_num",
+      "position": 7,
+      "length": 18,
+      "required": true,
+      "description": "Account Number",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "TRANSACTION-CODE",
+      "data_type": "string",
+      "target_name": "transaction_code",
+      "position": 25,
+      "length": 3,
+      "required": true,
+      "description": "Type of Transaction",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "200"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "200"
+      ]
+    },
+    {
+      "name": "TRANSACTION-DATE",
+      "data_type": "date",
+      "target_name": "transaction_date",
+      "position": 28,
+      "length": 8,
+      "format": "CCYYMMDD",
+      "required": true,
+      "description": "Date of Transaction",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "PREVIOUS-CCI",
+      "data_type": "string",
+      "target_name": "previous_cci",
+      "position": 36,
+      "length": 1,
+      "required": true,
+      "description": "Current collections control indicator",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "0",
+              "2"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "0",
+        "2"
+      ]
+    },
+    {
+      "name": "PORTFOLIO-LOCATION-CODE",
+      "data_type": "string",
+      "target_name": "portfolio_location_code",
+      "position": 37,
+      "length": 6,
+      "required": false,
+      "description": "If the Account is in a Location that uses Customer Portfolio processing, the ...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "200000"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "200000"
+      ]
+    },
+    {
+      "name": "CUSTOMER-PORTFOLIO ID",
+      "data_type": "string",
+      "target_name": "customer_portfolio_id",
+      "position": 43,
+      "length": 18,
+      "required": false,
+      "description": "If the Account is in a Location that uses Customer Portfolio processing, the ...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CUSTOMER-PORTFOLIO-CONTACT-ID",
+      "data_type": "string",
+      "target_name": "customer_portfolio_contact_id",
+      "position": 61,
+      "length": 24,
+      "required": false,
+      "description": "If the Account is in a Location that uses Customer Portfolio processing, the ...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    }
+  ],
+  "key_columns": [
+    "LOCATION-CODE"
+  ],
+  "metadata": {
+    "created_by": "template_converter",
+    "created_date": "2026-05-18T15:40:57.103587Z",
+    "last_modified": "2026-05-18T15:40:57.103595Z",
+    "source_template": "mappings\\csv\\shaw_atoctran\\SHAW_ATOCTRAN_200_mapping.csv"
+  },
+  "total_record_length": 84,
+  "warnings": []
+}

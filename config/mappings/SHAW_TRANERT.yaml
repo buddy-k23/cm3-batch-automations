@@ -1,0 +1,128 @@
+# Multi-record umbrella config for SHAW TRANERT output file.
+#
+# tranert_shaw_*.txt contains a Batch Header record followed by detail
+# records of up to 8 record types, each identified by TRN-COD-ERT at
+# position 170-174 (5 chars, Numeric).
+#
+# Batch Header treatment
+# ----------------------
+# Per operator direction (2026-05-21), the Batch Header is treated as a
+# separate record type matched by position ("first") rather than by the
+# discriminator value. This is because:
+#   1. The Batch Header's transaction code (TRN-COD-BRT) is at position
+#      19-23, not at the detail discriminator position (170-174).
+#   2. Multiple Batch Header records per file are a valid scenario.
+#
+# Transaction-code → record-type mapping
+# ---------------------------------------
+# NEW1 covers two transaction codes (32000 = NAS, 32001 = EAS). Both
+# rt_32000 and rt_32001 point to the same NEW1 mapping/rules JSONs.
+# The following codes have layout sheets in the workbook:
+#   32000 / 32001 → NEW1 - 32000
+#   32005         → CUS  - 32005
+#   32010         → ORI  - 32010
+#   32025         → COD  - 32025
+#   32040         → CBRS - 32040
+#   32075         → REC  - 32075
+# Codes 32030 (VR) and 32070 (CON) have summary sheets only; their
+# layout sheets are pending BA authoring. They are listed here with
+# TODO markers so the pipeline fails loudly rather than silently
+# routing those rows to default_action.
+#
+# Cross-type rules
+# ----------------
+# ITM-CNT-BRT (Batch Header, pos 131, len 9) must equal the total count
+# of all detail records. Wired as header_trailer_count below.
+# DR-CR-AMT-BRT reconciliation is deferred pending BA clarification on
+# which per-record-type amount field to aggregate (each record type uses
+# a different field name). See docs/handover/SHAW_source_onboarding_session.md.
+
+discriminator:
+  field: TRN-COD-ERT
+  position: 170
+  length: 5
+
+record_types:
+
+  # --- Batch Header (position-based, not discriminator-based) ---
+  batch_header:
+    position: "first"
+    mapping: "config/mappings/SHAW_TRANERT_BATCH_HEADER_mapping.json"
+    rules:   "config/rules/SHAW_TRANERT_BATCH_HEADER_rules.json"
+    expect: at_least_one
+
+  # --- Detail record types (discriminator-based) ---
+
+  rt_32000:
+    match: "32000"
+    mapping: "config/mappings/SHAW_TRANERT_NEW1_mapping.json"
+    rules:   "config/rules/SHAW_TRANERT_NEW1_rules.json"
+    expect: at_least_one
+
+  rt_32001:
+    match: "32001"
+    mapping: "config/mappings/SHAW_TRANERT_NEW1_mapping.json"
+    rules:   "config/rules/SHAW_TRANERT_NEW1_rules.json"
+    expect: any
+
+  rt_32005:
+    match: "32005"
+    mapping: "config/mappings/SHAW_TRANERT_CUS_mapping.json"
+    rules:   "config/rules/SHAW_TRANERT_CUS_rules.json"
+    expect: at_least_one
+
+  rt_32010:
+    match: "32010"
+    mapping: "config/mappings/SHAW_TRANERT_ORI_mapping.json"
+    rules:   "config/rules/SHAW_TRANERT_ORI_rules.json"
+    expect: at_least_one
+
+  rt_32025:
+    match: "32025"
+    mapping: "config/mappings/SHAW_TRANERT_COD_mapping.json"
+    rules:   "config/rules/SHAW_TRANERT_COD_rules.json"
+    expect: at_least_one
+
+  rt_32040:
+    match: "32040"
+    mapping: "config/mappings/SHAW_TRANERT_CBRS_mapping.json"
+    rules:   "config/rules/SHAW_TRANERT_CBRS_rules.json"
+    expect: at_least_one
+
+  rt_32075:
+    match: "32075"
+    mapping: "config/mappings/SHAW_TRANERT_REC_mapping.json"
+    rules:   "config/rules/SHAW_TRANERT_REC_rules.json"
+    expect: at_least_one
+
+  # TODO(mapping-pending): rt_32030 (VR) — layout sheet not yet authored
+  # rt_32030:
+  #   match: "32030"
+  #   mapping: "config/mappings/SHAW_TRANERT_VR_mapping.json"
+  #   rules:   "config/rules/SHAW_TRANERT_VR_rules.json"
+  #   expect: any
+
+  # TODO(mapping-pending): rt_32070 (CON) — layout sheet not yet authored
+  # rt_32070:
+  #   match: "32070"
+  #   mapping: "config/mappings/SHAW_TRANERT_CON_mapping.json"
+  #   rules:   "config/rules/SHAW_TRANERT_CON_rules.json"
+  #   expect: any
+
+cross_type_rules:
+  # ITM-CNT-BRT in the Batch Header must equal the total count of all
+  # detail records in the file. This is the first end-to-end exercise
+  # of the header_trailer_count cross-type rule against real SHAW data.
+  # The "header" record type is batch_header; the "detail" group is all
+  # non-header rows (count_of: "detail" is the default).
+  - check: header_trailer_count
+    record_type: batch_header
+    trailer_field: ITM-CNT-BRT
+    count_of: detail
+    # ADR 0013 (Option A): a legitimately empty batch (ITM-CNT-BRT == 0 and
+    # 0 detail rows) is valid; a truncated file (count > 0, 0 rows) still fails.
+    allow_empty_batch: true
+    severity: error
+    message: "ITM-CNT-BRT ({header_value}) does not match actual detail record count ({actual_count})"
+
+default_action: error

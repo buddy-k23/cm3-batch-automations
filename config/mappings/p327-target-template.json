@@ -1,0 +1,2908 @@
+{
+  "mapping_name": "p327-target-template",
+  "version": "1.0.0",
+  "description": "Generated from template: p327-target-template.xlsx",
+  "source": {
+    "type": "file",
+    "format": "pipe_delimited",
+    "encoding": "UTF-8",
+    "delimiter": "|"
+  },
+  "target": {
+    "type": "database"
+  },
+  "fields": [
+    {
+      "name": "LOCATION-CODE",
+      "data_type": "string",
+      "required": true,
+      "description": "location code",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "ACCT-NUM",
+      "data_type": "string",
+      "required": true,
+      "description": "account number",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "CREDIT-LIMIT-AMT",
+      "data_type": "decimal",
+      "format": "9(12)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "EXPIRATION-DATE",
+      "data_type": "date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "BALANCE-AMT",
+      "data_type": "decimal",
+      "format": "9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "OVERLIMIT-AMT",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "DISPUTED-AMT",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "TOTAL-DUE-AMT",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CURRENT-DUE-AMT",
+      "data_type": "decimal",
+      "format": "9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "COLL-ASGN-UD-1",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "COLL-ASGN-UD-TYPE1",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "COLL-ASGN-UD-FMT-1",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "COLL-ASGN-UD-2",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "COLL-ASGN-UD-TYPE2",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "COLL-ASGN-UD-FMT-2",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "TOTAL-DELINQ-AMT",
+      "data_type": "decimal",
+      "format": "`+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CYCLES-DELINQ-CNT",
+      "data_type": "decimal",
+      "format": "9(2)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "DAYS-DELINQ-CNT",
+      "data_type": "decimal",
+      "format": "9(5)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LAST-PAYMENT-AMT",
+      "data_type": "decimal",
+      "format": "`+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CHARGE-OFF-DATE",
+      "data_type": "date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "DLQ-DAYS-CHRG-OFF",
+      "data_type": "decimal",
+      "format": "9(5)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LST-PART-COF-AMT",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LST-PART-COF-DATE",
+      "data_type": "date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "TOT-PART-COF-AMT",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "BAL-PART-COF-AMT",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "PART-COF-ACCT-NUM",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "USER-DEFINED-7",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-7-TYPE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-7-FMT",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ACCT-OPEN-DATE",
+      "data_type": "date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "NEXT-DUE-DATE",
+      "data_type": "date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "INTEREST-RATE",
+      "data_type": "decimal",
+      "format": "9(3)V9(3)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "OTH-DELINQ-AMT",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REPO-CHARGES",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REPOSSESSION-DATE",
+      "data_type": "date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "MATURITY-DATE",
+      "data_type": "date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "PAYMENT-AMT",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "PRINCIPAL-DELQ-AMT",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "INTEREST-DELQ-AMT",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "USER-DEF-SEARCH-1",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-SEARCH-1-TYPE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-SEARCH-1-FMT",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "USER-DEF-SEARCH-2",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-SEARCH-2-TYPE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-SEARCH-2-FMT",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ACCT-NUM-SORT",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CYCLE-ID",
+      "data_type": "decimal",
+      "format": "9(2)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-DATE-FIELD-1",
+      "data_type": "date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LAST-BILLING-DATE",
+      "data_type": "date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "AGED-HISTORY",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CREDIT-LIMIT-DATE",
+      "data_type": "date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "INT-LATE-CHG-AMT",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "DELINQ-AMT-AGE-1",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "DELINQ-AMT-AGE-2",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "DELINQ-AMT-AGE-3",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "DELINQ-AMT-AGE-4",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "NUMBER-OF-CARDS",
+      "data_type": "decimal",
+      "format": "9(2)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "WARN-BULLETIN-DATE",
+      "data_type": "date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "WARN-BULLETIN-ZONE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "OTHER-ACCT-NUM",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CREDIT-SCORE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "BEHAVIOR-INDEX",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LAST-PAYMENT-DATE",
+      "data_type": "date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LAST-MONETARY-AMT",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LAST-MONETARY-DATE",
+      "data_type": "date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LAST-MONETARY-TYPE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CHARGE-OFF-AMT",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "SORT-VALUE-1",
+      "data_type": "decimal",
+      "format": "9(12)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "SORT-VALUE-1-TYPE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "SORT-VALUE-1-FMT",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "SORT-VALUE-2",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "SORT-VALUE-2-TYPE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "SORT-VALUE-2-FMT",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "USER-DEFINED-1",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-1-TYPE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-1-FMT",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "USER-DEFINED-2",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-2-TYPE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-2-FMT",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "USER-DEFINED-3",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-3-TYPE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-3-FMT",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "USER-DEFINED-4",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-4-TYPE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-4-FMT",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "USER-DEFINED-5",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-5-TYPE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-5-FMT",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "USER-DEFINED-6",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-6-TYPE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-6-FMT",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "USER-DEFINED-8-1",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "USER-DEFINED-8-2",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "USER-DEFINED-8-3",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "USER-DEFINED-8-4",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "USER-DEFINED-8-5",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-8-1-TYPE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-8-2-TYPE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-8-3-TYPE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-8-4-TYPE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-8-5-TYPE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-8-1-FMT",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-8-2-FMT",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-8-3-FMT",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-8-4-FMT",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-8-5-FMT",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "PRINCIPAL-AMT",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "OTHER-AMT",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ORIG-BALANCE-AMT",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "OFFICER-NUM",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "BRANCH-NUM",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ORIGINAL-TERM",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ORIG-INTEREST-RATE",
+      "data_type": "decimal",
+      "format": "9(3)V9(3)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "DEALER-NUM",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "PAYMENT-FREQUENCY",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REFINANCE-DATE",
+      "data_type": "date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "DEPOSIT-IND",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ON-BUDGET-IND",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "DPA-IND",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CUT-OFF-DATE",
+      "data_type": "date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CUT-OFF-CODE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ACCOUNT-TYPE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "SERVICE-TYPE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "BUDGET-PAYMENT-AMT",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "TERMINATE-AMT",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "TERMINATE-EXP-DATE",
+      "data_type": "date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "SAT-USER-DEFINED-1",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "SAT-UD-1-TYPE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "SAT-UD-1-FMT",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "SAT-USER-DEFINED-2",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "SAT-UD-2-TYPE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "SAT-UD-2-FMT",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-USER-DEF-1",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-1-TYPE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-1-FMT",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-USER-DEF-2",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-2-TYPE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-2-FMT",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-USER-DEF-3",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-3-TYPE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-3-FMT",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-USER-DEF-4",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-4-TYPE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-4-FMT",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-USER-DEF-5",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-5-TYPE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-5-FMT",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-USER-DEF-6",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-6-TYPE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-6-FMT",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-USER-DEF-7",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-7-TYPE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-7-FMT",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-USER-DEF-8",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-8-TYPE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-8-FMT",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-USER-DEF-9",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-9-TYPE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-9-FMT",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-USER-DEF-10",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-10-TYPE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-10-FMT",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "BANK-NUM",
+      "data_type": "decimal",
+      "format": "9(5)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "APP-CODE",
+      "data_type": "decimal",
+      "format": "9(3)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ESTIMATED-MNTH-PAY",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ACI-INDICATOR",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "SERVICING-SYSTEM",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "NATL-CURRENCY",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "BASE-CURRENCY",
+      "data_type": "string",
+      "required": true,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "VALUE-CODE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "RISK-CODE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "RECOMMENDED-ACT-CD",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ACTG-SYS-ID",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "EXTERNAL-ACCT-NUM",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ACCT-STAT-CODE-1",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ACCT-STAT-CODE-2",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ACCT-STAT-CODE-3",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ACCT-STAT-CODE-4",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ACCT-STAT-CODE-5",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ACCT-STAT-CODE-6",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ACCT-STAT-CODE-7",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ACCT-STAT-CODE-8",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ACCT-STAT-CODE-9",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ACCT-STAT-CODE-10",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LGL-STATUS",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-INT-MTD-AMT",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-PRIN-MTD-AMT",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-TOT-COST-MTD",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "JGMT-EFFECT-DATE",
+      "data_type": "date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "JGMT-INT-AMT",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "JGMT-PRIN-AMT",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "JGMT-TOT-COST-AMT",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ADDL-JGMTS-IND",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-CODST-IN-BAL",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-NOT-BAL",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-ASSES-MTD",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-WAIVE-MTD",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAPT-LTD",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-1",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-1",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-2",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-2",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-3",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-3",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-4",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-4",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-5",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-5",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-6",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-6",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-7",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-7",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-8",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-8",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-9",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-9",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-10",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-10",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-11",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-11",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-12",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-12",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-13",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-13",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-14",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-14",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-15",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-15",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-16",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-16",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-17",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-17",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-18",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-18",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-19",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-19",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-20",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-20",
+      "data_type": "decimal",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LOAN-POOL-NUM",
+      "data_type": "decimal",
+      "format": "9(7)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LOAN-POOL-SLD-DATE",
+      "data_type": "date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ORIG-PORTF-TYPE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "DAYS-SNC-CHRGOFF",
+      "data_type": "decimal",
+      "format": "9(7)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LAST-EXT-UPD-DATE",
+      "data_type": "date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LEGAL-STATE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CHRG-OFF-DOWN-IND",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "INVESTOR-NUM",
+      "data_type": "decimal",
+      "format": "9(7)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "EXT-RAND-NUM",
+      "data_type": "decimal",
+      "format": "9(3)",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CMPL-CODE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "TCPA-EXEMPT",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "PRODUCT-TYPE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "NEXT-BILL-DATE",
+      "data_type": "date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "HMDA-ULI-CODE",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    }
+  ],
+  "key_columns": [
+    "LOCATION-CODE"
+  ],
+  "metadata": {
+    "created_by": "template_converter",
+    "created_date": "2026-02-08T04:22:49.819467Z",
+    "last_modified": "2026-02-08T04:22:49.819479Z",
+    "source_template": "uploads/p327-target-template.xlsx"
+  }
+}

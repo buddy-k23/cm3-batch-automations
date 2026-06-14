@@ -1,0 +1,454 @@
+{
+  "mapping_name": "test",
+  "version": "1.0.0",
+  "description": "Generated from template: tranert_batch_header_mapping.csv",
+  "source": {
+    "type": "file",
+    "format": "csv",
+    "encoding": "UTF-8",
+    "delimiter": ","
+  },
+  "target": {
+    "type": "database"
+  },
+  "fields": [
+    {
+      "name": "BK-NUM-BRT",
+      "data_type": "decimal",
+      "target_name": "bk_num_brt",
+      "format": "9(5)",
+      "required": true,
+      "description": "A number, defined on the Bank Control Operation tables, which identifies the ban",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "APP-BRT",
+      "data_type": "decimal",
+      "target_name": "app_brt",
+      "format": "9(3)",
+      "required": true,
+      "description": "The application for which all the transactions in the batch are applicable. CTM:",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "EFF-DAT-BRT",
+      "data_type": "date",
+      "target_name": "eff_dat_brt",
+      "format": "MM/DD/CCYY",
+      "required": true,
+      "description": "The posting date for the batch.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "TRN-COD-BRT",
+      "data_type": "string",
+      "target_name": "trn_cod_brt",
+      "required": true,
+      "description": "The transaction code for the batch. Enter BATCH",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "BATCH"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "BATCH"
+      ]
+    },
+    {
+      "name": "FILLER",
+      "data_type": "string",
+      "target_name": "filler",
+      "required": false,
+      "description": "Filler Initialize to spaces",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "BAT-NUM-BRT",
+      "data_type": "decimal",
+      "target_name": "bat_num_brt",
+      "format": "9(7)",
+      "required": true,
+      "description": "The number identifying the batch. Appears in the history for the NAS and EAS tra",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "INP-SRC-COD-BRT",
+      "data_type": "decimal",
+      "target_name": "inp_src_cod_brt",
+      "format": "9(3)",
+      "required": true,
+      "description": "The source of the batch. CTM: TS",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "BAT-TYP-BRT",
+      "data_type": "decimal",
+      "target_name": "bat_typ_brt",
+      "format": "9(2)",
+      "required": true,
+      "description": "The type of batch. Enter 32 for NAS and EAS Batches",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "10 = Non-Monetary \n32 = Account Setup\n51 = Debit\n52 = Credit\n82 = Payment"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "10 = Non-Monetary \n32 = Account Setup\n51 = Debit\n52 = Credit\n82 = Payment"
+      ]
+    },
+    {
+      "name": "OPR-ID-BRT",
+      "data_type": "string",
+      "target_name": "opr_id_brt",
+      "required": true,
+      "description": "The operator ID submitting the batch. Appears in history for the NAS and EAS tra",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "ORG-LVL-NUM-1-BRT",
+      "data_type": "decimal",
+      "target_name": "org_lvl_num_1_brt",
+      "format": "9(7)",
+      "required": true,
+      "description": "The first organizational control level for GL suspense. Can enter 0000000",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "ORG-LVL-NUM-2-BRT",
+      "data_type": "decimal",
+      "target_name": "org_lvl_num_2_brt",
+      "format": "9(7)",
+      "required": true,
+      "description": "The second organizational control level for GL suspense. Can enter 0000000",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "ORG-LVL-NUM-3-BRT",
+      "data_type": "decimal",
+      "target_name": "org_lvl_num_3_brt",
+      "format": "9(7)",
+      "required": true,
+      "description": "The third organizational control level for GL suspense. Can enter 0000000",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "ORG-LVL-NUM-4-BRT",
+      "data_type": "decimal",
+      "target_name": "org_lvl_num_4_brt",
+      "format": "9(7)",
+      "required": true,
+      "description": "The fourth organizational control level for GL suspense. Can enter 0000000",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "ORG-LVL-NUM-5-BRT",
+      "data_type": "decimal",
+      "target_name": "org_lvl_num_5_brt",
+      "format": "9(7)",
+      "required": true,
+      "description": "The fifth organizational control level for GL suspense. Can enter 0000000",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "ORG-LVL-NUM-6-BRT",
+      "data_type": "decimal",
+      "target_name": "org_lvl_num_6_brt",
+      "format": "9(7)",
+      "required": true,
+      "description": "The sixth organizational control level for GL suspense. Can enter 0000000",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "ORG-LVL-NUM-7-BRT",
+      "data_type": "decimal",
+      "target_name": "org_lvl_num_7_brt",
+      "format": "9(7)",
+      "required": true,
+      "description": "The seventh organizational control level for GL suspense. Can enter 0000000",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "ORG-LVL-NUM-8-BRT",
+      "data_type": "decimal",
+      "target_name": "org_lvl_num_8_brt",
+      "format": "9(7)",
+      "required": true,
+      "description": "The eigth organizational control level for GL suspense. Can enter 0000000",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "ORG-LVL-NUM-9-BRT",
+      "data_type": "decimal",
+      "target_name": "org_lvl_num_9_brt",
+      "format": "9(7)",
+      "required": true,
+      "description": "The ninth organizational control level for GL suspense. Can enter 0000000",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "ORG-LVL-NUM-10-BRT",
+      "data_type": "decimal",
+      "target_name": "org_lvl_num_10_brt",
+      "format": "9(7)",
+      "required": true,
+      "description": "The tenth organizational control level for GL suspense. Can enter 0000000",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "ORG-LVL-NUM-11-BRT",
+      "data_type": "decimal",
+      "target_name": "org_lvl_num_11_brt",
+      "format": "9(7)",
+      "required": true,
+      "description": "The eleventh organizational control level for GL suspense. Can enter 0000000",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "ORG-LVL-NUM-12-BRT",
+      "data_type": "decimal",
+      "target_name": "org_lvl_num_12_brt",
+      "format": "9(7)",
+      "required": true,
+      "description": "The twelfth organizational control level for GL suspense. Can enter 0000000",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "ITM-CNT-BRT",
+      "data_type": "decimal",
+      "target_name": "itm_cnt_brt",
+      "format": "9(9)",
+      "required": true,
+      "description": "The number of transactions in the batch. Must match the number of items in the b",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "DR-CR-AMT-BRT",
+      "data_type": "decimal",
+      "target_name": "dr_cr_amt_brt",
+      "format": "-Z(12).9(2)",
+      "required": true,
+      "description": "The total dollar amount of all the transactions in the batch. Enter 0.00 for NAS",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    }
+  ],
+  "key_columns": [
+    "BK-NUM-BRT"
+  ],
+  "metadata": {
+    "created_by": "template_converter",
+    "created_date": "2026-03-27T02:13:12.485841Z",
+    "last_modified": "2026-03-27T02:13:12.485846Z",
+    "source_template": "uploads/tranert_batch_header_mapping.csv"
+  }
+}

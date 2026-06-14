@@ -1,0 +1,48 @@
+Field Name,Data Type,Position,Length,Target Name,Required,Format,Transformation,Valid Values,Description
+LOCATION-CODE,String,1,6,location_code,Yes,,Default to '100030',100030,Account location code
+ACCT-NUM,String,7,18,acct_num,Yes,X(18),Pass as is,,Account number
+CDS-SEGMENT-ID,String,25,3,cds_segment_id,Yes,,Hard-code to 'EST',EST,CDS type
+TRANSACTION-DATE,Date,28,8,transaction_date,Yes,CCYYMMDD,Batch date logic,,Transaction date
+ITA-PROCESSING-FLAG,String,36,1,ita_processing_flag,Yes,,Default to 'Y',Y,Create 250 indicator
+FUNCTION-CODE,String,37,1,function_code,Yes,,Default to 'U',U,Processing action
+SYSTEM-ID,String,38,8,system_id,Yes,,Default to '7000',7000,System identifier
+BANKRUPTCY-STATUS,String,46,3,bankruptcy_status,No,,AFS BK mapping,07|11|12|13,AFS bankruptcy mapped
+REPOSSESSION-STATUS,String,49,1,repossession_status,No,,Leave Blank,,Repossession status
+LOAN-STATUS-RECOVERY,String,50,2,loan_status_recovery,No,,Derived from CO/BK,02|03|B2|04,Loan recovery code
+CEASE-FLAG,String,52,1,cease_flag,No,,Default to '0',0,Cease contact flag
+FRAUD-FLAG,String,53,1,fraud_flag,No,,Default to '0',0,Fraud flag
+DECEASED-FLAG,String,54,1,deceased_flag,No,,Derived from contacts,0|1,Deceased indicator
+PRODUCT-DESCRIPTION,String,55,40,product_description,No,,Derived from AFS product,,Product description
+PWM-INDICATOR,String,95,1,pwm_indicator,No,,Derived from contacts,0|1,PWM indicator
+FORCE-TO-COLLECTIONS,String,96,1,force_to_collections,No,,Leave Blank,,Force collections
+CLOSED-TO-POST,String,97,2,closed_to_post,No,,Leave Blank,,Closed to post
+CMS-CONTACT-FLAG,String,99,1,cms_contact_flag,No,,Default to 'N',N,CMS contact flag
+ALS-ADDRESS-LINE-2,String,100,40,als_address_line_2,No,,Leave Blank,,Address line 2
+BATCH-DATE,Date,140,8,batch_date,Yes,CCYYMMDD,Batch date,,Batch date
+ACCOUNT-HERITAGE,String,148,1,account_heritage,No,,Default to 'T',T,Account heritage
+CLOSED-TO-POST-REASON,String,149,4,closed_to_post_reason,No,,Leave Blank,,Closed to post reason
+COVERED-PAYDAY-LOAN,String,153,1,covered_payday_loan,No,,Default spaces,,Covered payday loan
+TDR-FLAG,String,154,1,tdr_flag,No,,Default to 'N',N,TDR flag
+CREDIT-COUNSELING,String,155,1,credit_counseling,No,,Default to 'N',N,Credit counseling
+CREDIT-REVOKED,String,156,2,credit_revoked,No,,Leave Blank,,Credit revoked
+NATURAL-DISASTER,String,158,1,natural_disaster,No,,Default to 'N',N,Natural disaster
+DEALER-STATE,String,159,2,dealer_state,No,,Leave Blank,,Dealer state
+DIRECT-INDIRECT,String,161,1,direct_indirect,No,,Leave Blank,,Direct/Indirect
+LOB-CODE,String,162,40,lob_code,No,,Pass as is,,LOB code
+CHANNEL,String,202,40,channel,No,,Pass as is,,Channel
+LOANSALESTATUSID,String,242,1,loan_sale_status_id,No,,Leave Blank,,Loan sale status
+SOLDLOANINVESTORNAME,String,243,40,sold_loan_investor_name,No,,Leave Blank,,Investor name
+SOLDLOANPORTFOLIOID,String,283,40,sold_loan_portfolio_id,No,,Leave Blank,,Portfolio ID
+ARG-ASSIGNED,String,323,1,arg_assigned,No,,Org L5 logic,Y|N,ARG assigned
+LINE-MATURED,String,324,1,line_matured,No,,Default to 'N',N,Line matured
+TRW-CODE,String,325,2,trw_code,No,,Leave Blank,,TRW code
+WB-FC-SALE-DATE,Date,327,8,wb_fc_sale_date,No,CCYYMMDD,Leave Blank,,WB FC sale date
+FC-CB-ACCOUNT-STAT,String,335,2,fc_cb_account_stat,No,,Leave Blank,,FC CB account status
+FC-BORROWER-RESP,String,337,1,fc_borrower_resp,No,,Leave Blank,,FC borrower resp
+EST-FEMA-ELIGIBLE-DT,Date,338,8,est_fema_eligible_dt,No,CCYYMMDD,Leave Blank,,FEMA eligible date
+EST-FEMA-HOLD-REASON,String,346,2,est_fema_hold_reason,No,,Leave Blank,,FEMA hold reason
+EST-FEMA-CLOSED-DATE,Date,348,8,est_fema_closed_date,No,CCYYMMDD,Leave Blank,,FEMA closed date
+CARD-CLOSE-DATE,Date,356,8,card_close_date,No,CCYYMMDD,Leave Blank,,Card close date
+CARD-CLOSE-REASON,String,364,2,card_close_reason,No,,Leave Blank,,Card close reason
+SBDS-ASSIGNED-AFS,String,366,1,sbds_assigned_afs,No,,Org L5 logic,Y|N,SBDS assigned
+ACCOUNT-STATUS-AFS,String,367,1,account_status_afs,No,,Pass as is,,Account status AFS

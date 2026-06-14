@@ -1,0 +1,64 @@
+Rule ID,Rule Name,Field,Rule Type,Severity,Enabled,Message,Expected / Values
+R001,BK-NUM-BRT required,BK-NUM-BRT,not_empty,error,Yes,BK-NUM-BRT must not be empty,
+R002,BK-NUM-BRT numeric,BK-NUM-BRT,numeric,error,Yes,BK-NUM-BRT must be numeric,
+R003,BK-NUM-BRT length check,BK-NUM-BRT,exact_length,error,Yes,BK-NUM-BRT must be exactly 5 characters,5
+R004,APP-BRT required,APP-BRT,not_empty,error,Yes,APP-BRT must not be empty,
+R005,APP-BRT numeric,APP-BRT,numeric,error,Yes,APP-BRT must be numeric,
+R006,APP-BRT length check,APP-BRT,exact_length,error,Yes,APP-BRT must be exactly 3 characters,3
+R007,EFF-DAT-BRT required,EFF-DAT-BRT,not_empty,error,Yes,EFF-DAT-BRT must not be empty,
+R008,EFF-DAT-BRT date format,EFF-DAT-BRT,date_format,error,Yes,EFF-DAT-BRT must be a valid date (MM/DD/CCYY),MM/DD/CCYY
+R009,TRN-COD-BRT required,TRN-COD-BRT,not_empty,error,Yes,TRN-COD-BRT must not be empty,
+R010,TRN-COD-BRT valid values,TRN-COD-BRT,valid_values,error,Yes,TRN-COD-BRT must be BATCH,BATCH
+R011,BAT-NUM-BRT required,BAT-NUM-BRT,not_empty,error,Yes,BAT-NUM-BRT must not be empty,
+R012,BAT-NUM-BRT numeric,BAT-NUM-BRT,numeric,error,Yes,BAT-NUM-BRT must be numeric,
+R013,BAT-NUM-BRT length check,BAT-NUM-BRT,exact_length,error,Yes,BAT-NUM-BRT must be exactly 7 characters,7
+R014,INP-SRC-COD-BRT required,INP-SRC-COD-BRT,not_empty,error,Yes,INP-SRC-COD-BRT must not be empty,
+R015,INP-SRC-COD-BRT numeric,INP-SRC-COD-BRT,numeric,error,Yes,INP-SRC-COD-BRT must be numeric,
+R016,INP-SRC-COD-BRT length check,INP-SRC-COD-BRT,exact_length,error,Yes,INP-SRC-COD-BRT must be exactly 3 characters,3
+R017,BAT-TYP-BRT required,BAT-TYP-BRT,not_empty,error,Yes,BAT-TYP-BRT must not be empty,
+R018,BAT-TYP-BRT numeric,BAT-TYP-BRT,numeric,error,Yes,BAT-TYP-BRT must be numeric,
+R019,BAT-TYP-BRT valid values,BAT-TYP-BRT,valid_values,error,Yes,BAT-TYP-BRT must be one of: 10|32|51|52|82,10|32|51|52|82
+R020,OPR-ID-BRT required,OPR-ID-BRT,not_empty,error,Yes,OPR-ID-BRT must not be empty,
+R021,OPR-ID-BRT length check,OPR-ID-BRT,length,error,Yes,OPR-ID-BRT payload length must be between 1 and 8 characters,1..8
+R022,ORG-LVL-NUM-1-BRT required,ORG-LVL-NUM-1-BRT,not_empty,error,Yes,ORG-LVL-NUM-1-BRT must not be empty,
+R023,ORG-LVL-NUM-1-BRT numeric,ORG-LVL-NUM-1-BRT,numeric,error,Yes,ORG-LVL-NUM-1-BRT must be numeric,
+R024,ORG-LVL-NUM-1-BRT length check,ORG-LVL-NUM-1-BRT,exact_length,error,Yes,ORG-LVL-NUM-1-BRT must be exactly 7 characters,7
+R025,ORG-LVL-NUM-2-BRT required,ORG-LVL-NUM-2-BRT,not_empty,error,Yes,ORG-LVL-NUM-2-BRT must not be empty,
+R026,ORG-LVL-NUM-2-BRT numeric,ORG-LVL-NUM-2-BRT,numeric,error,Yes,ORG-LVL-NUM-2-BRT must be numeric,
+R027,ORG-LVL-NUM-2-BRT length check,ORG-LVL-NUM-2-BRT,exact_length,error,Yes,ORG-LVL-NUM-2-BRT must be exactly 7 characters,7
+R028,ORG-LVL-NUM-3-BRT required,ORG-LVL-NUM-3-BRT,not_empty,error,Yes,ORG-LVL-NUM-3-BRT must not be empty,
+R029,ORG-LVL-NUM-3-BRT numeric,ORG-LVL-NUM-3-BRT,numeric,error,Yes,ORG-LVL-NUM-3-BRT must be numeric,
+R030,ORG-LVL-NUM-3-BRT length check,ORG-LVL-NUM-3-BRT,exact_length,error,Yes,ORG-LVL-NUM-3-BRT must be exactly 7 characters,7
+R031,ORG-LVL-NUM-4-BRT required,ORG-LVL-NUM-4-BRT,not_empty,error,Yes,ORG-LVL-NUM-4-BRT must not be empty,
+R032,ORG-LVL-NUM-4-BRT numeric,ORG-LVL-NUM-4-BRT,numeric,error,Yes,ORG-LVL-NUM-4-BRT must be numeric,
+R033,ORG-LVL-NUM-4-BRT length check,ORG-LVL-NUM-4-BRT,exact_length,error,Yes,ORG-LVL-NUM-4-BRT must be exactly 7 characters,7
+R034,ORG-LVL-NUM-5-BRT required,ORG-LVL-NUM-5-BRT,not_empty,error,Yes,ORG-LVL-NUM-5-BRT must not be empty,
+R035,ORG-LVL-NUM-5-BRT numeric,ORG-LVL-NUM-5-BRT,numeric,error,Yes,ORG-LVL-NUM-5-BRT must be numeric,
+R036,ORG-LVL-NUM-5-BRT length check,ORG-LVL-NUM-5-BRT,exact_length,error,Yes,ORG-LVL-NUM-5-BRT must be exactly 7 characters,7
+R037,ORG-LVL-NUM-6-BRT required,ORG-LVL-NUM-6-BRT,not_empty,error,Yes,ORG-LVL-NUM-6-BRT must not be empty,
+R038,ORG-LVL-NUM-6-BRT numeric,ORG-LVL-NUM-6-BRT,numeric,error,Yes,ORG-LVL-NUM-6-BRT must be numeric,
+R039,ORG-LVL-NUM-6-BRT length check,ORG-LVL-NUM-6-BRT,exact_length,error,Yes,ORG-LVL-NUM-6-BRT must be exactly 7 characters,7
+R040,ORG-LVL-NUM-7-BRT required,ORG-LVL-NUM-7-BRT,not_empty,error,Yes,ORG-LVL-NUM-7-BRT must not be empty,
+R041,ORG-LVL-NUM-7-BRT numeric,ORG-LVL-NUM-7-BRT,numeric,error,Yes,ORG-LVL-NUM-7-BRT must be numeric,
+R042,ORG-LVL-NUM-7-BRT length check,ORG-LVL-NUM-7-BRT,exact_length,error,Yes,ORG-LVL-NUM-7-BRT must be exactly 7 characters,7
+R043,ORG-LVL-NUM-8-BRT required,ORG-LVL-NUM-8-BRT,not_empty,error,Yes,ORG-LVL-NUM-8-BRT must not be empty,
+R044,ORG-LVL-NUM-8-BRT numeric,ORG-LVL-NUM-8-BRT,numeric,error,Yes,ORG-LVL-NUM-8-BRT must be numeric,
+R045,ORG-LVL-NUM-8-BRT length check,ORG-LVL-NUM-8-BRT,exact_length,error,Yes,ORG-LVL-NUM-8-BRT must be exactly 7 characters,7
+R046,ORG-LVL-NUM-9-BRT required,ORG-LVL-NUM-9-BRT,not_empty,error,Yes,ORG-LVL-NUM-9-BRT must not be empty,
+R047,ORG-LVL-NUM-9-BRT numeric,ORG-LVL-NUM-9-BRT,numeric,error,Yes,ORG-LVL-NUM-9-BRT must be numeric,
+R048,ORG-LVL-NUM-9-BRT length check,ORG-LVL-NUM-9-BRT,exact_length,error,Yes,ORG-LVL-NUM-9-BRT must be exactly 7 characters,7
+R049,ORG-LVL-NUM-10-BRT required,ORG-LVL-NUM-10-BRT,not_empty,error,Yes,ORG-LVL-NUM-10-BRT must not be empty,
+R050,ORG-LVL-NUM-10-BRT numeric,ORG-LVL-NUM-10-BRT,numeric,error,Yes,ORG-LVL-NUM-10-BRT must be numeric,
+R051,ORG-LVL-NUM-10-BRT length check,ORG-LVL-NUM-10-BRT,exact_length,error,Yes,ORG-LVL-NUM-10-BRT must be exactly 7 characters,7
+R052,ORG-LVL-NUM-11-BRT required,ORG-LVL-NUM-11-BRT,not_empty,error,Yes,ORG-LVL-NUM-11-BRT must not be empty,
+R053,ORG-LVL-NUM-11-BRT numeric,ORG-LVL-NUM-11-BRT,numeric,error,Yes,ORG-LVL-NUM-11-BRT must be numeric,
+R054,ORG-LVL-NUM-11-BRT length check,ORG-LVL-NUM-11-BRT,exact_length,error,Yes,ORG-LVL-NUM-11-BRT must be exactly 7 characters,7
+R055,ORG-LVL-NUM-12-BRT required,ORG-LVL-NUM-12-BRT,not_empty,error,Yes,ORG-LVL-NUM-12-BRT must not be empty,
+R056,ORG-LVL-NUM-12-BRT numeric,ORG-LVL-NUM-12-BRT,numeric,error,Yes,ORG-LVL-NUM-12-BRT must be numeric,
+R057,ORG-LVL-NUM-12-BRT length check,ORG-LVL-NUM-12-BRT,exact_length,error,Yes,ORG-LVL-NUM-12-BRT must be exactly 7 characters,7
+R058,ITM-CNT-BRT required,ITM-CNT-BRT,not_empty,error,Yes,ITM-CNT-BRT must not be empty,
+R059,ITM-CNT-BRT numeric,ITM-CNT-BRT,numeric,error,Yes,ITM-CNT-BRT must be numeric,
+R060,ITM-CNT-BRT length check,ITM-CNT-BRT,exact_length,error,Yes,ITM-CNT-BRT must be exactly 9 characters,9
+R061,DR-CR-AMT-BRT required,DR-CR-AMT-BRT,not_empty,error,Yes,DR-CR-AMT-BRT must not be empty,
+R062,DR-CR-AMT-BRT numeric,DR-CR-AMT-BRT,numeric,error,Yes,DR-CR-AMT-BRT must be numeric,
+R063,DR-CR-AMT-BRT length check,DR-CR-AMT-BRT,length,error,Yes,DR-CR-AMT-BRT payload length must be between 1 and 22 characters,1..22

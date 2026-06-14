@@ -1,0 +1,31 @@
+{
+  "description": "Example masking rules for PII-free dev batch files. Each field name maps to a masking strategy with optional parameters.",
+  "fields": {
+    "ACCT-NUM": {
+      "strategy": "deterministic_hash",
+      "length": 18
+    },
+    "LOCATION-CODE": {
+      "strategy": "preserve"
+    },
+    "CREDIT-LIMIT-AMT": {
+      "strategy": "random_range",
+      "min": 1000,
+      "max": 50000
+    },
+    "EXPIRATION-DATE": {
+      "strategy": "preserve_format"
+    },
+    "BALANCE-AMT": {
+      "strategy": "random_range",
+      "min": 0,
+      "max": 999999
+    },
+    "CUSTOMER-NAME": {
+      "strategy": "fake_name"
+    },
+    "SSN": {
+      "strategy": "redact"
+    }
+  }
+}

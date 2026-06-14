@@ -1,0 +1,58 @@
+Field Name,Data Type,Position,Length,Target Name,Required,Format,Transformation,Valid Values,Description
+BK-NUM-ERT,Numeric,1,5,bk_num_ert,Yes,9(5),Default to '00040' for Consumer Create Tranert records only for Accounts which were charged-off yesterday (chrgoff_dt = batch date). i.e. IF Charge-Off if CHG-OFF-CD = '1' and M-DATE-PAID-OFF = Batch Date,00040,"A number, defined on the Bank Control Operation tables, which identifies the ..."
+APP-ERT,Numeric,6,3,app_ert,Yes,9(3),Default to '001',001,The application to which the account is to be associated.
+LN-NUM-ERT,String,9,18,ln_num_ert,Yes,,LN-NUM-ERT = BR + CUS + LN,,The account number that is associated with the account.
+REF-NUM-ERT,String,27,3,ref_num_ert,No,,Leave Blank <spaces>,,The applicable reference number for the transaction.
+FILLER,String,30,130,filler,No,,Leave Blank <spaces>,,Filler for account key
+EFF-DAT-ERT,Date,160,10,eff_dat_ert,Yes,MM/DD/CCYY,,,The date the transaction was effective.
+TRN-COD-ERT,Numeric,170,5,trn_cod_ert,Yes,9(5),Default to '32025',32025,The transaction code for the transaction.
+BAT-ITM-NUM-ERT,Numeric,175,9,bat_itm_num_ert,Yes,9(9),if 1st account in batch then '1'; if 2nd account in batch then '2'; . . . if nth account in batch then 'n';,,The sequential number for this item within the batch.
+INP-SRC-COD-ERT,Numeric,184,3,inp_src_cod_ert,No,9(3),Leave Blank <spaces>,,The source of the transaction.
+TRN-CNT-ERT,Numeric,187,3,trn_cnt_ert,No,9(3),Leave Blank <spaces>,,The total number of transactions in the batch.
+TRN-MOR-DTA-FLG-ERT,String,190,1,trn_mor_dta_flg_ert,No,,Leave Blank <spaces>,,Indicates if more data is available.
+STP-ACR-ATY-COD-COD,Numeric,191,1,stp_acr_aty_cod_cod,No,9(1),Leave Blank <spaces>,,Indicates if accruals have been stopped or monetary activity is to continue w...
+DAT-PLC-IN-STP-COD,Date,192,10,dat_plc_in_stp_cod,No,MM/DD/CCYY,Leave Blank <spaces>,,The date the account was placed in stop accrual status prior to charge-off.
+DAT-STP-ACR-RMD-COD,Date,202,10,dat_stp_acr_rmd_cod,No,MM/DD/CCYY,Leave Blank <spaces>,,The date the account was removed from a stop accrual status.
+INT-ACR-WHI-STP-COD,Numeric,212,22,int_acr_whi_stp_cod,No,-Z(12).9(2),Leave Blank <spaces>,,The amount of interest accrued while the account’s stop accrual status is Mem...
+LGL-STA-COD-COD,String,234,3,lgl_sta_cod_cod,No,,"If M-TRW-COMMENTS = 'AU' or last 2 bytes M-PAYOFF-TRANS = 'ST' pass 'STL' Else IF CHG-OFF-CD = 'R', 'P' or 'N' then 'RPO'; ELSEIF CHG-OFF-CD = 'B' or 'J' then 'B06'; ELSEIF CHG-OFF-CD = 'F' then 'FCL'; ELSEIF CHG-OFF-CD = 'X' then 'PRP'; ELSE Default to 'TBD' Leave Blank <spaces>",TBD|R|P|N|RPO|B|J|B06|F|FCL|X|PRP,Indicates the account’s legal status.
+DAT-LAS-RPO-COD,Date,237,10,dat_las_rpo_cod,No,MM/DD/CCYY,"IF CHG-OFF-CD = 'R', 'P', 'X' or 'N' then [IF M-REPO-DTE is NOT NULL or NOT BLANK or NOT 0's THEN M-REPO-DTE; ELSE M-DATE-PAID-OFF] ELSE Leave Blank",R|P|X|N,The date of the last repossession/voluntary surrender on the account prior to...
+RPO-COD-COD,Numeric,247,1,rpo_cod_cod,No,9(1),"IF CHG-OFF-CD = 'R', 'P', 'X' or 'N' then '1'; ELSE '0'",R|P|X|N|1|0,"Vehicle Collateral Status, related to repossession / voluntary surrender."
+DUE-DAT-DAY-COD,Numeric,248,2,due_dat_day_cod,Yes,9(2),,,The cycle ID used to control processing in APPS Enterprise.
+DAT-RMD-RPO-COD,Date,250,10,dat_rmd_rpo_cod,No,MM/DD/CCYY,Leave Blank <spaces>,,The date the account was removed from repossession/surrender status prior to ...
+FCL-STA-IND-COD,String,260,1,fcl_sta_ind_cod,No,,Leave Blank <spaces>,,Real Estate Collateral Status
+ORG-LVL-NUM-1-COD,Numeric,261,7,org_lvl_num_1_cod,No,9(7),Default to '0000001',0000001,Organization control level 1 for the bank that the account resides in.
+ORG-LVL-NUM-2-COD,Numeric,268,7,org_lvl_num_2_cod,No,9(7),Default to '0000001',0000001,Organization control level 2 for the bank that the account resides in.
+ORG-LVL-NUM-3-COD,Numeric,275,7,org_lvl_num_3_cod,No,9(7),Default to '0000040',0000040,Organization control level 3 for the bank that the account resides in.
+ORG-LVL-NUM-4-COD,Numeric,282,7,org_lvl_num_4_cod,No,9(7),"Refer to RA's document (copied to tab 'SAP center Ref.); 'SAP Conpany Code' goes into this field SAP Cost Center (column D in tab SAP Center Ref) = M-CONTROL1 + (Last 2 Digits of RPT-BR-NO) + (Last 2 Digits of M-CONTROL2) Get SAP COMPANY CODE (column G in tab 'SAP Center Ref.') corresponding to SAP Cost CenterNum (column D in tab 'SAP Center Ref.')) with value derived above. IF SAP COST CENTER IN (coumn D in tab SAP Center Ref.) derived above IN (('16590','16591','16592','18098','16593', '16594', '16595' ,'20323', '20332', '20333', '20365','20382','20564','20565','38064','38065','38066' '38067','38068','38069', '38070', '38071','16596',' 18709' '18710', '16597', '38150', '16598' THEN ORG-LVL-NUM-4-COD = '‘0000304'; ELSE ORG-LVL-NUM-4-COD = '‘0000102' *increase the length to 7 digits",16590|16591|16592|18098|16593|16594|16595|20323|20332|20333|20365|20382|20564|20565|38064|38065|38066|38067|38068|38069|38070|38071|16596|18709|18710|16597|38150|16598|0000304|0000102,Organization control level 4 for the bank that the account resides in.
+ORG-LVL-NUM-5-COD,Numeric,289,7,org_lvl_num_5_cod,No,9(7),Default to '0000001',0000001,Organization control level 5 for the bank that the account resides in.
+ORG-LVL-NUM-6-COD,Numeric,296,7,org_lvl_num_6_cod,No,9(7),Transform as is. (it’s a 5 digit profit center),,Organization control level 6 for the bank that the account resides in.
+ORG-LVL-NUM-7-COD,Numeric,303,7,org_lvl_num_7_cod,No,9(7),,,Organization control level 7 for the bank that the account resides in.
+ORG-LVL-NUM-8-COD,Numeric,310,7,org_lvl_num_8_cod,No,9(7),Default '0000000',,Organization control level 8 for the bank that the account resides in.
+ORG-LVL-NUM-9-COD,Numeric,317,7,org_lvl_num_9_cod,No,9(7),Default '0000000',,Organization control level 9 for the bank that the account resides in.
+ORG-LVL-NUM-10-COD,Numeric,324,7,org_lvl_num_10_cod,No,9(7),Default '0000000',,Organization control level 10 for the bank that the account resides in.
+ORG-LVL-NUM-11-COD,Numeric,331,7,org_lvl_num_11_cod,No,9(7),Default '0000000',,Organization control level 11 for the bank that the account resides in.
+ORG-LVL-NUM-12-COD,Numeric,338,7,org_lvl_num_12_cod,No,9(7),Default '0000000',,Organization control level 12 for the bank that the account resides in.
+10-98-RPT-IND-COD,String,345,1,10_98_rpt_ind_cod,No,,Leave Blank <spaces>,,Indicates if form 1098 for mortgage interest reporting and Regulation C compl...
+LCE-GEO-COD-COD,String,346,9,lce_geo_cod_cod,No,,GL CenterNum = M-CONTROL1 + (Last 2 Digits of RPT-BR-NO) + (Last 2 Digits of M-CONTROL2) LCE-GEO-COD-COD = CenterNum value derived above,,A numeric code for location of record for lease sales-use tax liability. Comp...
+CR-RT-COD,String,355,4,cr_rt_cod,No,,Leave Blank <spaces>,,The behavioral score developed for this account.
+CAL-RPT-COD-COD,String,359,4,cal_rpt_cod_cod,No,,Leave Blank <spaces>,,The federal Call Report code.
+OGL-LN-POO-NUM-COD,Numeric,363,7,ogl_ln_poo_num_cod,No,9(7),Leave Blank <spaces>,,A number identifying a pool of securitized loans to which the account belonge...
+OGL-LN-OFC-COD,String,370,9,ogl_ln_ofc_cod,No,,IF M-BBT-SELL-OFFICER not null then M-BBT-SELL-OFFICER; ELSE Leave Blank <spaces>,,The loan officer originally assigned to the loan account.
+LN-OFC-CUR-COD,String,379,9,ln_ofc_cur_cod,No,,IF M-OFFICER not null then M-OFFICER; ELSE Leave Blank <spaces>,,The loan officer currently assigned to the loan account.
+OGL-BR-NUM-COD,Numeric,388,6,ogl_br_num_cod,No,9(6),Leave Blank <spaces>,,The original branch number.
+LN-PUR-COD-COD,String,394,3,ln_pur_cod_cod,No,,Default to '3',3,Identifies the purpose of the loan.
+LN-CAT-COD,Numeric,397,3,ln_cat_cod,Yes,9(3),,,Indicates the associated category for the account.
+DLR-NUM-COD,Numeric,400,7,dlr_num_cod,No,9(7),Leave Blank <spaces>,,A number to indicate the dealer associated with an indirect recovery loan.
+FCL-EFF-DAT-COD,Date,407,10,fcl_eff_dat_cod,No,MM/DD/CCYY,Leave Blank <spaces>,,The date the account was placed in Real Estate Collateral Status.
+STM-FRQ-COD,String,417,1,stm_frq_cod,Yes,,Default to 'M',M,Frequency that a statement should be generated
+NATL-CURRENCY-COD,String,418,3,natl_currency_cod,Yes,,Default to 'USD',USD,The currency (non-Euro) of the nation associated with borrowers of this account.
+PREF-CURRENCY-COD,String,421,3,pref_currency_cod,Yes,,Default to 'USD',USD,"The currency (national or base), which the borrower prefers to use in dealing..."
+BASE-CURRENCY-COD,String,424,3,base_currency_cod,Yes,,Default to 'USD',USD,The currency (Euro or national) in which this account is being maintained.
+PRT-COF-BK-NUM-COD,Numeric,427,5,prt_cof_bk_num_cod,No,9(5),Leave Blank <spaces>,,The bank associated with the partial charge off account being combined with t...
+PRT-COF-APP-COD,Numeric,432,3,prt_cof_app_cod,No,9(3),Leave Blank <spaces>,,The application associated with the partial charge off account being combined...
+PRT-COF-LN-NUM-COD,String,435,18,prt_cof_ln_num_cod,No,,Leave Blank <spaces>,,The account number for the partial charge off account being combined with the...
+NAS-SRC-COD-COD,Numeric,453,3,nas_src_cod_cod,No,9(3),Default to '130',130,The source of the input data.
+HMDA-ULI-CODE,String,456,45,hmda_uli_code,No,,Leave Blank <spaces>,,The HMDA Unique Loan Identifier.
+IRS-PROP-SECURE-TYPE-COD,String,501,8,irs_prop_secure_type_cod,No,,Leave Blank <spaces>,,"The IRS Property Security Type, used to identify the property address that is..."
+IRS-PROP-ADDR-DESC-COD,String,509,39,irs_prop_addr_desc_cod,No,,Leave Blank <spaces>,,The IRS Property Address or Description. Field may also be used in determinat...
+IRS-NUM-OF-MORT-COD,Numeric,548,4,irs_num_of_mort_cod,No,9(4),Default to '0000',0000,The IRS number of mortgaged properties.

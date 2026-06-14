@@ -1,0 +1,24 @@
+Rule ID,Rule Name,Field,Rule Type,Severity,Enabled,Message,Expected / Values
+R001,LOCATION-CODE required,LOCATION-CODE,not_empty,error,Yes,LOCATION-CODE must not be empty,
+R002,LOCATION-CODE length check,LOCATION-CODE,length,error,Yes,LOCATION-CODE payload length must be between 1 and 6 characters,1..6
+R003,LOCATION-CODE valid values,LOCATION-CODE,valid_values,error,Yes,LOCATION-CODE must be one of: 100030,100030
+R004,ACCT-NUM required,ACCT-NUM,not_empty,error,Yes,ACCT-NUM must not be empty,
+R005,ACCT-NUM length check,ACCT-NUM,length,error,Yes,ACCT-NUM payload length must be between 14 and 18 characters,14..18
+R006,TRANSACTION-CODE required,TRANSACTION-CODE,not_empty,error,Yes,TRANSACTION-CODE must not be empty,
+R007,TRANSACTION-CODE length check,TRANSACTION-CODE,length,error,Yes,TRANSACTION-CODE payload length must be between 1 and 3 characters,1..3
+R008,TRANSACTION-CODE valid values,TRANSACTION-CODE,valid_values,error,Yes,TRANSACTION-CODE must be one of: 300,300
+R009,TRANSACTION-DATE required,TRANSACTION-DATE,not_empty,error,Yes,TRANSACTION-DATE must not be empty,
+R010,TRANSACTION-DATE date format,TRANSACTION-DATE,date_format,error,Yes,TRANSACTION-DATE must be a valid date (CCYYMMDD),CCYYMMDD
+R011,TRANSACTION-DATE length check,TRANSACTION-DATE,exact_length,error,Yes,TRANSACTION-DATE must be exactly 8 characters,8
+R012,TRANSACTION-AMOUNT required,TRANSACTION-AMOUNT,not_empty,error,Yes,TRANSACTION-AMOUNT must not be empty,
+R013,TRANSACTION-AMOUNT numeric,TRANSACTION-AMOUNT,numeric,error,Yes,TRANSACTION-AMOUNT must be numeric,
+R014,TRANSACTION-AMOUNT length check,TRANSACTION-AMOUNT,exact_length,error,Yes,TRANSACTION-AMOUNT must be exactly 18 characters,18
+R015,NUMBER-OF-DEBITS numeric,NUMBER-OF-DEBITS,numeric,error,Yes,NUMBER-OF-DEBITS must be numeric,
+R016,NUMBER-OF-DEBITS valid values,NUMBER-OF-DEBITS,valid_values,error,Yes,NUMBER-OF-DEBITS must be one of: 00,00
+R017,CATEGORY-CODE required,CATEGORY-CODE,not_empty,error,Yes,CATEGORY-CODE must not be empty,
+R018,CATEGORY-CODE length check,CATEGORY-CODE,length,error,Yes,CATEGORY-CODE payload length must be between 1 and 1 characters,1..1
+R019,CATEGORY-CODE valid values,CATEGORY-CODE,valid_values,error,Yes,CATEGORY-CODE must be one of: 2|3|1,2|3|1
+R020,THIRD-PARTY-COMM-AMT numeric,THIRD-PARTY-COMM-AMT,numeric,error,Yes,THIRD-PARTY-COMM-AMT must be numeric,
+R021,THIRD-PARTY-COMM-AMT valid values,THIRD-PARTY-COMM-AMT,valid_values,error,Yes,THIRD-PARTY-COMM-AMT must be one of: 000000000000000000,000000000000000000
+R022,INPUT-SOURCE-CODE numeric,INPUT-SOURCE-CODE,numeric,error,Yes,INPUT-SOURCE-CODE must be numeric,
+R023,INPUT-SOURCE-CODE valid values,INPUT-SOURCE-CODE,valid_values,error,Yes,INPUT-SOURCE-CODE must be one of: 000,000

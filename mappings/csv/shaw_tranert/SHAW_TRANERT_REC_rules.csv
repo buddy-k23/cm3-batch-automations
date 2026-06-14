@@ -1,0 +1,50 @@
+Rule ID,Rule Name,Field,Rule Type,Severity,Enabled,Message,Expected / Values
+R001,BK-NUM-ERT required,BK-NUM-ERT,not_empty,error,Yes,BK-NUM-ERT must not be empty,
+R002,BK-NUM-ERT numeric,BK-NUM-ERT,numeric,error,Yes,BK-NUM-ERT must be numeric,
+R003,BK-NUM-ERT length check,BK-NUM-ERT,exact_length,error,Yes,BK-NUM-ERT must be exactly 5 characters,5
+R004,BK-NUM-ERT valid values,BK-NUM-ERT,valid_values,error,Yes,BK-NUM-ERT must be one of: 00040,00040
+R005,APP-ERT required,APP-ERT,not_empty,error,Yes,APP-ERT must not be empty,
+R006,APP-ERT numeric,APP-ERT,numeric,error,Yes,APP-ERT must be numeric,
+R007,APP-ERT length check,APP-ERT,exact_length,error,Yes,APP-ERT must be exactly 3 characters,3
+R008,APP-ERT valid values,APP-ERT,valid_values,error,Yes,APP-ERT must be one of: 001,001
+R009,LN-NUM-ERT required,LN-NUM-ERT,not_empty,error,Yes,LN-NUM-ERT must not be empty,
+R010,LN-NUM-ERT length check,LN-NUM-ERT,length,error,Yes,LN-NUM-ERT payload length must be between 14 and 18 characters,14..18
+R011,EFF-DAT-ERT required,EFF-DAT-ERT,not_empty,error,Yes,EFF-DAT-ERT must not be empty,
+R012,EFF-DAT-ERT date format,EFF-DAT-ERT,date_format,error,Yes,EFF-DAT-ERT must be a valid date (MM/DD/CCYY),MM/DD/CCYY
+R013,EFF-DAT-ERT length check,EFF-DAT-ERT,exact_length,error,Yes,EFF-DAT-ERT must be exactly 10 characters,10
+R014,TRN-COD-ERT required,TRN-COD-ERT,not_empty,error,Yes,TRN-COD-ERT must not be empty,
+R015,TRN-COD-ERT numeric,TRN-COD-ERT,numeric,error,Yes,TRN-COD-ERT must be numeric,
+R016,TRN-COD-ERT length check,TRN-COD-ERT,exact_length,error,Yes,TRN-COD-ERT must be exactly 5 characters,5
+R017,TRN-COD-ERT valid values,TRN-COD-ERT,valid_values,error,Yes,TRN-COD-ERT must be one of: 32075,32075
+R018,BAT-ITM-NUM-ERT required,BAT-ITM-NUM-ERT,not_empty,error,Yes,BAT-ITM-NUM-ERT must not be empty,
+R019,BAT-ITM-NUM-ERT numeric,BAT-ITM-NUM-ERT,numeric,error,Yes,BAT-ITM-NUM-ERT must be numeric,
+R020,BAT-ITM-NUM-ERT length check,BAT-ITM-NUM-ERT,exact_length,error,Yes,BAT-ITM-NUM-ERT must be exactly 9 characters,9
+R021,INP-SRC-COD-ERT numeric,INP-SRC-COD-ERT,numeric,error,Yes,INP-SRC-COD-ERT must be numeric,
+R022,TRN-CNT-ERT numeric,TRN-CNT-ERT,numeric,error,Yes,TRN-CNT-ERT must be numeric,
+R023,RCF-REF-NUM-REC required,RCF-REF-NUM-REC,not_empty,error,Yes,RCF-REF-NUM-REC must not be empty,
+R024,RCF-REF-NUM-REC length check,RCF-REF-NUM-REC,length,error,Yes,RCF-REF-NUM-REC payload length must be between 1 and 3 characters,1..3
+R025,RCF-REF-NUM-REC valid values,RCF-REF-NUM-REC,valid_values,error,Yes,RCF-REF-NUM-REC must be one of: GNR,GNR
+R026,RCF-AMT-REC numeric,RCF-AMT-REC,numeric,error,Yes,RCF-AMT-REC must be numeric,
+R027,RCF-PCT-REC numeric,RCF-PCT-REC,numeric,error,Yes,RCF-PCT-REC must be numeric,
+R028,RCF-ASE-COD-REC numeric,RCF-ASE-COD-REC,numeric,error,Yes,RCF-ASE-COD-REC must be numeric,
+R029,RCF-ASE-COD-REC valid values,RCF-ASE-COD-REC,valid_values,error,Yes,RCF-ASE-COD-REC must be one of: 0,0
+R030,RCF-INT-IND-REC numeric,RCF-INT-IND-REC,numeric,error,Yes,RCF-INT-IND-REC must be numeric,
+R031,RCF-INT-IND-REC valid values,RCF-INT-IND-REC,valid_values,error,Yes,RCF-INT-IND-REC must be one of: 0,0
+R032,RCF-MAX-FEE-AMT-REC numeric,RCF-MAX-FEE-AMT-REC,numeric,error,Yes,RCF-MAX-FEE-AMT-REC must be numeric,
+R033,RCF-DES-COD-REC numeric,RCF-DES-COD-REC,numeric,error,Yes,RCF-DES-COD-REC must be numeric,
+R034,RCF-DES-COD-REC valid values,RCF-DES-COD-REC,valid_values,error,Yes,RCF-DES-COD-REC must be one of: 003,003
+R035,RCF-MAX-FEE-LTD-REC numeric,RCF-MAX-FEE-LTD-REC,numeric,error,Yes,RCF-MAX-FEE-LTD-REC must be numeric,
+R036,RCF-OGL-AMT-REC numeric,RCF-OGL-AMT-REC,numeric,error,Yes,RCF-OGL-AMT-REC must be numeric,
+R037,EXP-PYF-IND-REC valid values,EXP-PYF-IND-REC,valid_values,error,Yes,EXP-PYF-IND-REC must be one of: Y,Y
+R038,RCF-ICR-COD-REC numeric,RCF-ICR-COD-REC,numeric,error,Yes,RCF-ICR-COD-REC must be numeric,
+R039,RCF-ICR-COD-REC valid values,RCF-ICR-COD-REC,valid_values,error,Yes,RCF-ICR-COD-REC must be one of: 0,0
+R040,CMB-PMT-PTY-REC numeric,CMB-PMT-PTY-REC,numeric,error,Yes,CMB-PMT-PTY-REC must be numeric,
+R041,RCF-DUE-REC numeric,RCF-DUE-REC,numeric,error,Yes,RCF-DUE-REC must be numeric,
+R042,FCL-CST-PD-YTD-REC numeric,FCL-CST-PD-YTD-REC,numeric,error,Yes,FCL-CST-PD-YTD-REC must be numeric,
+R043,RCF-CAP-LTD-REC numeric,RCF-CAP-LTD-REC,numeric,error,Yes,RCF-CAP-LTD-REC must be numeric,
+R044,RCF-ASE-MTD-REC numeric,RCF-ASE-MTD-REC,numeric,error,Yes,RCF-ASE-MTD-REC must be numeric,
+R045,RCF-PD-MTD-REC numeric,RCF-PD-MTD-REC,numeric,error,Yes,RCF-PD-MTD-REC must be numeric,
+R046,RCF-ASE-YTD-REC numeric,RCF-ASE-YTD-REC,numeric,error,Yes,RCF-ASE-YTD-REC must be numeric,
+R047,RCF-PD-YTD-REC numeric,RCF-PD-YTD-REC,numeric,error,Yes,RCF-PD-YTD-REC must be numeric,
+R048,RCF-ASE-LTD-REC numeric,RCF-ASE-LTD-REC,numeric,error,Yes,RCF-ASE-LTD-REC must be numeric,
+R049,RCF-PD-LTD-REC numeric,RCF-PD-LTD-REC,numeric,error,Yes,RCF-PD-LTD-REC must be numeric,

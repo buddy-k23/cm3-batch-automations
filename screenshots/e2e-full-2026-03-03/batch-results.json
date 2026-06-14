@@ -1,0 +1,47 @@
+{
+  "passed": 5,
+  "failed": 0,
+  "skipped": 0,
+  "tests": [
+    {
+      "name": "Customer file \u2014 all valid",
+      "status": "PASS",
+      "type": "structural",
+      "error_count": 0,
+      "total_rows": 11,
+      "duration_seconds": 0.0
+    },
+    {
+      "name": "Transaction file \u2014 all valid",
+      "status": "PASS",
+      "type": "structural",
+      "error_count": 13,
+      "total_rows": 10,
+      "duration_seconds": 0.0
+    },
+    {
+      "name": "P327 error file \u2014 expect failures",
+      "status": "PASS",
+      "type": "structural",
+      "error_count": 107,
+      "total_rows": 25,
+      "duration_seconds": 0.2
+    },
+    {
+      "name": "System health check",
+      "status": "PASS",
+      "type": "api_check",
+      "error_count": 0,
+      "total_rows": 0,
+      "duration_seconds": 0.0
+    },
+    {
+      "name": "Runs history available",
+      "status": "PASS",
+      "type": "api_check",
+      "error_count": 0,
+      "total_rows": 0,
+      "duration_seconds": 0.0
+    }
+  ]
+}

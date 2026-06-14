@@ -1,0 +1,6 @@
+Rule ID,Rule Name,Description,Type,Severity,Operator,Field,Value,Values,Pattern,Min,Max,Left Field,Right Field,Enabled,Min Length,Max Length
+BR001,Account balance non-negative,Account balance must be >= 0,field_validation,error,>=,account_balance,0,,,,,,,TRUE,,
+BR002,Status in allowed list,Status must be ACTIVE INACTIVE SUSPENDED,field_validation,warning,in,status,,"ACTIVE,INACTIVE,SUSPENDED",,,,,,TRUE,,
+BR003,Email not null,Email is required,field_validation,error,not_null,email,,,,,,,,TRUE,,
+BR004,First name length,First name length between 1 and 50,field_validation,warning,length,first_name,,,,,,,,TRUE,1,50
+BR005,Expiry after open date,Expiry date must be greater than open date,cross_field,error,>,,,,,,,expiry_date,open_date,TRUE,,

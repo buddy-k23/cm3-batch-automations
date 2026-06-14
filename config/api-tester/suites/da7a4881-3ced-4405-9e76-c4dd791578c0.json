@@ -1,0 +1,6 @@
+{
+  "name": "E2E UI Suite",
+  "base_url": "http://127.0.0.1:8000",
+  "requests": [],
+  "id": "da7a4881-3ced-4405-9e76-c4dd791578c0"
+}

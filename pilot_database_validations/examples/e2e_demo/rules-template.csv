@@ -1,0 +1,4 @@
+rule_id,rule_name,scope,severity,priority,group_by,expression,message_template,enabled
+FIL_COUNT_MATCH,Header count check,file,ERROR,10,,header.total_count == detail.count,Header/detail count mismatch,Y
+REC_TXN_NOT_NULL,Txn code required,record,ERROR,20,,TXN_CODE != '',Transaction code missing,Y
+GRP_SEQ_DESC,Relationship sequence desc,group,WARN,30,ACCOUNT_ID,is_strict_desc(REL_SEQ),Relationship sequence should descend,Y

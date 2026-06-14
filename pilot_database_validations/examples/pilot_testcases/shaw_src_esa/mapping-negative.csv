@@ -1,0 +1,2 @@
+transaction_code,target_field,source_field,data_type,required,length,position_start,position_end,format,default_value,transform_logic
+SHAWSRCESA,RAW_RECORD,,varchar,Maybe,10,50,1,,,'bad mapping row'

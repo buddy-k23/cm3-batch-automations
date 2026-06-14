@@ -1,0 +1,92 @@
+{
+  "metadata": {
+    "name": "p327_business_rules_template",
+    "description": "Generated from template: p327_business_rules_template.xlsx",
+    "created_by": "rules_template_converter",
+    "created_date": "2026-02-09T04:56:42.863206Z",
+    "template_path": "config/templates/p327_business_rules_template.xlsx"
+  },
+  "rules": [
+    {
+      "id": "p327_001",
+      "name": "Account Number Format",
+      "description": "Account number must be 10 digits",
+      "type": "field_validation",
+      "severity": "error",
+      "operator": "regex",
+      "field": "ACCT-NUM",
+      "pattern": "^[0-9]{10}$",
+      "enabled": true
+    },
+    {
+      "id": "p327_002",
+      "name": "Credit Limit Positive",
+      "description": "Credit limit must be greater than zero",
+      "type": "field_validation",
+      "severity": "error",
+      "operator": ">",
+      "field": "CREDIT-LIMIT",
+      "value": 0.0,
+      "enabled": true
+    },
+    {
+      "id": "p327_003",
+      "name": "Credit Limit Range",
+      "description": "Credit limit must be between 0 and 100000",
+      "type": "field_validation",
+      "severity": "warning",
+      "operator": "range",
+      "field": "CREDIT-LIMIT",
+      "min": 0.0,
+      "max": 100000.0,
+      "enabled": true
+    },
+    {
+      "id": "p327_004",
+      "name": "Valid Account Status",
+      "description": "Account status must be ACTIVE, CLOSED, or SUSPENDED",
+      "type": "field_validation",
+      "severity": "warning",
+      "operator": "in",
+      "field": "ACCT-STATUS",
+      "values": [
+        "ACTIVE",
+        "CLOSED",
+        "SUSPENDED"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "p327_005",
+      "name": "Expiration After Open Date",
+      "description": "Expiration date must be after account open date",
+      "type": "cross_field",
+      "severity": "error",
+      "operator": ">",
+      "left_field": "EXPIRY-DATE",
+      "right_field": "ACCT-OPEN-DATE",
+      "enabled": true
+    },
+    {
+      "id": "p327_006",
+      "name": "Balance Not Negative",
+      "description": "Account balance must not be negative",
+      "type": "field_validation",
+      "severity": "error",
+      "operator": ">=",
+      "field": "ACCT-BALANCE",
+      "value": 0.0,
+      "enabled": true
+    },
+    {
+      "id": "p327_007",
+      "name": "Account Number Not Null",
+      "description": "Account number is required",
+      "type": "field_validation",
+      "severity": "error",
+      "operator": "not_null",
+      "field": "ACCT-NUM",
+      "enabled": true
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+Rule ID,Rule Name,Field,Type,Severity,Enabled,Message,Value
+R001,bank_code_not_empty,BANK-CODE,not_empty,error,Yes,Bank code must not be empty,
+R002,bank_code_numeric,BANK-CODE,numeric,error,Yes,Bank code must be numeric,
+R003,bank_code_length,BANK-CODE,exact_length,error,Yes,Bank code must be exactly 5 digits,5
+R004,appl_code_not_empty,APPL-CODE,not_empty,error,Yes,Application code must not be empty,
+R005,appl_code_numeric,APPL-CODE,numeric,error,Yes,Application code must be numeric,
+R006,acct_key_not_empty,ACCT-KEY,not_empty,error,Yes,Account key must not be empty,
+R007,acct_key_length,ACCT-KEY,exact_length,error,Yes,Account key must be exactly 18 characters,18
+R008,txn_date_not_empty,TXN-DATE,not_empty,error,Yes,Transaction date must not be empty,
+R009,txn_date_format,TXN-DATE,date_format,error,Yes,Transaction date must be MM/DD/CCYY format,MM/DD/CCYY
+R010,txn_type_not_empty,TXN-TYPE,not_empty,error,Yes,Transaction type must not be empty,
+R011,txn_type_numeric,TXN-TYPE,numeric,error,Yes,Transaction type must be numeric,
+R012,txn_type_valid,TXN-TYPE,valid_values,error,Yes,Transaction type must be 32010,32010
+R013,batch_seq_not_empty,BATCH-SEQ,not_empty,error,Yes,Batch sequence must not be empty,
+R014,batch_seq_numeric,BATCH-SEQ,numeric,error,Yes,Batch sequence must be numeric,
+R015,txn_count_not_empty,TXN-COUNT,not_empty,error,Yes,Transaction count must not be empty,
+R016,txn_count_numeric,TXN-COUNT,numeric,error,Yes,Transaction count must be numeric,
+R017,more_data_not_empty,MORE-DATA-FLAG,not_empty,error,Yes,More data flag must not be empty,
+CR001,unique_account,ACCT-KEY,cross_row:unique,error,Yes,Account key must be unique across all rows,
+CR002,unique_account_batch,ACCT-KEY|BATCH-SEQ,cross_row:unique_composite,error,Yes,Account + batch sequence must be unique,
+CR003,sequential_batch,ACCT-KEY>BATCH-SEQ,cross_row:sequential,error,Yes,Batch sequence must be 1 2 3... per account,1
+CR004,consistent_bank,ACCT-KEY>BANK-CODE,cross_row:consistent,error,Yes,Bank code must be the same for all rows with same account,
+CR005,txn_count_matches,ACCT-KEY>TXN-COUNT,cross_row:group_count,error,Yes,Transaction count must match actual records per account,

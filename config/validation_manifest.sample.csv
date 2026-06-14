@@ -1,0 +1,3 @@
+data_file,mapping_file,rules_file,report_file,chunked,chunk_size
+data/files/customers_01.txt,config/mappings/customer_mapping.json,config/rules/p327_business_rules.json,customers_01_validation.json,true,100000
+data/files/orders_01.txt,config/mappings/order_batch_universal.json,,orders_01_validation.json,true,100000

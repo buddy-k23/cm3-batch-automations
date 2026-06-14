@@ -1,0 +1,315 @@
+{
+  "mapping_name": "SHAW_TRANERT_NEW1_mapping",
+  "version": "1.0.0",
+  "description": "Generated from template: SHAW_TRANERT_NEW1_mapping.csv",
+  "source": {
+    "type": "file",
+    "format": "fixed_width",
+    "encoding": "UTF-8"
+  },
+  "target": {
+    "type": "database"
+  },
+  "fields": [
+    {
+      "name": "BK-NUM-ERT",
+      "data_type": "decimal",
+      "target_name": "bk_num_ert",
+      "position": 1,
+      "length": 5,
+      "format": "9(5)",
+      "required": true,
+      "description": "A number, defined on the Bank Control Operation tables, which identifies the ...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "00040"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "00040"
+      ]
+    },
+    {
+      "name": "APP-ERT",
+      "data_type": "decimal",
+      "target_name": "app_ert",
+      "position": 6,
+      "length": 3,
+      "format": "9(3)",
+      "required": true,
+      "description": "The application to which the account is to be associated.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "001"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "001"
+      ]
+    },
+    {
+      "name": "LN-NUM-ERT",
+      "data_type": "string",
+      "target_name": "ln_num_ert",
+      "position": 9,
+      "length": 18,
+      "required": true,
+      "description": "The account number that is associated with the account.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "REF-NUM-ERT",
+      "data_type": "string",
+      "target_name": "ref_num_ert",
+      "position": 27,
+      "length": 3,
+      "required": false,
+      "description": "The applicable reference number for the transaction.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "FILLER",
+      "data_type": "string",
+      "target_name": "filler",
+      "position": 30,
+      "length": 130,
+      "required": false,
+      "description": "Filler for account key",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "EFF-DAT-ERT",
+      "data_type": "date",
+      "target_name": "eff_dat_ert",
+      "position": 160,
+      "length": 10,
+      "format": "MM/DD/CCYY",
+      "required": true,
+      "description": "The date the transaction was effective.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "TRN-COD-ERT",
+      "data_type": "decimal",
+      "target_name": "trn_cod_ert",
+      "position": 170,
+      "length": 5,
+      "format": "9(5)",
+      "required": true,
+      "description": "The transaction code for the transaction.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "32000"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "32000"
+      ]
+    },
+    {
+      "name": "BAT-ITM-NUM-ERT",
+      "data_type": "decimal",
+      "target_name": "bat_itm_num_ert",
+      "position": 175,
+      "length": 9,
+      "format": "9(9)",
+      "required": true,
+      "description": "The sequential number for this item within the batch.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "INP-SRC-COD-ERT",
+      "data_type": "decimal",
+      "target_name": "inp_src_cod_ert",
+      "position": 184,
+      "length": 3,
+      "format": "9(3)",
+      "required": false,
+      "description": "The source of the transaction.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "TRN-CNT-ERT",
+      "data_type": "decimal",
+      "target_name": "trn_cnt_ert",
+      "position": 187,
+      "length": 3,
+      "format": "9(3)",
+      "required": false,
+      "description": "The total number of transactions in the batch.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "TRN-MOR-DTA-FLG-ERT",
+      "data_type": "string",
+      "target_name": "trn_mor_dta_flg_ert",
+      "position": 190,
+      "length": 1,
+      "required": false,
+      "description": "Indicates if more data is available.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "SEL-ID-NEW",
+      "data_type": "string",
+      "target_name": "sel_id_new",
+      "position": 191,
+      "length": 1,
+      "required": false,
+      "description": "The selection indicator for the account.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LCT-COD-NEW1",
+      "data_type": "string",
+      "target_name": "lct_cod_new1",
+      "position": 192,
+      "length": 6,
+      "required": true,
+      "description": "The APPS location code for the location in which the account currently resides.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "100030"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "100030"
+      ]
+    },
+    {
+      "name": "USR-ID-NEW1",
+      "data_type": "string",
+      "target_name": "usr_id_new1",
+      "position": 198,
+      "length": 8,
+      "required": false,
+      "description": "The user/operator id.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    }
+  ],
+  "key_columns": [
+    "BK-NUM-ERT"
+  ],
+  "metadata": {
+    "created_by": "template_converter",
+    "created_date": "2026-05-26T17:42:56.319679Z",
+    "last_modified": "2026-05-26T17:42:56.319690Z",
+    "source_template": "mappings\\csv\\shaw_tranert\\SHAW_TRANERT_NEW1_mapping.csv"
+  },
+  "total_record_length": 205,
+  "warnings": []
+}

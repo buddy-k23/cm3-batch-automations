@@ -1,0 +1,6 @@
+Field Name,Data Type,Position,Length,Target Name,Required,Format,Transformation,Valid Values,Description
+LOCATION-CODE,String,1,6,location_code,Yes,,"Create separate individual 100 records for all possible Location-Codes with following hard-coded values: 100030, 100040, 200000 For Day 0, only record type 100 will be created; and, just for 3 LOCATION CODES - 100030, 100040 & 200000 Credit Card = 100010 Business Banking = 100020 Loans & Lines = 100030 DDA = 100040 Other – Ad-Hoc = 100050 Customer Portfolio = 200000",100030|100040|200000,Location Code for Account
+ACCT-NUM,String,7,18,acct_num,No,,Nullable --> Leave Blank,,Account Number
+TRANSACTION-CODE,String,25,3,transaction_code,Yes,,Default to '100',100,Type of Transaction
+TRANSACTION-DATE,Date,28,8,transaction_date,Yes,CCYYMMDD,Batch Date,,Date of Transaction
+CYCLE-ARRAY-TRANS-AREA,Numeric,36,40,cycle_array_trans_area,Yes,"9(2), 20 occur.",Populate with forty 0's,,Contains up to 20 entries (days of the month) that specify the billing cycles...

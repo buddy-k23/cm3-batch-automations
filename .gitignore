@@ -1,0 +1,143 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+PIPFILE.lock
+
+# Virtual environments
+venv/
+.venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# IDEs
+# Track project-level VSCode config; ignore personal/local files
+.vscode/*
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/tasks.json
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Logs
+logs/
+*.log
+
+# Environment variables
+.env
+.env.local
+
+# LDAPS CA bundles (operator-provided, environment-specific)
+certs/
+*.pem
+!docs/**/*.pem
+
+# Local curl/test artifacts
+cookies.txt
+
+# Stray files from accidental shell redirects on Windows
+$null
+er.name
+
+# Oracle
+instantclient*/
+*.ora
+
+# Data files
+data/samples/*.txt
+data/samples/*.dat
+data/samples/*.csv
+!data/samples/.gitkeep
+!data/samples/customers.txt
+!data/samples/customers_updated.txt
+!data/samples/transactions.txt
+
+# Reports
+/reports/
+*.html
+!docs/*.html
+!src/reports/static/ui.html
+!src/reports/static/login.html
+
+# Temporary files
+*.tmp
+*.bak
+output/
+
+.venv312/
+.worktrees/
+
+# Sprint-1/task orchestration artifacts
+uploads/
+state/
+docs/sphinx/_build/
+docs/sphinx/state/
+
+# Generated mapping/rules CSVs (may contain proprietary field names)
+config/generated-mappings/
+config/generated-rules/
+
+# Local-only
+data/
+scripts/_read_est_mapping.py
+scripts/_est_mapping_dump.json
+scripts/_est_mapping_compact.txt
+
+wheelhouse/
+
+# E2E harness - extractor-regenerated artifacts
+#
+# SHAW TRANERT lookup CSVs and SHA-256 fingerprint are written by
+# scripts/e2e_lib/extract_tranert_properties.py against the live Spring
+# property file at AIT/SIT setup. The deployment-bound artifact is the
+# regenerated 10_load/010_load_lookups_from_csv.sql, which IS committed.
+# The CSVs are an intermediate review aid; the .sha256 is a per-environment
+# idempotency fingerprint. Both regenerate on every fresh checkout.
+config/e2e/sources/SHAW/lookups/
+
+# Source-system reference materials (read-only, not for commit)
+#
+# Workspace-only reference files the agent reads to author SQL artifacts
+# under config/e2e/sources/SHAW/. Contents include Spring property bundles,
+# Oracle DSN strings, and GL cost-center mappings sourced from the SHAW
+# deployment. Never git-managed under any circumstance.
+/_ref/
+
+# Local, gitignored dev-helper toolkit + transient scratch artifacts.
+# Reusable Windows/CRLF/pytest-tail helpers and one-shot run output. Never
+# committed; the story loop uses explicit-path 'git add' and these defend it.
+/_devtools/
+_*.txt
+_*_report_*/
+

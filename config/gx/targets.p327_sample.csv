@@ -1,0 +1,2 @@
+target_id,data_file,delimiter,has_header,mapping_file,key_columns,required_columns,enabled
+p327_sample_200k,data/samples/p327_sample_200k.txt,|,false,config/mappings/p327_universal.json,ACCT-NUM,LOCATION-CODE|ACCT-NUM,true

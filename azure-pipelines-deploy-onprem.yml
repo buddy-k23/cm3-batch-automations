@@ -1,0 +1,80 @@
+# =============================================================================
+# Valdo — Classic Release Definition Reference
+# =============================================================================
+# This file documents the TFS Classic Release Definition for Valdo.
+# Create it in: Pipelines > Releases > New release pipeline > Empty job
+# Reference pipeline: APP_Interfaces_DDA_API_Release (Definition ID 7)
+#
+# ARTIFACT
+#   Source:          Build pipeline "valdo-release-build"
+#   Alias:           _valdo_release
+#   Default version: Latest
+#
+# PIPELINE VARIABLES (same as Java pipeline)
+#   ArtifactoryC360SnapshotRepo: Collections360-SNAPSHOT
+#   JFrog-CLI-location:          jfrog-cli-v1
+#
+# =============================================================================
+# ENVIRONMENT 1: SIT  (rank 1)
+# =============================================================================
+#   Pre-deploy approval:  ITE approvers from Java pipeline
+#   SSH endpoint:         fb43681f-641d-4edb-9fd6-1e6c55710be2  (SIT-TEST1)
+#   Environment variable: ValdoHome = /app/software/APPS/valdo
+#
+#   PHASE: Deploy Valdo to SIT-TEST1
+#   Agent pool: tdc  |  Agent: TDC-TFSBLD01
+#
+#   Task 1 — Delete Files
+#     SourceFolder: $(System.DefaultWorkingDirectory)\C360Deploy\$(Release.DefinitionName)
+#     Contents:     **
+#
+#   Task 2 — Artifactory Tools Installer
+#     artifactoryService: 91a62b60-fb55-4402-aafd-8c4ddc4ca3db
+#     cliInstallationRepo: $(JFrog-CLI-location)
+#
+#   Task 3 — Artifactory Generic Download (v3)
+#     connection: 91a62b60-fb55-4402-aafd-8c4ddc4ca3db
+#     fileSpec: |
+#       { "files": [{
+#           "pattern": "$(ArtifactoryC360SnapshotRepo)/$(Build.DefinitionName)/",
+#           "build":   "$(Build.DefinitionName)/$(Build.BuildNumber)",
+#           "flat":    "true",
+#           "target":  "$(System.DefaultWorkingDirectory)\C360Deploy\$(Release.DefinitionName)\"
+#       }]}
+#
+#   Task 4 — Extract Files (UnZIP)
+#     ZipFile:     $(System.DefaultWorkingDirectory)\C360Deploy\$(Release.DefinitionName)\$(Build.BuildNumber).zip
+#     ExtractPath: $(System.DefaultWorkingDirectory)\C360Deploy\$(Release.DefinitionName)
+#
+#   Task 5 — Copy Files Over SSH
+#     sshEndpoint:    fb43681f-641d-4edb-9fd6-1e6c55710be2
+#     sourceFolder:   $(System.DefaultWorkingDirectory)/C360Deploy/$(Release.DefinitionName)
+#     contents:       **
+#     targetFolder:   $(ValdoHome)
+#     overwrite:      true
+#     flattenFolders: false
+#
+#   Task 6 — SSH inline script
+#     sshEndpoint: fb43681f-641d-4edb-9fd6-1e6c55710be2
+#     inline: |
+#       cd $(ValdoHome)
+#       find . -type f -print0 | xargs -0 dos2unix -q
+#       chmod +x setup-linux.sh
+#       mkdir -p ~/.config/pip
+#       cat > ~/.config/pip/pip.conf << 'PIPEOF'
+#       [global]
+#       index-url = https://artifactory.bank.internal/artifactory/api/pypi/pypi-org/simple
+#       trusted-host = artifactory.bank.internal
+#       PIPEOF
+#       bash setup-linux.sh
+#
+# =============================================================================
+# ENVIRONMENT 2: AIT  (rank 2)
+# =============================================================================
+#   Pre-deploy approval:  API-DEV2 approvers from Java pipeline
+#   Condition:            After SIT succeeds (conditionType: environmentStatus, value: 4)
+#   SSH endpoint:         708dfc29-b28b-4a44-a075-904e63304eb5  (AIT-TEST1 / API-DEV2)
+#   Environment variable: ValdoHome = /app/software/apps9/APPS/valdo
+#
+#   PHASE: Deploy Valdo to AIT-TEST1
+#   Tasks: identical to SIT above — only SSH endpoint and ValdoHome differ

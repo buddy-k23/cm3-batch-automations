@@ -1,0 +1,172 @@
+# L2b SQL-Truth reconciliation spec — SHAW TRANERT (issue #19).
+#
+# Declarative driver for the generic db_truth_comparator engine
+# (scripts/e2e_lib/db_truth_comparator.py). Validated on load by
+# scripts/e2e_lib/reconciliation_spec.py::load_spec — unknown keys, bad
+# cardinalities, and malformed field specs fail fast.
+#
+# Two engine constraints shaped this file; both are load-bearing, do not
+# "simplify" them away:
+#
+#   1. record_types KEYS are the UMBRELLA record-type names, not the bare
+#      discriminator codes. The multi-record reader yields ParsedRow.record_type
+#      = the umbrella's logical name (rt_32000, batch_header, ...), and the
+#      engine dispatches file rows to spec record types by that name. The
+#      umbrella is config/mappings/SHAW_TRANERT.yaml.
+#
+#   2. Each record type's `key` is matched against BOTH the parsed file row
+#      (mapping-JSON DASH field names, e.g. LN-NUM-ERT) and the expected SQL
+#      rowset. The expected_*.sql wrappers therefore alias the key column to
+#      the dash form via Oracle quoted identifiers (e.g. AS "LN-NUM-ERT"), so
+#      the same key string resolves on both sides. `key` here uses the dash
+#      form to match. Non-key `expected_column` values use the underscore
+#      table-column names (LN_NUM_ERT, EFF_DAT_ERT, ...).
+#
+# The expected rows are materialized app_int tables (CTAS), not views: app_int
+# holds CREATE TABLE but not CREATE VIEW (session-7 shape (B)). The query_dir
+# expected_*.sql files are thin SELECTs over those tables.
+#
+# Deferred fields (issue #18 §3): fields whose value depends on stateful Java
+# behaviour the SQL cannot reproduce have NO expected column and are listed in
+# `ignored_fields` for BA visibility. The L3 baseline diff covers them. Do not
+# invent columns to lift these — see the TODO(valdo-gap) markers in
+# 00_bootstrap/030_expected_tables.sql and the issue-18 handover §3.
+
+schema_version: 1
+source: SHAW
+file_type: TRANERT
+umbrella_mapping: config/mappings/SHAW_TRANERT.yaml
+bootstrap_dir: config/e2e/sources/SHAW/sql/tranert/00_bootstrap
+load_dir:      config/e2e/sources/SHAW/sql/tranert/10_load
+query_dir:     config/e2e/sources/SHAW/sql/tranert/20_query
+
+record_types:
+
+  # --- Batch Header (umbrella position: "first") ---
+  batch_header:
+    expected_sql: expected_batch_header.sql
+    cardinality: one_per_driver_row
+    key: [BK-NUM-BRT]
+    fields:
+      - { file_field: BK-NUM-BRT,  expected_column: BK_NUM_BRT }
+      - { file_field: APP-BRT,     expected_column: APP_BRT }
+      - { file_field: TRN-COD-BRT, expected_column: TRN_COD_BRT }
+      - { file_field: BAT-TYP-BRT, expected_column: BAT_TYP_BRT }
+      - { file_field: ITM-CNT-BRT, expected_column: ITM_CNT_BRT }
+
+  # --- 32000 (NEW1): one row per driver row ---
+  rt_32000:
+    expected_sql: expected_32000.sql
+    cardinality: one_per_driver_row
+    key: [LN-NUM-ERT]
+    fields:
+      - { file_field: BK-NUM-ERT,   expected_column: BK_NUM_ERT }
+      - { file_field: TRN-COD-ERT,  expected_column: TRN_COD_ERT }
+      - { file_field: APP-ERT,      expected_column: APP_ERT }
+      - { file_field: LN-NUM-ERT,   expected_column: LN_NUM_ERT }
+      - { file_field: EFF-DAT-ERT,  expected_column: EFF_DAT_ERT }
+      - { file_field: LCT-COD-NEW1, expected_column: LCT_COD_NEW1 }
+
+  # --- 32005 (CUS): zero-or-more per driver row, composite key ---
+  rt_32005:
+    expected_sql: expected_32005.sql
+    cardinality: many_per_driver_row
+    key: [LN-NUM-ERT, CONTACT-ID]
+    fields:
+      - { file_field: BK-NUM-ERT,          expected_column: BK_NUM_ERT }
+      - { file_field: TRN-COD-ERT,         expected_column: TRN_COD_ERT }
+      - { file_field: APP-ERT,             expected_column: APP_ERT }
+      - { file_field: LN-NUM-ERT,          expected_column: LN_NUM_ERT }
+      - { file_field: EFF-DAT-ERT,         expected_column: EFF_DAT_ERT }
+      - { file_field: CONTACT-ID,          expected_column: CONTACT_ID }
+      - { file_field: ECOA-CODE-CUS,       expected_column: ECOA_CODE_CUS }
+      - { file_field: CIF-CSM-INF-IND-CUS, expected_column: CIF_CSM_INF_IND_CUS }
+    ignored_fields:
+      # Deferred (issue #18 §3) — no expected column; L3 covers them.
+      - CIF-REF-NUM-CUS       # needs per-account contact ordinal (stateful Java)
+      - CIF-ACT-COD-CUS       # 997/'P' short-circuit needs ordinal + primary flag
+
+  # --- 32010 (ORI): zero-or-one per driver row, predicate CHG_OFF_CD = '1' ---
+  rt_32010:
+    expected_sql: expected_32010.sql
+    cardinality: zero_or_one_per_driver_row
+    predicate: "CHG_OFF_CD = '1'"
+    key: [LN-NUM-ERT]
+    fields:
+      - { file_field: BK-NUM-ERT,         expected_column: BK_NUM_ERT }
+      - { file_field: TRN-COD-ERT,        expected_column: TRN_COD_ERT }
+      - { file_field: APP-ERT,            expected_column: APP_ERT }
+      - { file_field: LN-NUM-ERT,         expected_column: LN_NUM_ERT }
+      - { file_field: EFF-DAT-ERT,        expected_column: EFF_DAT_ERT }
+      - { file_field: OGL-CONTRACT-DAT-ORI, expected_column: OGL_CONTRACT_DAT_ORI }
+      - { file_field: OGL-NTE-AMT-ORI,    expected_column: OGL_NTE_AMT_ORI }
+      - { file_field: OGL-COF-INT-AMT-ORI, expected_column: OGL_COF_INT_AMT_ORI }
+      - { file_field: OGL-CONTRACT-AMT-ORI, expected_column: OGL_CONTRACT_AMT_ORI }
+      - { file_field: OGL-NTE-DAT-ORI, expected_column: OGL_NTE_DAT_ORI, predicate: "CHG_OFF_CD = '1'" }
+      - { file_field: COF-REA-COD-ORI,    expected_column: COF_REA_COD_ORI }
+      - { file_field: OGL-PMT-AMT-ORI,    expected_column: OGL_PMT_AMT_ORI }
+      - { file_field: DAT-INT-ACR-TO-ORI, expected_column: DAT_INT_ACR_TO_ORI }
+      - { file_field: PCOF-DAT-LAS-PMT-ORI, expected_column: PCOF_DAT_LAS_PMT_ORI }
+      # ST-COD-ORI leg A (BK property lookup) IS materialized; leg B
+      # (stateProvinceMap, cross-run JVM state) is deferred (issue #18 §3).
+      - { file_field: ST-COD-ORI,         expected_column: ST_COD_ORI }
+
+  # --- 32025 (COD): one row per driver row ---
+  rt_32025:
+    expected_sql: expected_32025.sql
+    cardinality: one_per_driver_row
+    key: [LN-NUM-ERT]
+    fields:
+      - { file_field: BK-NUM-ERT,      expected_column: BK_NUM_ERT }
+      - { file_field: TRN-COD-ERT,     expected_column: TRN_COD_ERT }
+      - { file_field: APP-ERT,         expected_column: APP_ERT }
+      - { file_field: LN-NUM-ERT,      expected_column: LN_NUM_ERT }
+      - { file_field: EFF-DAT-ERT,     expected_column: EFF_DAT_ERT }
+      - { file_field: LGL-STA-COD-COD, expected_column: LGL_STA_COD_COD }
+      - { file_field: RPO-COD-COD,     expected_column: RPO_COD_COD }
+      - { file_field: DAT-LAS-RPO-COD, expected_column: DAT_LAS_RPO_COD }
+      - { file_field: DUE-DAT-DAY-COD, expected_column: DUE_DAT_DAY_COD }
+      - { file_field: ORG-LVL-NUM-6-COD, expected_column: ORG_LVL_NUM6_COD }
+      - { file_field: LCE-GEO-COD-COD, expected_column: LCE_GEO_COD_COD }
+      - { file_field: OGL-LN-OFC-COD,  expected_column: OGL_LN_OFC_COD }
+    ignored_fields:
+      # Deferred (issue #18 §3) — l.getMOfficer() has no M_OFFICER source column.
+      - LN-OFC-CUR-COD
+
+  # --- 32040 (CBRS): one row per driver row ---
+  rt_32040:
+    expected_sql: expected_32040.sql
+    cardinality: one_per_driver_row
+    key: [LN-NUM-ERT]
+    fields:
+      - { file_field: BK-NUM-ERT,         expected_column: BK_NUM_ERT }
+      - { file_field: TRN-COD-ERT,        expected_column: TRN_COD_ERT }
+      - { file_field: APP-ERT,            expected_column: APP_ERT }
+      - { file_field: LN-NUM-ERT,         expected_column: LN_NUM_ERT }
+      - { file_field: EFF-DAT-ERT,        expected_column: EFF_DAT_ERT }
+      - { file_field: DAT-DLQ-STR-CBRS,   expected_column: DAT_DLQ_STR_CBRS }
+      - { file_field: HGH-AMT-DLQ-CBRS,   expected_column: HGH_AMT_DLQ_CBRS }
+      - { file_field: PRE-COF-L1-NUM-CBRS, expected_column: PRE_COF_L1_NUM_CBRS }
+      - { file_field: ACT-TYP-CBRS,       expected_column: ACT_TYP_CBRS }
+
+  # --- 32075 (REC): one row per driver row ---
+  rt_32075:
+    expected_sql: expected_32075.sql
+    cardinality: one_per_driver_row
+    key: [LN-NUM-ERT]
+    fields:
+      - { file_field: BK-NUM-ERT,      expected_column: BK_NUM_ERT }
+      - { file_field: TRN-COD-ERT,     expected_column: TRN_COD_ERT }
+      - { file_field: APP-ERT,         expected_column: APP_ERT }
+      - { file_field: LN-NUM-ERT,      expected_column: LN_NUM_ERT }
+      - { file_field: EFF-DAT-ERT,     expected_column: EFF_DAT_ERT }
+      - { file_field: RCF-DUE-REC,     expected_column: RCF_DUE_REC }
+      - { file_field: RCF-REF-NUM-REC, expected_column: RCF_REF_NUM_REC }
+      - { file_field: EXP-PYF-IND-REC, expected_column: EXP_PYF_IND_REC }
+
+assertions:
+  # ITM-CNT-BRT in the Batch Header must equal the count of all detail rows.
+  # The engine resolves `header.*` from the position="first" record (batch_header)
+  # and `sum(detail_row_counts)` from every non-positional record type.
+  - name: batch_header_count
+    expr: "header.ITM-CNT-BRT == sum(detail_row_counts)"

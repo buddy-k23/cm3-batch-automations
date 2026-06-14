@@ -1,0 +1,19 @@
+Rule ID,Rule Name,Field,Rule Type,Severity,Enabled,Message,Expected / Values
+R001,LOCATION-CODE required,LOCATION-CODE,not_empty,error,Yes,LOCATION-CODE must not be empty,
+R002,LOCATION-CODE length check,LOCATION-CODE,length,error,Yes,LOCATION-CODE payload length must be between 1 and 6 characters,1..6
+R003,LOCATION-CODE valid values,LOCATION-CODE,valid_values,error,Yes,LOCATION-CODE must be one of: 100030,100030
+R004,ACCT-NUM required,ACCT-NUM,not_empty,error,Yes,ACCT-NUM must not be empty,
+R005,ACCT-NUM length check,ACCT-NUM,length,error,Yes,ACCT-NUM payload length must be between 14 and 18 characters,14..18
+R006,TRANSACTION-CODE required,TRANSACTION-CODE,not_empty,error,Yes,TRANSACTION-CODE must not be empty,
+R007,TRANSACTION-CODE length check,TRANSACTION-CODE,length,error,Yes,TRANSACTION-CODE payload length must be between 1 and 3 characters,1..3
+R008,TRANSACTION-CODE valid values,TRANSACTION-CODE,valid_values,error,Yes,TRANSACTION-CODE must be one of: 700,700
+R009,TRANSACTION-DATE required,TRANSACTION-DATE,not_empty,error,Yes,TRANSACTION-DATE must not be empty,
+R010,TRANSACTION-DATE date format,TRANSACTION-DATE,date_format,error,Yes,TRANSACTION-DATE must be a valid date (CCYYMMDD),CCYYMMDD
+R011,TRANSACTION-DATE length check,TRANSACTION-DATE,exact_length,error,Yes,TRANSACTION-DATE must be exactly 8 characters,8
+R012,NG-CHECK-AMOUNT required,NG-CHECK-AMOUNT,not_empty,error,Yes,NG-CHECK-AMOUNT must not be empty,
+R013,NG-CHECK-AMOUNT numeric,NG-CHECK-AMOUNT,numeric,error,Yes,NG-CHECK-AMOUNT must be numeric,
+R014,NG-CHECK-AMOUNT length check,NG-CHECK-AMOUNT,exact_length,error,Yes,NG-CHECK-AMOUNT must be exactly 18 characters,18
+R015,THIRD-PARTY-COMM-AMT numeric,THIRD-PARTY-COMM-AMT,numeric,error,Yes,THIRD-PARTY-COMM-AMT must be numeric,
+R016,THIRD-PARTY-COMM-AMT valid values,THIRD-PARTY-COMM-AMT,valid_values,error,Yes,THIRD-PARTY-COMM-AMT must be one of: 000000000000000000,000000000000000000
+R017,INPUT-SOURCE-CODE numeric,INPUT-SOURCE-CODE,numeric,error,Yes,INPUT-SOURCE-CODE must be numeric,
+R018,INPUT-SOURCE-CODE valid values,INPUT-SOURCE-CODE,valid_values,error,Yes,INPUT-SOURCE-CODE must be one of: 000,000

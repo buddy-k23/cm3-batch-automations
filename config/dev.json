@@ -1,0 +1,18 @@
+{
+  "environment": "dev",
+  "database": {
+    "username": "APP_INT",
+    "dsn": "localhost:1521/FREEPDB1",
+    "encoding": "UTF-8"
+  },
+  "logging": {
+    "level": "DEBUG",
+    "log_dir": "logs",
+    "log_to_file": true
+  },
+  "file_processing": {
+    "input_dir": "data/samples",
+    "output_dir": "reports",
+    "archive_dir": "data/archive"
+  }
+}

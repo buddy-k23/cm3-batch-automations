@@ -1,0 +1,71 @@
+Rule ID,Rule Name,Field,Rule Type,Severity,Enabled,Message,Expected / Values
+R001,BK-NUM-ERT required,BK-NUM-ERT,not_empty,error,Yes,BK-NUM-ERT must not be empty,
+R002,BK-NUM-ERT numeric,BK-NUM-ERT,numeric,error,Yes,BK-NUM-ERT must be numeric,
+R003,BK-NUM-ERT length check,BK-NUM-ERT,exact_length,error,Yes,BK-NUM-ERT must be exactly 5 characters,5
+R004,BK-NUM-ERT valid values,BK-NUM-ERT,valid_values,error,Yes,BK-NUM-ERT must be one of: 00040,00040
+R005,APP-ERT required,APP-ERT,not_empty,error,Yes,APP-ERT must not be empty,
+R006,APP-ERT numeric,APP-ERT,numeric,error,Yes,APP-ERT must be numeric,
+R007,APP-ERT length check,APP-ERT,exact_length,error,Yes,APP-ERT must be exactly 3 characters,3
+R008,APP-ERT valid values,APP-ERT,valid_values,error,Yes,APP-ERT must be one of: 001,001
+R009,LN-NUM-ERT required,LN-NUM-ERT,not_empty,error,Yes,LN-NUM-ERT must not be empty,
+R010,LN-NUM-ERT length check,LN-NUM-ERT,length,error,Yes,LN-NUM-ERT payload length must be between 14 and 18 characters,14..18
+R011,EFF-DAT-ERT required,EFF-DAT-ERT,not_empty,error,Yes,EFF-DAT-ERT must not be empty,
+R012,EFF-DAT-ERT date format,EFF-DAT-ERT,date_format,error,Yes,EFF-DAT-ERT must be a valid date (MM/DD/CCYY),MM/DD/CCYY
+R013,EFF-DAT-ERT length check,EFF-DAT-ERT,exact_length,error,Yes,EFF-DAT-ERT must be exactly 10 characters,10
+R014,TRN-COD-ERT required,TRN-COD-ERT,not_empty,error,Yes,TRN-COD-ERT must not be empty,
+R015,TRN-COD-ERT numeric,TRN-COD-ERT,numeric,error,Yes,TRN-COD-ERT must be numeric,
+R016,TRN-COD-ERT length check,TRN-COD-ERT,exact_length,error,Yes,TRN-COD-ERT must be exactly 5 characters,5
+R017,TRN-COD-ERT valid values,TRN-COD-ERT,valid_values,error,Yes,TRN-COD-ERT must be one of: 32010,32010
+R018,BAT-ITM-NUM-ERT required,BAT-ITM-NUM-ERT,not_empty,error,Yes,BAT-ITM-NUM-ERT must not be empty,
+R019,BAT-ITM-NUM-ERT numeric,BAT-ITM-NUM-ERT,numeric,error,Yes,BAT-ITM-NUM-ERT must be numeric,
+R020,BAT-ITM-NUM-ERT length check,BAT-ITM-NUM-ERT,exact_length,error,Yes,BAT-ITM-NUM-ERT must be exactly 9 characters,9
+R021,INP-SRC-COD-ERT numeric,INP-SRC-COD-ERT,numeric,error,Yes,INP-SRC-COD-ERT must be numeric,
+R022,TRN-CNT-ERT numeric,TRN-CNT-ERT,numeric,error,Yes,TRN-CNT-ERT must be numeric,
+R023,OGL-CONTRACT-DAT-ORI required,OGL-CONTRACT-DAT-ORI,not_empty,error,Yes,OGL-CONTRACT-DAT-ORI must not be empty,
+R024,OGL-CONTRACT-DAT-ORI date format,OGL-CONTRACT-DAT-ORI,date_format,error,Yes,OGL-CONTRACT-DAT-ORI must be a valid date (MM/DD/CCYY),MM/DD/CCYY
+R025,OGL-CONTRACT-DAT-ORI length check,OGL-CONTRACT-DAT-ORI,exact_length,error,Yes,OGL-CONTRACT-DAT-ORI must be exactly 10 characters,10
+R026,OGL-TRM-ORI numeric,OGL-TRM-ORI,numeric,error,Yes,OGL-TRM-ORI must be numeric,
+R027,OGL-MAT-DAT-ORI date format,OGL-MAT-DAT-ORI,date_format,error,Yes,OGL-MAT-DAT-ORI must be a valid date (MM/DD/CCYY),MM/DD/CCYY
+R028,OGL-CONTRACT-AMT-ORI numeric,OGL-CONTRACT-AMT-ORI,numeric,error,Yes,OGL-CONTRACT-AMT-ORI must be numeric,
+R029,OGL-PORTFOLIO-TYP-ORI required,OGL-PORTFOLIO-TYP-ORI,not_empty,error,Yes,OGL-PORTFOLIO-TYP-ORI must not be empty,
+R030,OGL-PORTFOLIO-TYP-ORI length check,OGL-PORTFOLIO-TYP-ORI,length,error,Yes,OGL-PORTFOLIO-TYP-ORI payload length must be between 1 and 1 characters,1..1
+R031,OGL-PORTFOLIO-TYP-ORI valid values,OGL-PORTFOLIO-TYP-ORI,valid_values,error,Yes,OGL-PORTFOLIO-TYP-ORI must be one of: C|I,C|I
+R032,LN-TYP-ORI required,LN-TYP-ORI,not_empty,error,Yes,LN-TYP-ORI must not be empty,
+R033,LN-TYP-ORI numeric,LN-TYP-ORI,numeric,error,Yes,LN-TYP-ORI must be numeric,
+R034,LN-TYP-ORI length check,LN-TYP-ORI,exact_length,error,Yes,LN-TYP-ORI must be exactly 3 characters,3
+R035,COF-CDN-IND-ORI numeric,COF-CDN-IND-ORI,numeric,error,Yes,COF-CDN-IND-ORI must be numeric,
+R036,COF-CDN-IND-ORI valid values,COF-CDN-IND-ORI,valid_values,error,Yes,COF-CDN-IND-ORI must be one of: 1,1
+R037,OGL-NTE-DAT-ORI required,OGL-NTE-DAT-ORI,not_empty,error,Yes,OGL-NTE-DAT-ORI must not be empty,
+R038,OGL-NTE-DAT-ORI date format,OGL-NTE-DAT-ORI,date_format,error,Yes,OGL-NTE-DAT-ORI must be a valid date (MM/DD/CCYY),MM/DD/CCYY
+R039,OGL-NTE-DAT-ORI length check,OGL-NTE-DAT-ORI,exact_length,error,Yes,OGL-NTE-DAT-ORI must be exactly 10 characters,10
+R040,OGL-NTE-AMT-ORI required,OGL-NTE-AMT-ORI,not_empty,error,Yes,OGL-NTE-AMT-ORI must not be empty,
+R041,OGL-NTE-AMT-ORI numeric,OGL-NTE-AMT-ORI,numeric,error,Yes,OGL-NTE-AMT-ORI must be numeric,
+R042,OGL-NTE-AMT-ORI length check,OGL-NTE-AMT-ORI,length,error,Yes,OGL-NTE-AMT-ORI payload length must be between 1 and 22 characters,1..22
+R043,OGL-COF-INT-AMT-ORI numeric,OGL-COF-INT-AMT-ORI,numeric,error,Yes,OGL-COF-INT-AMT-ORI must be numeric,
+R044,INT-RT-ORI numeric,INT-RT-ORI,numeric,error,Yes,INT-RT-ORI must be numeric,
+R045,OGL-INT-RT-ORI numeric,OGL-INT-RT-ORI,numeric,error,Yes,OGL-INT-RT-ORI must be numeric,
+R046,REP-TYP-ORI required,REP-TYP-ORI,not_empty,error,Yes,REP-TYP-ORI must not be empty,
+R047,REP-TYP-ORI numeric,REP-TYP-ORI,numeric,error,Yes,REP-TYP-ORI must be numeric,
+R048,REP-TYP-ORI length check,REP-TYP-ORI,exact_length,error,Yes,REP-TYP-ORI must be exactly 3 characters,3
+R049,HGH-BAL-ORI numeric,HGH-BAL-ORI,numeric,error,Yes,HGH-BAL-ORI must be numeric,
+R050,AMT-PAS-DUE-30-ORI numeric,AMT-PAS-DUE-30-ORI,numeric,error,Yes,AMT-PAS-DUE-30-ORI must be numeric,
+R051,AMT-PAS-DUE-60-ORI numeric,AMT-PAS-DUE-60-ORI,numeric,error,Yes,AMT-PAS-DUE-60-ORI must be numeric,
+R052,AMT-PAS-DUE-90-ORI numeric,AMT-PAS-DUE-90-ORI,numeric,error,Yes,AMT-PAS-DUE-90-ORI must be numeric,
+R053,AMT-PAS-DUE-120-ORI numeric,AMT-PAS-DUE-120-ORI,numeric,error,Yes,AMT-PAS-DUE-120-ORI must be numeric,
+R054,OGL-NUM-PMT-MTD-ORI numeric,OGL-NUM-PMT-MTD-ORI,numeric,error,Yes,OGL-NUM-PMT-MTD-ORI must be numeric,
+R055,OGL-NUM-PMT-YTD-ORI numeric,OGL-NUM-PMT-YTD-ORI,numeric,error,Yes,OGL-NUM-PMT-YTD-ORI must be numeric,
+R056,OGL-NUM-PMT-LTD-ORI numeric,OGL-NUM-PMT-LTD-ORI,numeric,error,Yes,OGL-NUM-PMT-LTD-ORI must be numeric,
+R057,OGL-PMT-AMT-MTD-ORI numeric,OGL-PMT-AMT-MTD-ORI,numeric,error,Yes,OGL-PMT-AMT-MTD-ORI must be numeric,
+R058,OGL-PMT-AMT-YTD-ORI numeric,OGL-PMT-AMT-YTD-ORI,numeric,error,Yes,OGL-PMT-AMT-YTD-ORI must be numeric,
+R059,OGL-PMT-AMT-LTD-ORI numeric,OGL-PMT-AMT-LTD-ORI,numeric,error,Yes,OGL-PMT-AMT-LTD-ORI must be numeric,
+R060,ST-COD-ORI valid values,ST-COD-ORI,valid_values,error,Yes,ST-COD-ORI must be one of: NC|SC|VA|GA|MD|DC|WV|KY|TX|NV|TN|AL|IN|FL|MS|AR|OH|PA|NJ,NC|SC|VA|GA|MD|DC|WV|KY|TX|NV|TN|AL|IN|FL|MS|AR|OH|PA|NJ
+R061,DAT-INT-ACR-TO-ORI required,DAT-INT-ACR-TO-ORI,not_empty,error,Yes,DAT-INT-ACR-TO-ORI must not be empty,
+R062,DAT-INT-ACR-TO-ORI date format,DAT-INT-ACR-TO-ORI,date_format,error,Yes,DAT-INT-ACR-TO-ORI must be a valid date (MM/DD/CCYY),MM/DD/CCYY
+R063,DAT-INT-ACR-TO-ORI length check,DAT-INT-ACR-TO-ORI,exact_length,error,Yes,DAT-INT-ACR-TO-ORI must be exactly 10 characters,10
+R064,ACT-STA-ORI numeric,ACT-STA-ORI,numeric,error,Yes,ACT-STA-ORI must be numeric,
+R065,ACT-STA-ORI valid values,ACT-STA-ORI,valid_values,error,Yes,ACT-STA-ORI must be one of: 0,0
+R066,PCOF-DAT-LAS-PMT-ORI date format,PCOF-DAT-LAS-PMT-ORI,date_format,error,Yes,PCOF-DAT-LAS-PMT-ORI must be a valid date (MM/DD/CCYY),MM/DD/CCYY
+R067,DAT-LAS-STM-ORI date format,DAT-LAS-STM-ORI,date_format,error,Yes,DAT-LAS-STM-ORI must be a valid date (MM/DD/CCYY),MM/DD/CCYY
+R068,PCOF-PMT-AMT-LAS-ORI numeric,PCOF-PMT-AMT-LAS-ORI,numeric,error,Yes,PCOF-PMT-AMT-LAS-ORI must be numeric,
+R069,OGL-PMT-AMT-ORI numeric,OGL-PMT-AMT-ORI,numeric,error,Yes,OGL-PMT-AMT-ORI must be numeric,
+R070,DAT-ACT-CLS-TO-ATY-ORI date format,DAT-ACT-CLS-TO-ATY-ORI,date_format,error,Yes,DAT-ACT-CLS-TO-ATY-ORI must be a valid date (MM/DD/CCYY),MM/DD/CCYY

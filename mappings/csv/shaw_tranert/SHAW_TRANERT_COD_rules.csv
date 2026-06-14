@@ -1,0 +1,78 @@
+Rule ID,Rule Name,Field,Rule Type,Severity,Enabled,Message,Expected / Values
+R001,BK-NUM-ERT required,BK-NUM-ERT,not_empty,error,Yes,BK-NUM-ERT must not be empty,
+R002,BK-NUM-ERT numeric,BK-NUM-ERT,numeric,error,Yes,BK-NUM-ERT must be numeric,
+R003,BK-NUM-ERT length check,BK-NUM-ERT,exact_length,error,Yes,BK-NUM-ERT must be exactly 5 characters,5
+R004,BK-NUM-ERT valid values,BK-NUM-ERT,valid_values,error,Yes,BK-NUM-ERT must be one of: 00040,00040
+R005,APP-ERT required,APP-ERT,not_empty,error,Yes,APP-ERT must not be empty,
+R006,APP-ERT numeric,APP-ERT,numeric,error,Yes,APP-ERT must be numeric,
+R007,APP-ERT length check,APP-ERT,exact_length,error,Yes,APP-ERT must be exactly 3 characters,3
+R008,APP-ERT valid values,APP-ERT,valid_values,error,Yes,APP-ERT must be one of: 001,001
+R009,LN-NUM-ERT required,LN-NUM-ERT,not_empty,error,Yes,LN-NUM-ERT must not be empty,
+R010,LN-NUM-ERT length check,LN-NUM-ERT,length,error,Yes,LN-NUM-ERT payload length must be between 14 and 18 characters,14..18
+R011,EFF-DAT-ERT required,EFF-DAT-ERT,not_empty,error,Yes,EFF-DAT-ERT must not be empty,
+R012,EFF-DAT-ERT date format,EFF-DAT-ERT,date_format,error,Yes,EFF-DAT-ERT must be a valid date (MM/DD/CCYY),MM/DD/CCYY
+R013,EFF-DAT-ERT length check,EFF-DAT-ERT,exact_length,error,Yes,EFF-DAT-ERT must be exactly 10 characters,10
+R014,TRN-COD-ERT required,TRN-COD-ERT,not_empty,error,Yes,TRN-COD-ERT must not be empty,
+R015,TRN-COD-ERT numeric,TRN-COD-ERT,numeric,error,Yes,TRN-COD-ERT must be numeric,
+R016,TRN-COD-ERT length check,TRN-COD-ERT,exact_length,error,Yes,TRN-COD-ERT must be exactly 5 characters,5
+R017,TRN-COD-ERT valid values,TRN-COD-ERT,valid_values,error,Yes,TRN-COD-ERT must be one of: 32025,32025
+R018,BAT-ITM-NUM-ERT required,BAT-ITM-NUM-ERT,not_empty,error,Yes,BAT-ITM-NUM-ERT must not be empty,
+R019,BAT-ITM-NUM-ERT numeric,BAT-ITM-NUM-ERT,numeric,error,Yes,BAT-ITM-NUM-ERT must be numeric,
+R020,BAT-ITM-NUM-ERT length check,BAT-ITM-NUM-ERT,exact_length,error,Yes,BAT-ITM-NUM-ERT must be exactly 9 characters,9
+R021,INP-SRC-COD-ERT numeric,INP-SRC-COD-ERT,numeric,error,Yes,INP-SRC-COD-ERT must be numeric,
+R022,TRN-CNT-ERT numeric,TRN-CNT-ERT,numeric,error,Yes,TRN-CNT-ERT must be numeric,
+R023,STP-ACR-ATY-COD-COD numeric,STP-ACR-ATY-COD-COD,numeric,error,Yes,STP-ACR-ATY-COD-COD must be numeric,
+R024,DAT-PLC-IN-STP-COD date format,DAT-PLC-IN-STP-COD,date_format,error,Yes,DAT-PLC-IN-STP-COD must be a valid date (MM/DD/CCYY),MM/DD/CCYY
+R025,DAT-STP-ACR-RMD-COD date format,DAT-STP-ACR-RMD-COD,date_format,error,Yes,DAT-STP-ACR-RMD-COD must be a valid date (MM/DD/CCYY),MM/DD/CCYY
+R026,INT-ACR-WHI-STP-COD numeric,INT-ACR-WHI-STP-COD,numeric,error,Yes,INT-ACR-WHI-STP-COD must be numeric,
+R027,LGL-STA-COD-COD valid values,LGL-STA-COD-COD,valid_values,error,Yes,LGL-STA-COD-COD must be one of: STL|RPO|B06|FCL|PRP|TBD,STL|RPO|B06|FCL|PRP|TBD
+R028,DAT-LAS-RPO-COD date format,DAT-LAS-RPO-COD,date_format,error,Yes,DAT-LAS-RPO-COD must be a valid date (MM/DD/CCYY),MM/DD/CCYY
+R029,RPO-COD-COD numeric,RPO-COD-COD,numeric,error,Yes,RPO-COD-COD must be numeric,
+R030,RPO-COD-COD valid values,RPO-COD-COD,valid_values,error,Yes,RPO-COD-COD must be one of: 0|1,0|1
+R031,DUE-DAT-DAY-COD required,DUE-DAT-DAY-COD,not_empty,error,Yes,DUE-DAT-DAY-COD must not be empty,
+R032,DUE-DAT-DAY-COD numeric,DUE-DAT-DAY-COD,numeric,error,Yes,DUE-DAT-DAY-COD must be numeric,
+R033,DUE-DAT-DAY-COD length check,DUE-DAT-DAY-COD,exact_length,error,Yes,DUE-DAT-DAY-COD must be exactly 2 characters,2
+R034,DAT-RMD-RPO-COD date format,DAT-RMD-RPO-COD,date_format,error,Yes,DAT-RMD-RPO-COD must be a valid date (MM/DD/CCYY),MM/DD/CCYY
+R035,ORG-LVL-NUM-1-COD numeric,ORG-LVL-NUM-1-COD,numeric,error,Yes,ORG-LVL-NUM-1-COD must be numeric,
+R036,ORG-LVL-NUM-1-COD valid values,ORG-LVL-NUM-1-COD,valid_values,error,Yes,ORG-LVL-NUM-1-COD must be one of: 0000001,0000001
+R037,ORG-LVL-NUM-2-COD numeric,ORG-LVL-NUM-2-COD,numeric,error,Yes,ORG-LVL-NUM-2-COD must be numeric,
+R038,ORG-LVL-NUM-2-COD valid values,ORG-LVL-NUM-2-COD,valid_values,error,Yes,ORG-LVL-NUM-2-COD must be one of: 0000001,0000001
+R039,ORG-LVL-NUM-3-COD numeric,ORG-LVL-NUM-3-COD,numeric,error,Yes,ORG-LVL-NUM-3-COD must be numeric,
+R040,ORG-LVL-NUM-3-COD valid values,ORG-LVL-NUM-3-COD,valid_values,error,Yes,ORG-LVL-NUM-3-COD must be one of: 0000040,0000040
+R041,ORG-LVL-NUM-4-COD numeric,ORG-LVL-NUM-4-COD,numeric,error,Yes,ORG-LVL-NUM-4-COD must be numeric,
+R042,ORG-LVL-NUM-4-COD valid values,ORG-LVL-NUM-4-COD,valid_values,error,Yes,ORG-LVL-NUM-4-COD must be one of: 0000304|0000102,0000304|0000102
+R043,ORG-LVL-NUM-5-COD numeric,ORG-LVL-NUM-5-COD,numeric,error,Yes,ORG-LVL-NUM-5-COD must be numeric,
+R044,ORG-LVL-NUM-5-COD valid values,ORG-LVL-NUM-5-COD,valid_values,error,Yes,ORG-LVL-NUM-5-COD must be one of: 0000001,0000001
+R045,ORG-LVL-NUM-6-COD numeric,ORG-LVL-NUM-6-COD,numeric,error,Yes,ORG-LVL-NUM-6-COD must be numeric,
+R046,ORG-LVL-NUM-7-COD numeric,ORG-LVL-NUM-7-COD,numeric,error,Yes,ORG-LVL-NUM-7-COD must be numeric,
+R047,ORG-LVL-NUM-8-COD numeric,ORG-LVL-NUM-8-COD,numeric,error,Yes,ORG-LVL-NUM-8-COD must be numeric,
+R048,ORG-LVL-NUM-9-COD numeric,ORG-LVL-NUM-9-COD,numeric,error,Yes,ORG-LVL-NUM-9-COD must be numeric,
+R049,ORG-LVL-NUM-10-COD numeric,ORG-LVL-NUM-10-COD,numeric,error,Yes,ORG-LVL-NUM-10-COD must be numeric,
+R050,ORG-LVL-NUM-11-COD numeric,ORG-LVL-NUM-11-COD,numeric,error,Yes,ORG-LVL-NUM-11-COD must be numeric,
+R051,ORG-LVL-NUM-12-COD numeric,ORG-LVL-NUM-12-COD,numeric,error,Yes,ORG-LVL-NUM-12-COD must be numeric,
+R052,OGL-LN-POO-NUM-COD numeric,OGL-LN-POO-NUM-COD,numeric,error,Yes,OGL-LN-POO-NUM-COD must be numeric,
+R053,OGL-BR-NUM-COD numeric,OGL-BR-NUM-COD,numeric,error,Yes,OGL-BR-NUM-COD must be numeric,
+R054,LN-PUR-COD-COD valid values,LN-PUR-COD-COD,valid_values,error,Yes,LN-PUR-COD-COD must be one of: 3,3
+R055,LN-CAT-COD required,LN-CAT-COD,not_empty,error,Yes,LN-CAT-COD must not be empty,
+R056,LN-CAT-COD numeric,LN-CAT-COD,numeric,error,Yes,LN-CAT-COD must be numeric,
+R057,LN-CAT-COD length check,LN-CAT-COD,exact_length,error,Yes,LN-CAT-COD must be exactly 3 characters,3
+R058,DLR-NUM-COD numeric,DLR-NUM-COD,numeric,error,Yes,DLR-NUM-COD must be numeric,
+R059,FCL-EFF-DAT-COD date format,FCL-EFF-DAT-COD,date_format,error,Yes,FCL-EFF-DAT-COD must be a valid date (MM/DD/CCYY),MM/DD/CCYY
+R060,STM-FRQ-COD required,STM-FRQ-COD,not_empty,error,Yes,STM-FRQ-COD must not be empty,
+R061,STM-FRQ-COD length check,STM-FRQ-COD,length,error,Yes,STM-FRQ-COD payload length must be between 1 and 1 characters,1..1
+R062,STM-FRQ-COD valid values,STM-FRQ-COD,valid_values,error,Yes,STM-FRQ-COD must be one of: M,M
+R063,NATL-CURRENCY-COD required,NATL-CURRENCY-COD,not_empty,error,Yes,NATL-CURRENCY-COD must not be empty,
+R064,NATL-CURRENCY-COD length check,NATL-CURRENCY-COD,length,error,Yes,NATL-CURRENCY-COD payload length must be between 1 and 3 characters,1..3
+R065,NATL-CURRENCY-COD valid values,NATL-CURRENCY-COD,valid_values,error,Yes,NATL-CURRENCY-COD must be one of: USD,USD
+R066,PREF-CURRENCY-COD required,PREF-CURRENCY-COD,not_empty,error,Yes,PREF-CURRENCY-COD must not be empty,
+R067,PREF-CURRENCY-COD length check,PREF-CURRENCY-COD,length,error,Yes,PREF-CURRENCY-COD payload length must be between 1 and 3 characters,1..3
+R068,PREF-CURRENCY-COD valid values,PREF-CURRENCY-COD,valid_values,error,Yes,PREF-CURRENCY-COD must be one of: USD,USD
+R069,BASE-CURRENCY-COD required,BASE-CURRENCY-COD,not_empty,error,Yes,BASE-CURRENCY-COD must not be empty,
+R070,BASE-CURRENCY-COD length check,BASE-CURRENCY-COD,length,error,Yes,BASE-CURRENCY-COD payload length must be between 1 and 3 characters,1..3
+R071,BASE-CURRENCY-COD valid values,BASE-CURRENCY-COD,valid_values,error,Yes,BASE-CURRENCY-COD must be one of: USD,USD
+R072,PRT-COF-BK-NUM-COD numeric,PRT-COF-BK-NUM-COD,numeric,error,Yes,PRT-COF-BK-NUM-COD must be numeric,
+R073,PRT-COF-APP-COD numeric,PRT-COF-APP-COD,numeric,error,Yes,PRT-COF-APP-COD must be numeric,
+R074,NAS-SRC-COD-COD numeric,NAS-SRC-COD-COD,numeric,error,Yes,NAS-SRC-COD-COD must be numeric,
+R075,NAS-SRC-COD-COD valid values,NAS-SRC-COD-COD,valid_values,error,Yes,NAS-SRC-COD-COD must be one of: 130,130
+R076,IRS-NUM-OF-MORT-COD numeric,IRS-NUM-OF-MORT-COD,numeric,error,Yes,IRS-NUM-OF-MORT-COD must be numeric,
+R077,IRS-NUM-OF-MORT-COD valid values,IRS-NUM-OF-MORT-COD,valid_values,error,Yes,IRS-NUM-OF-MORT-COD must be one of: 0000,0000

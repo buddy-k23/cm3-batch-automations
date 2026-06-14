@@ -1,0 +1,57 @@
+Rule ID,Rule Name,Field,Rule Type,Severity,Enabled,Message,Expected / Values
+R001,BK-NUM-ERT required,BK-NUM-ERT,not_empty,error,Yes,BK-NUM-ERT must not be empty,
+R002,BK-NUM-ERT numeric,BK-NUM-ERT,numeric,error,Yes,BK-NUM-ERT must be numeric,
+R003,BK-NUM-ERT length check,BK-NUM-ERT,exact_length,error,Yes,BK-NUM-ERT must be exactly 5 characters,5
+R004,APP-ERT required,APP-ERT,not_empty,error,Yes,APP-ERT must not be empty,
+R005,APP-ERT numeric,APP-ERT,numeric,error,Yes,APP-ERT must be numeric,
+R006,APP-ERT length check,APP-ERT,exact_length,error,Yes,APP-ERT must be exactly 3 characters,3
+R007,LN-NUM-ERT required,LN-NUM-ERT,not_empty,error,Yes,LN-NUM-ERT must not be empty,
+R008,LN-NUM-ERT length check,LN-NUM-ERT,length,error,Yes,LN-NUM-ERT payload length must be between 14 and 18 characters,14..18
+R009,EFF-DAT-ERT required,EFF-DAT-ERT,not_empty,error,Yes,EFF-DAT-ERT must not be empty,
+R010,EFF-DAT-ERT date format,EFF-DAT-ERT,date_format,error,Yes,EFF-DAT-ERT must be a valid date (MM/DD/CCYY),MM/DD/CCYY
+R011,EFF-DAT-ERT length check,EFF-DAT-ERT,exact_length,error,Yes,EFF-DAT-ERT must be exactly 10 characters,10
+R012,TRN-COD-ERT required,TRN-COD-ERT,not_empty,error,Yes,TRN-COD-ERT must not be empty,
+R013,TRN-COD-ERT numeric,TRN-COD-ERT,numeric,error,Yes,TRN-COD-ERT must be numeric,
+R014,TRN-COD-ERT length check,TRN-COD-ERT,exact_length,error,Yes,TRN-COD-ERT must be exactly 5 characters,5
+R015,TRN-COD-ERT valid values,TRN-COD-ERT,valid_values,error,Yes,TRN-COD-ERT must be one of: 32005,32005
+R016,BAT-ITM-NUM-ERT required,BAT-ITM-NUM-ERT,not_empty,error,Yes,BAT-ITM-NUM-ERT must not be empty,
+R017,BAT-ITM-NUM-ERT numeric,BAT-ITM-NUM-ERT,numeric,error,Yes,BAT-ITM-NUM-ERT must be numeric,
+R018,BAT-ITM-NUM-ERT length check,BAT-ITM-NUM-ERT,exact_length,error,Yes,BAT-ITM-NUM-ERT must be exactly 9 characters,9
+R019,INP-SRC-COD-ERT numeric,INP-SRC-COD-ERT,numeric,error,Yes,INP-SRC-COD-ERT must be numeric,
+R020,TRN-CNT-ERT numeric,TRN-CNT-ERT,numeric,error,Yes,TRN-CNT-ERT must be numeric,
+R021,CIF-ACT-NUM-CUS required,CIF-ACT-NUM-CUS,not_empty,error,Yes,CIF-ACT-NUM-CUS must not be empty,
+R022,CIF-ACT-NUM-CUS length check,CIF-ACT-NUM-CUS,length,error,Yes,CIF-ACT-NUM-CUS payload length must be between 1 and 24 characters,1..24
+R023,CIF-ACT-COD-CUS required,CIF-ACT-COD-CUS,not_empty,error,Yes,CIF-ACT-COD-CUS must not be empty,
+R024,CIF-ACT-COD-CUS length check,CIF-ACT-COD-CUS,length,error,Yes,CIF-ACT-COD-CUS payload length must be between 1 and 1 characters,1..1
+R025,CIF-CBR-RPT-IND-CUS valid values,CIF-CBR-RPT-IND-CUS,valid_values,error,Yes,CIF-CBR-RPT-IND-CUS must be one of: Y|N,Y|N
+R026,DAT-BKY-REC-CUS date format,DAT-BKY-REC-CUS,date_format,error,Yes,DAT-BKY-REC-CUS must be a valid date (MM/DD/CCYY),MM/DD/CCYY
+R027,CIF-REF-NUM-CUS required,CIF-REF-NUM-CUS,not_empty,error,Yes,CIF-REF-NUM-CUS must not be empty,
+R028,CIF-REF-NUM-CUS length check,CIF-REF-NUM-CUS,length,error,Yes,CIF-REF-NUM-CUS payload length must be between 1 and 3 characters,1..3
+R029,ECOA-CODE-CUS valid values,ECOA-CODE-CUS,valid_values,error,Yes,ECOA-CODE-CUS must be one of: 1|2|3|4|5|6|7|T|W|X|Z,1|2|3|4|5|6|7|T|W|X|Z
+R030,LAST-ECOA-CODE-CUS valid values,LAST-ECOA-CODE-CUS,valid_values,error,Yes,LAST-ECOA-CODE-CUS must be one of: 1|2|3|4|5|6|7|T|W|X|Z,1|2|3|4|5|6|7|T|W|X|Z
+R031,LAST-BUREAU-RECORDED-DATE-CUS date format,LAST-BUREAU-RECORDED-DATE-CUS,date_format,error,Yes,LAST-BUREAU-RECORDED-DATE-CUS must be a valid date (MM/DD/CCYY),MM/DD/CCYY
+R032,FINAL-REPORT-INDICATOR-CUS valid values,FINAL-REPORT-INDICATOR-CUS,valid_values,error,Yes,FINAL-REPORT-INDICATOR-CUS must be one of: Y|N,Y|N
+R033,LAST-REPORTED-SEG-TYPE-CUS valid values,LAST-REPORTED-SEG-TYPE-CUS,valid_values,error,Yes,LAST-REPORTED-SEG-TYPE-CUS must be one of: BA|J1,BA|J1
+R034,LAST-CHEX-RECORDED-DATE-CUS date format,LAST-CHEX-RECORDED-DATE-CUS,date_format,error,Yes,LAST-CHEX-RECORDED-DATE-CUS must be a valid date (MM/DD/CCYY),MM/DD/CCYY
+R035,ACTION-CODE required,ACTION-CODE,not_empty,error,Yes,ACTION-CODE must not be empty,
+R036,ACTION-CODE length check,ACTION-CODE,length,error,Yes,ACTION-CODE payload length must be between 1 and 1 characters,1..1
+R037,CONTACT-ID required,CONTACT-ID,not_empty,error,Yes,CONTACT-ID must not be empty,
+R038,CONTACT-ID length check,CONTACT-ID,length,error,Yes,CONTACT-ID payload length must be between 1 and 24 characters,1..24
+R039,LOCATION-CODE required,LOCATION-CODE,not_empty,error,Yes,LOCATION-CODE must not be empty,
+R040,LOCATION-CODE length check,LOCATION-CODE,length,error,Yes,LOCATION-CODE payload length must be between 1 and 6 characters,1..6
+R041,ACCT-NUM required,ACCT-NUM,not_empty,error,Yes,ACCT-NUM must not be empty,
+R042,ACCT-NUM length check,ACCT-NUM,length,error,Yes,ACCT-NUM payload length must be between 14 and 18 characters,14..18
+R043,NAME-RELATIONSHIP required,NAME-RELATIONSHIP,not_empty,error,Yes,NAME-RELATIONSHIP must not be empty,
+R044,NAME-RELATIONSHIP length check,NAME-RELATIONSHIP,length,error,Yes,NAME-RELATIONSHIP payload length must be between 1 and 1 characters,1..1
+R045,LEAD-CONTACT-IND required,LEAD-CONTACT-IND,not_empty,error,Yes,LEAD-CONTACT-IND must not be empty,
+R046,LEAD-CONTACT-IND length check,LEAD-CONTACT-IND,exact_length,error,Yes,LEAD-CONTACT-IND must be exactly 1 characters,1
+R047,LEAD-CONTACT-IND valid values,LEAD-CONTACT-IND,valid_values,error,Yes,LEAD-CONTACT-IND must be one of: 0|1,0|1
+R048,RESPONSIBLE-PARTY required,RESPONSIBLE-PARTY,not_empty,error,Yes,RESPONSIBLE-PARTY must not be empty,
+R049,RESPONSIBLE-PARTY length check,RESPONSIBLE-PARTY,exact_length,error,Yes,RESPONSIBLE-PARTY must be exactly 1 characters,1
+R050,RESPONSIBLE-PARTY valid values,RESPONSIBLE-PARTY,valid_values,error,Yes,RESPONSIBLE-PARTY must be one of: 0|1,0|1
+R051,CAS-ADDRESS-IND required,CAS-ADDRESS-IND,not_empty,error,Yes,CAS-ADDRESS-IND must not be empty,
+R052,CAS-ADDRESS-IND length check,CAS-ADDRESS-IND,length,error,Yes,CAS-ADDRESS-IND payload length must be between 1 and 1 characters,1..1
+R053,EXTERNAL-SYSTEM-ID required,EXTERNAL-SYSTEM-ID,not_empty,error,Yes,EXTERNAL-SYSTEM-ID must not be empty,
+R054,EXTERNAL-SYSTEM-ID length check,EXTERNAL-SYSTEM-ID,length,error,Yes,EXTERNAL-SYSTEM-ID payload length must be between 1 and 4 characters,1..4
+R055,PREFERRED-CURRENCY required,PREFERRED-CURRENCY,not_empty,error,Yes,PREFERRED-CURRENCY must not be empty,
+R056,PREFERRED-CURRENCY length check,PREFERRED-CURRENCY,length,error,Yes,PREFERRED-CURRENCY payload length must be between 1 and 3 characters,1..3

@@ -1,0 +1,6 @@
+Field Name,Data Type,Position,Length,Target Name,Required,Format,Transformation,Valid Values,Description
+LOCATION-CODE,String,1,6,location_code,Yes,,Create this record only for Accounts which were charged-off yesterday (chrgoff_dt = batch date). i.e. IF Charge-Off if CHG-OFF-CD = '1' and (M-DATE-PAID-OFF = Batch Date or ACTG-SYSTEM-ID != 'SHCO' or 'CAS' or 'CASW' or 'RA') Hard-code to 100030,100030,Location Code for Account
+ACCT-NUM,String,7,18,acct_num,Yes,,ACCT-NUM = BR + CUS + LN Write-Off • Used to indicate a charge-off has occurred. • Generated when the CCI = 1 or 9,,Account Number
+TRANSACTION-CODE,String,25,3,transaction_code,Yes,,"""900"" - If record has valid mapping for TRANSACTION-AMT Else Don't create this record",900,Type of Transaction
+TRANSACTION-DATE,Date,28,8,transaction_date,Yes,CCYYMMDD,,,Date of Transaction
+TRANSACTION-AMT,Numeric,36,18,transaction_amt,Yes,9(12)V9(6),IF M-CHARGE-OFF-AMT not null then M-CHARGE-OFF-AMT; ELSE Default to '+000000000000000000',,The currency amount to be written off. [dropped 1 value(s) longer than length=18: +000000000000000000]

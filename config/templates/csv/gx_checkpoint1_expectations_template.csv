@@ -1,0 +1,7 @@
+target_id,expectation_type,column,column_list,value_set,min_value,max_value,mostly,notes,enabled
+example_target,expect_table_columns_to_match_ordered_list,,COL1|COL2|COL3,,,,,Optional override for mapping-based schema check,true
+example_target,expect_column_values_to_not_be_null,COL1,,,,,,,Null check,true
+example_target,expect_column_values_to_be_unique,COL1,,,,,,,Uniqueness check,true
+example_target,expect_column_values_to_be_in_set,COL2,,A|B|C,,,,Allowed values,true
+example_target,expect_column_values_to_be_between,COL3,,,0,100,0.95,Range check,true
+example_target,expect_table_row_count_to_be_between,,,,10,200000,,,Row count bounds,true

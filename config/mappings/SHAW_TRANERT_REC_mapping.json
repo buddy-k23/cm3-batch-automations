@@ -1,0 +1,709 @@
+{
+  "mapping_name": "SHAW_TRANERT_REC_mapping",
+  "version": "1.0.0",
+  "description": "Generated from template: SHAW_TRANERT_REC_mapping.csv",
+  "source": {
+    "type": "file",
+    "format": "fixed_width",
+    "encoding": "UTF-8"
+  },
+  "target": {
+    "type": "database"
+  },
+  "fields": [
+    {
+      "name": "BK-NUM-ERT",
+      "data_type": "decimal",
+      "target_name": "bk_num_ert",
+      "position": 1,
+      "length": 5,
+      "format": "9(5)",
+      "required": true,
+      "description": "A number, defined on the Bank Control Operation tables, which identifies the ...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "00040"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "00040"
+      ]
+    },
+    {
+      "name": "APP-ERT",
+      "data_type": "decimal",
+      "target_name": "app_ert",
+      "position": 6,
+      "length": 3,
+      "format": "9(3)",
+      "required": true,
+      "description": "The application to which the account is to be associated.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "001"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "001"
+      ]
+    },
+    {
+      "name": "LN-NUM-ERT",
+      "data_type": "string",
+      "target_name": "ln_num_ert",
+      "position": 9,
+      "length": 18,
+      "required": true,
+      "description": "The account number that is associated with the account.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "REF-NUM-ERT",
+      "data_type": "string",
+      "target_name": "ref_num_ert",
+      "position": 27,
+      "length": 3,
+      "required": false,
+      "description": "The applicable reference number for the transaction.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "FILLER",
+      "data_type": "string",
+      "target_name": "filler",
+      "position": 30,
+      "length": 130,
+      "required": false,
+      "description": "Filler for account key",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "EFF-DAT-ERT",
+      "data_type": "date",
+      "target_name": "eff_dat_ert",
+      "position": 160,
+      "length": 10,
+      "format": "MM/DD/CCYY",
+      "required": true,
+      "description": "The date the transaction was effective.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "TRN-COD-ERT",
+      "data_type": "decimal",
+      "target_name": "trn_cod_ert",
+      "position": 170,
+      "length": 5,
+      "format": "9(5)",
+      "required": true,
+      "description": "The transaction code for the transaction.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "32075"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "32075"
+      ]
+    },
+    {
+      "name": "BAT-ITM-NUM-ERT",
+      "data_type": "decimal",
+      "target_name": "bat_itm_num_ert",
+      "position": 175,
+      "length": 9,
+      "format": "9(9)",
+      "required": true,
+      "description": "The sequential number for this item within the batch.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "INP-SRC-COD-ERT",
+      "data_type": "decimal",
+      "target_name": "inp_src_cod_ert",
+      "position": 184,
+      "length": 3,
+      "format": "9(3)",
+      "required": false,
+      "description": "The source of the transaction.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "TRN-CNT-ERT",
+      "data_type": "decimal",
+      "target_name": "trn_cnt_ert",
+      "position": 187,
+      "length": 3,
+      "format": "9(3)",
+      "required": false,
+      "description": "The total number of transactions in the batch.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "TRN-MOR-DTA-FLG-ERT",
+      "data_type": "string",
+      "target_name": "trn_mor_dta_flg_ert",
+      "position": 190,
+      "length": 1,
+      "required": false,
+      "description": "Indicates if more data is available.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "RCF-REF-NUM-REC",
+      "data_type": "string",
+      "target_name": "rcf_ref_num_rec",
+      "position": 191,
+      "length": 3,
+      "required": true,
+      "description": "The reference number associated with the cost for the account.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "GNR"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "GNR"
+      ]
+    },
+    {
+      "name": "RCF-FEE-DES-REC",
+      "data_type": "string",
+      "target_name": "rcf_fee_des_rec",
+      "position": 194,
+      "length": 30,
+      "required": false,
+      "description": "A free form field for maintaining a generic description of the cost.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "RCF-AMT-REC",
+      "data_type": "decimal",
+      "target_name": "rcf_amt_rec",
+      "position": 224,
+      "length": 22,
+      "format": "-Z(12).9(2)",
+      "required": false,
+      "description": "The cost amount to be assessed.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "RCF-PCT-REC",
+      "data_type": "decimal",
+      "target_name": "rcf_pct_rec",
+      "position": 246,
+      "length": 7,
+      "format": ".Z(6)",
+      "required": false,
+      "description": "The percentage used when calculating a recovery cost amount.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "RCF-ASE-COD-REC",
+      "data_type": "decimal",
+      "target_name": "rcf_ase_cod_rec",
+      "position": 253,
+      "length": 1,
+      "format": "9(1)",
+      "required": false,
+      "description": "Indicates how the recovery cost is to be assessed.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "0"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "0"
+      ]
+    },
+    {
+      "name": "RCF-INT-IND-REC",
+      "data_type": "decimal",
+      "target_name": "rcf_int_ind_rec",
+      "position": 254,
+      "length": 1,
+      "format": "9(1)",
+      "required": false,
+      "description": "Indicates whether to include payments made against this cost as interest repo...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "0"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "0"
+      ]
+    },
+    {
+      "name": "RCF-MAX-FEE-AMT-REC",
+      "data_type": "decimal",
+      "target_name": "rcf_max_fee_amt_rec",
+      "position": 255,
+      "length": 22,
+      "format": "-Z(12).9(2)",
+      "required": false,
+      "description": "The total amount permitted to be assessed on an account associated with a spe...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "RCF-DES-COD-REC",
+      "data_type": "decimal",
+      "target_name": "rcf_des_cod_rec",
+      "position": 277,
+      "length": 3,
+      "format": "9(3)",
+      "required": false,
+      "description": "A code summarizing the category with which the cost is associated. [dropped 1 value(s) longer than length=3: <spaces>]",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "003"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "003"
+      ]
+    },
+    {
+      "name": "RCF-MAX-FEE-LTD-REC",
+      "data_type": "decimal",
+      "target_name": "rcf_max_fee_ltd_rec",
+      "position": 280,
+      "length": 22,
+      "format": "-Z(12).9(2)",
+      "required": false,
+      "description": "The recovery costs maximum amount life to date; used to validate the calculat...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "RCF-FEE-WVE-IND-REC",
+      "data_type": "string",
+      "target_name": "rcf_fee_wve_ind_rec",
+      "position": 302,
+      "length": 1,
+      "required": false,
+      "description": "Not used",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "RCF-OGL-AMT-REC",
+      "data_type": "decimal",
+      "target_name": "rcf_ogl_amt_rec",
+      "position": 303,
+      "length": 22,
+      "format": "-Z(12).9(2)",
+      "required": false,
+      "description": "The original charge-off amount of the recovery cost.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "EXP-PYF-IND-REC",
+      "data_type": "string",
+      "target_name": "exp_pyf_ind_rec",
+      "position": 325,
+      "length": 1,
+      "required": false,
+      "description": "Indicates whether the amount due is included in the calculated payoff. If inc...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "Y"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "Y"
+      ]
+    },
+    {
+      "name": "RCF-ICR-COD-REC",
+      "data_type": "decimal",
+      "target_name": "rcf_icr_cod_rec",
+      "position": 326,
+      "length": 1,
+      "format": "9(1)",
+      "required": false,
+      "description": "Indicates when a recovery cost is to be capitalized.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "0"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "0"
+      ]
+    },
+    {
+      "name": "CST-DFC-IND-REC",
+      "data_type": "string",
+      "target_name": "cst_dfc_ind_rec",
+      "position": 327,
+      "length": 1,
+      "required": false,
+      "description": "Not used",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CMB-PMT-PTY-REC",
+      "data_type": "decimal",
+      "target_name": "cmb_pmt_pty_rec",
+      "position": 328,
+      "length": 3,
+      "format": "9(3)",
+      "required": false,
+      "description": "Payment posting priority to negotiate relative payment allocation for costs w...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "RCF-DUE-REC",
+      "data_type": "decimal",
+      "target_name": "rcf_due_rec",
+      "position": 331,
+      "length": 22,
+      "format": "-Z(12).9(2)",
+      "required": false,
+      "description": "The cost\u2019s due amount.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "FCL-CST-PD-YTD-REC",
+      "data_type": "decimal",
+      "target_name": "fcl_cst_pd_ytd_rec",
+      "position": 353,
+      "length": 22,
+      "format": "-Z(12).9(2)",
+      "required": false,
+      "description": "The total foreclosure cost paid from the beginning of the current year to the...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "RCF-CAP-LTD-REC",
+      "data_type": "decimal",
+      "target_name": "rcf_cap_ltd_rec",
+      "position": 375,
+      "length": 22,
+      "format": "-Z(12).9(2)",
+      "required": false,
+      "description": "The amount capitalized for the recovery cost since charge-off.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "RCF-ASE-MTD-REC",
+      "data_type": "decimal",
+      "target_name": "rcf_ase_mtd_rec",
+      "position": 397,
+      "length": 22,
+      "format": "-Z(12).9(2)",
+      "required": false,
+      "description": "The amount assessed this month for the recovery cost since charge-off.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "RCF-PD-MTD-REC",
+      "data_type": "decimal",
+      "target_name": "rcf_pd_mtd_rec",
+      "position": 419,
+      "length": 22,
+      "format": "-Z(12).9(2)",
+      "required": false,
+      "description": "The amount recovered for the cost this month since charge-off.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "RCF-ASE-YTD-REC",
+      "data_type": "decimal",
+      "target_name": "rcf_ase_ytd_rec",
+      "position": 441,
+      "length": 22,
+      "format": "-Z(12).9(2)",
+      "required": false,
+      "description": "The amount assessed this year for the recovery cost since charge-off.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "RCF-PD-YTD-REC",
+      "data_type": "decimal",
+      "target_name": "rcf_pd_ytd_rec",
+      "position": 463,
+      "length": 22,
+      "format": "-Z(12).9(2)",
+      "required": false,
+      "description": "The amount recovered for the cost this year since charge-off.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "RCF-ASE-LTD-REC",
+      "data_type": "decimal",
+      "target_name": "rcf_ase_ltd_rec",
+      "position": 485,
+      "length": 22,
+      "format": "-Z(12).9(2)",
+      "required": false,
+      "description": "The amount assessed for the recovery cost since charge-off.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "RCF-PD-LTD-REC",
+      "data_type": "decimal",
+      "target_name": "rcf_pd_ltd_rec",
+      "position": 507,
+      "length": 22,
+      "format": "-Z(12).9(2)",
+      "required": false,
+      "description": "The amount recovered for the recovery cost since charge-off.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    }
+  ],
+  "key_columns": [
+    "BK-NUM-ERT"
+  ],
+  "metadata": {
+    "created_by": "template_converter",
+    "created_date": "2026-05-26T17:42:56.355821Z",
+    "last_modified": "2026-05-26T17:42:56.355830Z",
+    "source_template": "mappings\\csv\\shaw_tranert\\SHAW_TRANERT_REC_mapping.csv"
+  },
+  "total_record_length": 528,
+  "warnings": []
+}

@@ -1,0 +1,123 @@
+{
+  "mapping_name": "e2e_generated",
+  "version": "1.0.0",
+  "description": "Generated from template: mapping_template.standard.csv",
+  "source": {
+    "type": "file",
+    "format": "fixed_width",
+    "encoding": "UTF-8"
+  },
+  "target": {
+    "type": "database"
+  },
+  "fields": [
+    {
+      "name": "customer_id",
+      "data_type": "string",
+      "target_name": "CUSTOMER_ID",
+      "required": true,
+      "description": "Unique customer identifier",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "first_name",
+      "data_type": "string",
+      "target_name": "FIRST_NAME",
+      "required": true,
+      "description": "Customer first name",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "last_name",
+      "data_type": "string",
+      "target_name": "LAST_NAME",
+      "required": true,
+      "description": "Customer last name",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "email",
+      "data_type": "string",
+      "target_name": "EMAIL",
+      "required": false,
+      "description": "Customer email",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "account_balance",
+      "data_type": "decimal",
+      "target_name": "ACCOUNT_BALANCE",
+      "required": true,
+      "description": "Account balance",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "status",
+      "data_type": "string",
+      "target_name": "STATUS",
+      "required": true,
+      "description": "Account status",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    }
+  ],
+  "key_columns": [
+    "customer_id"
+  ],
+  "metadata": {
+    "created_by": "template_converter",
+    "created_date": "2026-03-04T05:53:25.178444Z",
+    "last_modified": "2026-03-04T05:53:25.178446Z",
+    "source_template": "uploads/mapping_template.standard.csv"
+  },
+  "total_record_length": 0
+}

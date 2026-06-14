@@ -1,0 +1,35 @@
+{
+  "name": "customer_regression_workflow",
+  "gates": {
+    "fail_fast": true
+  },
+  "parse": {
+    "enabled": true,
+    "input_file": "data/samples/customers.txt",
+    "mapping": "config/mappings/customer_mapping.json",
+    "output": "reports/regression_workflow/customers_parsed.csv",
+    "use_chunked": false,
+    "chunk_size": 100000
+  },
+  "validate": {
+    "enabled": true,
+    "input_file": "data/samples/customers.txt",
+    "mapping": "config/mappings/customer_mapping.json",
+    "output": "reports/regression_workflow/customers_validation.json",
+    "detailed": true,
+    "strict_fixed_width": false,
+    "use_chunked": false,
+    "chunk_size": 100000
+  },
+  "compare": {
+    "enabled": true,
+    "baseline_file": "data/samples/customers.txt",
+    "current_file": "data/samples/customers_updated.txt",
+    "keys": "customer_id",
+    "mapping": "config/mappings/customer_mapping.json",
+    "output": "reports/regression_workflow/customers_compare.html",
+    "detailed": true,
+    "use_chunked": true,
+    "chunk_size": 100000
+  }
+}

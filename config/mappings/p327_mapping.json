@@ -1,0 +1,2528 @@
+{
+  "mapping_name": "P327 Target Template",
+  "format_type": "fixed_width",
+  "total_fields": 252,
+  "fields": [
+    {
+      "name": "LOCATION-CODE",
+      "position": 1,
+      "length": 6,
+      "data_type": "String",
+      "format": null,
+      "required": true,
+      "description": "location code",
+      "transaction_type": "default"
+    },
+    {
+      "name": "ACCT-NUM",
+      "position": 2,
+      "length": 18,
+      "data_type": "String",
+      "format": null,
+      "required": true,
+      "description": "account number",
+      "transaction_type": "default"
+    },
+    {
+      "name": "CREDIT-LIMIT-AMT",
+      "position": 3,
+      "length": 13,
+      "data_type": "Numeric",
+      "format": "9(12)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "EXPIRATION-DATE",
+      "position": 4,
+      "length": 8,
+      "data_type": "Date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "BALANCE-AMT",
+      "position": 5,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "OVERLIMIT-AMT",
+      "position": 6,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "DISPUTED-AMT",
+      "position": 7,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "TOTAL-DUE-AMT",
+      "position": 8,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "CURRENT-DUE-AMT",
+      "position": 9,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "COLL-ASGN-UD-1",
+      "position": 10,
+      "length": 12,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "COLL-ASGN-UD-TYPE1",
+      "position": 11,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "COLL-ASGN-UD-FMT-1",
+      "position": 12,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "COLL-ASGN-UD-2",
+      "position": 13,
+      "length": 12,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "COLL-ASGN-UD-TYPE2",
+      "position": 14,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "COLL-ASGN-UD-FMT-2",
+      "position": 15,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "TOTAL-DELINQ-AMT",
+      "position": 16,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "`+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "CYCLES-DELINQ-CNT",
+      "position": 17,
+      "length": 2,
+      "data_type": "Numeric",
+      "format": "9(2)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "DAYS-DELINQ-CNT",
+      "position": 18,
+      "length": 5,
+      "data_type": "Numeric",
+      "format": "9(5)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LAST-PAYMENT-AMT",
+      "position": 19,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "`+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "CHARGE-OFF-DATE",
+      "position": 20,
+      "length": 8,
+      "data_type": "Date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "DLQ-DAYS-CHRG-OFF",
+      "position": 21,
+      "length": 5,
+      "data_type": "Numeric",
+      "format": "9(5)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LST-PART-COF-AMT",
+      "position": 22,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LST-PART-COF-DATE",
+      "position": 23,
+      "length": 8,
+      "data_type": "Date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "TOT-PART-COF-AMT",
+      "position": 24,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "BAL-PART-COF-AMT",
+      "position": 25,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "PART-COF-ACCT-NUM",
+      "position": 26,
+      "length": 30,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "USER-DEFINED-7",
+      "position": 27,
+      "length": 12,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "UD-7-TYPE",
+      "position": 28,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "UD-7-FMT",
+      "position": 29,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "ACCT-OPEN-DATE",
+      "position": 30,
+      "length": 8,
+      "data_type": "Date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "NEXT-DUE-DATE",
+      "position": 31,
+      "length": 8,
+      "data_type": "Date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "INTEREST-RATE",
+      "position": 32,
+      "length": 6,
+      "data_type": "Numeric",
+      "format": "9(3)V9(3)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "OTH-DELINQ-AMT",
+      "position": 33,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REPO-CHARGES",
+      "position": 34,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REPOSSESSION-DATE",
+      "position": 35,
+      "length": 8,
+      "data_type": "Date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "MATURITY-DATE",
+      "position": 36,
+      "length": 8,
+      "data_type": "Date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "PAYMENT-AMT",
+      "position": 37,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "PRINCIPAL-DELQ-AMT",
+      "position": 38,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "INTEREST-DELQ-AMT",
+      "position": 39,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "USER-DEF-SEARCH-1",
+      "position": 40,
+      "length": 10,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "UD-SEARCH-1-TYPE",
+      "position": 41,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "UD-SEARCH-1-FMT",
+      "position": 42,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "USER-DEF-SEARCH-2",
+      "position": 43,
+      "length": 10,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "UD-SEARCH-2-TYPE",
+      "position": 44,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "UD-SEARCH-2-FMT",
+      "position": 45,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "ACCT-NUM-SORT",
+      "position": 46,
+      "length": 7,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "CYCLE-ID",
+      "position": 47,
+      "length": 2,
+      "data_type": "Numeric",
+      "format": "9(2)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "UD-DATE-FIELD-1",
+      "position": 48,
+      "length": 8,
+      "data_type": "Date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LAST-BILLING-DATE",
+      "position": 49,
+      "length": 8,
+      "data_type": "Date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "AGED-HISTORY",
+      "position": 50,
+      "length": 12,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "CREDIT-LIMIT-DATE",
+      "position": 51,
+      "length": 8,
+      "data_type": "Date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "INT-LATE-CHG-AMT",
+      "position": 52,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "DELINQ-AMT-AGE-1",
+      "position": 53,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "DELINQ-AMT-AGE-2",
+      "position": 54,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "DELINQ-AMT-AGE-3",
+      "position": 55,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "DELINQ-AMT-AGE-4",
+      "position": 56,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "NUMBER-OF-CARDS",
+      "position": 57,
+      "length": 2,
+      "data_type": "Numeric",
+      "format": "9(2)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "WARN-BULLETIN-DATE",
+      "position": 58,
+      "length": 8,
+      "data_type": "Date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "WARN-BULLETIN-ZONE",
+      "position": 59,
+      "length": 4,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "OTHER-ACCT-NUM",
+      "position": 60,
+      "length": 18,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "CREDIT-SCORE",
+      "position": 61,
+      "length": 5,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "BEHAVIOR-INDEX",
+      "position": 62,
+      "length": 4,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LAST-PAYMENT-DATE",
+      "position": 63,
+      "length": 8,
+      "data_type": "Date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LAST-MONETARY-AMT",
+      "position": 64,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LAST-MONETARY-DATE",
+      "position": 65,
+      "length": 8,
+      "data_type": "Date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LAST-MONETARY-TYPE",
+      "position": 66,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "CHARGE-OFF-AMT",
+      "position": 67,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "SORT-VALUE-1",
+      "position": 68,
+      "length": 12,
+      "data_type": "Numeric",
+      "format": "9(12)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "SORT-VALUE-1-TYPE",
+      "position": 69,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "SORT-VALUE-1-FMT",
+      "position": 70,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "SORT-VALUE-2",
+      "position": 71,
+      "length": 12,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "SORT-VALUE-2-TYPE",
+      "position": 72,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "SORT-VALUE-2-FMT",
+      "position": 73,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "USER-DEFINED-1",
+      "position": 74,
+      "length": 17,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "UD-1-TYPE",
+      "position": 75,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "UD-1-FMT",
+      "position": 76,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "USER-DEFINED-2",
+      "position": 77,
+      "length": 30,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "UD-2-TYPE",
+      "position": 78,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "UD-2-FMT",
+      "position": 79,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "USER-DEFINED-3",
+      "position": 80,
+      "length": 14,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "UD-3-TYPE",
+      "position": 81,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "UD-3-FMT",
+      "position": 82,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "USER-DEFINED-4",
+      "position": 83,
+      "length": 79,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "UD-4-TYPE",
+      "position": 84,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "UD-4-FMT",
+      "position": 85,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "USER-DEFINED-5",
+      "position": 86,
+      "length": 79,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "UD-5-TYPE",
+      "position": 87,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "UD-5-FMT",
+      "position": 88,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "USER-DEFINED-6",
+      "position": 89,
+      "length": 12,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "UD-6-TYPE",
+      "position": 90,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "UD-6-FMT",
+      "position": 91,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "USER-DEFINED-8-1",
+      "position": 92,
+      "length": 79,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "USER-DEFINED-8-2",
+      "position": 93,
+      "length": 79,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "USER-DEFINED-8-3",
+      "position": 94,
+      "length": 79,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "USER-DEFINED-8-4",
+      "position": 95,
+      "length": 79,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "USER-DEFINED-8-5",
+      "position": 96,
+      "length": 79,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "UD-8-1-TYPE",
+      "position": 97,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "UD-8-2-TYPE",
+      "position": 98,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "UD-8-3-TYPE",
+      "position": 99,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "UD-8-4-TYPE",
+      "position": 100,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "UD-8-5-TYPE",
+      "position": 101,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "UD-8-1-FMT",
+      "position": 102,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "UD-8-2-FMT",
+      "position": 103,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "UD-8-3-FMT",
+      "position": 104,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "UD-8-4-FMT",
+      "position": 105,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "UD-8-5-FMT",
+      "position": 106,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "PRINCIPAL-AMT",
+      "position": 107,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "OTHER-AMT",
+      "position": 108,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "ORIG-BALANCE-AMT",
+      "position": 109,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "OFFICER-NUM",
+      "position": 110,
+      "length": 9,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "BRANCH-NUM",
+      "position": 111,
+      "length": 6,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "ORIGINAL-TERM",
+      "position": 112,
+      "length": 4,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "ORIG-INTEREST-RATE",
+      "position": 113,
+      "length": 6,
+      "data_type": "Numeric",
+      "format": "9(3)V9(3)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "DEALER-NUM",
+      "position": 114,
+      "length": 7,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "PAYMENT-FREQUENCY",
+      "position": 115,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REFINANCE-DATE",
+      "position": 116,
+      "length": 8,
+      "data_type": "Date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "DEPOSIT-IND",
+      "position": 117,
+      "length": 1,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "ON-BUDGET-IND",
+      "position": 118,
+      "length": 1,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "DPA-IND",
+      "position": 119,
+      "length": 1,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "CUT-OFF-DATE",
+      "position": 120,
+      "length": 8,
+      "data_type": "Date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "CUT-OFF-CODE",
+      "position": 121,
+      "length": 3,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "ACCOUNT-TYPE",
+      "position": 122,
+      "length": 3,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "SERVICE-TYPE",
+      "position": 123,
+      "length": 3,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "BUDGET-PAYMENT-AMT",
+      "position": 124,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "TERMINATE-AMT",
+      "position": 125,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "TERMINATE-EXP-DATE",
+      "position": 126,
+      "length": 8,
+      "data_type": "Date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "SAT-USER-DEFINED-1",
+      "position": 127,
+      "length": 12,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "SAT-UD-1-TYPE",
+      "position": 128,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "SAT-UD-1-FMT",
+      "position": 129,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "SAT-USER-DEFINED-2",
+      "position": 130,
+      "length": 12,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "SAT-UD-2-TYPE",
+      "position": 131,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "SAT-UD-2-FMT",
+      "position": 132,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LETTER-USER-DEF-1",
+      "position": 133,
+      "length": 30,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LETTER-UD-1-TYPE",
+      "position": 134,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LETTER-UD-1-FMT",
+      "position": 135,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LETTER-USER-DEF-2",
+      "position": 136,
+      "length": 30,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LETTER-UD-2-TYPE",
+      "position": 137,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LETTER-UD-2-FMT",
+      "position": 138,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LETTER-USER-DEF-3",
+      "position": 139,
+      "length": 30,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LETTER-UD-3-TYPE",
+      "position": 140,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LETTER-UD-3-FMT",
+      "position": 141,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LETTER-USER-DEF-4",
+      "position": 142,
+      "length": 30,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LETTER-UD-4-TYPE",
+      "position": 143,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LETTER-UD-4-FMT",
+      "position": 144,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LETTER-USER-DEF-5",
+      "position": 145,
+      "length": 30,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LETTER-UD-5-TYPE",
+      "position": 146,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LETTER-UD-5-FMT",
+      "position": 147,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LETTER-USER-DEF-6",
+      "position": 148,
+      "length": 30,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LETTER-UD-6-TYPE",
+      "position": 149,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LETTER-UD-6-FMT",
+      "position": 150,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LETTER-USER-DEF-7",
+      "position": 151,
+      "length": 30,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LETTER-UD-7-TYPE",
+      "position": 152,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LETTER-UD-7-FMT",
+      "position": 153,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LETTER-USER-DEF-8",
+      "position": 154,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LETTER-UD-8-TYPE",
+      "position": 155,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LETTER-UD-8-FMT",
+      "position": 156,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LETTER-USER-DEF-9",
+      "position": 157,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LETTER-UD-9-TYPE",
+      "position": 158,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LETTER-UD-9-FMT",
+      "position": 159,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LETTER-USER-DEF-10",
+      "position": 160,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LETTER-UD-10-TYPE",
+      "position": 161,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LETTER-UD-10-FMT",
+      "position": 162,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "BANK-NUM",
+      "position": 163,
+      "length": 5,
+      "data_type": "Numeric",
+      "format": "9(5)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "APP-CODE",
+      "position": 164,
+      "length": 3,
+      "data_type": "Numeric",
+      "format": "9(3)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "ESTIMATED-MNTH-PAY",
+      "position": 165,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "ACI-INDICATOR",
+      "position": 166,
+      "length": 1,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "SERVICING-SYSTEM",
+      "position": 167,
+      "length": 8,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "NATL-CURRENCY",
+      "position": 168,
+      "length": 3,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "BASE-CURRENCY",
+      "position": 169,
+      "length": 3,
+      "data_type": "String",
+      "format": null,
+      "required": true,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "VALUE-CODE",
+      "position": 170,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "RISK-CODE",
+      "position": 171,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "RECOMMENDED-ACT-CD",
+      "position": 172,
+      "length": 2,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "ACTG-SYS-ID",
+      "position": 173,
+      "length": 4,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "EXTERNAL-ACCT-NUM",
+      "position": 174,
+      "length": 30,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "ACCT-STAT-CODE-1",
+      "position": 175,
+      "length": 1,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "ACCT-STAT-CODE-2",
+      "position": 176,
+      "length": 1,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "ACCT-STAT-CODE-3",
+      "position": 177,
+      "length": 1,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "ACCT-STAT-CODE-4",
+      "position": 178,
+      "length": 1,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "ACCT-STAT-CODE-5",
+      "position": 179,
+      "length": 1,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "ACCT-STAT-CODE-6",
+      "position": 180,
+      "length": 1,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "ACCT-STAT-CODE-7",
+      "position": 181,
+      "length": 1,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "ACCT-STAT-CODE-8",
+      "position": 182,
+      "length": 1,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "ACCT-STAT-CODE-9",
+      "position": 183,
+      "length": 1,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "ACCT-STAT-CODE-10",
+      "position": 184,
+      "length": 1,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LGL-STATUS",
+      "position": 185,
+      "length": 3,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-INT-MTD-AMT",
+      "position": 186,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-PRIN-MTD-AMT",
+      "position": 187,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-TOT-COST-MTD",
+      "position": 188,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "JGMT-EFFECT-DATE",
+      "position": 189,
+      "length": 8,
+      "data_type": "Date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "JGMT-INT-AMT",
+      "position": 190,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "JGMT-PRIN-AMT",
+      "position": 191,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "JGMT-TOT-COST-AMT",
+      "position": 192,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "ADDL-JGMTS-IND",
+      "position": 193,
+      "length": 1,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-CODST-IN-BAL",
+      "position": 194,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-NOT-BAL",
+      "position": 195,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-ASSES-MTD",
+      "position": 196,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-WAIVE-MTD",
+      "position": 197,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-CAPT-LTD",
+      "position": 198,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-CAT-1",
+      "position": 199,
+      "length": 3,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-AMT-1",
+      "position": 200,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-CAT-2",
+      "position": 201,
+      "length": 3,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-AMT-2",
+      "position": 202,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-CAT-3",
+      "position": 203,
+      "length": 3,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-AMT-3",
+      "position": 204,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-CAT-4",
+      "position": 205,
+      "length": 3,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-AMT-4",
+      "position": 206,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-CAT-5",
+      "position": 207,
+      "length": 3,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-AMT-5",
+      "position": 208,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-CAT-6",
+      "position": 209,
+      "length": 3,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-AMT-6",
+      "position": 210,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-CAT-7",
+      "position": 211,
+      "length": 3,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-AMT-7",
+      "position": 212,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-CAT-8",
+      "position": 213,
+      "length": 3,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-AMT-8",
+      "position": 214,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-CAT-9",
+      "position": 215,
+      "length": 3,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-AMT-9",
+      "position": 216,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-CAT-10",
+      "position": 217,
+      "length": 3,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-AMT-10",
+      "position": 218,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-CAT-11",
+      "position": 219,
+      "length": 3,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-AMT-11",
+      "position": 220,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-CAT-12",
+      "position": 221,
+      "length": 3,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-AMT-12",
+      "position": 222,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-CAT-13",
+      "position": 223,
+      "length": 3,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-AMT-13",
+      "position": 224,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-CAT-14",
+      "position": 225,
+      "length": 3,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-AMT-14",
+      "position": 226,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-CAT-15",
+      "position": 227,
+      "length": 3,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-AMT-15",
+      "position": 228,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-CAT-16",
+      "position": 229,
+      "length": 3,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-AMT-16",
+      "position": 230,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-CAT-17",
+      "position": 231,
+      "length": 3,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-AMT-17",
+      "position": 232,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-CAT-18",
+      "position": 233,
+      "length": 3,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-AMT-18",
+      "position": 234,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-CAT-19",
+      "position": 235,
+      "length": 3,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-AMT-19",
+      "position": 236,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-CAT-20",
+      "position": 237,
+      "length": 3,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "REC-COST-AMT-20",
+      "position": 238,
+      "length": 19,
+      "data_type": "Numeric",
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LOAN-POOL-NUM",
+      "position": 239,
+      "length": 7,
+      "data_type": "Numeric",
+      "format": "9(7)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LOAN-POOL-SLD-DATE",
+      "position": 240,
+      "length": 8,
+      "data_type": "Date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "ORIG-PORTF-TYPE",
+      "position": 241,
+      "length": 1,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "DAYS-SNC-CHRGOFF",
+      "position": 242,
+      "length": 7,
+      "data_type": "Numeric",
+      "format": "9(7)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LAST-EXT-UPD-DATE",
+      "position": 243,
+      "length": 8,
+      "data_type": "Date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "LEGAL-STATE",
+      "position": 244,
+      "length": 3,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "CHRG-OFF-DOWN-IND",
+      "position": 245,
+      "length": 1,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "INVESTOR-NUM",
+      "position": 246,
+      "length": 7,
+      "data_type": "Numeric",
+      "format": "9(7)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "EXT-RAND-NUM",
+      "position": 247,
+      "length": 3,
+      "data_type": "Numeric",
+      "format": "9(3)",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "CMPL-CODE",
+      "position": 248,
+      "length": 4,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "TCPA-EXEMPT",
+      "position": 249,
+      "length": 1,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "PRODUCT-TYPE",
+      "position": 250,
+      "length": 8,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "NEXT-BILL-DATE",
+      "position": 251,
+      "length": 8,
+      "data_type": "Date",
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    },
+    {
+      "name": "HMDA-ULI-CODE",
+      "position": 252,
+      "length": 45,
+      "data_type": "String",
+      "format": null,
+      "required": false,
+      "description": null,
+      "transaction_type": "default"
+    }
+  ],
+  "total_record_length": 2809
+}

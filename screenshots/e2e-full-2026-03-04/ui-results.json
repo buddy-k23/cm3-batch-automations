@@ -1,0 +1,170 @@
+{
+  "passed": 36,
+  "failed": 4,
+  "checks": [
+    {
+      "label": "quick-test \u2014 navigate",
+      "status": "PASS"
+    },
+    {
+      "label": "quick-test \u2014 open Quick Test tab",
+      "status": "PASS"
+    },
+    {
+      "label": "quick-test \u2014 upload customers.txt",
+      "status": "PASS"
+    },
+    {
+      "label": "quick-test \u2014 select customer_mapping",
+      "status": "FAIL",
+      "error": "Locator.select_option: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator(\"#mappingSelect\")\n    - locator resolved to <select id=\"mappingSelect\" data-tooltip=\"Select a mapping schema to validate field positions and lengths\">\u2026</select>\n  - attempting select option action\n    2 \u00d7 waiting for element to be visible and enabled\n      - did not find some options\n    - retrying select option action\n    - waiting 20ms\n    2 \u00d7 waiting for element to be visible and enabled\n      - did not find some options\n    - retrying select option action\n      - waiting 100ms\n    60 \u00d7 waiting for element to be visible and enabled\n       - did not find some options\n     - retrying select option action\n       - waiting 500ms\n"
+    },
+    {
+      "label": "quick-test \u2014 click Validate",
+      "status": "FAIL",
+      "error": "Locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator(\"#btnValidate\")\n    - locator resolved to <button disabled id=\"btnValidate\" class=\"btn btn-primary\" data-tooltip=\"Run structural validation against the selected mapping and rules\">Validate</button>\n  - attempting click action\n    2 \u00d7 waiting for element to be visible, enabled and stable\n      - element is not enabled\n    - retrying click action\n    - waiting 20ms\n    2 \u00d7 waiting for element to be visible, enabled and stable\n      - element is not enabled\n    - retrying click action\n      - waiting 100ms\n    57 \u00d7 waiting for element to be visible, enabled and stable\n       - element is not enabled\n     - retrying click action\n       - waiting 500ms\n"
+    },
+    {
+      "label": "quick-test \u2014 assert valid result (customers)",
+      "status": "PASS"
+    },
+    {
+      "label": "quick-test \u2014 assert inline report visible (customers)",
+      "status": "FAIL",
+      "error": "Locator expected to be visible\nActual value: hidden \nCall log:\n  - Expect \"to_be_visible\" with timeout 5000ms\n  - waiting for locator(\"#reportPanel\")\n    9 \u00d7 locator resolved to <div id=\"reportPanel\">\u2026</div>\n      - unexpected value \"hidden\"\n"
+    },
+    {
+      "label": "quick-test \u2014 upload p327_sample_errors.txt",
+      "status": "PASS"
+    },
+    {
+      "label": "quick-test \u2014 select p327_universal mapping",
+      "status": "PASS"
+    },
+    {
+      "label": "quick-test \u2014 click Validate (p327)",
+      "status": "PASS"
+    },
+    {
+      "label": "quick-test \u2014 assert error result (p327)",
+      "status": "PASS"
+    },
+    {
+      "label": "quick-test \u2014 reveal compare panel",
+      "status": "FAIL",
+      "error": "Locator expected to be visible\nActual value: hidden \nCall log:\n  - Expect \"to_be_visible\" with timeout 5000ms\n  - waiting for locator(\"#fileInput2\")\n    9 \u00d7 locator resolved to <input type=\"file\" id=\"fileInput2\"/>\n      - unexpected value \"hidden\"\n"
+    },
+    {
+      "label": "quick-test \u2014 upload customers_updated.txt",
+      "status": "PASS"
+    },
+    {
+      "label": "quick-test \u2014 click Compare",
+      "status": "PASS"
+    },
+    {
+      "label": "quick-test \u2014 assert differences found",
+      "status": "PASS"
+    },
+    {
+      "label": "recent-runs \u2014 navigate",
+      "status": "PASS"
+    },
+    {
+      "label": "recent-runs \u2014 click Recent Runs tab",
+      "status": "PASS"
+    },
+    {
+      "label": "recent-runs \u2014 assert runs panel rendered",
+      "status": "PASS"
+    },
+    {
+      "label": "recent-runs \u2014 no JS errors",
+      "status": "PASS"
+    },
+    {
+      "label": "mapping-gen \u2014 navigate",
+      "status": "PASS"
+    },
+    {
+      "label": "mapping-gen \u2014 click Mapping Generator tab",
+      "status": "PASS"
+    },
+    {
+      "label": "mapping-gen \u2014 upload mapping template CSV",
+      "status": "PASS"
+    },
+    {
+      "label": "mapping-gen \u2014 set mapping name",
+      "status": "PASS"
+    },
+    {
+      "label": "mapping-gen \u2014 click Generate",
+      "status": "PASS"
+    },
+    {
+      "label": "mapping-gen \u2014 assert generation result",
+      "status": "PASS"
+    },
+    {
+      "label": "mapping-gen \u2014 click Use in Quick Test",
+      "status": "PASS"
+    },
+    {
+      "label": "api-tester \u2014 navigate",
+      "status": "PASS"
+    },
+    {
+      "label": "api-tester \u2014 click API Tester tab",
+      "status": "PASS"
+    },
+    {
+      "label": "api-tester \u2014 set base URL",
+      "status": "PASS"
+    },
+    {
+      "label": "api-tester \u2014 set path to /api/v1/system/health",
+      "status": "PASS"
+    },
+    {
+      "label": "api-tester \u2014 click Send",
+      "status": "PASS"
+    },
+    {
+      "label": "api-tester \u2014 assert 200 status badge",
+      "status": "PASS"
+    },
+    {
+      "label": "api-tester \u2014 assert 'healthy' in response",
+      "status": "PASS"
+    },
+    {
+      "label": "api-tester \u2014 click New Suite (dialog)",
+      "status": "PASS"
+    },
+    {
+      "label": "api-tester \u2014 assert suite in dropdown",
+      "status": "PASS"
+    },
+    {
+      "label": "api-tester \u2014 seed suite with 2 requests",
+      "status": "PASS"
+    },
+    {
+      "label": "api-tester \u2014 load suite in runner",
+      "status": "PASS"
+    },
+    {
+      "label": "api-tester \u2014 assert rows draggable and Save Order hidden",
+      "status": "PASS"
+    },
+    {
+      "label": "api-tester \u2014 drag row 0 to row 1 and assert Save Order visible",
+      "status": "PASS"
+    },
+    {
+      "label": "api-tester \u2014 click Save Order and assert button hidden",
+      "status": "PASS"
+    }
+  ]
+}

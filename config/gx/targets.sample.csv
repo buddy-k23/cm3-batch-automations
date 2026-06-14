@@ -1,0 +1,2 @@
+target_id,data_file,delimiter,has_header,mapping_file,key_columns,required_columns,enabled
+customers_oracle_to_file,data/samples/customers.txt,|,true,config/mappings/customer_mapping.json,customer_id,customer_id|first_name|last_name,true

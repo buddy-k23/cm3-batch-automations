@@ -1,0 +1,138 @@
+{
+    "mapping_name": "fixed_width_example",
+    "version": "1.0.0",
+    "description": "Example mapping for fixed-width file format",
+    "source": {
+        "type": "file",
+        "format": "fixed_width",
+        "encoding": "UTF-8"
+    },
+    "target": {
+        "type": "database",
+        "table_name": "ACCOUNT"
+    },
+    "fields": [
+        {
+            "name": "LOCATION-CODE",
+            "target_name": "LOCATION_CODE",
+            "position": 1,
+            "length": 6,
+            "data_type": "string",
+            "required": true,
+            "transformations": [
+                {
+                    "type": "trim"
+                }
+            ],
+            "validation_rules": [
+                {
+                    "type": "not_null"
+                }
+            ],
+            "description": "Location code"
+        },
+        {
+            "name": "ACCT-NUM",
+            "target_name": "ACCOUNT_NUMBER",
+            "position": 2,
+            "length": 18,
+            "data_type": "string",
+            "required": true,
+            "transformations": [
+                {
+                    "type": "trim"
+                }
+            ],
+            "validation_rules": [
+                {
+                    "type": "not_null"
+                },
+                {
+                    "type": "regex",
+                    "parameters": {
+                        "pattern": "^ACCT[0-9]{12}$"
+                    }
+                }
+            ],
+            "description": "Account number"
+        },
+        {
+            "name": "CREDIT-LIMIT-AMT",
+            "target_name": "CREDIT_LIMIT",
+            "position": 3,
+            "length": 13,
+            "data_type": "decimal",
+            "format": "9(12)",
+            "required": false,
+            "transformations": [
+                {
+                    "type": "trim"
+                },
+                {
+                    "type": "cast",
+                    "parameters": {
+                        "to_type": "decimal"
+                    }
+                }
+            ],
+            "validation_rules": [
+                {
+                    "type": "range",
+                    "parameters": {
+                        "min": 0,
+                        "max": 999999999999
+                    }
+                }
+            ],
+            "description": "Credit limit amount"
+        },
+        {
+            "name": "EXPIRATION-DATE",
+            "target_name": "EXPIRATION_DATE",
+            "position": 4,
+            "length": 8,
+            "data_type": "date",
+            "format": "CCYYMMDD",
+            "required": false,
+            "transformations": [
+                {
+                    "type": "trim"
+                }
+            ],
+            "validation_rules": [
+                {
+                    "type": "date_format",
+                    "parameters": {
+                        "format": "%Y%m%d"
+                    }
+                }
+            ],
+            "description": "Account expiration date"
+        },
+        {
+            "name": "BALANCE-AMT",
+            "target_name": "BALANCE",
+            "position": 5,
+            "length": 19,
+            "data_type": "decimal",
+            "format": "9(12)V9(6)",
+            "required": false,
+            "transformations": [
+                {
+                    "type": "trim"
+                }
+            ],
+            "validation_rules": [],
+            "description": "Current balance with 6 decimal places"
+        }
+    ],
+    "key_columns": [
+        "ACCT-NUM"
+    ],
+    "metadata": {
+        "created_by": "data_team",
+        "created_date": "2026-02-07T13:30:00Z",
+        "last_modified": "2026-02-07T13:30:00Z",
+        "notes": "Fixed-width account file mapping"
+    }
+}

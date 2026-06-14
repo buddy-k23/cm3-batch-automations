@@ -1,0 +1,58 @@
+# Core dependencies
+pandas>=1.5.0
+oracledb>=2.0.0
+
+# Database migrations
+alembic>=1.13
+sqlalchemy>=2.0
+numpy>=1.23.0
+python-dateutil>=2.8.0
+
+# CLI
+click>=8.0.0
+
+# Reporting
+Jinja2>=3.0.0
+
+# Environment management
+python-dotenv>=0.19.0
+
+# Memory monitoring
+psutil>=5.9.0
+
+# Excel support
+openpyxl>=3.1.0
+
+# YAML configuration
+pyyaml>=6.0
+
+# API Framework (optional - for REST API)
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.6
+aiofiles>=23.2.1
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+httpx>=0.28.0  # HTTP client for api_check test type and FastAPI TestClient
+
+# LDAPS login (when auth.enabled in config/ui.yml)
+itsdangerous>=2.0   # Starlette SessionMiddleware cookie signing
+ldap3>=2.9          # LDAPS bind + user search
+
+# Testing
+pytest>=7.0.0
+pytest-cov>=4.0.0
+
+# Data quality / Great Expectations
+# NOTE: GE is not currently available for Python 3.14 in this environment.
+# Use Python 3.11/3.12 runtime for GE execution.
+great_expectations>=1.0.0; python_version < '3.14'
+
+# Development tools
+black>=22.0.0
+flake8>=5.0.0
+mypy>=0.990
+pylint>=2.15.0
+
+# PEX build tool (optional, for building PEX files)
+pex>=2.1.0

@@ -1,0 +1,18 @@
+{
+  "schema": "app_int",
+  "description": "Generate expected files from app_int transformation SQL",
+  "jobs": [
+    {
+      "name": "SRC_A_P327",
+      "query_file": "config/queries/app_int/SRC_A_p327_transform.sql",
+      "output_file": "outputs/expected/SRC_A/p327.txt",
+      "delimiter": "|"
+    },
+    {
+      "name": "SRC_B_P327",
+      "query_file": "config/queries/app_int/SRC_B_p327_transform.sql",
+      "output_file": "outputs/expected/SRC_B/p327.txt",
+      "delimiter": "|"
+    }
+  ]
+}

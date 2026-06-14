@@ -1,0 +1,5 @@
+rule_id,rule_name,scope,severity,priority,group_by,expression,message_template,enabled
+GRP_PRIMARY_UNIQUENESS,One primary per account,group,ERROR,10,account_id,count(where(relationship='PRIMARY')) == 1,Exactly one primary contact required per account,Y
+GRP_SEQUENCE_DESCENDING,Sequence descending,group,ERROR,20,account_id,is_strict_desc(sequence_number),Sequence must be strictly descending within account,Y
+FIL_HEADER_COUNT_MATCH,Header count matches details,file,ERROR,30,,header.total_count == detail.count,Header detail count mismatch,Y
+REC_DATE_ORDER,Start date before end date,record,ERROR,40,,START_DATE <= END_DATE,START_DATE must be <= END_DATE,Y

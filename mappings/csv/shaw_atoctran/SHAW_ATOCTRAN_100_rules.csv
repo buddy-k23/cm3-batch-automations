@@ -1,0 +1,13 @@
+Rule ID,Rule Name,Field,Rule Type,Severity,Enabled,Message,Expected / Values
+R001,LOCATION-CODE required,LOCATION-CODE,not_empty,error,Yes,LOCATION-CODE must not be empty,
+R002,LOCATION-CODE length check,LOCATION-CODE,length,error,Yes,LOCATION-CODE payload length must be between 1 and 6 characters,1..6
+R003,LOCATION-CODE valid values,LOCATION-CODE,valid_values,error,Yes,LOCATION-CODE must be one of: 100030|100040|200000,100030|100040|200000
+R004,TRANSACTION-CODE required,TRANSACTION-CODE,not_empty,error,Yes,TRANSACTION-CODE must not be empty,
+R005,TRANSACTION-CODE length check,TRANSACTION-CODE,length,error,Yes,TRANSACTION-CODE payload length must be between 1 and 3 characters,1..3
+R006,TRANSACTION-CODE valid values,TRANSACTION-CODE,valid_values,error,Yes,TRANSACTION-CODE must be one of: 100,100
+R007,TRANSACTION-DATE required,TRANSACTION-DATE,not_empty,error,Yes,TRANSACTION-DATE must not be empty,
+R008,TRANSACTION-DATE date format,TRANSACTION-DATE,date_format,error,Yes,TRANSACTION-DATE must be a valid date (CCYYMMDD),CCYYMMDD
+R009,TRANSACTION-DATE length check,TRANSACTION-DATE,exact_length,error,Yes,TRANSACTION-DATE must be exactly 8 characters,8
+R010,CYCLE-ARRAY-TRANS-AREA required,CYCLE-ARRAY-TRANS-AREA,not_empty,error,Yes,CYCLE-ARRAY-TRANS-AREA must not be empty,
+R011,CYCLE-ARRAY-TRANS-AREA numeric,CYCLE-ARRAY-TRANS-AREA,numeric,error,Yes,CYCLE-ARRAY-TRANS-AREA must be numeric,
+R012,CYCLE-ARRAY-TRANS-AREA length check,CYCLE-ARRAY-TRANS-AREA,exact_length,error,Yes,CYCLE-ARRAY-TRANS-AREA must be exactly 40 characters,40

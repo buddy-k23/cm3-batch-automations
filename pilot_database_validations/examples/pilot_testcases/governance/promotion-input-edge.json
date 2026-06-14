@@ -1,0 +1,11 @@
+{
+  "pre_gate_status": "SUCCESS",
+  "hard_error_count": 0,
+  "open_warn_count": 0,
+  "template_completeness_ba": 95.0,
+  "template_completeness_qa": 95.0,
+  "required_columns_completeness": 100.0,
+  "warn_signoff_ba": false,
+  "warn_signoff_qa": false,
+  "warn_waiver_age_days": null
+}

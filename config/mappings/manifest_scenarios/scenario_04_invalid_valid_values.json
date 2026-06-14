@@ -1,0 +1,594 @@
+{
+  "mapping_name": "scenario_04_invalid_valid_values",
+  "version": "1.0.0",
+  "description": "Generated from template: scenario_04_invalid_valid_values.csv",
+  "source": {
+    "type": "file",
+    "format": "fixed_width",
+    "encoding": "UTF-8"
+  },
+  "target": {
+    "type": "database"
+  },
+  "fields": [
+    {
+      "name": "REC_TYPE",
+      "data_type": "string",
+      "target_name": "REC_TYPE",
+      "position": 1,
+      "length": 2,
+      "required": true,
+      "description": "Scenario field REC_TYPE",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "HD",
+              "DT"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "HD",
+        "DT"
+      ]
+    },
+    {
+      "name": "ACCOUNT_ID",
+      "data_type": "integer",
+      "target_name": "ACCOUNT_ID",
+      "position": 3,
+      "length": 10,
+      "format": "9(10)",
+      "required": true,
+      "description": "Scenario field ACCOUNT_ID",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "CUSTOMER_ID",
+      "data_type": "integer",
+      "target_name": "CUSTOMER_ID",
+      "position": 13,
+      "length": 8,
+      "format": "9(8)",
+      "required": true,
+      "description": "Scenario field CUSTOMER_ID",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "COUNTRY",
+      "data_type": "string",
+      "target_name": "COUNTRY",
+      "position": 21,
+      "length": 3,
+      "required": true,
+      "description": "Scenario field COUNTRY",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "USA",
+              "CAN",
+              "MEX"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "USA",
+        "CAN",
+        "MEX"
+      ]
+    },
+    {
+      "name": "STATE",
+      "data_type": "string",
+      "target_name": "STATE",
+      "position": 24,
+      "length": 2,
+      "required": true,
+      "description": "Scenario field STATE",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "NY",
+              "CA",
+              "TX",
+              "FL"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "NY",
+        "CA",
+        "TX",
+        "FL"
+      ]
+    },
+    {
+      "name": "POSTAL",
+      "data_type": "integer",
+      "target_name": "POSTAL",
+      "position": 26,
+      "length": 5,
+      "format": "9(5)",
+      "required": true,
+      "description": "Scenario field POSTAL",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "OPEN_DATE",
+      "data_type": "date",
+      "target_name": "OPEN_DATE",
+      "position": 31,
+      "length": 8,
+      "format": "CCYYMMDD",
+      "required": true,
+      "description": "Scenario field OPEN_DATE",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "CLOSE_DATE",
+      "data_type": "date",
+      "target_name": "CLOSE_DATE",
+      "position": 39,
+      "length": 8,
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": "Scenario field CLOSE_DATE",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "BALANCE",
+      "data_type": "decimal",
+      "target_name": "BALANCE",
+      "position": 47,
+      "length": 13,
+      "format": "+9(7)V9(5)",
+      "required": true,
+      "description": "Scenario field BALANCE",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "CREDIT_LIMIT",
+      "data_type": "decimal",
+      "target_name": "CREDIT_LIMIT",
+      "position": 60,
+      "length": 13,
+      "format": "+9(7)V9(5)",
+      "required": true,
+      "description": "Scenario field CREDIT_LIMIT",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "STATUS",
+      "data_type": "string",
+      "target_name": "STATUS",
+      "position": 73,
+      "length": 1,
+      "required": true,
+      "description": "Scenario field STATUS",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "A",
+              "I",
+              "C"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "A",
+        "I",
+        "C"
+      ]
+    },
+    {
+      "name": "RISK_SCORE",
+      "data_type": "integer",
+      "target_name": "RISK_SCORE",
+      "position": 74,
+      "length": 3,
+      "format": "9(3)",
+      "required": true,
+      "description": "Scenario field RISK_SCORE",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "RATE",
+      "data_type": "decimal",
+      "target_name": "RATE",
+      "position": 77,
+      "length": 5,
+      "format": "9(2)V9(3)",
+      "required": true,
+      "description": "Scenario field RATE",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "AMOUNT_DUE",
+      "data_type": "decimal",
+      "target_name": "AMOUNT_DUE",
+      "position": 82,
+      "length": 11,
+      "format": "+9(6)V9(4)",
+      "required": true,
+      "description": "Scenario field AMOUNT_DUE",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "LAST_PMT_DATE",
+      "data_type": "date",
+      "target_name": "LAST_PMT_DATE",
+      "position": 93,
+      "length": 8,
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": "Scenario field LAST_PMT_DATE",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "DELQ_DAYS",
+      "data_type": "integer",
+      "target_name": "DELQ_DAYS",
+      "position": 101,
+      "length": 3,
+      "format": "9(3)",
+      "required": true,
+      "description": "Scenario field DELQ_DAYS",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "CODE3",
+      "data_type": "string",
+      "target_name": "CODE3",
+      "position": 104,
+      "length": 3,
+      "format": "XXX",
+      "required": false,
+      "description": "Scenario field CODE3",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CURRENCY",
+      "data_type": "string",
+      "target_name": "CURRENCY",
+      "position": 107,
+      "length": 3,
+      "required": true,
+      "description": "Scenario field CURRENCY",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "USD",
+              "CAD",
+              "MXN"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "USD",
+        "CAD",
+        "MXN"
+      ]
+    },
+    {
+      "name": "FLAG",
+      "data_type": "string",
+      "target_name": "FLAG",
+      "position": 110,
+      "length": 1,
+      "required": false,
+      "description": "Scenario field FLAG",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "Y",
+              "N"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "Y",
+        "N"
+      ]
+    },
+    {
+      "name": "SEGMENT",
+      "data_type": "string",
+      "target_name": "SEGMENT",
+      "position": 111,
+      "length": 2,
+      "required": false,
+      "description": "Scenario field SEGMENT",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "R1",
+              "R2",
+              "R3"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "R1",
+        "R2",
+        "R3"
+      ]
+    },
+    {
+      "name": "EMAIL_OPT_IN",
+      "data_type": "string",
+      "target_name": "EMAIL_OPT_IN",
+      "position": 113,
+      "length": 1,
+      "required": false,
+      "description": "Scenario field EMAIL_OPT_IN",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "Y",
+              "N"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "Y",
+        "N"
+      ]
+    },
+    {
+      "name": "PHONE_AREA",
+      "data_type": "integer",
+      "target_name": "PHONE_AREA",
+      "position": 114,
+      "length": 3,
+      "format": "9(3)",
+      "required": false,
+      "description": "Scenario field PHONE_AREA",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "PHONE_NUM",
+      "data_type": "integer",
+      "target_name": "PHONE_NUM",
+      "position": 117,
+      "length": 7,
+      "format": "9(7)",
+      "required": false,
+      "description": "Scenario field PHONE_NUM",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "FILLER1",
+      "data_type": "string",
+      "target_name": "FILLER1",
+      "position": 124,
+      "length": 5,
+      "required": false,
+      "description": "Scenario field FILLER1",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "FILLER2",
+      "data_type": "string",
+      "target_name": "FILLER2",
+      "position": 129,
+      "length": 5,
+      "required": false,
+      "description": "Scenario field FILLER2",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    }
+  ],
+  "key_columns": [
+    "REC_TYPE"
+  ],
+  "metadata": {
+    "created_by": "template_converter",
+    "created_date": "2026-02-20T03:56:00.238559Z",
+    "last_modified": "2026-02-20T03:56:00.238728Z",
+    "source_template": "/Users/buddy/.openclaw/workspace/valdo/config/templates/csv/manifest_scenarios/scenario_04_invalid_valid_values.csv"
+  },
+  "total_record_length": 133
+}

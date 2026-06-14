@@ -1,0 +1,4153 @@
+{
+  "mapping_name": "P327_SHAW_M06_mapping",
+  "version": "1.0.0",
+  "description": "Generated from template: P327_SHAW_M06_mapping.csv",
+  "source": {
+    "type": "file",
+    "format": "fixed_width",
+    "encoding": "UTF-8"
+  },
+  "target": {
+    "type": "database"
+  },
+  "fields": [
+    {
+      "name": "LOCATION-CODE",
+      "data_type": "string",
+      "target_name": "location_code",
+      "position": 1,
+      "length": 6,
+      "required": true,
+      "description": "The APPS Location that the account ; combined with the ACCT-NUM - this is the Ke",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "100010",
+              "100020",
+              "100030",
+              "100040",
+              "100050",
+              "200000"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "100010",
+        "100020",
+        "100030",
+        "100040",
+        "100050",
+        "200000"
+      ]
+    },
+    {
+      "name": "ACCT-NUM",
+      "data_type": "string",
+      "target_name": "acct_num",
+      "position": 7,
+      "length": 18,
+      "required": true,
+      "description": "The identifier for the account (account number).",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "CREDIT-LIMIT-AMT",
+      "data_type": "decimal",
+      "target_name": "credit_limit_amt",
+      "position": 25,
+      "length": 13,
+      "format": "+9(12)",
+      "required": false,
+      "description": "The Credit Limit on the account.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "EXPIRATION-DATE",
+      "data_type": "date",
+      "target_name": "expiration_date",
+      "position": 38,
+      "length": 8,
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": "The date the account expires.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "BALANCE-AMT",
+      "data_type": "decimal",
+      "target_name": "balance_amt",
+      "position": 46,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "Total Balance of the account. Used throughout the system in displays and reports",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "OVERLIMIT-AMT",
+      "data_type": "decimal",
+      "target_name": "overlimit_amt",
+      "position": 65,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "Amount the account is over its limit. This amount is added to TOTAL-DELINQ-AMT f",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "DISPUTED-AMT",
+      "data_type": "decimal",
+      "target_name": "disputed_amt",
+      "position": 84,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "Amount that is in dispute. Must be less than the",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "TOTAL-DUE-AMT",
+      "data_type": "decimal",
+      "target_name": "total_due_amt",
+      "position": 103,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "The total amount that is due.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CURRENT-DUE-AMT",
+      "data_type": "decimal",
+      "target_name": "current_due_amt",
+      "position": 122,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "The current due amount.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "COLL-ASGN-UD-1",
+      "data_type": "string",
+      "target_name": "coll_asgn_ud_1",
+      "position": 141,
+      "length": 12,
+      "required": false,
+      "description": "First user-defined field used for Collector Assignment.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "COLL-ASGN-UD-TYPE1",
+      "data_type": "string",
+      "target_name": "coll_asgn_ud_type1",
+      "position": 153,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "0",
+              "1"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "0",
+        "1"
+      ]
+    },
+    {
+      "name": "COLL-ASGN-UD-FMT-1",
+      "data_type": "string",
+      "target_name": "coll_asgn_ud_fmt_1",
+      "position": 155,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "COLL-ASGN-UD-2",
+      "data_type": "string",
+      "target_name": "coll_asgn_ud_2",
+      "position": 157,
+      "length": 12,
+      "required": false,
+      "description": "Second user-defined field used for Collector Assignment.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "COLL-ASGN-UD-TYPE2",
+      "data_type": "string",
+      "target_name": "coll_asgn_ud_type2",
+      "position": 169,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "COLL-ASGN-UD-FMT-2",
+      "data_type": "string",
+      "target_name": "coll_asgn_ud_fmt_2",
+      "position": 171,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "TOTAL-DELINQ-AMT",
+      "data_type": "decimal",
+      "target_name": "total_delinq_amt",
+      "position": 173,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "The total amount that is delinquent.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CYCLES-DELINQ-CNT",
+      "data_type": "decimal",
+      "target_name": "cycles_delinq_cnt",
+      "position": 192,
+      "length": 2,
+      "format": "9(2)",
+      "required": false,
+      "description": "Number of cycles the account is delinquent.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "DAYS-DELINQ-CNT",
+      "data_type": "decimal",
+      "target_name": "days_delinq_cnt",
+      "position": 194,
+      "length": 5,
+      "format": "9(5)",
+      "required": false,
+      "description": "The number of days the account is delinquent.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LAST-PAYMENT-AMT",
+      "data_type": "decimal",
+      "target_name": "last_payment_amt",
+      "position": 199,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "The amount of the last payment.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CHARGE-OFF-DATE",
+      "data_type": "date",
+      "target_name": "charge_off_date",
+      "position": 218,
+      "length": 8,
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": "The date that the account was charged off.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "DLQ-DAYS-CHRG-OFF",
+      "data_type": "decimal",
+      "target_name": "dlq_days_chrg_off",
+      "position": 226,
+      "length": 5,
+      "format": "9(5)",
+      "required": false,
+      "description": "Number of days the account was Delinquent when it was charged off.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LST-PART-COF-AMT",
+      "data_type": "decimal",
+      "target_name": "lst_part_cof_amt",
+      "position": 231,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "Last Partial Charge-Off amount.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LST-PART-COF-DATE",
+      "data_type": "date",
+      "target_name": "lst_part_cof_date",
+      "position": 250,
+      "length": 8,
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": "Last Partial Charge-Off date.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "TOT-PART-COF-AMT",
+      "data_type": "decimal",
+      "target_name": "tot_part_cof_amt",
+      "position": 258,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "Total Partial Charge-Off amount.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "BAL-PART-COF-AMT",
+      "data_type": "decimal",
+      "target_name": "bal_part_cof_amt",
+      "position": 277,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "Balance Amount plus Total Partial Charge-Off Amount.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "PART-COF-ACCT-NUM",
+      "data_type": "string",
+      "target_name": "part_cof_acct_num",
+      "position": 296,
+      "length": 30,
+      "required": false,
+      "description": "The account number that is used to track the partial charge-off amount.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "USER-DEFINED-7",
+      "data_type": "string",
+      "target_name": "user_defined_7",
+      "position": 326,
+      "length": 12,
+      "required": false,
+      "description": "User-defined value that will be recorded on the collection history entry saved o",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-7-TYPE",
+      "data_type": "string",
+      "target_name": "ud_7_type",
+      "position": 338,
+      "length": 2,
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "I"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "I"
+      ]
+    },
+    {
+      "name": "UD-7-FMT",
+      "data_type": "string",
+      "target_name": "ud_7_fmt",
+      "position": 340,
+      "length": 2,
+      "required": false,
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ACCT-OPEN-DATE",
+      "data_type": "date",
+      "target_name": "acct_open_date",
+      "position": 342,
+      "length": 8,
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": "The date the account was opened.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "NEXT-DUE-DATE",
+      "data_type": "date",
+      "target_name": "next_due_date",
+      "position": 350,
+      "length": 8,
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": "The date that the next payment is due on the account.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "INTEREST-RATE",
+      "data_type": "decimal",
+      "target_name": "interest_rate",
+      "position": 358,
+      "length": 6,
+      "format": "9(3)V9(3)",
+      "required": false,
+      "description": "The Annual Percentage Rate (APR) on the account.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "OTH-DELINQ-AMT",
+      "data_type": "decimal",
+      "target_name": "oth_delinq_amt",
+      "position": 364,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "Delinquent amount that is not principal or interest.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REPO-CHARGES",
+      "data_type": "decimal",
+      "target_name": "repo_charges",
+      "position": 383,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "The amount of the charges for the repossession activities.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REPOSSESSION-DATE",
+      "data_type": "date",
+      "target_name": "repossession_date",
+      "position": 402,
+      "length": 8,
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": "Date the collateral was repossessed.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "MATURITY-DATE",
+      "data_type": "date",
+      "target_name": "maturity_date",
+      "position": 410,
+      "length": 8,
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": "Due date of the final payment on the account.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "PAYMENT-AMT",
+      "data_type": "decimal",
+      "target_name": "payment_amt",
+      "position": 418,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "The payment amount on the account.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "PRINCIPAL-DELQ-AMT",
+      "data_type": "decimal",
+      "target_name": "principal_delq_amt",
+      "position": 437,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "The amount of Principal that is delinquent.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "INTEREST-DELQ-AMT",
+      "data_type": "decimal",
+      "target_name": "interest_delq_amt",
+      "position": 456,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "The amount of Interest that is delinquent.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "USER-DEF-SEARCH-1",
+      "data_type": "string",
+      "target_name": "user_def_search_1",
+      "position": 475,
+      "length": 10,
+      "required": false,
+      "description": "The first User Defined Search field used for Name Search.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-SEARCH-1-TYPE",
+      "data_type": "string",
+      "target_name": "ud_search_1_type",
+      "position": 485,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-SEARCH-1-FMT",
+      "data_type": "string",
+      "target_name": "ud_search_1_fmt",
+      "position": 487,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "USER-DEF-SEARCH-2",
+      "data_type": "string",
+      "target_name": "user_def_search_2",
+      "position": 489,
+      "length": 10,
+      "required": false,
+      "description": "The second User Defined Search field used for Name Search.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-SEARCH-2-TYPE",
+      "data_type": "string",
+      "target_name": "ud_search_2_type",
+      "position": 499,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-SEARCH-2-FMT",
+      "data_type": "string",
+      "target_name": "ud_search_2_fmt",
+      "position": 501,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ACCT-NUM-SORT",
+      "data_type": "string",
+      "target_name": "acct_num_sort",
+      "position": 503,
+      "length": 7,
+      "required": false,
+      "description": "This field is used to contain up to 7 digits from the account number, e.g., the",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CYCLE-ID",
+      "data_type": "decimal",
+      "target_name": "cycle_id",
+      "position": 510,
+      "length": 2,
+      "format": "9(2)",
+      "required": false,
+      "description": "The ID of the Cycle that the account is assigned to for billing purposes (usuall",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-DATE-FIELD-1",
+      "data_type": "date",
+      "target_name": "ud_date_field_1",
+      "position": 512,
+      "length": 8,
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": "User defined date field.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LAST-BILLING-DATE",
+      "data_type": "date",
+      "target_name": "last_billing_date",
+      "position": 520,
+      "length": 8,
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": "The date that the account was last billed.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "AGED-HISTORY",
+      "data_type": "string",
+      "target_name": "aged_history",
+      "position": 528,
+      "length": 12,
+      "required": false,
+      "description": "This represents the history of delinquency status for the past 12 months. For Re",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CREDIT-LIMIT-DATE",
+      "data_type": "date",
+      "target_name": "credit_limit_date",
+      "position": 540,
+      "length": 8,
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": "The date that the credit limit was established or updated.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "INT-LATE-CHG-AMT",
+      "data_type": "decimal",
+      "target_name": "int_late_chg_amt",
+      "position": 548,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "The amount of interest and late charges on the account.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "DELINQ-AMT-AGE-1",
+      "data_type": "decimal",
+      "target_name": "delinq_amt_age_1",
+      "position": 567,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "Amount that is delinquent 30 days.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "DELINQ-AMT-AGE-2",
+      "data_type": "decimal",
+      "target_name": "delinq_amt_age_2",
+      "position": 586,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "Amount that is delinquent 60 days.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "DELINQ-AMT-AGE-3",
+      "data_type": "decimal",
+      "target_name": "delinq_amt_age_3",
+      "position": 605,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "Amount that is delinquent 90 days.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "DELINQ-AMT-AGE-4",
+      "data_type": "decimal",
+      "target_name": "delinq_amt_age_4",
+      "position": 624,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "Amount that is delinquent 120 days.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "NUMBER-OF-CARDS",
+      "data_type": "decimal",
+      "target_name": "number_of_cards",
+      "position": 643,
+      "length": 2,
+      "format": "9(2)",
+      "required": false,
+      "description": "Number of credit cards that are currently active on the account.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "WARN-BULLETIN-DATE",
+      "data_type": "date",
+      "target_name": "warn_bulletin_date",
+      "position": 645,
+      "length": 8,
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": "Date of the Warning Bulletin that the account is included.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "WARN-BULLETIN-ZONE",
+      "data_type": "string",
+      "target_name": "warn_bulletin_zone",
+      "position": 653,
+      "length": 4,
+      "required": false,
+      "description": "Zone of Warning Bulletin on which the account is included.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "OTHER-ACCT-NUM",
+      "data_type": "string",
+      "target_name": "other_acct_num",
+      "position": 657,
+      "length": 18,
+      "required": false,
+      "description": "Other Account Number associated with the Primary accountholder.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CREDIT-SCORE",
+      "data_type": "string",
+      "target_name": "credit_score",
+      "position": 675,
+      "length": 5,
+      "required": false,
+      "description": "The Credit Score derived during originations processing of the credit applicatio",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "BEHAVIOR-INDEX",
+      "data_type": "string",
+      "target_name": "behavior_index",
+      "position": 680,
+      "length": 4,
+      "required": false,
+      "description": "Behavior Index (score) for the accountholder.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LAST-PAYMENT-DATE",
+      "data_type": "date",
+      "target_name": "last_payment_date",
+      "position": 684,
+      "length": 8,
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": "Date of the last payment. For overdraft accounts, date of last deposit.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LAST-MONETARY-AMT",
+      "data_type": "decimal",
+      "target_name": "last_monetary_amt",
+      "position": 692,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "Amount of the last monetary transaction.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LAST-MONETARY-DATE",
+      "data_type": "date",
+      "target_name": "last_monetary_date",
+      "position": 711,
+      "length": 8,
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": "Date of the last monetary transaction.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LAST-MONETARY-TYPE",
+      "data_type": "string",
+      "target_name": "last_monetary_type",
+      "position": 719,
+      "length": 2,
+      "required": false,
+      "description": "Transaction Type for the last monetary transaction.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CHARGE-OFF-AMT",
+      "data_type": "decimal",
+      "target_name": "charge_off_amt",
+      "position": 721,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "Amount of principal charged-off.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "SORT-VALUE-1",
+      "data_type": "decimal",
+      "target_name": "sort_value_1",
+      "position": 740,
+      "length": 12,
+      "format": "9(12)",
+      "required": false,
+      "description": "First User-defined field used for Work List Sort criteria.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "SORT-VALUE-1-TYPE",
+      "data_type": "string",
+      "target_name": "sort_value_1_type",
+      "position": 752,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "SORT-VALUE-1-FMT",
+      "data_type": "string",
+      "target_name": "sort_value_1_fmt",
+      "position": 754,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "SORT-VALUE-2",
+      "data_type": "string",
+      "target_name": "sort_value_2",
+      "position": 756,
+      "length": 12,
+      "required": false,
+      "description": "Second User-defined field used for Work List Sort criteria.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "SORT-VALUE-2-TYPE",
+      "data_type": "string",
+      "target_name": "sort_value_2_type",
+      "position": 768,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "SORT-VALUE-2-FMT",
+      "data_type": "string",
+      "target_name": "sort_value_2_fmt",
+      "position": 770,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "USER-DEFINED-1",
+      "data_type": "string",
+      "target_name": "user_defined_1",
+      "position": 772,
+      "length": 17,
+      "required": false,
+      "description": "Free format user-defined area used for installation specific data.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-1-TYPE",
+      "data_type": "string",
+      "target_name": "ud_1_type",
+      "position": 789,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-1-FMT",
+      "data_type": "string",
+      "target_name": "ud_1_fmt",
+      "position": 791,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "USER-DEFINED-2",
+      "data_type": "string",
+      "target_name": "user_defined_2",
+      "position": 793,
+      "length": 30,
+      "required": false,
+      "description": "Free format user-defined area used for installation specific data.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-2-TYPE",
+      "data_type": "string",
+      "target_name": "ud_2_type",
+      "position": 823,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-2-FMT",
+      "data_type": "string",
+      "target_name": "ud_2_fmt",
+      "position": 825,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "USER-DEFINED-3",
+      "data_type": "string",
+      "target_name": "user_defined_3",
+      "position": 827,
+      "length": 14,
+      "required": false,
+      "description": "Free format user-defined area used for installation specific data.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-3-TYPE",
+      "data_type": "string",
+      "target_name": "ud_3_type",
+      "position": 841,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "1",
+              "2"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "1",
+        "2"
+      ]
+    },
+    {
+      "name": "UD-3-FMT",
+      "data_type": "string",
+      "target_name": "ud_3_fmt",
+      "position": 843,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "USER-DEFINED-4",
+      "data_type": "string",
+      "target_name": "user_defined_4",
+      "position": 845,
+      "length": 79,
+      "required": false,
+      "description": "Free format user-defined area used for installation specific data.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-4-TYPE",
+      "data_type": "string",
+      "target_name": "ud_4_type",
+      "position": 924,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-4-FMT",
+      "data_type": "string",
+      "target_name": "ud_4_fmt",
+      "position": 926,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "USER-DEFINED-5",
+      "data_type": "string",
+      "target_name": "user_defined_5",
+      "position": 928,
+      "length": 79,
+      "required": false,
+      "description": "Free format user-defined area used for installation specific data.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-5-TYPE",
+      "data_type": "string",
+      "target_name": "ud_5_type",
+      "position": 1007,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-5-FMT",
+      "data_type": "string",
+      "target_name": "ud_5_fmt",
+      "position": 1009,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "0",
+              "1",
+              "2"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "0",
+        "1",
+        "2"
+      ]
+    },
+    {
+      "name": "USER-DEFINED-6",
+      "data_type": "string",
+      "target_name": "user_defined_6",
+      "position": 1011,
+      "length": 12,
+      "required": false,
+      "description": "The label field for the User-Defined-7 field included on each collections entry.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "DPD"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "DPD"
+      ]
+    },
+    {
+      "name": "UD-6-TYPE",
+      "data_type": "string",
+      "target_name": "ud_6_type",
+      "position": 1023,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-6-FMT",
+      "data_type": "string",
+      "target_name": "ud_6_fmt",
+      "position": 1025,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "01",
+              "02",
+              "03",
+              "04",
+              "05",
+              "06",
+              "07"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "01",
+        "02",
+        "03",
+        "04",
+        "05",
+        "06",
+        "07"
+      ]
+    },
+    {
+      "name": "USER-DEFINED-8-1",
+      "data_type": "string",
+      "target_name": "user_defined_8_1",
+      "position": 1027,
+      "length": 79,
+      "required": false,
+      "description": "Free format user-defined area used for installation specific data.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "USER-DEFINED-8-2",
+      "data_type": "string",
+      "target_name": "user_defined_8_2",
+      "position": 1106,
+      "length": 79,
+      "required": false,
+      "description": "Free format user-defined area used for installation specific data.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "USER-DEFINED-8-3",
+      "data_type": "string",
+      "target_name": "user_defined_8_3",
+      "position": 1185,
+      "length": 79,
+      "required": false,
+      "description": "Free format user-defined area used for installation specific data.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "USER-DEFINED-8-4",
+      "data_type": "string",
+      "target_name": "user_defined_8_4",
+      "position": 1264,
+      "length": 79,
+      "required": false,
+      "description": "Free format user-defined area used for installation specific data.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "USER-DEFINED-8-5",
+      "data_type": "string",
+      "target_name": "user_defined_8_5",
+      "position": 1343,
+      "length": 79,
+      "required": false,
+      "description": "Free format user-defined area used for installation specific data.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-8-1-TYPE",
+      "data_type": "string",
+      "target_name": "ud_8_1_type",
+      "position": 1422,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-8-2-TYPE",
+      "data_type": "string",
+      "target_name": "ud_8_2_type",
+      "position": 1424,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-8-3-TYPE",
+      "data_type": "string",
+      "target_name": "ud_8_3_type",
+      "position": 1426,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-8-4-TYPE",
+      "data_type": "string",
+      "target_name": "ud_8_4_type",
+      "position": 1428,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-8-5-TYPE",
+      "data_type": "string",
+      "target_name": "ud_8_5_type",
+      "position": 1430,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-8-1-FMT",
+      "data_type": "string",
+      "target_name": "ud_8_1_fmt",
+      "position": 1432,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-8-2-FMT",
+      "data_type": "string",
+      "target_name": "ud_8_2_fmt",
+      "position": 1434,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-8-3-FMT",
+      "data_type": "string",
+      "target_name": "ud_8_3_fmt",
+      "position": 1436,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-8-4-FMT",
+      "data_type": "string",
+      "target_name": "ud_8_4_fmt",
+      "position": 1438,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "UD-8-5-FMT",
+      "data_type": "string",
+      "target_name": "ud_8_5_fmt",
+      "position": 1440,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "PRINCIPAL-AMT",
+      "data_type": "decimal",
+      "target_name": "principal_amt",
+      "position": 1442,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "Principal amount owed on the account.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "OTHER-AMT",
+      "data_type": "decimal",
+      "target_name": "other_amt",
+      "position": 1461,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "Other amount owed on the account. Recovery Accounting populates with the sum of",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ORIG-BALANCE-AMT",
+      "data_type": "decimal",
+      "target_name": "orig_balance_amt",
+      "position": 1480,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "Original amount of the loan.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "OFFICER-NUM",
+      "data_type": "string",
+      "target_name": "officer_num",
+      "position": 1499,
+      "length": 9,
+      "required": false,
+      "description": "Financial institution officer ID or User ID that approved the loan/account. May",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "BRANCH-NUM",
+      "data_type": "string",
+      "target_name": "branch_num",
+      "position": 1508,
+      "length": 6,
+      "required": false,
+      "description": "Financial institution 'branch number' where the loan was processed.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ORIGINAL-TERM",
+      "data_type": "string",
+      "target_name": "original_term",
+      "position": 1514,
+      "length": 4,
+      "required": false,
+      "description": "Original Term (months) for the loan.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ORIG-INTEREST-RATE",
+      "data_type": "decimal",
+      "target_name": "orig_interest_rate",
+      "position": 1518,
+      "length": 6,
+      "format": "9(3)V9(3)",
+      "required": false,
+      "description": "Original interest rate on the account.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "DEALER-NUM",
+      "data_type": "string",
+      "target_name": "dealer_num",
+      "position": 1524,
+      "length": 7,
+      "required": false,
+      "description": "The identifier of the dealer that initiated origination of the loan, e.g., car d",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "PAYMENT-FREQUENCY",
+      "data_type": "string",
+      "target_name": "payment_frequency",
+      "position": 1531,
+      "length": 2,
+      "required": false,
+      "description": "Frequency of payment on the loan.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "MO",
+              "QT",
+              "SA",
+              "AN",
+              "BW",
+              "WK"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "MO",
+        "QT",
+        "SA",
+        "AN",
+        "BW",
+        "WK"
+      ]
+    },
+    {
+      "name": "REFINANCE-DATE",
+      "data_type": "date",
+      "target_name": "refinance_date",
+      "position": 1533,
+      "length": 8,
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": "Date the loan was refinanced.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "DEPOSIT-IND",
+      "data_type": "string",
+      "target_name": "deposit_ind",
+      "position": 1541,
+      "length": 1,
+      "required": false,
+      "description": "Used to indicate if there is a deposit on the account. This is usually applicabl",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ON-BUDGET-IND",
+      "data_type": "string",
+      "target_name": "on_budget_ind",
+      "position": 1542,
+      "length": 1,
+      "required": false,
+      "description": "Used to indicate if the customer is on a Budget Assistance Plan.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "DPA-IND",
+      "data_type": "string",
+      "target_name": "dpa_ind",
+      "position": 1543,
+      "length": 1,
+      "required": false,
+      "description": "Used to indicate if there is a Deferred Payment Arrangement set up on the accoun",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CUT-OFF-DATE",
+      "data_type": "date",
+      "target_name": "cut_off_date",
+      "position": 1544,
+      "length": 8,
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": "Date service was cut off.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CUT-OFF-CODE",
+      "data_type": "string",
+      "target_name": "cut_off_code",
+      "position": 1552,
+      "length": 3,
+      "required": false,
+      "description": "3 byte code indicating why the service was cut off.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "CL",
+              "AC"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "CL",
+        "AC"
+      ]
+    },
+    {
+      "name": "ACCOUNT-TYPE",
+      "data_type": "string",
+      "target_name": "account_type",
+      "position": 1555,
+      "length": 3,
+      "required": false,
+      "description": "Specifies type of account. Used to populate database key for Third Party Vintage",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "SERVICE-TYPE",
+      "data_type": "string",
+      "target_name": "service_type",
+      "position": 1558,
+      "length": 3,
+      "required": false,
+      "description": "Specifies type of service.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "BUDGET-PAYMENT-AMT",
+      "data_type": "decimal",
+      "target_name": "budget_payment_amt",
+      "position": 1561,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "The Budget Payment amount set up for the customer.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "TERMINATE-AMT",
+      "data_type": "decimal",
+      "target_name": "terminate_amt",
+      "position": 1580,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "The amount the customer must pay to avoid termination of service.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "TERMINATE-EXP-DATE",
+      "data_type": "date",
+      "target_name": "terminate_exp_date",
+      "position": 1599,
+      "length": 8,
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": "The date the service will be terminated if the TERMINATE-AMT is not paid.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "SAT-USER-DEFINED-1",
+      "data_type": "string",
+      "target_name": "sat_user_defined_1",
+      "position": 1607,
+      "length": 12,
+      "required": false,
+      "description": "First user-defined value for Transaction/State assignment processing.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "SAT-UD-1-TYPE",
+      "data_type": "string",
+      "target_name": "sat_ud_1_type",
+      "position": 1619,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "SAT-UD-1-FMT",
+      "data_type": "string",
+      "target_name": "sat_ud_1_fmt",
+      "position": 1621,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "SAT-USER-DEFINED-2",
+      "data_type": "string",
+      "target_name": "sat_user_defined_2",
+      "position": 1623,
+      "length": 12,
+      "required": false,
+      "description": "First user-defined value for Transaction/State assignment processing.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "SAT-UD-2-TYPE",
+      "data_type": "string",
+      "target_name": "sat_ud_2_type",
+      "position": 1635,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "SAT-UD-2-FMT",
+      "data_type": "string",
+      "target_name": "sat_ud_2_fmt",
+      "position": 1637,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-USER-DEF-1",
+      "data_type": "string",
+      "target_name": "letter_user_def_1",
+      "position": 1639,
+      "length": 30,
+      "required": false,
+      "description": "User-defined value that can be used in letters or other functions.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-1-TYPE",
+      "data_type": "string",
+      "target_name": "letter_ud_1_type",
+      "position": 1669,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-1-FMT",
+      "data_type": "string",
+      "target_name": "letter_ud_1_fmt",
+      "position": 1671,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-USER-DEF-2",
+      "data_type": "string",
+      "target_name": "letter_user_def_2",
+      "position": 1673,
+      "length": 30,
+      "required": false,
+      "description": "User-defined value that can be used in letters or other functions.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-2-TYPE",
+      "data_type": "string",
+      "target_name": "letter_ud_2_type",
+      "position": 1703,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-2-FMT",
+      "data_type": "string",
+      "target_name": "letter_ud_2_fmt",
+      "position": 1705,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-USER-DEF-3",
+      "data_type": "string",
+      "target_name": "letter_user_def_3",
+      "position": 1707,
+      "length": 30,
+      "required": false,
+      "description": "User-defined value that can be used in letters or other functions.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-3-TYPE",
+      "data_type": "string",
+      "target_name": "letter_ud_3_type",
+      "position": 1737,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-3-FMT",
+      "data_type": "string",
+      "target_name": "letter_ud_3_fmt",
+      "position": 1739,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-USER-DEF-4",
+      "data_type": "string",
+      "target_name": "letter_user_def_4",
+      "position": 1741,
+      "length": 30,
+      "required": false,
+      "description": "User-defined value that can be used in letters or other functions.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-4-TYPE",
+      "data_type": "string",
+      "target_name": "letter_ud_4_type",
+      "position": 1771,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-4-FMT",
+      "data_type": "string",
+      "target_name": "letter_ud_4_fmt",
+      "position": 1773,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-USER-DEF-5",
+      "data_type": "string",
+      "target_name": "letter_user_def_5",
+      "position": 1775,
+      "length": 30,
+      "required": false,
+      "description": "User-defined value that can be used in letters or other functions.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-5-TYPE",
+      "data_type": "string",
+      "target_name": "letter_ud_5_type",
+      "position": 1805,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-5-FMT",
+      "data_type": "string",
+      "target_name": "letter_ud_5_fmt",
+      "position": 1807,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-USER-DEF-6",
+      "data_type": "string",
+      "target_name": "letter_user_def_6",
+      "position": 1809,
+      "length": 30,
+      "required": false,
+      "description": "User-defined value that can be used in letters or other functions.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-6-TYPE",
+      "data_type": "string",
+      "target_name": "letter_ud_6_type",
+      "position": 1839,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-6-FMT",
+      "data_type": "string",
+      "target_name": "letter_ud_6_fmt",
+      "position": 1841,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-USER-DEF-7",
+      "data_type": "string",
+      "target_name": "letter_user_def_7",
+      "position": 1843,
+      "length": 30,
+      "required": false,
+      "description": "User-defined value that can be used in letters or other functions.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-7-TYPE",
+      "data_type": "string",
+      "target_name": "letter_ud_7_type",
+      "position": 1873,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-7-FMT",
+      "data_type": "string",
+      "target_name": "letter_ud_7_fmt",
+      "position": 1875,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-USER-DEF-8",
+      "data_type": "decimal",
+      "target_name": "letter_user_def_8",
+      "position": 1877,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "User-defined value that can be used in letters or other functions.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-8-TYPE",
+      "data_type": "string",
+      "target_name": "letter_ud_8_type",
+      "position": 1896,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-8-FMT",
+      "data_type": "string",
+      "target_name": "letter_ud_8_fmt",
+      "position": 1898,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-USER-DEF-9",
+      "data_type": "decimal",
+      "target_name": "letter_user_def_9",
+      "position": 1900,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "User-defined value that can be used in letters or other functions.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-9-TYPE",
+      "data_type": "string",
+      "target_name": "letter_ud_9_type",
+      "position": 1919,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-9-FMT",
+      "data_type": "string",
+      "target_name": "letter_ud_9_fmt",
+      "position": 1921,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-USER-DEF-10",
+      "data_type": "decimal",
+      "target_name": "letter_user_def_10",
+      "position": 1923,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "User-defined value that can be used in letters or other functions.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-10-TYPE",
+      "data_type": "string",
+      "target_name": "letter_ud_10_type",
+      "position": 1942,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LETTER-UD-10-FMT",
+      "data_type": "string",
+      "target_name": "letter_ud_10_fmt",
+      "position": 1944,
+      "length": 2,
+      "required": false,
+      "description": "Not used in baseline processing; available as an element.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "BANK-NUM",
+      "data_type": "decimal",
+      "target_name": "bank_num",
+      "position": 1946,
+      "length": 5,
+      "format": "9(5)",
+      "required": false,
+      "description": "The Bank Number assigned to the account in the accounting system.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "APP-CODE",
+      "data_type": "decimal",
+      "target_name": "app_code",
+      "position": 1951,
+      "length": 3,
+      "format": "9(3)",
+      "required": false,
+      "description": "The Application Code assigned to the account in the accounting system.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "000"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "000"
+      ]
+    },
+    {
+      "name": "ESTIMATED-MNTH-PAY",
+      "data_type": "decimal",
+      "target_name": "estimated_mnth_pay",
+      "position": 1954,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "The expected amount the account/customer will have on the next bill.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ACI-INDICATOR",
+      "data_type": "string",
+      "target_name": "aci_indicator",
+      "position": 1973,
+      "length": 1,
+      "required": false,
+      "description": "Used by Strata to determine the CCI value of the account, and to determine which",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "SERVICING-SYSTEM",
+      "data_type": "string",
+      "target_name": "servicing_system",
+      "position": 1974,
+      "length": 8,
+      "required": false,
+      "description": "Identifier of Servicing System used by Strata.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "NATL-CURRENCY",
+      "data_type": "string",
+      "target_name": "natl_currency",
+      "position": 1982,
+      "length": 3,
+      "required": false,
+      "description": "The National Currency for the account.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "USD"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "USD"
+      ]
+    },
+    {
+      "name": "BASE-CURRENCY",
+      "data_type": "string",
+      "target_name": "base_currency",
+      "position": 1985,
+      "length": 3,
+      "required": true,
+      "description": "Currency that all values on the Financial Extract are stored. All accounts in th",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "USD"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "USD"
+      ]
+    },
+    {
+      "name": "VALUE-CODE",
+      "data_type": "string",
+      "target_name": "value_code",
+      "position": 1988,
+      "length": 2,
+      "required": false,
+      "description": "User-defined value rating.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "RISK-CODE",
+      "data_type": "string",
+      "target_name": "risk_code",
+      "position": 1990,
+      "length": 2,
+      "required": false,
+      "description": "User-defined risk level.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "RECOMMENDED-ACT-CD",
+      "data_type": "string",
+      "target_name": "recommended_act_cd",
+      "position": 1992,
+      "length": 2,
+      "required": false,
+      "description": "User-defined recommended action.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "LS"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "LS"
+      ]
+    },
+    {
+      "name": "ACTG-SYS-ID",
+      "data_type": "string",
+      "target_name": "actg_sys_id",
+      "position": 1994,
+      "length": 4,
+      "required": false,
+      "description": "This field identifies the accounting system (system of record) that is the sourc",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "LS",
+              "CAS",
+              "CASW"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "LS",
+        "CAS",
+        "CASW"
+      ]
+    },
+    {
+      "name": "EXTERNAL-ACCT-NUM",
+      "data_type": "string",
+      "target_name": "external_acct_num",
+      "position": 1998,
+      "length": 30,
+      "required": false,
+      "description": "An alternate account number for this account. For Payment Card Industry (PCI) pr",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ACCT-STAT-CODE-1",
+      "data_type": "string",
+      "target_name": "acct_stat_code_1",
+      "position": 2028,
+      "length": 1,
+      "required": false,
+      "description": "The first Status Code for the account provided by the accounting system. If Reco",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ACCT-STAT-CODE-2",
+      "data_type": "string",
+      "target_name": "acct_stat_code_2",
+      "position": 2029,
+      "length": 1,
+      "required": false,
+      "description": "The second Status Code for the account provided by the accounting system. If Rec",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ACCT-STAT-CODE-3",
+      "data_type": "string",
+      "target_name": "acct_stat_code_3",
+      "position": 2030,
+      "length": 1,
+      "required": false,
+      "description": "The third Status Code for the account provided by the accounting system. If Reco",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ACCT-STAT-CODE-4",
+      "data_type": "string",
+      "target_name": "acct_stat_code_4",
+      "position": 2031,
+      "length": 1,
+      "required": false,
+      "description": "The fourth Status Code for the account provided by the accounting system. If Rec",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ACCT-STAT-CODE-5",
+      "data_type": "string",
+      "target_name": "acct_stat_code_5",
+      "position": 2032,
+      "length": 1,
+      "required": false,
+      "description": "The fifth Status Code for the account provided by the accounting system.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ACCT-STAT-CODE-6",
+      "data_type": "string",
+      "target_name": "acct_stat_code_6",
+      "position": 2033,
+      "length": 1,
+      "required": false,
+      "description": "The sixth Status Code for the account provided by the accounting system.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ACCT-STAT-CODE-7",
+      "data_type": "string",
+      "target_name": "acct_stat_code_7",
+      "position": 2034,
+      "length": 1,
+      "required": false,
+      "description": "The seventh Status Code for the account provided by the accounting system.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ACCT-STAT-CODE-8",
+      "data_type": "string",
+      "target_name": "acct_stat_code_8",
+      "position": 2035,
+      "length": 1,
+      "required": false,
+      "description": "The eighth Status Code for the account provided by the accounting system.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ACCT-STAT-CODE-9",
+      "data_type": "string",
+      "target_name": "acct_stat_code_9",
+      "position": 2036,
+      "length": 1,
+      "required": false,
+      "description": "The ninth Status Code for the account provided by the accounting system.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ACCT-STAT-CODE-10",
+      "data_type": "string",
+      "target_name": "acct_stat_code_10",
+      "position": 2037,
+      "length": 1,
+      "required": false,
+      "description": "The tenth Status Code for the account provided by the accounting system.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LGL-STATUS",
+      "data_type": "string",
+      "target_name": "lgl_status",
+      "position": 2038,
+      "length": 3,
+      "required": false,
+      "description": "Legal Status code assigned to the account - valid values are controlled via refe",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-INT-MTD-AMT",
+      "data_type": "decimal",
+      "target_name": "rec_int_mtd_amt",
+      "position": 2041,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "Post charge-off accrued interest recovered month-to-date",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-PRIN-MTD-AMT",
+      "data_type": "decimal",
+      "target_name": "rec_prin_mtd_amt",
+      "position": 2060,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "Principal recovered month-to-date",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-TOT-COST-MTD",
+      "data_type": "decimal",
+      "target_name": "rec_tot_cost_mtd",
+      "position": 2079,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "Total recovery costs recovered month-to-date",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "JGMT-EFFECT-DATE",
+      "data_type": "date",
+      "target_name": "jgmt_effect_date",
+      "position": 2098,
+      "length": 8,
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": "The judgment effective date from the most recent judgment record",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "JGMT-INT-AMT",
+      "data_type": "decimal",
+      "target_name": "jgmt_int_amt",
+      "position": 2106,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "The interest amount awarded in the most recent judgment",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "JGMT-PRIN-AMT",
+      "data_type": "decimal",
+      "target_name": "jgmt_prin_amt",
+      "position": 2125,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "The principal amount awarded in the most recent judgment",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "JGMT-TOT-COST-AMT",
+      "data_type": "decimal",
+      "target_name": "jgmt_tot_cost_amt",
+      "position": 2144,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "Additional balances/recovery costs awarded in the most recent judgment",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ADDL-JGMTS-IND",
+      "data_type": "string",
+      "target_name": "addl_jgmts_ind",
+      "position": 2163,
+      "length": 1,
+      "required": false,
+      "description": "Indicates if there is more than one judgment that has been posted to the account",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-CODST-IN-BAL",
+      "data_type": "decimal",
+      "target_name": "rec_codst_in_bal",
+      "position": 2164,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "Sum of all recovery costs on the account where they are identified as 'included",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-NOT-BAL",
+      "data_type": "decimal",
+      "target_name": "rec_cost_not_bal",
+      "position": 2183,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "Sum of all recovery costs on the account where they are identified as 'not inclu",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-ASSES-MTD",
+      "data_type": "decimal",
+      "target_name": "rec_cost_asses_mtd",
+      "position": 2202,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "The sum of all recovery costs assessed month-to-date.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-WAIVE-MTD",
+      "data_type": "decimal",
+      "target_name": "rec_cost_waive_mtd",
+      "position": 2221,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "Not currently used by Recovery Accounting.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAPT-LTD",
+      "data_type": "decimal",
+      "target_name": "rec_cost_capt_ltd",
+      "position": 2240,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "Sum of all recovery costs capitalized (added to principal) since charge off.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-1",
+      "data_type": "string",
+      "target_name": "rec_cost_cat_1",
+      "position": 2259,
+      "length": 3,
+      "required": false,
+      "description": "The first Recovery Cost type defined in the Recovery Accounting Bank Control Fil",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-1",
+      "data_type": "decimal",
+      "target_name": "rec_cost_amt_1",
+      "position": 2262,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "The post charge-off recovery cost due balance amount associated with the first r",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-2",
+      "data_type": "string",
+      "target_name": "rec_cost_cat_2",
+      "position": 2281,
+      "length": 3,
+      "required": false,
+      "description": "The second Recovery Cost type defined in the Recovery Accounting Bank Control Fi",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-2",
+      "data_type": "decimal",
+      "target_name": "rec_cost_amt_2",
+      "position": 2284,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "The post charge-off recovery cost due balance amount associated with the second",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-3",
+      "data_type": "string",
+      "target_name": "rec_cost_cat_3",
+      "position": 2303,
+      "length": 3,
+      "required": false,
+      "description": "The third Recovery Cost type defined in the Recovery Accounting Bank Control Fil",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-3",
+      "data_type": "decimal",
+      "target_name": "rec_cost_amt_3",
+      "position": 2306,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "The post charge-off recovery cost due balance amount associated with the third r",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-4",
+      "data_type": "string",
+      "target_name": "rec_cost_cat_4",
+      "position": 2325,
+      "length": 3,
+      "required": false,
+      "description": "The fourth Recovery Cost type defined in the Recovery Accounting Bank Control Fi",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-4",
+      "data_type": "decimal",
+      "target_name": "rec_cost_amt_4",
+      "position": 2328,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "The post charge-off recovery cost due balance amount associated with the fourth",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-5",
+      "data_type": "string",
+      "target_name": "rec_cost_cat_5",
+      "position": 2347,
+      "length": 3,
+      "required": false,
+      "description": "The fifth Recovery Cost type defined in the Recovery Accounting Bank Control Fil",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-5",
+      "data_type": "decimal",
+      "target_name": "rec_cost_amt_5",
+      "position": 2350,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "The post charge-off recovery cost due balance amount associated with the fifth r",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-6",
+      "data_type": "string",
+      "target_name": "rec_cost_cat_6",
+      "position": 2369,
+      "length": 3,
+      "required": false,
+      "description": "The sixth Recovery Cost type defined in the Recovery Accounting Bank Control Fil",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-6",
+      "data_type": "decimal",
+      "target_name": "rec_cost_amt_6",
+      "position": 2372,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "The post charge-off recovery cost due balance amount associated with the sixth r",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-7",
+      "data_type": "string",
+      "target_name": "rec_cost_cat_7",
+      "position": 2391,
+      "length": 3,
+      "required": false,
+      "description": "The seventh Recovery Cost type defined in the Recovery Accounting Bank Control F",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-7",
+      "data_type": "decimal",
+      "target_name": "rec_cost_amt_7",
+      "position": 2394,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "The post charge-off recovery cost due balance amount associated with the seventh",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-8",
+      "data_type": "string",
+      "target_name": "rec_cost_cat_8",
+      "position": 2413,
+      "length": 3,
+      "required": false,
+      "description": "The eighth Recovery Cost type defined in the Recovery Accounting Bank Control Fi",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-8",
+      "data_type": "decimal",
+      "target_name": "rec_cost_amt_8",
+      "position": 2416,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "The post charge-off recovery cost due balance amount associated with the eighth",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-9",
+      "data_type": "string",
+      "target_name": "rec_cost_cat_9",
+      "position": 2435,
+      "length": 3,
+      "required": false,
+      "description": "The ninth Recovery Cost type defined in the Recovery Accounting Bank Control Fil",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-9",
+      "data_type": "decimal",
+      "target_name": "rec_cost_amt_9",
+      "position": 2438,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "The post charge-off recovery cost due balance amount associated with the ninth r",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-10",
+      "data_type": "string",
+      "target_name": "rec_cost_cat_10",
+      "position": 2457,
+      "length": 3,
+      "required": false,
+      "description": "The tenth Recovery Cost type defined in the Recovery Accounting Bank Control Fil",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-10",
+      "data_type": "decimal",
+      "target_name": "rec_cost_amt_10",
+      "position": 2460,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "The post charge-off recovery cost due balance amount associated with the tenth r",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-11",
+      "data_type": "string",
+      "target_name": "rec_cost_cat_11",
+      "position": 2479,
+      "length": 3,
+      "required": false,
+      "description": "The eleventh Recovery Cost type defined in the Recovery Accounting Bank Control",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-11",
+      "data_type": "decimal",
+      "target_name": "rec_cost_amt_11",
+      "position": 2482,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "The post charge-off recovery cost due balance amount associated with the elevent",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-12",
+      "data_type": "string",
+      "target_name": "rec_cost_cat_12",
+      "position": 2501,
+      "length": 3,
+      "required": false,
+      "description": "The twelfth Recovery Cost type defined in the Recovery Accounting Bank Control F",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-12",
+      "data_type": "decimal",
+      "target_name": "rec_cost_amt_12",
+      "position": 2504,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "The post charge-off recovery cost due balance amount associated with the twelfth",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-13",
+      "data_type": "string",
+      "target_name": "rec_cost_cat_13",
+      "position": 2523,
+      "length": 3,
+      "required": false,
+      "description": "The first Recovery Cost type thirteenth in the Recovery Accounting Bank Control",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-13",
+      "data_type": "decimal",
+      "target_name": "rec_cost_amt_13",
+      "position": 2526,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "The post charge-off recovery cost due balance amount associated with the thirtee",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-14",
+      "data_type": "string",
+      "target_name": "rec_cost_cat_14",
+      "position": 2545,
+      "length": 3,
+      "required": false,
+      "description": "The fourteenth Recovery Cost type defined in the Recovery Accounting Bank Contro",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-14",
+      "data_type": "decimal",
+      "target_name": "rec_cost_amt_14",
+      "position": 2548,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "The post charge-off recovery cost due balance amount associated with the fourtee",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-15",
+      "data_type": "string",
+      "target_name": "rec_cost_cat_15",
+      "position": 2567,
+      "length": 3,
+      "required": false,
+      "description": "The fifteenth Recovery Cost type defined in the Recovery Accounting Bank Control",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-15",
+      "data_type": "decimal",
+      "target_name": "rec_cost_amt_15",
+      "position": 2570,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "The post charge-off recovery cost due balance amount associated with the fifteen",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-16",
+      "data_type": "string",
+      "target_name": "rec_cost_cat_16",
+      "position": 2589,
+      "length": 3,
+      "required": false,
+      "description": "The sixteenth Recovery Cost type defined in the Recovery Accounting Bank Control",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-16",
+      "data_type": "decimal",
+      "target_name": "rec_cost_amt_16",
+      "position": 2592,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "The post charge-off recovery cost due balance amount associated with the sixteen",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-17",
+      "data_type": "string",
+      "target_name": "rec_cost_cat_17",
+      "position": 2611,
+      "length": 3,
+      "required": false,
+      "description": "The seventeenth Recovery Cost type defined in the Recovery Accounting Bank Contr",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-17",
+      "data_type": "decimal",
+      "target_name": "rec_cost_amt_17",
+      "position": 2614,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "The post charge-off recovery cost due balance amount associated with the sevente",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-18",
+      "data_type": "string",
+      "target_name": "rec_cost_cat_18",
+      "position": 2633,
+      "length": 3,
+      "required": false,
+      "description": "The eighteenth Recovery Cost type defined in the Recovery Accounting Bank Contro",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-18",
+      "data_type": "decimal",
+      "target_name": "rec_cost_amt_18",
+      "position": 2636,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "The post charge-off recovery cost due balance amount associated with the eightee",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-19",
+      "data_type": "string",
+      "target_name": "rec_cost_cat_19",
+      "position": 2655,
+      "length": 3,
+      "required": false,
+      "description": "The nineteenth Recovery Cost type defined in the Recovery Accounting Bank Contro",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-19",
+      "data_type": "decimal",
+      "target_name": "rec_cost_amt_19",
+      "position": 2658,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "The post charge-off recovery cost due balance amount associated with the ninetee",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-CAT-20",
+      "data_type": "string",
+      "target_name": "rec_cost_cat_20",
+      "position": 2677,
+      "length": 3,
+      "required": false,
+      "description": "The twentieth Recovery Cost type defined in the Recovery Accounting Bank Control",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REC-COST-AMT-20",
+      "data_type": "decimal",
+      "target_name": "rec_cost_amt_20",
+      "position": 2680,
+      "length": 19,
+      "format": "+9(12)V9(6)",
+      "required": false,
+      "description": "The post charge-off recovery cost due balance amount associated with the twentie",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LOAN-POOL-NUM",
+      "data_type": "decimal",
+      "target_name": "loan_pool_num",
+      "position": 2699,
+      "length": 7,
+      "format": "9(7)",
+      "required": false,
+      "description": "The whole asset sales Pool Number that the account is assigned to for sales acti",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LOAN-POOL-SLD-DATE",
+      "data_type": "date",
+      "target_name": "loan_pool_sld_date",
+      "position": 2706,
+      "length": 8,
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": "The date that the account was sold to an investor as a part of a post charge-off",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ORIG-PORTF-TYPE",
+      "data_type": "string",
+      "target_name": "orig_portf_type",
+      "position": 2714,
+      "length": 1,
+      "required": false,
+      "description": "The original type of account when it was charged off.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "Y",
+              "N"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "Y",
+        "N"
+      ]
+    },
+    {
+      "name": "DAYS-SNC-CHRGOFF",
+      "data_type": "decimal",
+      "target_name": "days_snc_chrgoff",
+      "position": 2715,
+      "length": 7,
+      "format": "9(7)",
+      "required": false,
+      "description": "Number of days since charge-off.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LAST-EXT-UPD-DATE",
+      "data_type": "date",
+      "target_name": "last_ext_upd_date",
+      "position": 2722,
+      "length": 8,
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": "The date that the Financial Extract was last updated.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LEGAL-STATE",
+      "data_type": "string",
+      "target_name": "legal_state",
+      "position": 2730,
+      "length": 3,
+      "required": false,
+      "description": "The Legal State when state laws apply (used in Recovery Accounting).",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CHRG-OFF-DOWN-IND",
+      "data_type": "string",
+      "target_name": "chrg_off_down_ind",
+      "position": 2733,
+      "length": 1,
+      "required": false,
+      "description": "Charge-off / Charge Down Indicator - indicates if this is a full charge-off or p",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "0",
+              "1"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "0",
+        "1"
+      ]
+    },
+    {
+      "name": "INVESTOR-NUM",
+      "data_type": "decimal",
+      "target_name": "investor_num",
+      "position": 2734,
+      "length": 7,
+      "format": "9(7)",
+      "required": false,
+      "description": "The investor number associated with the whole asset sales Pool Number that the a",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "EXT-RAND-NUM",
+      "data_type": "decimal",
+      "target_name": "ext_rand_num",
+      "position": 2741,
+      "length": 3,
+      "format": "9(3)",
+      "required": false,
+      "description": "Random number calculated as part of the interface that can be used as a criteria",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CMPL-CODE",
+      "data_type": "string",
+      "target_name": "cmpl_code",
+      "position": 2744,
+      "length": 4,
+      "required": false,
+      "description": "The Compliance Code assigned to this account to associate to a set of compliance",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "TCPA-EXEMPT",
+      "data_type": "string",
+      "target_name": "tcpa_exempt",
+      "position": 2748,
+      "length": 1,
+      "required": false,
+      "description": "Indicates if the account has been identified as TCPA exempt for compliance proce",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "PRODUCT-TYPE",
+      "data_type": "string",
+      "target_name": "product_type",
+      "position": 2749,
+      "length": 8,
+      "required": false,
+      "description": "The product type code used to display the Product type information in the Collec",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "NEXT-BILL-DATE",
+      "data_type": "date",
+      "target_name": "next_bill_date",
+      "position": 2757,
+      "length": 8,
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": "The next billing date.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "HMDA-ULI-CODE",
+      "data_type": "string",
+      "target_name": "hmda_uli_code",
+      "position": 2765,
+      "length": 45,
+      "required": false,
+      "description": "Sourced from the accounting system, this is a unique identifier for each individ",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    }
+  ],
+  "key_columns": [
+    "LOCATION-CODE"
+  ],
+  "metadata": {
+    "created_by": "template_converter",
+    "created_date": "2026-04-24T05:08:10.399459Z",
+    "last_modified": "2026-04-24T05:08:10.399469Z",
+    "source_template": "mappings\\csv\\p327_shaw\\P327_SHAW_M06_mapping.csv"
+  },
+  "total_record_length": 2809,
+  "warnings": []
+}

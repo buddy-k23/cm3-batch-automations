@@ -1,0 +1,5 @@
+transaction_code,target_field,source_field,data_type,required,length,position_start,position_end,format,default_value,transform_logic
+ALL,RECORD_TYPE,record_type,string,Y,3,,,,DTL,default('DTL')
+ALL,ACCOUNT_ID,account_id,string,Y,18,,,,,trim
+ALL,AMOUNT,amount,numeric,N,22,,,,-Z(12).9(2),
+ALL,EVENT_DATE,event_date,date,N,8,,,,YYYYMMDD,

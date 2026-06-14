@@ -1,0 +1,983 @@
+{
+  "mapping_name": "SHAW_TRANERT_ORI_mapping",
+  "version": "1.0.0",
+  "description": "Generated from template: SHAW_TRANERT_ORI_mapping.csv",
+  "source": {
+    "type": "file",
+    "format": "fixed_width",
+    "encoding": "UTF-8"
+  },
+  "target": {
+    "type": "database"
+  },
+  "fields": [
+    {
+      "name": "BK-NUM-ERT",
+      "data_type": "decimal",
+      "target_name": "bk_num_ert",
+      "position": 1,
+      "length": 5,
+      "format": "9(5)",
+      "required": true,
+      "description": "A number, defined on the Bank Control Operation tables, which identifies the ...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "00040"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "00040"
+      ]
+    },
+    {
+      "name": "APP-ERT",
+      "data_type": "decimal",
+      "target_name": "app_ert",
+      "position": 6,
+      "length": 3,
+      "format": "9(3)",
+      "required": true,
+      "description": "The application to which the account is to be associated.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "001"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "001"
+      ]
+    },
+    {
+      "name": "LN-NUM-ERT",
+      "data_type": "string",
+      "target_name": "ln_num_ert",
+      "position": 9,
+      "length": 18,
+      "required": true,
+      "description": "The account number that is associated with the account.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "REF-NUM-ERT",
+      "data_type": "string",
+      "target_name": "ref_num_ert",
+      "position": 27,
+      "length": 3,
+      "required": false,
+      "description": "The applicable reference number for the transaction.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "FILLER",
+      "data_type": "string",
+      "target_name": "filler",
+      "position": 30,
+      "length": 130,
+      "required": false,
+      "description": "Filler for account key",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "EFF-DAT-ERT",
+      "data_type": "date",
+      "target_name": "eff_dat_ert",
+      "position": 160,
+      "length": 10,
+      "format": "MM/DD/CCYY",
+      "required": true,
+      "description": "The date the transaction was effective.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "TRN-COD-ERT",
+      "data_type": "decimal",
+      "target_name": "trn_cod_ert",
+      "position": 170,
+      "length": 5,
+      "format": "9(5)",
+      "required": true,
+      "description": "The transaction code for the transaction.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "32010"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "32010"
+      ]
+    },
+    {
+      "name": "BAT-ITM-NUM-ERT",
+      "data_type": "decimal",
+      "target_name": "bat_itm_num_ert",
+      "position": 175,
+      "length": 9,
+      "format": "9(9)",
+      "required": true,
+      "description": "The sequential number for this item within the batch.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "INP-SRC-COD-ERT",
+      "data_type": "decimal",
+      "target_name": "inp_src_cod_ert",
+      "position": 184,
+      "length": 3,
+      "format": "9(3)",
+      "required": false,
+      "description": "The source of the transaction.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "TRN-CNT-ERT",
+      "data_type": "decimal",
+      "target_name": "trn_cnt_ert",
+      "position": 187,
+      "length": 3,
+      "format": "9(3)",
+      "required": false,
+      "description": "The total number of transactions in the batch.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "TRN-MOR-DTA-FLG-ERT",
+      "data_type": "string",
+      "target_name": "trn_mor_dta_flg_ert",
+      "position": 190,
+      "length": 1,
+      "required": false,
+      "description": "Indicates if more data is available.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "OGL-CONTRACT-DAT-ORI",
+      "data_type": "date",
+      "target_name": "ogl_contract_dat_ori",
+      "position": 191,
+      "length": 10,
+      "format": "MM/DD/CCYY",
+      "required": true,
+      "description": "The date the original contract was executed.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "OGL-TRM-ORI",
+      "data_type": "decimal",
+      "target_name": "ogl_trm_ori",
+      "position": 201,
+      "length": 3,
+      "format": "9(3)",
+      "required": false,
+      "description": "Total number of payment intervals for the account. Typically the original ter...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "OGL-MAT-DAT-ORI",
+      "data_type": "date",
+      "target_name": "ogl_mat_dat_ori",
+      "position": 204,
+      "length": 10,
+      "format": "MM/DD/CCYY",
+      "required": false,
+      "description": "The date on which the original promissory note was to mature.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "OGL-CONTRACT-AMT-ORI",
+      "data_type": "decimal",
+      "target_name": "ogl_contract_amt_ori",
+      "position": 214,
+      "length": 22,
+      "format": "-Z(12).9(2)",
+      "required": false,
+      "description": "For Revolving Credit, Line of Credit, and Open/Demand Portfolio Type accounts...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "OGL-PORTFOLIO-TYP-ORI",
+      "data_type": "string",
+      "target_name": "ogl_portfolio_typ_ori",
+      "position": 236,
+      "length": 1,
+      "required": true,
+      "description": "Indicates the portfolio type for the account.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "7",
+              "8",
+              "C",
+              "I"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "7",
+        "8",
+        "C",
+        "I"
+      ]
+    },
+    {
+      "name": "LN-TYP-ORI",
+      "data_type": "decimal",
+      "target_name": "ln_typ_ori",
+      "position": 237,
+      "length": 3,
+      "format": "9(3)",
+      "required": true,
+      "description": "Indicates the Loan Type associated with the account.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "COF-CDN-IND-ORI",
+      "data_type": "decimal",
+      "target_name": "cof_cdn_ind_ori",
+      "position": 240,
+      "length": 1,
+      "format": "9(1)",
+      "required": false,
+      "description": "The type of Charge Off Account.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "1"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "1"
+      ]
+    },
+    {
+      "name": "OGL-NTE-DAT-ORI",
+      "data_type": "date",
+      "target_name": "ogl_nte_dat_ori",
+      "position": 241,
+      "length": 10,
+      "format": "MM/DD/CCYY",
+      "required": true,
+      "description": "The date the bank charged-off the account.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "OGL-NTE-AMT-ORI",
+      "data_type": "decimal",
+      "target_name": "ogl_nte_amt_ori",
+      "position": 251,
+      "length": 22,
+      "format": "-Z(12).9(2)",
+      "required": true,
+      "description": "The amount of principal included in the charge-off.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "OGL-COF-INT-AMT-ORI",
+      "data_type": "decimal",
+      "target_name": "ogl_cof_int_amt_ori",
+      "position": 273,
+      "length": 22,
+      "format": "-Z(12).9(2)",
+      "required": false,
+      "description": "The amount of interest that has accrued and is due after the charge off.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "INT-RT-ORI",
+      "data_type": "decimal",
+      "target_name": "int_rt_ori",
+      "position": 295,
+      "length": 7,
+      "format": ".Z(6)",
+      "required": false,
+      "description": "The interest rate at which the account accrues interest.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              ".000000"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        ".000000"
+      ]
+    },
+    {
+      "name": "OGL-INT-RT-ORI",
+      "data_type": "decimal",
+      "target_name": "ogl_int_rt_ori",
+      "position": 302,
+      "length": 7,
+      "format": ".Z(6)",
+      "required": false,
+      "description": "The interest rate prior to charge-off.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "REP-TYP-ORI",
+      "data_type": "decimal",
+      "target_name": "rep_typ_ori",
+      "position": 309,
+      "length": 3,
+      "format": "9(3)",
+      "required": true,
+      "description": "The frequency of payments or the repayment plan used for the account prior to... [Valid Values column contains prose,...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "HGH-BAL-ORI",
+      "data_type": "decimal",
+      "target_name": "hgh_bal_ori",
+      "position": 312,
+      "length": 22,
+      "format": "-Z(12).9(2)",
+      "required": false,
+      "description": "The highest amount of credit utilized/revolving high balance since the accoun...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "7",
+              "8"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "7",
+        "8"
+      ]
+    },
+    {
+      "name": "AMT-PAS-DUE-30-ORI",
+      "data_type": "decimal",
+      "target_name": "amt_pas_due_30_ori",
+      "position": 334,
+      "length": 22,
+      "format": "-Z(12).9(2)",
+      "required": false,
+      "description": "The total amount past due at 30 days delinquent.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "AMT-PAS-DUE-60-ORI",
+      "data_type": "decimal",
+      "target_name": "amt_pas_due_60_ori",
+      "position": 356,
+      "length": 22,
+      "format": "-Z(12).9(2)",
+      "required": false,
+      "description": "The total amount past due at 60 days delinquent.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "AMT-PAS-DUE-90-ORI",
+      "data_type": "decimal",
+      "target_name": "amt_pas_due_90_ori",
+      "position": 378,
+      "length": 22,
+      "format": "-Z(12).9(2)",
+      "required": false,
+      "description": "The total amount past due at 90 days delinquent.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "AMT-PAS-DUE-120-ORI",
+      "data_type": "decimal",
+      "target_name": "amt_pas_due_120_ori",
+      "position": 400,
+      "length": 22,
+      "format": "-Z(12).9(2)",
+      "required": false,
+      "description": "The total amount past due at 120 days delinquent.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "OGL-NUM-PMT-MTD-ORI",
+      "data_type": "decimal",
+      "target_name": "ogl_num_pmt_mtd_ori",
+      "position": 422,
+      "length": 5,
+      "format": "9(5)",
+      "required": false,
+      "description": "The number of payments received this month prior to the charge-off event. Pay...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "OGL-NUM-PMT-YTD-ORI",
+      "data_type": "decimal",
+      "target_name": "ogl_num_pmt_ytd_ori",
+      "position": 427,
+      "length": 5,
+      "format": "9(5)",
+      "required": false,
+      "description": "The number of payments received this year prior to the charge-off event. Paym...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "OGL-NUM-PMT-LTD-ORI",
+      "data_type": "decimal",
+      "target_name": "ogl_num_pmt_ltd_ori",
+      "position": 432,
+      "length": 5,
+      "format": "9(5)",
+      "required": false,
+      "description": "The number of payments received to date prior to the charge-off event. Paymen...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "OGL-PMT-AMT-MTD-ORI",
+      "data_type": "decimal",
+      "target_name": "ogl_pmt_amt_mtd_ori",
+      "position": 437,
+      "length": 22,
+      "format": "-Z(12).9(2)",
+      "required": false,
+      "description": "The dollar amount of payments paid this month prior to the charge off event. ...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "OGL-PMT-AMT-YTD-ORI",
+      "data_type": "decimal",
+      "target_name": "ogl_pmt_amt_ytd_ori",
+      "position": 459,
+      "length": 22,
+      "format": "-Z(12).9(2)",
+      "required": false,
+      "description": "The dollar amount of payments paid this year prior to the charge off event. P...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "OGL-PMT-AMT-LTD-ORI",
+      "data_type": "decimal",
+      "target_name": "ogl_pmt_amt_ltd_ori",
+      "position": 481,
+      "length": 22,
+      "format": "-Z(12).9(2)",
+      "required": false,
+      "description": "The total amount of all payments paid to date prior to the charge off event. ...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "FIL-FLD-ORI",
+      "data_type": "string",
+      "target_name": "fil_fld_ori",
+      "position": 503,
+      "length": 3,
+      "required": false,
+      "description": "Filler",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "COF-REA-COD-ORI",
+      "data_type": "string",
+      "target_name": "cof_rea_cod_ori",
+      "position": 506,
+      "length": 3,
+      "required": false,
+      "description": "Indicates the reason the account was charged-off.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ST-COD-ORI",
+      "data_type": "string",
+      "target_name": "st_cod_ori",
+      "position": 509,
+      "length": 3,
+      "required": false,
+      "description": "Indicates which set of state-level parameters apply to the account. Populate ...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "NC",
+              "SC",
+              "VA",
+              "GA",
+              "MD",
+              "DC",
+              "WV",
+              "KY",
+              "TX",
+              "NV",
+              "TN",
+              "AL",
+              "IN",
+              "FL",
+              "MS",
+              "AR",
+              "OH",
+              "PA",
+              "NJ"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "NC",
+        "SC",
+        "VA",
+        "GA",
+        "MD",
+        "DC",
+        "WV",
+        "KY",
+        "TX",
+        "NV",
+        "TN",
+        "AL",
+        "IN",
+        "FL",
+        "MS",
+        "AR",
+        "OH",
+        "PA",
+        "NJ"
+      ]
+    },
+    {
+      "name": "DAT-INT-ACR-TO-ORI",
+      "data_type": "date",
+      "target_name": "dat_int_acr_to_ori",
+      "position": 512,
+      "length": 10,
+      "format": "MM/DD/CCYY",
+      "required": true,
+      "description": "The last date on which accruals were taken on the loan.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "ACT-STA-ORI",
+      "data_type": "decimal",
+      "target_name": "act_sta_ori",
+      "position": 522,
+      "length": 1,
+      "format": "9(1)",
+      "required": false,
+      "description": "The current status of the account as it pertains to the ability to post monet...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "0"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "0"
+      ]
+    },
+    {
+      "name": "MTG-AGC-ID-ORI",
+      "data_type": "string",
+      "target_name": "mtg_agc_id_ori",
+      "position": 523,
+      "length": 2,
+      "required": false,
+      "description": "The mortgage agency identifier as reported to the Credit Bureaus on the K3 se...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "PCOF-DAT-LAS-PMT-ORI",
+      "data_type": "date",
+      "target_name": "pcof_dat_las_pmt_ori",
+      "position": 525,
+      "length": 10,
+      "format": "MM/DD/CCYY",
+      "required": false,
+      "description": "The date the last payment was made on the account prior to charge-off.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "MTG-ID-NUM-ORI",
+      "data_type": "string",
+      "target_name": "mtg_id_num_ori",
+      "position": 535,
+      "length": 18,
+      "required": false,
+      "description": "The mortgage identification number as reported to the Credit Bureaus on the K...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "DAT-LAS-STM-ORI",
+      "data_type": "date",
+      "target_name": "dat_las_stm_ori",
+      "position": 553,
+      "length": 10,
+      "format": "MM/DD/CCYY",
+      "required": false,
+      "description": "The last date that a statement was produced for the account prior to charge-off.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "PCOF-PMT-AMT-LAS-ORI",
+      "data_type": "decimal",
+      "target_name": "pcof_pmt_amt_las_ori",
+      "position": 563,
+      "length": 22,
+      "format": "-Z(12).9(2)",
+      "required": false,
+      "description": "The last payment amount paid on the account prior to charge-off.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CNV-ACT-NUM-ORI",
+      "data_type": "string",
+      "target_name": "cnv_act_num_ori",
+      "position": 585,
+      "length": 20,
+      "required": false,
+      "description": "The original loan account number.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "OGL-PMT-AMT-ORI",
+      "data_type": "decimal",
+      "target_name": "ogl_pmt_amt_ori",
+      "position": 605,
+      "length": 22,
+      "format": "-Z(12).9(2)",
+      "required": false,
+      "description": "The amount of the original payment on the payment schedule.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "DAT-ACT-CLS-TO-ATY-ORI",
+      "data_type": "date",
+      "target_name": "dat_act_cls_to_aty_ori",
+      "position": 627,
+      "length": 10,
+      "format": "MM/DD/CCYY",
+      "required": false,
+      "description": "Date the account was closed to purchases or any other withdrawal activity.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    }
+  ],
+  "key_columns": [
+    "BK-NUM-ERT"
+  ],
+  "metadata": {
+    "created_by": "template_converter",
+    "created_date": "2026-05-26T17:42:56.334832Z",
+    "last_modified": "2026-05-26T17:42:56.334842Z",
+    "source_template": "mappings\\csv\\shaw_tranert\\SHAW_TRANERT_ORI_mapping.csv"
+  },
+  "total_record_length": 636,
+  "warnings": []
+}

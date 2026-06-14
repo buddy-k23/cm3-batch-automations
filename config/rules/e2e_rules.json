@@ -1,0 +1,70 @@
+{
+  "metadata": {
+    "name": "e2e_rules",
+    "description": "Generated from template: e2e_rules.csv",
+    "created_by": "rules_template_converter",
+    "created_date": "2026-03-04T00:15:23.190537Z",
+    "template_path": "/Users/buddy/claude-code/automations/valdo/uploads/e2e_rules.csv"
+  },
+  "rules": [
+    {
+      "id": "BR001",
+      "name": "Account balance non-negative",
+      "description": "Account balance must be >= 0",
+      "type": "field_validation",
+      "severity": "error",
+      "operator": ">=",
+      "field": "account_balance",
+      "value": 0.0,
+      "enabled": true
+    },
+    {
+      "id": "BR002",
+      "name": "Status in allowed list",
+      "description": "Status must be ACTIVE INACTIVE SUSPENDED",
+      "type": "field_validation",
+      "severity": "warning",
+      "operator": "in",
+      "field": "status",
+      "values": [
+        "ACTIVE",
+        "INACTIVE",
+        "SUSPENDED"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "BR003",
+      "name": "Email not null",
+      "description": "Email is required",
+      "type": "field_validation",
+      "severity": "error",
+      "operator": "not_null",
+      "field": "email",
+      "enabled": true
+    },
+    {
+      "id": "BR004",
+      "name": "First name length",
+      "description": "First name length between 1 and 50",
+      "type": "field_validation",
+      "severity": "warning",
+      "operator": "length",
+      "field": "first_name",
+      "min_length": 1,
+      "max_length": 50,
+      "enabled": true
+    },
+    {
+      "id": "BR005",
+      "name": "Expiry after open date",
+      "description": "Expiry date must be greater than open date",
+      "type": "cross_field",
+      "severity": "error",
+      "operator": ">",
+      "left_field": "expiry_date",
+      "right_field": "open_date",
+      "enabled": true
+    }
+  ]
+}

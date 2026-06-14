@@ -1,0 +1,23 @@
+Field Name,Data Type,Position,Length,Target Name,Required,Format,Transformation,Valid Values,Description
+BK-NUM-BRT,Numeric,1,5,bk_num_brt,Yes,9(5),,,"A number, defined on the Bank Control Operation tables, which identifies the bank"
+APP-BRT,Numeric,6,3,app_brt,Yes,9(3),,,The application for which all the transactions in the batch are applicable.
+EFF-DAT-BRT,Date,9,10,eff_dat_brt,Yes,MM/DD/CCYY,,,The posting date for the batch.
+TRN-COD-BRT,String,19,5,trn_cod_brt,Yes,,Hard-Code to BATCH,BATCH,The transaction code for the batch.
+BAT-NUM-BRT,Numeric,27,7,bat_num_brt,Yes,9(7),,,The number identifying the batch.
+INP-SRC-COD-BRT,Numeric,34,3,inp_src_cod_brt,Yes,9(3),,,The source of the batch.
+BAT-TYP-BRT,Numeric,37,2,bat_typ_brt,Yes,9(2),,10|32|51|52|82,The type of batch. Enter 32 for NAS and EAS Batches.
+OPR-ID-BRT,String,39,8,opr_id_brt,Yes,,,,"The operator ID submitting the batch."
+ORG-LVL-NUM-1-BRT,Numeric,47,7,org_lvl_num_1_brt,Yes,9(7),,,The first organizational control level for GL suspense.
+ORG-LVL-NUM-2-BRT,Numeric,54,7,org_lvl_num_2_brt,Yes,9(7),,,The second organizational control level for GL suspense.
+ORG-LVL-NUM-3-BRT,Numeric,61,7,org_lvl_num_3_brt,Yes,9(7),,,The third organizational control level for GL suspense.
+ORG-LVL-NUM-4-BRT,Numeric,68,7,org_lvl_num_4_brt,Yes,9(7),,,The fourth organizational control level for GL suspense.
+ORG-LVL-NUM-5-BRT,Numeric,75,7,org_lvl_num_5_brt,Yes,9(7),,,The fifth organizational control level for GL suspense.
+ORG-LVL-NUM-6-BRT,Numeric,82,7,org_lvl_num_6_brt,Yes,9(7),,,The sixth organizational control level for GL suspense.
+ORG-LVL-NUM-7-BRT,Numeric,89,7,org_lvl_num_7_brt,Yes,9(7),,,The seventh organizational control level for GL suspense.
+ORG-LVL-NUM-8-BRT,Numeric,96,7,org_lvl_num_8_brt,Yes,9(7),,,The eighth organizational control level for GL suspense.
+ORG-LVL-NUM-9-BRT,Numeric,103,7,org_lvl_num_9_brt,Yes,9(7),,,The ninth organizational control level for GL suspense.
+ORG-LVL-NUM-10-BRT,Numeric,110,7,org_lvl_num_10_brt,Yes,9(7),,,The tenth organizational control level for GL suspense.
+ORG-LVL-NUM-11-BRT,Numeric,117,7,org_lvl_num_11_brt,Yes,9(7),,,The eleventh organizational control level for GL suspense.
+ORG-LVL-NUM-12-BRT,Numeric,124,7,org_lvl_num_12_brt,Yes,9(7),,,The twelfth organizational control level for GL suspense.
+ITM-CNT-BRT,Numeric,131,9,itm_cnt_brt,Yes,9(9),,,The number of transactions in the batch. Used for cross-type count reconciliation.
+DR-CR-AMT-BRT,Numeric,140,22,dr_cr_amt_brt,Yes,-Z(12).9(2),,,The total dollar amount of all transactions in the batch. Enter 0.00 for NAS and EAS Batches.

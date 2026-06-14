@@ -1,0 +1,155 @@
+{
+  "metadata": {
+    "name": "SHAW_ATOCTRAN_060_rules",
+    "description": "Generated from BA-friendly template: SHAW_ATOCTRAN_060_rules.csv",
+    "created_by": "ba_rules_template_converter",
+    "created_date": "2026-05-18T19:15:04.718748Z",
+    "template_path": "mappings\\csv\\shaw_atoctran\\SHAW_ATOCTRAN_060_rules.csv",
+    "template_type": "ba_friendly"
+  },
+  "rules": [
+    {
+      "id": "R001",
+      "name": "LOCATION-CODE required",
+      "description": "LOCATION-CODE required",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "not_empty",
+      "field": "LOCATION-CODE",
+      "operator": "not_empty",
+      "message": "LOCATION-CODE must not be empty"
+    },
+    {
+      "id": "R002",
+      "name": "LOCATION-CODE length check",
+      "description": "LOCATION-CODE length check",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "length",
+      "field": "LOCATION-CODE",
+      "operator": "length",
+      "min_length": 1,
+      "max_length": 6
+    },
+    {
+      "id": "R003",
+      "name": "LOCATION-CODE valid values",
+      "description": "LOCATION-CODE valid values",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "valid_values",
+      "field": "LOCATION-CODE",
+      "operator": "valid_values",
+      "values": [
+        "100030"
+      ],
+      "message": "LOCATION-CODE must be one of: 100030"
+    },
+    {
+      "id": "R004",
+      "name": "ACCT-NUM required",
+      "description": "ACCT-NUM required",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "not_empty",
+      "field": "ACCT-NUM",
+      "operator": "not_empty",
+      "message": "ACCT-NUM must not be empty"
+    },
+    {
+      "id": "R005",
+      "name": "ACCT-NUM length check",
+      "description": "ACCT-NUM length check",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "length",
+      "field": "ACCT-NUM",
+      "operator": "length",
+      "min_length": 14,
+      "max_length": 18
+    },
+    {
+      "id": "R006",
+      "name": "TRANSACTION-CODE required",
+      "description": "TRANSACTION-CODE required",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "not_empty",
+      "field": "TRANSACTION-CODE",
+      "operator": "not_empty",
+      "message": "TRANSACTION-CODE must not be empty"
+    },
+    {
+      "id": "R007",
+      "name": "TRANSACTION-CODE length check",
+      "description": "TRANSACTION-CODE length check",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "length",
+      "field": "TRANSACTION-CODE",
+      "operator": "length",
+      "min_length": 1,
+      "max_length": 3
+    },
+    {
+      "id": "R008",
+      "name": "TRANSACTION-CODE valid values",
+      "description": "TRANSACTION-CODE valid values",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "valid_values",
+      "field": "TRANSACTION-CODE",
+      "operator": "valid_values",
+      "values": [
+        "060"
+      ],
+      "message": "TRANSACTION-CODE must be one of: 060"
+    },
+    {
+      "id": "R009",
+      "name": "TRANSACTION-DATE required",
+      "description": "TRANSACTION-DATE required",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "not_empty",
+      "field": "TRANSACTION-DATE",
+      "operator": "not_empty",
+      "message": "TRANSACTION-DATE must not be empty"
+    },
+    {
+      "id": "R010",
+      "name": "TRANSACTION-DATE date format",
+      "description": "TRANSACTION-DATE date format",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "date_format",
+      "field": "TRANSACTION-DATE",
+      "operator": "date_format",
+      "format": "CCYYMMDD",
+      "message": "TRANSACTION-DATE must be a valid date (CCYYMMDD)"
+    },
+    {
+      "id": "R011",
+      "name": "TRANSACTION-DATE length check",
+      "description": "TRANSACTION-DATE length check",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "exact_length",
+      "field": "TRANSACTION-DATE",
+      "operator": "exact_length",
+      "value": 8,
+      "message": "TRANSACTION-DATE must be exactly 8 characters"
+    }
+  ]
+}

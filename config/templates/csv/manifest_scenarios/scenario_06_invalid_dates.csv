@@ -1,0 +1,26 @@
+Field Name,Data Type,Target Name,Required,Position,Length,Format,Description,Default Value,Valid Values
+REC_TYPE,string,REC_TYPE,Y,1,2,,Scenario field REC_TYPE,,"HD,DT"
+ACCOUNT_ID,integer,ACCOUNT_ID,Y,3,10,9(10),Scenario field ACCOUNT_ID,,
+CUSTOMER_ID,integer,CUSTOMER_ID,Y,13,8,9(8),Scenario field CUSTOMER_ID,,
+COUNTRY,string,COUNTRY,Y,21,3,,Scenario field COUNTRY,,"USA,CAN,MEX"
+STATE,string,STATE,Y,24,2,,Scenario field STATE,,"NY,CA,TX,FL"
+POSTAL,integer,POSTAL,Y,26,5,9(5),Scenario field POSTAL,,
+OPEN_DATE,date,OPEN_DATE,Y,31,8,CCYYMMDD,Scenario field OPEN_DATE,,
+CLOSE_DATE,date,CLOSE_DATE,N,39,8,CCYYMMDD,Scenario field CLOSE_DATE,,
+BALANCE,decimal,BALANCE,Y,47,13,+9(7)V9(5),Scenario field BALANCE,,
+CREDIT_LIMIT,decimal,CREDIT_LIMIT,Y,60,13,+9(7)V9(5),Scenario field CREDIT_LIMIT,,
+STATUS,string,STATUS,Y,73,1,,Scenario field STATUS,,"A,I,C"
+RISK_SCORE,integer,RISK_SCORE,Y,74,3,9(3),Scenario field RISK_SCORE,,
+RATE,decimal,RATE,Y,77,5,9(2)V9(3),Scenario field RATE,,
+AMOUNT_DUE,decimal,AMOUNT_DUE,Y,82,11,+9(6)V9(4),Scenario field AMOUNT_DUE,,
+LAST_PMT_DATE,date,LAST_PMT_DATE,N,93,8,CCYYMMDD,Scenario field LAST_PMT_DATE,,
+DELQ_DAYS,integer,DELQ_DAYS,Y,101,3,9(3),Scenario field DELQ_DAYS,,
+CODE3,string,CODE3,N,104,3,XXX,Scenario field CODE3,,
+CURRENCY,string,CURRENCY,Y,107,3,,Scenario field CURRENCY,,"USD,CAD,MXN"
+FLAG,string,FLAG,N,110,1,,Scenario field FLAG,,"Y,N"
+SEGMENT,string,SEGMENT,N,111,2,,Scenario field SEGMENT,,"R1,R2,R3"
+EMAIL_OPT_IN,string,EMAIL_OPT_IN,N,113,1,,Scenario field EMAIL_OPT_IN,,"Y,N"
+PHONE_AREA,integer,PHONE_AREA,N,114,3,9(3),Scenario field PHONE_AREA,,
+PHONE_NUM,integer,PHONE_NUM,N,117,7,9(7),Scenario field PHONE_NUM,,
+FILLER1,string,FILLER1,N,124,5,,Scenario field FILLER1,,
+FILLER2,string,FILLER2,N,129,5,,Scenario field FILLER2,,

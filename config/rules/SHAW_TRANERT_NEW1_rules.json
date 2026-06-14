@@ -1,0 +1,332 @@
+{
+  "metadata": {
+    "name": "SHAW_TRANERT_NEW1_rules",
+    "description": "Generated from BA-friendly template: SHAW_TRANERT_NEW1_rules.csv",
+    "created_by": "ba_rules_template_converter",
+    "created_date": "2026-05-25T19:05:48.999019Z",
+    "template_path": "mappings\\csv\\shaw_tranert\\SHAW_TRANERT_NEW1_rules.csv",
+    "template_type": "ba_friendly"
+  },
+  "rules": [
+    {
+      "id": "R001",
+      "name": "BK-NUM-ERT required",
+      "description": "BK-NUM-ERT required",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "not_empty",
+      "field": "BK-NUM-ERT",
+      "operator": "not_empty",
+      "message": "BK-NUM-ERT must not be empty"
+    },
+    {
+      "id": "R002",
+      "name": "BK-NUM-ERT numeric",
+      "description": "BK-NUM-ERT numeric",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "numeric",
+      "field": "BK-NUM-ERT",
+      "operator": "numeric",
+      "message": "BK-NUM-ERT must be numeric"
+    },
+    {
+      "id": "R003",
+      "name": "BK-NUM-ERT length check",
+      "description": "BK-NUM-ERT length check",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "exact_length",
+      "field": "BK-NUM-ERT",
+      "operator": "exact_length",
+      "value": 5,
+      "message": "BK-NUM-ERT must be exactly 5 characters"
+    },
+    {
+      "id": "R004",
+      "name": "BK-NUM-ERT valid values",
+      "description": "BK-NUM-ERT valid values",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "valid_values",
+      "field": "BK-NUM-ERT",
+      "operator": "valid_values",
+      "values": [
+        "00040"
+      ],
+      "message": "BK-NUM-ERT must be one of: 00040"
+    },
+    {
+      "id": "R005",
+      "name": "APP-ERT required",
+      "description": "APP-ERT required",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "not_empty",
+      "field": "APP-ERT",
+      "operator": "not_empty",
+      "message": "APP-ERT must not be empty"
+    },
+    {
+      "id": "R006",
+      "name": "APP-ERT numeric",
+      "description": "APP-ERT numeric",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "numeric",
+      "field": "APP-ERT",
+      "operator": "numeric",
+      "message": "APP-ERT must be numeric"
+    },
+    {
+      "id": "R007",
+      "name": "APP-ERT length check",
+      "description": "APP-ERT length check",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "exact_length",
+      "field": "APP-ERT",
+      "operator": "exact_length",
+      "value": 3,
+      "message": "APP-ERT must be exactly 3 characters"
+    },
+    {
+      "id": "R008",
+      "name": "APP-ERT valid values",
+      "description": "APP-ERT valid values",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "valid_values",
+      "field": "APP-ERT",
+      "operator": "valid_values",
+      "values": [
+        "001"
+      ],
+      "message": "APP-ERT must be one of: 001"
+    },
+    {
+      "id": "R009",
+      "name": "LN-NUM-ERT required",
+      "description": "LN-NUM-ERT required",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "not_empty",
+      "field": "LN-NUM-ERT",
+      "operator": "not_empty",
+      "message": "LN-NUM-ERT must not be empty"
+    },
+    {
+      "id": "R010",
+      "name": "LN-NUM-ERT length check",
+      "description": "LN-NUM-ERT length check",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "length",
+      "field": "LN-NUM-ERT",
+      "operator": "length",
+      "min_length": 14,
+      "max_length": 18
+    },
+    {
+      "id": "R011",
+      "name": "EFF-DAT-ERT required",
+      "description": "EFF-DAT-ERT required",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "not_empty",
+      "field": "EFF-DAT-ERT",
+      "operator": "not_empty",
+      "message": "EFF-DAT-ERT must not be empty"
+    },
+    {
+      "id": "R012",
+      "name": "EFF-DAT-ERT date format",
+      "description": "EFF-DAT-ERT date format",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "date_format",
+      "field": "EFF-DAT-ERT",
+      "operator": "date_format",
+      "format": "MM/DD/CCYY",
+      "message": "EFF-DAT-ERT must be a valid date (MM/DD/CCYY)"
+    },
+    {
+      "id": "R013",
+      "name": "EFF-DAT-ERT length check",
+      "description": "EFF-DAT-ERT length check",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "exact_length",
+      "field": "EFF-DAT-ERT",
+      "operator": "exact_length",
+      "value": 10,
+      "message": "EFF-DAT-ERT must be exactly 10 characters"
+    },
+    {
+      "id": "R014",
+      "name": "TRN-COD-ERT required",
+      "description": "TRN-COD-ERT required",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "not_empty",
+      "field": "TRN-COD-ERT",
+      "operator": "not_empty",
+      "message": "TRN-COD-ERT must not be empty"
+    },
+    {
+      "id": "R015",
+      "name": "TRN-COD-ERT numeric",
+      "description": "TRN-COD-ERT numeric",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "numeric",
+      "field": "TRN-COD-ERT",
+      "operator": "numeric",
+      "message": "TRN-COD-ERT must be numeric"
+    },
+    {
+      "id": "R016",
+      "name": "TRN-COD-ERT length check",
+      "description": "TRN-COD-ERT length check",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "exact_length",
+      "field": "TRN-COD-ERT",
+      "operator": "exact_length",
+      "value": 5,
+      "message": "TRN-COD-ERT must be exactly 5 characters"
+    },
+    {
+      "id": "R017",
+      "name": "TRN-COD-ERT valid values",
+      "description": "TRN-COD-ERT valid values",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "valid_values",
+      "field": "TRN-COD-ERT",
+      "operator": "valid_values",
+      "values": [
+        "32000"
+      ],
+      "message": "TRN-COD-ERT must be one of: 32000"
+    },
+    {
+      "id": "R018",
+      "name": "BAT-ITM-NUM-ERT required",
+      "description": "BAT-ITM-NUM-ERT required",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "not_empty",
+      "field": "BAT-ITM-NUM-ERT",
+      "operator": "not_empty",
+      "message": "BAT-ITM-NUM-ERT must not be empty"
+    },
+    {
+      "id": "R019",
+      "name": "BAT-ITM-NUM-ERT numeric",
+      "description": "BAT-ITM-NUM-ERT numeric",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "numeric",
+      "field": "BAT-ITM-NUM-ERT",
+      "operator": "numeric",
+      "message": "BAT-ITM-NUM-ERT must be numeric"
+    },
+    {
+      "id": "R020",
+      "name": "BAT-ITM-NUM-ERT length check",
+      "description": "BAT-ITM-NUM-ERT length check",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "exact_length",
+      "field": "BAT-ITM-NUM-ERT",
+      "operator": "exact_length",
+      "value": 9,
+      "message": "BAT-ITM-NUM-ERT must be exactly 9 characters"
+    },
+    {
+      "id": "R021",
+      "name": "INP-SRC-COD-ERT numeric",
+      "description": "INP-SRC-COD-ERT numeric",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "numeric",
+      "field": "INP-SRC-COD-ERT",
+      "operator": "numeric",
+      "message": "INP-SRC-COD-ERT must be numeric"
+    },
+    {
+      "id": "R022",
+      "name": "TRN-CNT-ERT numeric",
+      "description": "TRN-CNT-ERT numeric",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "numeric",
+      "field": "TRN-CNT-ERT",
+      "operator": "numeric",
+      "message": "TRN-CNT-ERT must be numeric"
+    },
+    {
+      "id": "R023",
+      "name": "LCT-COD-NEW1 required",
+      "description": "LCT-COD-NEW1 required",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "not_empty",
+      "field": "LCT-COD-NEW1",
+      "operator": "not_empty",
+      "message": "LCT-COD-NEW1 must not be empty"
+    },
+    {
+      "id": "R024",
+      "name": "LCT-COD-NEW1 length check",
+      "description": "LCT-COD-NEW1 length check",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "length",
+      "field": "LCT-COD-NEW1",
+      "operator": "length",
+      "min_length": 1,
+      "max_length": 6
+    },
+    {
+      "id": "R025",
+      "name": "LCT-COD-NEW1 valid values",
+      "description": "LCT-COD-NEW1 valid values",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "valid_values",
+      "field": "LCT-COD-NEW1",
+      "operator": "valid_values",
+      "values": [
+        "100030"
+      ],
+      "message": "LCT-COD-NEW1 must be one of: 100030"
+    }
+  ]
+}

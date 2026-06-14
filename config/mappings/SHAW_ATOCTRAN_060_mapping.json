@@ -1,0 +1,125 @@
+{
+  "mapping_name": "SHAW_ATOCTRAN_060_mapping",
+  "version": "1.0.0",
+  "description": "Generated from template: SHAW_ATOCTRAN_060_mapping.csv",
+  "source": {
+    "type": "file",
+    "format": "fixed_width",
+    "encoding": "UTF-8"
+  },
+  "target": {
+    "type": "database"
+  },
+  "fields": [
+    {
+      "name": "LOCATION-CODE",
+      "data_type": "string",
+      "target_name": "location_code",
+      "position": 1,
+      "length": 6,
+      "required": true,
+      "description": "Location Code for Account",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "100030"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "100030"
+      ]
+    },
+    {
+      "name": "ACCT-NUM",
+      "data_type": "string",
+      "target_name": "acct_num",
+      "position": 7,
+      "length": 18,
+      "required": true,
+      "description": "Account Number",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "TRANSACTION-CODE",
+      "data_type": "string",
+      "target_name": "transaction_code",
+      "position": 25,
+      "length": 3,
+      "required": true,
+      "description": "Type of Transaction",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "060"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "060"
+      ]
+    },
+    {
+      "name": "TRANSACTION-DATE",
+      "data_type": "date",
+      "target_name": "transaction_date",
+      "position": 28,
+      "length": 8,
+      "format": "CCYYMMDD",
+      "required": true,
+      "description": "Date of Transaction",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    }
+  ],
+  "key_columns": [
+    "LOCATION-CODE"
+  ],
+  "metadata": {
+    "created_by": "template_converter",
+    "created_date": "2026-05-18T15:40:57.072422Z",
+    "last_modified": "2026-05-18T15:40:57.072431Z",
+    "source_template": "mappings\\csv\\shaw_atoctran\\SHAW_ATOCTRAN_060_mapping.csv"
+  },
+  "total_record_length": 35,
+  "warnings": []
+}

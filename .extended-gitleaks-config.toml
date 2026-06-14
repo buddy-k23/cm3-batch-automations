@@ -1,0 +1,180 @@
+# Extended gitleaks configuration — referenced by .gitlab/secret-detection-ruleset.toml.
+#
+# Strategy:
+#   1. Extend the packaged default ruleset (every default rule stays active).
+#   2. Use a single global [allowlist] with:
+#        - `paths`   — skip well-known placeholder / test-fixture /
+#                      vendored-asset locations whose content is
+#                      intentionally not a real credential.
+#        - `regexes` — defensive safety net for exact placeholder values
+#                      that may appear anywhere in the repo.
+#        - `stopwords` — additional global stopwords; any finding whose
+#                      raw secret contains one of these strings is
+#                      treated as a false positive.
+#   3. Add per-rule [[rules.allowlists]] blocks for built-in rules that
+#      regex-match on PEM footers / URL shapes even after the body has
+#      been redacted (so they still fire on lines containing
+#      `-----[REDACTED]-----` and on Oracle DSNs that we already
+#      sanitised to `oracle+oracledb[REDACTED]@host`).
+#   4. The custom `enterprise-generic-secrets` rule (loaded via the analyzer
+#      ruleset, not defined here) repeatedly fires on the literal HTTP
+#      header NAME `X-API-Key` in our static JS — handled via stopwords
+#      and per-path entries.
+#
+# Path regexes are matched (gitleaks-native) against the repo-root-relative
+# file path. Use POSIX forward slashes; gitleaks normalises Windows paths.
+# Patterns use simple gitleaks-style regex (no '^' / '$' anchors needed).
+# See GitLab docs:
+#   https://docs.gitlab.com/user/application_security/secret_detection/pipeline/configure/#ignore-patterns-and-paths
+
+[extend]
+# Extend the packaged ruleset shipped with the GitLab secret-detection
+# analyzer image. Do NOT change this path; it is the location inside the
+# analyzer container.
+path = "/gitleaks.toml"
+
+[allowlist]
+description = "Allowlist placeholder credentials and test fixtures used in CI."
+
+paths = [
+  # Documentation/template files containing explicit "change-me" placeholders.
+  '''\.env\.example''',
+
+  # LDAPS E2E test scaffolding — injects deterministic fakes into a transient
+  # uvicorn subprocess used only by the E2E suite.
+  '''scripts/smoke_test_ldap_login\.py''',
+  '''tests/e2e/conftest\.py''',
+  '''tests/e2e/test_e2e_login\.py''',
+
+  # Unit/integration tests use sentinel placeholder API keys / fake PEMs /
+  # redacted Oracle DSNs.
+  '''tests/unit/.*\.py''',
+  '''tests/integration/.*\.py''',
+  '''tests/conftest\.py''',
+
+  # SQL setup scripts contain documented `<password>` placeholder text inside
+  # SQL*Plus connection-string examples in header comments (e.g.
+  # `sqlplus system/<password>@localhost:1521/FREEPDB1`). No real credentials.
+  '''scripts/.*\.sql''',
+  '''sql/.*\.sql''',
+
+  # Application sources where we already redacted credentials to the literal
+  # sentinel `[REDACTED]`. Gitleaks' built-in "Password in URL" rule still
+  # matches the surrounding URL shape (e.g. `oracle+oracledb[REDACTED]@host`).
+  '''src/database/db_url\.py''',
+
+  # Static UI JS contains the literal HTTP header NAME `'X-API-Key'` in many
+  # fetch() calls — flagged by the project-level `enterprise-generic-secrets`
+  # rule. The header NAME is not a credential.
+  '''src/reports/static/ui\.js''',
+
+  # Vendored minified third-party JS bundles.
+  '''src/reports/static/.*\.min\.js''',
+]
+
+# Defensive safety net: even outside the paths above, never flag these
+# exact placeholder values as secrets. Each is a documented sentinel used
+# in the test/E2E harness or in .env.example documentation.
+regexes = [
+  # Repeated-hex sentinel produced by the LDAPS E2E fixture (64 hex chars).
+  '''0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef''',
+  # Literal sentinel used throughout the unit tests / sanitised sources to
+  # mark a redacted credential.
+  '''\[REDACTED\]''',
+  # .env.example documentation placeholder.
+  '''change-me-to-a-32-byte-random-hex-string''',
+  # SQL*Plus connection-string placeholder used in setup script comments.
+  '''<password>''',
+]
+
+# Stopwords are matched against the raw secret content of each finding.
+# If the raw secret contains any stopword, the finding is suppressed.
+# This is a stronger allowlist than `regexes` because it does not require
+# the stopword to be the whole match.
+stopwords = [
+  "REDACTED",
+  "<password>",
+  "X-API-Key",
+  "FAKEDATA",
+  "change-me",
+]
+
+# ---------------------------------------------------------------------------
+# Per-rule allowlists
+# ---------------------------------------------------------------------------
+# Some built-in rules pattern-match on structural shapes (PEM footer, URL
+# auth segment) that remain present after we redact the secret body. Even
+# with the global allowlist above, the gitleaks engine evaluates rule-level
+# allowlists independently per finding; defining them here guarantees the
+# false positives are suppressed regardless of how the analyzer composes
+# the global vs. extended ruleset.
+
+# Built-in "Password in URL" — fires on `scheme://user:pass@host` shapes.
+# Our `src/database/db_url.py` constructs Oracle DSNs and explicitly
+# substitutes `[REDACTED]` for the password component; the surrounding URL
+# shape still matches the rule. Same for the corresponding unit test.
+[[rules]]
+id = "Password in URL"
+[[rules.allowlists]]
+description = "Sanitised Oracle DSN with [REDACTED] placeholder, not a real credential."
+regexes = ['''\[REDACTED\]''']
+paths = [
+  '''src/database/db_url\.py''',
+  '''tests/unit/test_db_url\.py''',
+]
+stopwords = ["REDACTED"]
+
+# Built-in "RSA private key" — fires on `-----END RSA PRIVATE KEY-----`
+# footers even when the body has been redacted to `FAKEDATA` / `FAKE`.
+# Our TLS service unit tests construct fake PEM strings to feed into the
+# mock HTTP response handler.
+[[rules]]
+id = "RSA private key"
+[[rules.allowlists]]
+description = "Fake PEM strings used by tests/unit/test_tls_service.py mock response."
+regexes = [
+  '''\[REDACTED\]''',
+  '''FAKEDATA''',
+  '''FAKE''',
+]
+paths = [
+  '''tests/unit/test_tls_service\.py''',
+  '''tests/unit/.*\.py''',
+]
+stopwords = ["REDACTED", "FAKEDATA", "FAKE"]
+
+# Built-in "PKCS8 private key" — same situation as RSA private key.
+[[rules]]
+id = "PKCS8 private key"
+[[rules.allowlists]]
+description = "Fake PEM strings used by tests/unit/test_tls_service.py mock response."
+regexes = [
+  '''\[REDACTED\]''',
+  '''FAKEDATA''',
+  '''FAKE''',
+]
+paths = [
+  '''tests/unit/test_tls_service\.py''',
+  '''tests/unit/.*\.py''',
+]
+stopwords = ["REDACTED", "FAKEDATA", "FAKE"]
+
+# Custom Enterprise rule (defined outside this repo, in the analyzer ruleset).
+# It currently flags the HTTP header NAME `X-API-Key` inside fetch() calls
+# in our static UI JS, and the `<password>` placeholder inside SQL*Plus
+# connection-string comments. Neither is a credential.
+[[rules]]
+id = "enterprise-generic-secrets"
+[[rules.allowlists]]
+description = "HTTP header name `X-API-Key`, `<password>` placeholder, redacted sentinels."
+regexes = [
+  '''X-API-Key''',
+  '''<password>''',
+  '''\[REDACTED\]''',
+]
+paths = [
+  '''src/reports/static/ui\.js''',
+  '''scripts/.*\.sql''',
+  '''sql/.*\.sql''',
+]
+stopwords = ["X-API-Key", "<password>", "REDACTED"]

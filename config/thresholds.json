@@ -1,0 +1,45 @@
+{
+  "thresholds": {
+    "missing_rows": {
+      "name": "Missing Rows",
+      "metric": "missing_rows",
+      "max_value": 10,
+      "max_percent": 1.0,
+      "warning_value": 5,
+      "warning_percent": 0.5,
+      "enabled": true
+    },
+    "extra_rows": {
+      "name": "Extra Rows",
+      "metric": "extra_rows",
+      "max_value": 10,
+      "max_percent": 1.0,
+      "warning_value": 5,
+      "warning_percent": 0.5,
+      "enabled": true
+    },
+    "different_rows": {
+      "name": "Different Rows",
+      "metric": "different_rows",
+      "max_value": 20,
+      "max_percent": 2.0,
+      "warning_value": 10,
+      "warning_percent": 1.0,
+      "enabled": true
+    },
+    "field_differences": {
+      "name": "Field Differences",
+      "metric": "field_differences",
+      "max_value": 50,
+      "max_percent": 5.0,
+      "warning_value": 25,
+      "warning_percent": 2.5,
+      "enabled": true
+    }
+  },
+  "comparison_options": {
+    "ignore_case": false,
+    "ignore_whitespace": false,
+    "detailed_analysis": true
+  }
+}

@@ -1,0 +1,91 @@
+# Multi-record config example for a generic batch file with header/detail/trailer.
+#
+# This file can be used as-is with:
+#   python -m src.main validate --file <your-file> --multi-record config/multi-record/example_atoctran.yaml
+#
+# Adjust the following to match your actual file layout:
+#   discriminator.position   - 1-indexed start column of the record-type code
+#   discriminator.length     - width of the record-type code in characters
+#   record_types.*.match     - the literal value that identifies each record type
+#   record_types.*.mapping   - path to the JSON mapping file for that record type
+#   record_types.*.rules     - (optional) path to the JSON rules file for that type
+#   record_types.*.expect    - cardinality: any | exactly_one | at_least_one
+
+discriminator:
+  field: REC_TYPE        # Logical name used in violation messages
+  position: 1            # 1-indexed start column of discriminator in each line
+  length: 3              # Number of characters to read
+
+record_types:
+  header:
+    match: "HDR"
+    mapping: "config/mappings/header_mapping.json"
+    # rules: "config/rules/header_rules.json"
+    expect: exactly_one
+
+  detail:
+    match: "DTL"
+    mapping: "config/mappings/detail_mapping.json"
+    # rules: "config/rules/detail_rules.json"
+    expect: at_least_one
+
+  trailer:
+    match: "TRL"
+    mapping: "config/mappings/trailer_mapping.json"
+    # rules: "config/rules/trailer_rules.json"
+    expect: exactly_one
+
+# Uncomment and adapt the cross-type rules below as needed.
+cross_type_rules:
+
+  # Ensure detail rows are present when a header is found.
+  - check: required_companion
+    when_type: header
+    requires_type: detail
+    severity: error
+    message: "File has a header record but no detail records."
+
+  # Trailer RECORD_COUNT field must match the actual number of detail rows.
+  - check: header_trailer_count
+    record_type: trailer
+    trailer_field: RECORD_COUNT   # field in the trailer that holds the count
+    count_of: detail              # which record type to count
+    severity: error
+    message: "Trailer RECORD_COUNT does not match actual number of detail rows."
+
+  # Trailer TOTAL_AMOUNT must equal sum of AMOUNT across all detail rows.
+  - check: header_trailer_sum
+    record_type: trailer
+    trailer_field: TOTAL_AMOUNT   # field in the trailer that holds the total
+    sum_of:
+      - AMOUNT                    # field(s) in detail rows to sum
+    count_of: detail
+    severity: error
+    message: "Trailer TOTAL_AMOUNT does not match sum of detail AMOUNT fields."
+
+  # Header BATCH_ID must match trailer BATCH_ID.
+  - check: header_trailer_match
+    header_field: BATCH_ID
+    trailer_field: BATCH_ID
+    severity: error
+    message: "Header BATCH_ID does not match trailer BATCH_ID."
+
+  # Every detail row's BATCH_ID must equal the header BATCH_ID.
+  - check: header_detail_consistent
+    header_field: BATCH_ID
+    detail_field: BATCH_ID
+    severity: error
+    message: "A detail row BATCH_ID does not match the header BATCH_ID."
+
+  # Record types must appear in this order: header, then detail, then trailer.
+  - check: type_sequence
+    expected_order:
+      - header
+      - detail
+      - trailer
+    severity: error
+    message: "Record types appear out of expected order (header → detail → trailer)."
+
+# What to do when a line's discriminator value does not match any record type above.
+# Options: warn (default), error, skip
+default_action: warn

@@ -1,0 +1,160 @@
+{
+  "mapping_name": "customer_file_to_db",
+  "version": "1.0.0",
+  "description": "Maps customer data from pipe-delimited file to CUSTOMER table",
+  "source": {
+    "type": "file",
+    "format": "pipe_delimited",
+    "file_path": "data/samples/customers.txt"
+  },
+  "target": {
+    "type": "database",
+    "table_name": "CUSTOMER"
+  },
+  "mappings": [
+    {
+      "source_column": "customer_id",
+      "target_column": "CUSTOMER_ID",
+      "data_type": "string",
+      "required": true,
+      "transformations": [
+        {"type": "trim"},
+        {"type": "upper"}
+      ],
+      "validation_rules": [
+        {"type": "not_null"},
+        {
+          "type": "regex",
+          "parameters": {"pattern": "^CUST[0-9]{6}$"}
+        }
+      ]
+    },
+    {
+      "source_column": "first_name",
+      "target_column": "FIRST_NAME",
+      "data_type": "string",
+      "required": true,
+      "transformations": [
+        {"type": "trim"}
+      ],
+      "validation_rules": [
+        {"type": "not_null"},
+        {
+          "type": "min_length",
+          "parameters": {"length": 1}
+        },
+        {
+          "type": "max_length",
+          "parameters": {"length": 50}
+        }
+      ]
+    },
+    {
+      "source_column": "last_name",
+      "target_column": "LAST_NAME",
+      "data_type": "string",
+      "required": true,
+      "transformations": [
+        {"type": "trim"}
+      ],
+      "validation_rules": [
+        {"type": "not_null"},
+        {
+          "type": "min_length",
+          "parameters": {"length": 1}
+        },
+        {
+          "type": "max_length",
+          "parameters": {"length": 50}
+        }
+      ]
+    },
+    {
+      "source_column": "email",
+      "target_column": "EMAIL",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {"type": "trim"},
+        {"type": "lower"}
+      ],
+      "validation_rules": [
+        {
+          "type": "regex",
+          "parameters": {"pattern": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"}
+        },
+        {
+          "type": "max_length",
+          "parameters": {"length": 100}
+        }
+      ]
+    },
+    {
+      "source_column": "phone",
+      "target_column": "PHONE_NUMBER",
+      "data_type": "string",
+      "required": false,
+      "transformations": [
+        {"type": "trim"},
+        {
+          "type": "replace",
+          "parameters": {
+            "old": "-",
+            "new": ""
+          }
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "regex",
+          "parameters": {"pattern": "^[0-9]{10}$"}
+        }
+      ]
+    },
+    {
+      "source_column": "account_balance",
+      "target_column": "ACCOUNT_BALANCE",
+      "data_type": "number",
+      "required": true,
+      "transformations": [
+        {
+          "type": "cast",
+          "parameters": {"to_type": "number"}
+        }
+      ],
+      "validation_rules": [
+        {"type": "not_null"},
+        {
+          "type": "range",
+          "parameters": {
+            "min": 0,
+            "max": 999999.99
+          }
+        }
+      ]
+    },
+    {
+      "source_column": "status",
+      "target_column": "STATUS",
+      "data_type": "string",
+      "required": true,
+      "transformations": [
+        {"type": "trim"},
+        {"type": "upper"}
+      ],
+      "validation_rules": [
+        {"type": "not_null"},
+        {
+          "type": "regex",
+          "parameters": {"pattern": "^(ACTIVE|INACTIVE|SUSPENDED)$"}
+        }
+      ]
+    }
+  ],
+  "key_columns": ["customer_id"],
+  "metadata": {
+    "created_by": "data_team",
+    "created_date": "2026-02-06T00:00:00Z",
+    "last_modified": "2026-02-06T00:00:00Z"
+  }
+}

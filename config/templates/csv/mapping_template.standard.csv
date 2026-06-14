@@ -1,0 +1,7 @@
+Field Name,Data Type,Target Name,Required,Position,Length,Format,Description,Default Value
+customer_id,string,CUSTOMER_ID,Y,,,,Unique customer identifier,
+first_name,string,FIRST_NAME,Y,,,,Customer first name,
+last_name,string,LAST_NAME,Y,,,,Customer last name,
+email,string,EMAIL,N,,,,Customer email,
+account_balance,decimal,ACCOUNT_BALANCE,Y,,,,Account balance,
+status,string,STATUS,Y,,,,Account status,

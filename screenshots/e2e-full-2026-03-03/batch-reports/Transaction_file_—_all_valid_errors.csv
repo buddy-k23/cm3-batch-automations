@@ -1,0 +1,14 @@
+source_row,index,severity,message
+1,1,error,"Row 1 length mismatch: expected 0, got 70. Trailing extra data length: 70."
+2,2,error,"Row 2 length mismatch: expected 0, got 71. Trailing extra data length: 71."
+3,3,error,"Row 3 length mismatch: expected 0, got 71. Trailing extra data length: 71."
+4,4,error,"Row 4 length mismatch: expected 0, got 70. Trailing extra data length: 70."
+5,5,error,"Row 5 length mismatch: expected 0, got 70. Trailing extra data length: 70."
+6,6,error,"Row 6 length mismatch: expected 0, got 71. Trailing extra data length: 71."
+7,7,error,"Row 7 length mismatch: expected 0, got 70. Trailing extra data length: 70."
+8,8,error,"Row 8 length mismatch: expected 0, got 70. Trailing extra data length: 70."
+9,9,error,"Row 9 length mismatch: expected 0, got 71. Trailing extra data length: 71."
+10,10,error,"Row 10 length mismatch: expected 0, got 70. Trailing extra data length: 70."
+,11,critical,Invalid file format
+,12,critical,Parse error: Failed to parse fixed-width file: No columns to parse from file
+,13,error,"Line length mismatch found in 10 of 10 rows (expected length=0). Incorrect rows sample: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]"

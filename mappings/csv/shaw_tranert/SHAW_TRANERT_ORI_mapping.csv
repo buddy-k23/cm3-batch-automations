@@ -1,0 +1,49 @@
+Field Name,Data Type,Position,Length,Target Name,Required,Format,Transformation,Valid Values,Description
+BK-NUM-ERT,Numeric,1,5,bk_num_ert,Yes,9(5),Default to '00040' for Consumer Create Tranert records only for Accounts which were charged-off yesterday (chrgoff_dt = batch date). i.e. IF Charge-Off if CHG-OFF-CD = '1' and M-DATE-PAID-OFF = Batch Date,00040,"A number, defined on the Bank Control Operation tables, which identifies the ..."
+APP-ERT,Numeric,6,3,app_ert,Yes,9(3),Default to '001',001,The application to which the account is to be associated.
+LN-NUM-ERT,String,9,18,ln_num_ert,Yes,,LN-NUM-ERT = BR + CUS + LN,,The account number that is associated with the account.
+REF-NUM-ERT,String,27,3,ref_num_ert,No,,Nullable --> Leave Blank,,The applicable reference number for the transaction.
+FILLER,String,30,130,filler,No,,Nullable --> Leave Blank,,Filler for account key
+EFF-DAT-ERT,Date,160,10,eff_dat_ert,Yes,MM/DD/CCYY,,,The date the transaction was effective.
+TRN-COD-ERT,Numeric,170,5,trn_cod_ert,Yes,9(5),Default to '32010',32010,The transaction code for the transaction.
+BAT-ITM-NUM-ERT,Numeric,175,9,bat_itm_num_ert,Yes,9(9),if 1st account in batch then '1'; if 2nd account in batch then '2'; . . . if nth account in batch then 'n';,,The sequential number for this item within the batch.
+INP-SRC-COD-ERT,Numeric,184,3,inp_src_cod_ert,No,9(3),Nullable --> Leave Blank,,The source of the transaction.
+TRN-CNT-ERT,Numeric,187,3,trn_cnt_ert,No,9(3),Nullable --> Leave Blank,,The total number of transactions in the batch.
+TRN-MOR-DTA-FLG-ERT,String,190,1,trn_mor_dta_flg_ert,No,,Nullable --> Leave Blank,,Indicates if more data is available.
+OGL-CONTRACT-DAT-ORI,Date,191,10,ogl_contract_dat_ori,Yes,MM/DD/CCYY,,,The date the original contract was executed.
+OGL-TRM-ORI,Numeric,201,3,ogl_trm_ori,No,9(3),IF (ORG-TERM > 999) THEN 999; ELSE ORG-TERM,,Total number of payment intervals for the account. Typically the original ter...
+OGL-MAT-DAT-ORI,Date,204,10,ogl_mat_dat_ori,No,MM/DD/CCYY,IF M-FINAL-DATE not null then M-FINAL-DATE; ELSEIF MAT-DTE not null then MAT-DTE; ELSE Leave Blank,,The date on which the original promissory note was to mature.
+OGL-CONTRACT-AMT-ORI,Numeric,214,22,ogl_contract_amt_ori,No,-Z(12).9(2),Populate the Value for Field 'ORG'; IF 'ORG' is equal to 'Zero' Then Populate 'M-CHARGE-OFF-AMT',,"For Revolving Credit, Line of Credit, and Open/Demand Portfolio Type accounts..."
+OGL-PORTFOLIO-TYP-ORI,String,236,1,ogl_portfolio_typ_ori,Yes,,If TYPE--X equals ‘7’ or '8' Then ‘C’ Else ‘I’;,7|8|C|I,Indicates the portfolio type for the account.
+LN-TYP-ORI,Numeric,237,3,ln_typ_ori,Yes,9(3),,,Indicates the Loan Type associated with the account.
+COF-CDN-IND-ORI,Numeric,240,1,cof_cdn_ind_ori,No,9(1),Default to '1',1,The type of Charge Off Account.
+OGL-NTE-DAT-ORI,Date,241,10,ogl_nte_dat_ori,Yes,MM/DD/CCYY,,,The date the bank charged-off the account.
+OGL-NTE-AMT-ORI,Numeric,251,22,ogl_nte_amt_ori,Yes,-Z(12).9(2),Pass as is,,The amount of principal included in the charge-off.
+OGL-COF-INT-AMT-ORI,Numeric,273,22,ogl_cof_int_amt_ori,No,-Z(12).9(2),,,The amount of interest that has accrued and is due after the charge off.
+INT-RT-ORI,Numeric,295,7,int_rt_ori,No,.Z(6),Default to .000000,.000000,The interest rate at which the account accrues interest.
+OGL-INT-RT-ORI,Numeric,302,7,ogl_int_rt_ori,No,.Z(6),"=(RATE-P)/100 Decimal(8,7) to be transformed to .Z(6).",,The interest rate prior to charge-off.
+REP-TYP-ORI,Numeric,309,3,rep_typ_ori,Yes,9(3),,,"The frequency of payments or the repayment plan used for the account prior to... [Valid Values column contains prose,..."
+HGH-BAL-ORI,Numeric,312,22,hgh_bal_ori,No,-Z(12).9(2),If TYPE--X equals ‘7’ or '8' Then M-ACB-HIGH-BALANCE Else Leave Blank <spaces>;,7|8,The highest amount of credit utilized/revolving high balance since the accoun...
+AMT-PAS-DUE-30-ORI,Numeric,334,22,amt_pas_due_30_ori,No,-Z(12).9(2),Leave Blank <spaces>,,The total amount past due at 30 days delinquent.
+AMT-PAS-DUE-60-ORI,Numeric,356,22,amt_pas_due_60_ori,No,-Z(12).9(2),Leave Blank <spaces>,,The total amount past due at 60 days delinquent.
+AMT-PAS-DUE-90-ORI,Numeric,378,22,amt_pas_due_90_ori,No,-Z(12).9(2),Leave Blank <spaces>,,The total amount past due at 90 days delinquent.
+AMT-PAS-DUE-120-ORI,Numeric,400,22,amt_pas_due_120_ori,No,-Z(12).9(2),Leave Blank <spaces>,,The total amount past due at 120 days delinquent.
+OGL-NUM-PMT-MTD-ORI,Numeric,422,5,ogl_num_pmt_mtd_ori,No,9(5),Leave Blank <spaces>,,The number of payments received this month prior to the charge-off event. Pay...
+OGL-NUM-PMT-YTD-ORI,Numeric,427,5,ogl_num_pmt_ytd_ori,No,9(5),Leave Blank <spaces>,,The number of payments received this year prior to the charge-off event. Paym...
+OGL-NUM-PMT-LTD-ORI,Numeric,432,5,ogl_num_pmt_ltd_ori,No,9(5),Leave Blank <spaces>,,The number of payments received to date prior to the charge-off event. Paymen...
+OGL-PMT-AMT-MTD-ORI,Numeric,437,22,ogl_pmt_amt_mtd_ori,No,-Z(12).9(2),Leave Blank <spaces>,,The dollar amount of payments paid this month prior to the charge off event. ...
+OGL-PMT-AMT-YTD-ORI,Numeric,459,22,ogl_pmt_amt_ytd_ori,No,-Z(12).9(2),Leave Blank <spaces>,,The dollar amount of payments paid this year prior to the charge off event. P...
+OGL-PMT-AMT-LTD-ORI,Numeric,481,22,ogl_pmt_amt_ltd_ori,No,-Z(12).9(2),Leave Blank <spaces>,,The total amount of all payments paid to date prior to the charge off event. ...
+FIL-FLD-ORI,String,503,3,fil_fld_ori,No,,Leave Blank <spaces>,,Filler
+COF-REA-COD-ORI,String,506,3,cof_rea_cod_ori,No,,Pass the last 2 bytes of the source. If source is <blank> pass <blank>. Eg. If M-PAYOFF-TRANS = '36CCOOT' Pass last 2 bytes which is 'OT',,Indicates the reason the account was charged-off.
+ST-COD-ORI,String,509,3,st_cod_ori,No,,IF 001 THEN 'NC'; ELSEIF 002 THEN 'SC'; ELSEIF 003 THEN 'VA'; ELSEIF 004 THEN 'GA'; ELSEIF 005 THEN 'MD'; ELSEIF 006 THEN 'DC'; ELSEIF 007 THEN 'WV'; ELSEIF 008 THEN 'KY'; ELSEIF 407 THEN 'TX'; ELSEIF 408 THEN 'NV'; ELSEIF 503 THEN 'TN'; ELSEIF 504 THEN 'AL'; ELSEIF 505 THEN 'IN'; ELSEIF 506 THEN 'FL'; ELSEIF 507 THEN 'MS'; ELSEIF 508 THEN 'AR'; ELSEIF 807 THEN 'OH'; ELSEIF 808 THEN 'PA'; ELSEIF 809 THEN 'NJ'; ELSEIF 304 AND [if account is found in coll_address Contact.txt; then pass state code for Primary Contact Address.] e.g. 'CA' for California ELSE Leave Blank <spaces>,NC|SC|VA|GA|MD|DC|WV|KY|TX|NV|TN|AL|IN|FL|MS|AR|OH|PA|NJ,Indicates which set of state-level parameters apply to the account. Populate ...
+DAT-INT-ACR-TO-ORI,Date,512,10,dat_int_acr_to_ori,Yes,MM/DD/CCYY,,,The last date on which accruals were taken on the loan.
+ACT-STA-ORI,Numeric,522,1,act_sta_ori,No,9(1),Default to '0',0,The current status of the account as it pertains to the ability to post monet...
+MTG-AGC-ID-ORI,String,523,2,mtg_agc_id_ori,No,,Leave Blank <spaces>,,The mortgage agency identifier as reported to the Credit Bureaus on the K3 se...
+PCOF-DAT-LAS-PMT-ORI,Date,525,10,pcof_dat_las_pmt_ori,No,MM/DD/CCYY,Transform as is.,,The date the last payment was made on the account prior to charge-off.
+MTG-ID-NUM-ORI,String,535,18,mtg_id_num_ori,No,,Leave Blank <spaces>,,The mortgage identification number as reported to the Credit Bureaus on the K...
+DAT-LAS-STM-ORI,Date,553,10,dat_las_stm_ori,No,MM/DD/CCYY,IF M-CYCLE-BEG-DTE not null then (M-CYCLE-BEG-DTE - 1); ELSE Leave Blank <spaces>,,The last date that a statement was produced for the account prior to charge-off.
+PCOF-PMT-AMT-LAS-ORI,Numeric,563,22,pcof_pmt_amt_las_ori,No,-Z(12).9(2),If DTE_LAST_PMT is not NULL and M-BBT-LST-PAYMNT-AMT then pass 1.00,,The last payment amount paid on the account prior to charge-off.
+CNV-ACT-NUM-ORI,String,585,20,cnv_act_num_ori,No,,If ALS account number is present then pass as is if not then pass blank.,,The original loan account number.
+OGL-PMT-AMT-ORI,Numeric,605,22,ogl_pmt_amt_ori,No,-Z(12).9(2),,,The amount of the original payment on the payment schedule.
+DAT-ACT-CLS-TO-ATY-ORI,Date,627,10,dat_act_cls_to_aty_ori,No,MM/DD/CCYY,,,Date the account was closed to purchases or any other withdrawal activity.

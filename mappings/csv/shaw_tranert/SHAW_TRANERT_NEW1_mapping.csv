@@ -1,0 +1,15 @@
+Field Name,Data Type,Position,Length,Target Name,Required,Format,Transformation,Valid Values,Description
+BK-NUM-ERT,Numeric,1,5,bk_num_ert,Yes,9(5),Default to '00040' for Consumer Create Tranert records only for Accounts which were charged-off yesterday (chrgoff_dt = batch date). i.e. IF Charge-Off if CHG-OFF-CD = '1' and M-DATE-PAID-OFF = Batch Date,00040,"A number, defined on the Bank Control Operation tables, which identifies the ..."
+APP-ERT,Numeric,6,3,app_ert,Yes,9(3),Default to '001',001,The application to which the account is to be associated.
+LN-NUM-ERT,String,9,18,ln_num_ert,Yes,,LN-NUM-ERT = BR + CUS + LN,,The account number that is associated with the account.
+REF-NUM-ERT,String,27,3,ref_num_ert,No,,Leave Blank <spaces>,,The applicable reference number for the transaction.
+FILLER,String,30,130,filler,No,,Leave Blank <spaces>,,Filler for account key
+EFF-DAT-ERT,Date,160,10,eff_dat_ert,Yes,MM/DD/CCYY,,,The date the transaction was effective.
+TRN-COD-ERT,Numeric,170,5,trn_cod_ert,Yes,9(5),Default to '32000',32000,The transaction code for the transaction.
+BAT-ITM-NUM-ERT,Numeric,175,9,bat_itm_num_ert,Yes,9(9),if 1st account in batch then '1'; if 2nd account in batch then '2'; . . . if nth account in batch then 'n';,,The sequential number for this item within the batch.
+INP-SRC-COD-ERT,Numeric,184,3,inp_src_cod_ert,No,9(3),Pass '000',,The source of the transaction.
+TRN-CNT-ERT,Numeric,187,3,trn_cnt_ert,No,9(3),Pass '000',,The total number of transactions in the batch.
+TRN-MOR-DTA-FLG-ERT,String,190,1,trn_mor_dta_flg_ert,No,,Nullable --> Leave Blank,,Indicates if more data is available.
+SEL-ID-NEW,String,191,1,sel_id_new,No,,Nullable --> Leave Blank,,The selection indicator for the account.
+LCT-COD-NEW1,String,192,6,lct_cod_new1,Yes,,Default to '100030' for SHAW,100030,The APPS location code for the location in which the account currently resides.
+USR-ID-NEW1,String,198,8,usr_id_new1,No,,Nullable --> Leave Blank,,The user/operator id.

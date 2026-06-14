@@ -1,0 +1,20 @@
+{
+  "date": "2026-03-04T00:15:23.417790Z",
+  "total_passed": 59,
+  "total_failed": 0,
+  "exit_code": 0,
+  "components": {
+    "batch": {
+      "passed": 5,
+      "failed": 0
+    },
+    "api": {
+      "passed": 54,
+      "failed": 0
+    },
+    "ui": {
+      "passed": 0,
+      "failed": 0
+    }
+  }
+}

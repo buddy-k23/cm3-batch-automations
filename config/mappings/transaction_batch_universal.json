@@ -1,0 +1,152 @@
+{
+  "mapping_name": "transaction_batch_universal",
+  "version": "1.0.0",
+  "description": "Generated from template: transaction_batch_template.csv",
+  "source": {
+    "type": "file",
+    "format": "fixed_width",
+    "encoding": "UTF-8"
+  },
+  "target": {
+    "type": "database"
+  },
+  "fields": [
+    {
+      "name": "transaction_id",
+      "data_type": "string",
+      "target_name": "TRANSACTION_ID",
+      "position": 0,
+      "length": 13,
+      "required": true,
+      "description": "Transaction identifier",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "customer_id",
+      "data_type": "string",
+      "target_name": "CUSTOMER_ID",
+      "position": 13,
+      "length": 10,
+      "required": true,
+      "description": "Customer identifier",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "transaction_date",
+      "data_type": "date",
+      "target_name": "TRANSACTION_DATE",
+      "position": 23,
+      "length": 8,
+      "format": "YYYYMMDD",
+      "required": true,
+      "description": "Transaction date",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "amount",
+      "data_type": "decimal",
+      "target_name": "AMOUNT",
+      "position": 31,
+      "length": 10,
+      "format": "999999.99",
+      "required": true,
+      "description": "Transaction amount",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "transaction_type",
+      "data_type": "string",
+      "target_name": "TRANSACTION_TYPE",
+      "position": 41,
+      "length": 12,
+      "required": true,
+      "description": "Transaction type",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "description",
+      "data_type": "string",
+      "target_name": "DESCRIPTION",
+      "position": 53,
+      "length": 30,
+      "required": false,
+      "description": "Transaction description",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "source_system",
+      "data_type": "string",
+      "target_name": "SOURCE_SYSTEM",
+      "position": 83,
+      "length": 10,
+      "required": false,
+      "description": "Source system code",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    }
+  ],
+  "key_columns": [
+    "transaction_id"
+  ],
+  "metadata": {
+    "created_by": "template_converter",
+    "created_date": "2026-02-15T19:19:26.932401Z",
+    "last_modified": "2026-02-15T19:19:26.932598Z",
+    "source_template": "data/mappings/transaction_batch_template.csv"
+  },
+  "total_record_length": 93
+}

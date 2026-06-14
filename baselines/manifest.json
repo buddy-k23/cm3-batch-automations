@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "_comment": [
+    "Single source of truth for the dual-baseline, version-pinned design",
+    "described in prompts/e2e_batch_testing_prompt.md (<context> section).",
+    "",
+    "Each entry pins one (env, source, file_type) tuple to a release_tag",
+    "+ mapping_version pair. Multiple entries per tuple are permitted -",
+    "they form a history. scripts/e2e_lib/baseline_resolver.py returns the",
+    "single entry whose mapping_version matches the version recorded in the",
+    "mapping JSON at run time. An MR that bumps a mapping_version MUST add",
+    "a corresponding entry here, or the L3 gate fails fast with",
+    "BaselineResolverError('no baseline pinned for mapping_version=...').",
+    "",
+    "This file is APPEND-ONLY. scripts/promote_baseline.sh appends new",
+    "entries; never edit or delete existing entries by hand. Mapping owners",
+    "review changes via CODEOWNERS."
+  ],
+  "baselines": [
+    {
+      "env": "sit",
+      "source": "SRC_A",
+      "file_type": "P327",
+      "release_tag": "R2026.05",
+      "mapping_version": "1.0.0",
+      "baseline_file": "baselines/sit/SRC_A/R2026.05/P327.txt",
+      "mapping_path": "config/mappings/SRC_A_P327.json",
+      "approved_by": "qa-lead@example.com",
+      "approved_at": "2026-04-30T17:00:00Z",
+      "comment": "Initial pin for the SRC_A P327 output. Generated from the R2026.05 SIT run on 2026-04-29."
+    },
+    {
+      "env": "sit",
+      "source": "SRC_A",
+      "file_type": "P328",
+      "release_tag": "R2026.05",
+      "mapping_version": "1.0.0",
+      "baseline_file": "baselines/sit/SRC_A/R2026.05/P328.txt",
+      "mapping_path": "config/mappings/SRC_A_P328.json",
+      "approved_by": "qa-lead@example.com",
+      "approved_at": "2026-04-30T17:00:00Z",
+      "comment": "Initial pin for the SRC_A P328 output (multi-record)."
+    },
+    {
+      "env": "ait",
+      "source": "SRC_A",
+      "file_type": "P327",
+      "release_tag": "R2026.05",
+      "mapping_version": "1.0.0",
+      "baseline_file": "baselines/ait/SRC_A/R2026.05/P327.txt",
+      "mapping_path": "config/mappings/SRC_A_P327.json",
+      "approved_by": "qa-lead@example.com",
+      "approved_at": "2026-04-30T17:00:00Z",
+      "comment": "Initial pin for the SRC_A P327 output in AIT."
+    }
+  ]
+}

@@ -1,0 +1,618 @@
+{
+  "source": 2,
+  "description": null,
+  "variables": {
+    "ArtifactoryC360SnapshotRepo": {"value": "Collections360-SNAPSHOT"},
+    "JFrog-CLI-location": {"value": "jfrog-cli-v1"},
+    "system.debug": {"value": "false", "allowOverride": true}
+  },
+  "variableGroups": [],
+  "environments": [
+    {
+      "name": "SIT",
+      "rank": 1,
+      "owner": {
+        "id": "455d7771-f6f2-47dc-b889-55aedc554df7",
+        "displayName": "Kingston Glitus MG",
+        "uniqueName": "BBT-USER\\D31180"
+      },
+      "variables": {
+        "ValdoHome": {"value": "/app/software/APPS/valdo"}
+      },
+      "variableGroups": [],
+      "preDeployApprovals": {
+        "approvals": [
+          {
+            "rank": 1,
+            "isAutomated": false,
+            "isNotificationOn": false,
+            "approver": {
+              "id": "25654a06-b5c8-4682-a860-2ad4c4403f88",
+              "displayName": "[Collections360]\\Deployment Scheduler DEV Approver",
+              "uniqueName": "vstfs:///Classification/TeamProject/962a8bb6-4276-412d-889f-aa41d9a9ae53\\Deployment Scheduler DEV Approver"
+            }
+          }
+        ],
+        "approvalOptions": {
+          "requiredApproverCount": null,
+          "releaseCreatorCanBeApprover": true,
+          "autoTriggeredAndPreviousEnvironmentApprovedCanBeSkipped": false,
+          "enforceIdentityRevalidation": false,
+          "timeoutInMinutes": 0,
+          "executionOrder": 1
+        }
+      },
+      "postDeployApprovals": {
+        "approvals": [
+          {
+            "rank": 1,
+            "isAutomated": false,
+            "isNotificationOn": false,
+            "approver": {
+              "id": "1577b6b3-ed82-4749-bf8f-b14ada43880a",
+              "displayName": "[Collections360]\\Deployment Workstream Approver",
+              "uniqueName": "vstfs:///Classification/TeamProject/962a8bb6-4276-412d-889f-aa41d9a9ae53\\Deployment Workstream Approver"
+            }
+          }
+        ],
+        "approvalOptions": {
+          "requiredApproverCount": null,
+          "releaseCreatorCanBeApprover": true,
+          "autoTriggeredAndPreviousEnvironmentApprovedCanBeSkipped": false,
+          "enforceIdentityRevalidation": false,
+          "timeoutInMinutes": 0,
+          "executionOrder": 2
+        }
+      },
+      "deployPhases": [
+        {
+          "deploymentInput": {
+            "parallelExecution": {"parallelExecutionType": 0},
+            "agentSpecification": null,
+            "skipArtifactsDownload": true,
+            "artifactsDownloadInput": {"downloadInputs": []},
+            "queueId": 94,
+            "demands": [],
+            "enableAccessToken": false,
+            "timeoutInMinutes": 0,
+            "jobCancelTimeoutInMinutes": 1,
+            "condition": "succeeded()",
+            "overrideInputs": {}
+          },
+          "rank": 1,
+          "phaseType": 1,
+          "name": "Agent job",
+          "refName": null,
+          "workflowTasks": [
+            {
+              "environment": {},
+              "taskId": "b7e8b412-0437-4065-9371-edc5881de25b",
+              "version": "1.*",
+              "name": "Delete files from $(System.DefaultWorkingDirectory)\\C360Deploy\\$(Release.DefinitionName)",
+              "refName": "",
+              "enabled": true,
+              "alwaysRun": false,
+              "continueOnError": false,
+              "timeoutInMinutes": 0,
+              "definitionType": "task",
+              "overrideInputs": {},
+              "condition": "succeeded()",
+              "inputs": {
+                "SourceFolder": "$(System.DefaultWorkingDirectory)\\C360Deploy\\$(Release.DefinitionName)",
+                "Contents": "**\n/*\n.*"
+              }
+            },
+            {
+              "environment": {},
+              "taskId": "5916aacf-ed6c-4580-bf28-cf4b21c2b521",
+              "version": "1.*",
+              "name": "Artifactory Tools Installer",
+              "refName": "",
+              "enabled": true,
+              "alwaysRun": false,
+              "continueOnError": false,
+              "timeoutInMinutes": 0,
+              "definitionType": "task",
+              "overrideInputs": {},
+              "condition": "succeeded()",
+              "inputs": {
+                "artifactoryService": "91a62b60-fb55-4402-aafd-8c4ddc4ca3db",
+                "cliInstallationRepo": "$(JFrog-CLI-location)",
+                "installCustomVersion": "false",
+                "cliVersion": "$(jfrogCliVersion)",
+                "installExtractors": "false",
+                "extractorsInstallationRepo": ""
+              }
+            },
+            {
+              "environment": {},
+              "taskId": "07fc5c20-6772-11e5-abde-6901d3c00755",
+              "version": "3.*",
+              "name": "Artifactory Generic Download",
+              "refName": "",
+              "enabled": true,
+              "alwaysRun": false,
+              "continueOnError": false,
+              "timeoutInMinutes": 0,
+              "definitionType": "task",
+              "overrideInputs": {},
+              "condition": "succeeded()",
+              "inputs": {
+                "connection": "91a62b60-fb55-4402-aafd-8c4ddc4ca3db",
+                "specSource": "taskConfiguration",
+                "fileSpec": "{\n  \"files\": [\n    {\n      \"pattern\": \"$(ArtifactoryC360SnapshotRepo)/$(Build.DefinitionName)/\",\n      \"build\": \"$(Build.DefinitionName)/$(Build.BuildNumber)\",\n      \"flat\": \"true\",\n      \"target\": \"$(System.DefaultWorkingDirectory)\\C360Deploy\\$(Release.DefinitionName)\\\"\n    }\n  ]\n}",
+                "file": "",
+                "replaceSpecVars": "false",
+                "specVars": "",
+                "collectBuildInfo": "false",
+                "buildName": "$(Build.DefinitionName)",
+                "buildNumber": "$(Build.BuildNumber)",
+                "module": "",
+                "projectKey": "",
+                "includeEnvVars": "false",
+                "dryRun": "false",
+                "failNoOp": "true",
+                "insecureTls": "false",
+                "threads": "3",
+                "retries": "3",
+                "splitCount": "3",
+                "minSplit": "5120",
+                "validateSymlinks": "false",
+                "syncDeletes": "false",
+                "syncDeletesPath": ""
+              }
+            },
+            {
+              "environment": {},
+              "taskId": "e213ff0f-5d5c-4791-802d-52ea3e7be1f1",
+              "version": "2.*",
+              "name": "UnZIP Files",
+              "refName": "",
+              "enabled": true,
+              "alwaysRun": false,
+              "continueOnError": false,
+              "timeoutInMinutes": 0,
+              "definitionType": "task",
+              "overrideInputs": {},
+              "condition": "succeeded()",
+              "inputs": {
+                "targetType": "inline",
+                "filePath": "",
+                "arguments": "",
+                "script": "Expand-Archive -Path \"$(System.DefaultWorkingDirectory)\\C360Deploy\\$(Release.DefinitionName)\\$(Build.BuildNumber).zip\" -DestinationPath \"$(System.DefaultWorkingDirectory)\\C360Deploy\\$(Release.DefinitionName)\" -Force",
+                "errorActionPreference": "stop",
+                "failOnStderr": "false",
+                "ignoreLASTEXITCODE": "false",
+                "pwsh": "false",
+                "workingDirectory": ""
+              }
+            },
+            {
+              "environment": {},
+              "taskId": "91443475-df55-4874-944b-39253b558790",
+              "version": "0.*",
+              "name": "SIT-TEST1: Create ValdoHome directory",
+              "refName": "",
+              "enabled": true,
+              "alwaysRun": false,
+              "continueOnError": false,
+              "timeoutInMinutes": 0,
+              "definitionType": "task",
+              "overrideInputs": {},
+              "condition": "succeeded()",
+              "inputs": {
+                "sshEndpoint": "fb43681f-641d-4edb-9fd6-1e6c55710be2",
+                "runOptions": "inline",
+                "commands": "",
+                "scriptPath": "",
+                "inline": "mkdir -p $(ValdoHome)",
+                "interpreterCommand": "/bin/bash",
+                "args": "",
+                "failOnStdErr": "false",
+                "interactiveSession": "false",
+                "readyTimeout": "20000",
+                "interactiveKeyboardAuthentication": "false"
+              }
+            },
+            {
+              "environment": {},
+              "taskId": "67cec91b-0351-4c2f-8465-d74b3d2a2d96",
+              "version": "0.*",
+              "name": "SIT-TEST1: Securely copy files to the remote machine",
+              "refName": "",
+              "enabled": true,
+              "alwaysRun": false,
+              "continueOnError": false,
+              "timeoutInMinutes": 0,
+              "definitionType": "task",
+              "overrideInputs": {},
+              "condition": "succeeded()",
+              "inputs": {
+                "sshEndpoint": "fb43681f-641d-4edb-9fd6-1e6c55710be2",
+                "sourceFolder": "$(System.DefaultWorkingDirectory)\\C360Deploy\\$(Release.DefinitionName)",
+                "contents": "**",
+                "targetFolder": "$(ValdoHome)",
+                "isWindowsOnTarget": "false",
+                "cleanTargetFolder": "false",
+                "cleanHiddenFilesInTarget": "false",
+                "readyTimeout": "20000",
+                "overwrite": "true",
+                "failOnEmptySource": "false",
+                "flattenFolders": "false",
+                "concurrentUploads": "10",
+                "delayBetweenUploads": "50"
+              }
+            },
+            {
+              "environment": {},
+              "taskId": "91443475-df55-4874-944b-39253b558790",
+              "version": "0.*",
+              "name": "SIT-TEST1: Setup venv and install dependencies",
+              "refName": "",
+              "enabled": true,
+              "alwaysRun": false,
+              "continueOnError": false,
+              "timeoutInMinutes": 0,
+              "definitionType": "task",
+              "overrideInputs": {},
+              "condition": "succeeded()",
+              "inputs": {
+                "sshEndpoint": "fb43681f-641d-4edb-9fd6-1e6c55710be2",
+                "runOptions": "inline",
+                "commands": "",
+                "scriptPath": "",
+                "inline": "cd $(ValdoHome)\nfind . -type f -print0 | xargs -0 dos2unix -q\n/usr/bin/python3.12 -m venv venv\nsource venv/bin/activate\npip config set global.index-url https://artifactory.bank.internal/artifactory/api/pypi/pypi-org/simple\npip config set global.trusted-host artifactory.bank.internal\npip install -r requirements.txt\npip install -e . --no-deps\nvaldo --help",
+                "interpreterCommand": "/bin/bash",
+                "args": "",
+                "failOnStdErr": "false",
+                "interactiveSession": "false",
+                "readyTimeout": "20000",
+                "interactiveKeyboardAuthentication": "false"
+              }
+            }
+          ]
+        }
+      ],
+      "environmentOptions": {
+        "emailNotificationType": "OnlyOnFailure",
+        "emailRecipients": "release.environment.owner;release.creator",
+        "skipArtifactsDownload": false,
+        "timeoutInMinutes": 0,
+        "enableAccessToken": false,
+        "publishDeploymentStatus": true,
+        "badgeEnabled": false,
+        "autoLinkWorkItems": false,
+        "pullRequestDeploymentEnabled": false
+      },
+      "demands": [],
+      "conditions": [
+        {"name": "ReleaseStarted", "conditionType": 1, "value": ""}
+      ],
+      "executionPolicy": {"concurrencyCount": 1, "queueDepthCount": 0},
+      "schedules": [],
+      "retentionPolicy": {"daysToKeep": 30, "releasesToKeep": 3, "retainBuild": true},
+      "processParameters": {},
+      "properties": {},
+      "preDeploymentGates": {"id": 0, "gatesOptions": null, "gates": []},
+      "postDeploymentGates": {"id": 0, "gatesOptions": null, "gates": []},
+      "environmentTriggers": []
+    },
+    {
+      "name": "AIT",
+      "rank": 2,
+      "owner": {
+        "id": "455d7771-f6f2-47dc-b889-55aedc554df7",
+        "displayName": "Kingston Glitus MG",
+        "uniqueName": "BBT-USER\\D31180"
+      },
+      "variables": {
+        "ValdoHome": {"value": "/app/software/APPS/valdo"}
+      },
+      "variableGroups": [],
+      "preDeployApprovals": {
+        "approvals": [
+          {
+            "rank": 1,
+            "isAutomated": false,
+            "isNotificationOn": false,
+            "approver": {
+              "id": "fbf8f795-8dc9-4c22-8d22-55ade08cd4a7",
+              "displayName": "[Collections360]\\Deployment Scheduler ITE Approver",
+              "uniqueName": "vstfs:///Classification/TeamProject/962a8bb6-4276-412d-889f-aa41d9a9ae53\\Deployment Scheduler ITE Approver"
+            }
+          }
+        ],
+        "approvalOptions": {
+          "requiredApproverCount": null,
+          "releaseCreatorCanBeApprover": true,
+          "autoTriggeredAndPreviousEnvironmentApprovedCanBeSkipped": false,
+          "enforceIdentityRevalidation": false,
+          "timeoutInMinutes": 0,
+          "executionOrder": 1
+        }
+      },
+      "postDeployApprovals": {
+        "approvals": [
+          {
+            "rank": 1,
+            "isAutomated": false,
+            "isNotificationOn": false,
+            "approver": {
+              "id": "1577b6b3-ed82-4749-bf8f-b14ada43880a",
+              "displayName": "[Collections360]\\Deployment Workstream Approver",
+              "uniqueName": "vstfs:///Classification/TeamProject/962a8bb6-4276-412d-889f-aa41d9a9ae53\\Deployment Workstream Approver"
+            }
+          }
+        ],
+        "approvalOptions": {
+          "requiredApproverCount": null,
+          "releaseCreatorCanBeApprover": true,
+          "autoTriggeredAndPreviousEnvironmentApprovedCanBeSkipped": false,
+          "enforceIdentityRevalidation": false,
+          "timeoutInMinutes": 0,
+          "executionOrder": 2
+        }
+      },
+      "deployPhases": [
+        {
+          "deploymentInput": {
+            "parallelExecution": {"parallelExecutionType": 0},
+            "agentSpecification": null,
+            "skipArtifactsDownload": true,
+            "artifactsDownloadInput": {"downloadInputs": []},
+            "queueId": 94,
+            "demands": [],
+            "enableAccessToken": false,
+            "timeoutInMinutes": 0,
+            "jobCancelTimeoutInMinutes": 1,
+            "condition": "succeeded()",
+            "overrideInputs": {}
+          },
+          "rank": 1,
+          "phaseType": 1,
+          "name": "Agent job",
+          "refName": null,
+          "workflowTasks": [
+            {
+              "environment": {},
+              "taskId": "b7e8b412-0437-4065-9371-edc5881de25b",
+              "version": "1.*",
+              "name": "Delete files from $(System.DefaultWorkingDirectory)\\C360Deploy\\$(Release.DefinitionName)",
+              "refName": "",
+              "enabled": true,
+              "alwaysRun": false,
+              "continueOnError": false,
+              "timeoutInMinutes": 0,
+              "definitionType": "task",
+              "overrideInputs": {},
+              "condition": "succeeded()",
+              "inputs": {
+                "SourceFolder": "$(System.DefaultWorkingDirectory)\\C360Deploy\\$(Release.DefinitionName)",
+                "Contents": "**\n/*\n.*"
+              }
+            },
+            {
+              "environment": {},
+              "taskId": "5916aacf-ed6c-4580-bf28-cf4b21c2b521",
+              "version": "1.*",
+              "name": "Artifactory Tools Installer",
+              "refName": "",
+              "enabled": true,
+              "alwaysRun": false,
+              "continueOnError": false,
+              "timeoutInMinutes": 0,
+              "definitionType": "task",
+              "overrideInputs": {},
+              "condition": "succeeded()",
+              "inputs": {
+                "artifactoryService": "91a62b60-fb55-4402-aafd-8c4ddc4ca3db",
+                "cliInstallationRepo": "$(JFrog-CLI-location)",
+                "installCustomVersion": "false",
+                "cliVersion": "$(jfrogCliVersion)",
+                "installExtractors": "false",
+                "extractorsInstallationRepo": ""
+              }
+            },
+            {
+              "environment": {},
+              "taskId": "07fc5c20-6772-11e5-abde-6901d3c00755",
+              "version": "3.*",
+              "name": "Artifactory Generic Download",
+              "refName": "",
+              "enabled": true,
+              "alwaysRun": false,
+              "continueOnError": false,
+              "timeoutInMinutes": 0,
+              "definitionType": "task",
+              "overrideInputs": {},
+              "condition": "succeeded()",
+              "inputs": {
+                "connection": "91a62b60-fb55-4402-aafd-8c4ddc4ca3db",
+                "specSource": "taskConfiguration",
+                "fileSpec": "{\n  \"files\": [\n    {\n      \"pattern\": \"$(ArtifactoryC360SnapshotRepo)/$(Build.DefinitionName)/\",\n      \"build\": \"$(Build.DefinitionName)/$(Build.BuildNumber)\",\n      \"flat\": \"true\",\n      \"target\": \"$(System.DefaultWorkingDirectory)\\C360Deploy\\$(Release.DefinitionName)\\\"\n    }\n  ]\n}",
+                "file": "",
+                "replaceSpecVars": "false",
+                "specVars": "",
+                "collectBuildInfo": "false",
+                "buildName": "$(Build.DefinitionName)",
+                "buildNumber": "$(Build.BuildNumber)",
+                "module": "",
+                "projectKey": "",
+                "includeEnvVars": "false",
+                "dryRun": "false",
+                "failNoOp": "true",
+                "insecureTls": "false",
+                "threads": "3",
+                "retries": "3",
+                "splitCount": "3",
+                "minSplit": "5120",
+                "validateSymlinks": "false",
+                "syncDeletes": "false",
+                "syncDeletesPath": ""
+              }
+            },
+            {
+              "environment": {},
+              "taskId": "e213ff0f-5d5c-4791-802d-52ea3e7be1f1",
+              "version": "2.*",
+              "name": "UnZIP Files",
+              "refName": "",
+              "enabled": true,
+              "alwaysRun": false,
+              "continueOnError": false,
+              "timeoutInMinutes": 0,
+              "definitionType": "task",
+              "overrideInputs": {},
+              "condition": "succeeded()",
+              "inputs": {
+                "targetType": "inline",
+                "filePath": "",
+                "arguments": "",
+                "script": "Expand-Archive -Path \"$(System.DefaultWorkingDirectory)\\C360Deploy\\$(Release.DefinitionName)\\$(Build.BuildNumber).zip\" -DestinationPath \"$(System.DefaultWorkingDirectory)\\C360Deploy\\$(Release.DefinitionName)\" -Force",
+                "errorActionPreference": "stop",
+                "failOnStderr": "false",
+                "ignoreLASTEXITCODE": "false",
+                "pwsh": "false",
+                "workingDirectory": ""
+              }
+            },
+            {
+              "environment": {},
+              "taskId": "91443475-df55-4874-944b-39253b558790",
+              "version": "0.*",
+              "name": "AIT-TEST1: Create ValdoHome directory",
+              "refName": "",
+              "enabled": true,
+              "alwaysRun": false,
+              "continueOnError": false,
+              "timeoutInMinutes": 0,
+              "definitionType": "task",
+              "overrideInputs": {},
+              "condition": "succeeded()",
+              "inputs": {
+                "sshEndpoint": "708dfc29-b28b-4a44-a075-904e63304eb5",
+                "runOptions": "inline",
+                "commands": "",
+                "scriptPath": "",
+                "inline": "mkdir -p $(ValdoHome)",
+                "interpreterCommand": "/bin/bash",
+                "args": "",
+                "failOnStdErr": "false",
+                "interactiveSession": "false",
+                "readyTimeout": "20000",
+                "interactiveKeyboardAuthentication": "false"
+              }
+            },
+            {
+              "environment": {},
+              "taskId": "67cec91b-0351-4c2f-8465-d74b3d2a2d96",
+              "version": "0.*",
+              "name": "AIT-TEST1: Securely copy files to the remote machine",
+              "refName": "",
+              "enabled": true,
+              "alwaysRun": false,
+              "continueOnError": false,
+              "timeoutInMinutes": 0,
+              "definitionType": "task",
+              "overrideInputs": {},
+              "condition": "succeeded()",
+              "inputs": {
+                "sshEndpoint": "708dfc29-b28b-4a44-a075-904e63304eb5",
+                "sourceFolder": "$(System.DefaultWorkingDirectory)\\C360Deploy\\$(Release.DefinitionName)",
+                "contents": "**",
+                "targetFolder": "$(ValdoHome)",
+                "isWindowsOnTarget": "false",
+                "cleanTargetFolder": "false",
+                "cleanHiddenFilesInTarget": "false",
+                "readyTimeout": "20000",
+                "overwrite": "true",
+                "failOnEmptySource": "false",
+                "flattenFolders": "false",
+                "concurrentUploads": "10",
+                "delayBetweenUploads": "50"
+              }
+            },
+            {
+              "environment": {},
+              "taskId": "91443475-df55-4874-944b-39253b558790",
+              "version": "0.*",
+              "name": "AIT-TEST1: Setup venv and install dependencies",
+              "refName": "",
+              "enabled": true,
+              "alwaysRun": false,
+              "continueOnError": false,
+              "timeoutInMinutes": 0,
+              "definitionType": "task",
+              "overrideInputs": {},
+              "condition": "succeeded()",
+              "inputs": {
+                "sshEndpoint": "708dfc29-b28b-4a44-a075-904e63304eb5",
+                "runOptions": "inline",
+                "commands": "",
+                "scriptPath": "",
+                "inline": "cd $(ValdoHome)\nfind . -type f -print0 | xargs -0 dos2unix -q\n/usr/bin/python3.12 -m venv venv\nsource venv/bin/activate\npip config set global.index-url https://artifactory.bank.internal/artifactory/api/pypi/pypi-org/simple\npip config set global.trusted-host artifactory.bank.internal\npip install -r requirements.txt\npip install -e . --no-deps\nvaldo --help",
+                "interpreterCommand": "/bin/bash",
+                "args": "",
+                "failOnStdErr": "false",
+                "interactiveSession": "false",
+                "readyTimeout": "20000",
+                "interactiveKeyboardAuthentication": "false"
+              }
+            }
+          ]
+        }
+      ],
+      "environmentOptions": {
+        "emailNotificationType": "OnlyOnFailure",
+        "emailRecipients": "release.environment.owner;release.creator",
+        "skipArtifactsDownload": false,
+        "timeoutInMinutes": 0,
+        "enableAccessToken": false,
+        "publishDeploymentStatus": true,
+        "badgeEnabled": false,
+        "autoLinkWorkItems": false,
+        "pullRequestDeploymentEnabled": false
+      },
+      "demands": [],
+      "conditions": [
+        {"name": "SIT", "conditionType": 2, "value": "4"}
+      ],
+      "executionPolicy": {"concurrencyCount": 1, "queueDepthCount": 0},
+      "schedules": [],
+      "retentionPolicy": {"daysToKeep": 30, "releasesToKeep": 3, "retainBuild": true},
+      "processParameters": {},
+      "properties": {},
+      "preDeploymentGates": {"id": 0, "gatesOptions": null, "gates": []},
+      "postDeploymentGates": {"id": 0, "gatesOptions": null, "gates": []},
+      "environmentTriggers": []
+    }
+  ],
+  "artifacts": [
+    {
+      "sourceId": "962a8bb6-4276-412d-889f-aa41d9a9ae53:BUILD_DEFINITION_ID",
+      "type": "Build",
+      "alias": "_valdo-release-build",
+      "definitionReference": {
+        "artifactSourceDefinitionUrl": {"id": "", "name": ""},
+        "defaultVersionBranch": {"id": "", "name": ""},
+        "defaultVersionSpecific": {"id": "", "name": ""},
+        "defaultVersionTags": {"id": "", "name": ""},
+        "defaultVersionType": {"id": "latestType", "name": "Latest"},
+        "definition": {"id": "BUILD_DEFINITION_ID", "name": "valdo-release-build"},
+        "definitions": {"id": "", "name": ""},
+        "IsMultiDefinitionType": {"id": "False", "name": "False"},
+        "project": {"id": "962a8bb6-4276-412d-889f-aa41d9a9ae53", "name": "Collections360"},
+        "repository": {"id": "", "name": ""}
+      },
+      "isPrimary": true,
+      "isRetained": false
+    }
+  ],
+  "triggers": [],
+  "releaseNameFormat": "Release-$(rev:r)",
+  "tags": [],
+  "pipelineProcess": {"type": 1},
+  "properties": {"DefinitionCreationSource": {"$type": "System.String", "$value": "ReleaseNew"}},
+  "name": "valdo-release",
+  "path": "\\APP_Interfaces_API"
+}

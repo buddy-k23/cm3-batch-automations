@@ -1,0 +1,149 @@
+{
+  "mapping_name": "customer_batch_universal",
+  "version": "1.0.0",
+  "description": "Generated from template: customer_batch_template.csv",
+  "source": {
+    "type": "file",
+    "format": "pipe_delimited",
+    "encoding": "UTF-8",
+    "delimiter": "|"
+  },
+  "target": {
+    "type": "database"
+  },
+  "fields": [
+    {
+      "name": "customer_id",
+      "data_type": "string",
+      "target_name": "CUSTOMER_ID",
+      "required": true,
+      "description": "Unique customer identifier",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "first_name",
+      "data_type": "string",
+      "target_name": "FIRST_NAME",
+      "required": true,
+      "description": "Customer first name",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "last_name",
+      "data_type": "string",
+      "target_name": "LAST_NAME",
+      "required": true,
+      "description": "Customer last name",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "email",
+      "data_type": "string",
+      "target_name": "EMAIL",
+      "required": false,
+      "description": "Email address",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "phone",
+      "data_type": "string",
+      "target_name": "PHONE_NUMBER",
+      "required": false,
+      "description": "Phone number",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "account_balance",
+      "data_type": "decimal",
+      "target_name": "ACCOUNT_BALANCE",
+      "required": true,
+      "description": "Current account balance",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "status",
+      "data_type": "string",
+      "target_name": "STATUS",
+      "required": true,
+      "description": "Customer status (ACTIVE/INACTIVE/SUSPENDED)",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "created_date",
+      "data_type": "date",
+      "target_name": "CREATED_DATE",
+      "required": false,
+      "description": "Customer created date (YYYYMMDD)",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    }
+  ],
+  "key_columns": [
+    "customer_id"
+  ],
+  "metadata": {
+    "created_by": "template_converter",
+    "created_date": "2026-02-15T19:19:26.762197Z",
+    "last_modified": "2026-02-15T19:19:26.762392Z",
+    "source_template": "data/mappings/customer_batch_template.csv"
+  }
+}

@@ -1,0 +1,11 @@
+Rule ID,Rule Name,Field,Rule Type,Severity,Expected / Values,Condition (optional),Enabled,Notes
+BR1001,Customer ID required,customer_id,Required,Error,, ,Y,Field must be present and not empty
+BR1002,Status allowed values,status,Allowed Values,Warning,"ACTIVE,INACTIVE,SUSPENDED",,Y,Comma-separated list
+BR1003,Account balance range,account_balance,Range,Error,0..999999.99,,Y,Use min..max format
+BR1004,First name length,first_name,Length,Warning,1..50,,Y,Use min..max character length
+BR1005,Email format,email,Regex,Warning,^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$,,Y,Standard email regex
+BR1006,Expiration date format,expiration_date,Date Format,Error,CCYYMMDD,,Y,Use supported date format token
+BR1007,Total due >= current due,total_due_amt,Compare Fields,Error,>= CURRENT_DUE_AMT,,Y,Cross-field numeric comparison
+BR1008,State code required for active accounts,state_code,Required,Warning,,when status = ACTIVE,Y,Conditional rule example
+BR1009,Risk code allowed values,risk_code,Allowed Values,Info,"LOW,MEDIUM,HIGH",when account_balance > 0,Y,Conditional + allowed list
+BR1010,Phone length if present,phone,Length,Warning,10..10,when phone != "",Y,Optional field validation when populated

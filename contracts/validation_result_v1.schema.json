@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "validation_result_v1.schema.json",
+  "title": "ValidationResultV1",
+  "type": "object",
+  "required": ["valid", "errors", "warnings", "total_rows"],
+  "properties": {
+    "valid": { "type": "boolean" },
+    "errors": { "type": "array" },
+    "warnings": { "type": "array" },
+    "total_rows": { "type": "number" },
+    "file_path": { "type": "string" },
+    "timestamp": { "type": "string" },
+    "issue_code_summary": { "type": "object" },
+    "strict_fixed_width": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "strict_level": { "type": "string", "enum": ["basic", "format", "all"] },
+        "invalid_rows": { "type": "array" },
+        "errors_total": { "type": "number" },
+        "errors_truncated": { "type": "boolean" },
+        "errors_file": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "business_rules": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "violations": { "type": "array" },
+        "statistics": { "type": "object" },
+        "error": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "statistics": {
+      "type": "object",
+      "properties": {
+        "null_counts": { "type": "object" },
+        "empty_string_counts": { "type": "object" },
+        "duplicate_count": { "type": "number" },
+        "duplicate_check_limited": { "type": "boolean" },
+        "elapsed_seconds": { "type": "number" },
+        "rows_per_second": { "type": "number" },
+        "chunk_size": { "type": "number" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

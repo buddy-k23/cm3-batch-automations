@@ -1,0 +1,5 @@
+target_id,expectation_type,column,column_list,value_set,min_value,max_value,mostly,notes,enabled
+p327_sample_200k,expect_column_values_to_not_be_null,LOCATION-CODE,,,,,,,Required field,true
+p327_sample_200k,expect_column_values_to_not_be_null,ACCT-NUM,,,,,,,Required field,true
+p327_sample_200k,expect_column_values_to_be_unique,ACCT-NUM,,,,,,,Key uniqueness,true
+p327_sample_200k,expect_table_row_count_to_be_between,,,,100000,300000,,,Row count guardrail,true

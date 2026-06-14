@@ -1,0 +1,123 @@
+{
+  "date": "2026-03-02",
+  "passed": 22,
+  "failed": 0,
+  "features": {
+    "mapping_generation": [
+      {
+        "feature": "01-mapping",
+        "step": "01-navigate",
+        "status": "PASS"
+      },
+      {
+        "feature": "01-mapping",
+        "step": "02-open-tab",
+        "status": "PASS"
+      },
+      {
+        "feature": "01-mapping",
+        "step": "03-upload-template",
+        "status": "PASS"
+      },
+      {
+        "feature": "01-mapping",
+        "step": "04-set-name",
+        "status": "PASS"
+      },
+      {
+        "feature": "01-mapping",
+        "step": "05-set-format",
+        "status": "PASS"
+      },
+      {
+        "feature": "01-mapping",
+        "step": "06-generate",
+        "status": "PASS"
+      },
+      {
+        "feature": "01-mapping",
+        "step": "07-result",
+        "status": "PASS"
+      }
+    ],
+    "file_validation": [
+      {
+        "feature": "02-validate",
+        "step": "01-navigate",
+        "status": "PASS"
+      },
+      {
+        "feature": "02-validate",
+        "step": "02-quick-test-tab",
+        "status": "PASS"
+      },
+      {
+        "feature": "02-validate",
+        "step": "03-upload-file",
+        "status": "PASS"
+      },
+      {
+        "feature": "02-validate",
+        "step": "04-select-mapping",
+        "status": "PASS"
+      },
+      {
+        "feature": "02-validate",
+        "step": "05-validate",
+        "status": "PASS"
+      },
+      {
+        "feature": "02-validate",
+        "step": "06-results",
+        "status": "PASS"
+      }
+    ],
+    "file_compare": [
+      {
+        "feature": "03-compare",
+        "step": "01-navigate",
+        "status": "PASS"
+      },
+      {
+        "feature": "03-compare",
+        "step": "02-quick-test-tab",
+        "status": "PASS"
+      },
+      {
+        "feature": "03-compare",
+        "step": "03-upload-file1",
+        "status": "PASS"
+      },
+      {
+        "feature": "03-compare",
+        "step": "04-select-mapping",
+        "status": "PASS"
+      },
+      {
+        "feature": "03-compare",
+        "step": "05-show-compare",
+        "status": "PASS"
+      },
+      {
+        "feature": "03-compare",
+        "step": "06-upload-file2",
+        "status": "PASS"
+      },
+      {
+        "feature": "03-compare",
+        "step": "07-both-files",
+        "status": "PASS"
+      },
+      {
+        "feature": "03-compare",
+        "step": "08-compare",
+        "status": "PASS"
+      },
+      {
+        "feature": "03-compare",
+        "step": "09-results",
+        "status": "PASS"
+      }
+    ]
+  }
+}

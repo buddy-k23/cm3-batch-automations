@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://database-validations/schemas/template-ingest.schema.json",
+  "title": "Canonical Template Ingest Model",
+  "type": "object",
+  "required": ["input", "fileConfig", "mappingRows", "ruleRows"],
+  "properties": {
+    "input": {
+      "type": "object",
+      "required": ["fileName", "fileType"],
+      "properties": {
+        "fileName": {"type": "string"},
+        "fileType": {"type": "string", "enum": ["xlsx", "csv"]},
+        "sheetName": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "fileConfig": {
+      "type": "object",
+      "required": ["format"],
+      "properties": {
+        "format": {"type": "string", "enum": ["fixed-width", "delimited"]},
+        "delimiter": {"type": "string", "minLength": 1, "maxLength": 1},
+        "quoteChar": {"type": "string", "minLength": 1, "maxLength": 1},
+        "escapeChar": {"type": "string", "minLength": 1, "maxLength": 1},
+        "recordLength": {"type": "integer", "minimum": 1},
+        "headerEnabled": {"type": "boolean"},
+        "headerTotalCountField": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "mappingRows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["transactionCode", "targetField", "sourceField", "dataType"],
+        "properties": {
+          "transactionCode": {"type": "string"},
+          "targetField": {"type": "string"},
+          "sourceField": {"type": "string"},
+          "dataType": {"type": "string", "enum": ["string", "numeric", "date", "boolean"]},
+          "required": {"type": "string", "enum": ["Y", "N", "Conditional"]},
+          "length": {"type": "integer", "minimum": 1},
+          "positionStart": {"type": "integer", "minimum": 1},
+          "positionEnd": {"type": "integer", "minimum": 1},
+          "format": {"type": "string"},
+          "defaultValue": {},
+          "transformLogic": {"type": "string"},
+          "sourceLocation": {
+            "type": "object",
+            "properties": {
+              "sheet": {"type": "string"},
+              "row": {"type": "integer", "minimum": 1},
+              "column": {"type": "string"}
+            },
+            "additionalProperties": false
+          },
+          "sourceLineage": {
+            "type": "object",
+            "properties": {
+              "origin": {"type": "string"},
+              "value": {"type": "string"},
+              "confidence": {"type": "string", "enum": ["high", "medium", "low", "none"]},
+              "derivationMode": {"type": "string"},
+              "derivationFlag": {"type": "boolean"},
+              "warningCode": {"type": "string"},
+              "lineageId": {"type": "string"},
+              "strategy": {"type": "string"},
+              "inputsUsed": {"type": "array", "items": {"type": "string"}},
+              "placeholderUsed": {"type": "boolean"},
+              "transforms": {"type": "array", "items": {"type": "string"}}
+            },
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "ruleRows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["ruleId", "scope", "severity", "priority", "expression", "messageTemplate"],
+        "properties": {
+          "ruleId": {"type": "string"},
+          "ruleName": {"type": "string"},
+          "scope": {"type": "string", "enum": ["field", "record", "group", "file"]},
+          "severity": {"type": "string", "enum": ["ERROR", "WARN", "INFO"]},
+          "priority": {"type": "integer", "minimum": 1},
+          "groupBy": {"type": "array", "items": {"type": "string"}},
+          "expression": {"type": "string"},
+          "messageTemplate": {"type": "string"},
+          "enabled": {"type": "boolean"},
+          "sourceLocation": {
+            "type": "object",
+            "properties": {
+              "sheet": {"type": "string"},
+              "row": {"type": "integer", "minimum": 1},
+              "column": {"type": "string"}
+            },
+            "additionalProperties": false
+          },
+          "sourceLineage": {
+            "type": "object",
+            "required": ["lineageId", "origin", "transforms", "derivationFlag", "confidence", "strategy", "inputsUsed", "placeholderUsed"],
+            "properties": {
+              "lineageId": {"type": "string", "minLength": 1},
+              "origin": {"type": "string", "minLength": 1},
+              "transforms": {"type": "array", "items": {"type": "string"}},
+              "derivationFlag": {"type": "boolean"},
+              "confidence": {"type": "string", "enum": ["high", "medium", "low", "none"]},
+              "strategy": {"type": "string", "minLength": 1},
+              "inputsUsed": {"type": "array", "items": {"type": "string"}},
+              "placeholderUsed": {"type": "boolean"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

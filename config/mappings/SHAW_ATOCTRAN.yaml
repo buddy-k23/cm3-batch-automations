@@ -1,0 +1,76 @@
+# Multi-record umbrella config for SHAW ATOCTRAN output file.
+#
+# atoctran_shaw_*.txt contains rows of seven record types, each with its
+# own fixed-width layout. The discriminator at position 25-27
+# (TRANSACTION-CODE) tells the validator which per-record mapping to apply.
+#
+# This file is loaded by src/config/multi_record_config.py::MultiRecordConfig
+# and consumed by src/validators/multi_record_validator.py via the
+# `valdo validate --multi-record <yaml>` CLI invocation.
+#
+# Pipeline-YAML wiring note: scripts/generate_pipeline_yaml.py currently
+# emits `validate` steps with --mapping <json>. A follow-up MR needs to
+# teach it to switch to --multi-record <yaml> when an entry has
+# `multi_record: true` in config/e2e/sources/<SOURCE>.yml.
+#
+# Per-record mapping JSONs and rules JSONs referenced below are pending —
+# they get generated downstream from the CSVs at
+# mappings/csv/shaw_atoctran/SHAW_ATOCTRAN_<rectype>_{mapping,rules}.csv
+# via src.config.template_converter.TemplateConverter and
+# src.config.ba_rules_template_converter.BARulesTemplateConverter.
+
+discriminator:
+  field: TRANSACTION-CODE
+  position: 25
+  length: 3
+
+record_types:
+  rt_100:
+    match: "100"
+    mapping: "config/mappings/SHAW_ATOCTRAN_100_mapping.json"
+    rules:   "config/rules/SHAW_ATOCTRAN_100_rules.json"
+    expect: any
+
+  rt_200:
+    match: "200"
+    mapping: "config/mappings/SHAW_ATOCTRAN_200_mapping.json"
+    rules:   "config/rules/SHAW_ATOCTRAN_200_rules.json"
+    expect: any
+
+  rt_300:
+    match: "300"
+    mapping: "config/mappings/SHAW_ATOCTRAN_300_mapping.json"
+    rules:   "config/rules/SHAW_ATOCTRAN_300_rules.json"
+    expect: any
+
+  rt_605:
+    match: "605"
+    mapping: "config/mappings/SHAW_ATOCTRAN_605_mapping.json"
+    rules:   "config/rules/SHAW_ATOCTRAN_605_rules.json"
+    expect: any
+
+  rt_700:
+    match: "700"
+    mapping: "config/mappings/SHAW_ATOCTRAN_700_mapping.json"
+    rules:   "config/rules/SHAW_ATOCTRAN_700_rules.json"
+    expect: any
+
+  rt_900:
+    match: "900"
+    mapping: "config/mappings/SHAW_ATOCTRAN_900_mapping.json"
+    rules:   "config/rules/SHAW_ATOCTRAN_900_rules.json"
+    expect: any
+
+  rt_060:
+    match: "060"
+    mapping: "config/mappings/SHAW_ATOCTRAN_060_mapping.json"
+    rules:   "config/rules/SHAW_ATOCTRAN_060_rules.json"
+    expect: any
+
+# No cross-type rules for ATOCTRAN. Per-account record-creation gates are
+# enforced at the per-record-type rules level (e.g. CCI/charge-off flags
+# checked inside each record type's rules JSON).
+cross_type_rules: []
+
+# Unknown TRANSACTION-CODE values are a Java-side defect — fail loudly.
+default_action: error

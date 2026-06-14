@@ -1,0 +1,3 @@
+source_row,index,severity,message
+,1,warning,Field 'EXPIRATION-DATE' has 6 invalid date values (24.00%). Expected format: CCYYMMDD.
+,2,warning,Field 'UD-DATE-FIELD-1' has 1 invalid date values (4.00%). Expected format: CCYYMMDD.

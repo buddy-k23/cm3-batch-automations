@@ -1,0 +1,3 @@
+rule_id,rule_name,scope,severity,priority,group_by,expression,message_template,enabled
+FIL_DETAIL_COUNT_NON_NEGATIVE,File detail count non-negative,file,ERROR,10,,detail.count >= 0,Detail count must be non-negative,Y
+REC_RAW_NOT_BLANK,RAW record should be populated,record,WARN,20,,len(trim(RAW_RECORD)) > 0,RAW record is blank,N

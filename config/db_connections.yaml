@@ -1,0 +1,31 @@
+# config/db_connections.yaml
+#
+# Named database connection profiles for the DB Compare tab.
+# Each profile names an environment variable (password_env) that holds
+# the password — the password value is NEVER stored in this file.
+#
+# The UI dropdown is populated from GET /api/v1/system/db-profiles.
+# Add or remove entries here; restart the server to pick up changes.
+
+connections:
+  - name: "Local Dev"
+    adapter: oracle
+    host: "localhost:1521/FREEPDB1"
+    user: "APP_INT"
+    schema: "APP_INT"
+    password_env: "ORACLE_PASSWORD"
+
+  # Uncomment and configure additional environments as needed:
+  # - name: "Staging"
+  #   adapter: oracle
+  #   host: "staging-db:1521/STAGPDB1"
+  #   user: "APP_INT"
+  #   schema: "APP_INT"
+  #   password_env: "DB_STAGING_PASSWORD"
+  #
+  # - name: "Production"
+  #   adapter: oracle
+  #   host: "prod-db:1521/PRODPDB1"
+  #   user: "APP_INT"
+  #   schema: "APP_INT"
+  #   password_env: "DB_PROD_PASSWORD"

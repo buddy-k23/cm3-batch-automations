@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/svg+xml" href="/favicon.ico">
+<title>Valdo</title>
+<script>
+  /* Apply saved theme before first paint to avoid flash */
+  (function() {
+    var t = localStorage.getItem('valdo-theme');
+    if (t === 'light' || t === 'dark') {
+      document.documentElement.setAttribute('data-theme', t);
+    } else {
+      /* No stored preference — respect system preference */
+      var preferLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+      document.documentElement.setAttribute('data-theme', preferLight ? 'light' : 'dark');
+    }
+  })();
+</script>
+<link rel="stylesheet" href="/static/ui.css">
+</head>
+<body>
+
+<a class="skip-link" href="#panel-quick">Skip to main content</a>
+
+<!-- Toast container for notifications (#126) -->
+<div class="toast-container" id="toastContainer" aria-live="polite" aria-relevant="additions"></div>
+
+<header>
+  <div class="header-left">
+    <h1>
+      <svg aria-hidden="true" focusable="false"
+           width="20" height="20" viewBox="0 0 24 24" fill="none"
+           stroke="url(#valdo-icon-grad)" stroke-width="2.2"
+           stroke-linecap="round" stroke-linejoin="round"
+           style="display:inline-block;vertical-align:middle;margin-right:6px;flex-shrink:0">
+        <defs>
+          <linearGradient id="valdo-icon-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%"   stop-color="#60a5fa"/>
+            <stop offset="100%" stop-color="#a78bfa"/>
+          </linearGradient>
+        </defs>
+        <circle cx="11" cy="11" r="7.5"/>
+        <line x1="17" y1="17" x2="22" y2="22"/>
+        <line x1="9"  y1="11" x2="13" y2="11"/>
+        <line x1="11" y1="9"  x2="11" y2="13"/>
+      </svg>Valdo</h1>
+    <span class="version-badge">v2.0</span>
+  </div>
+  <div class="header-right">
+    <button class="btn-help" id="btnHelp" aria-label="Open usage guide"
+            data-tooltip="Usage &amp; operations guide">?</button>
+    <button class="btn-theme" id="btnTheme" aria-label="Toggle light/dark theme"
+            data-tooltip="Switch between light and dark theme">&#9728;</button>
+  </div>
+</header>
+
+<!-- Help sidebar overlay -->
+<div class="help-overlay" id="helpOverlay"></div>
+<aside class="help-sidebar" id="helpSidebar" role="dialog" aria-label="Usage Guide">
+  <div class="help-sidebar-header">
+    <h3>
+      <svg aria-hidden="true" focusable="false" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/>
+      </svg>
+      Usage Guide
+    </h3>
+    <button class="help-sidebar-close" id="btnHelpClose" aria-label="Close guide">&times;</button>
+  </div>
+  <div class="help-sidebar-search">
+    <div class="help-sidebar-search-wrap">
+      <svg aria-hidden="true" focusable="false" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <circle cx="11" cy="11" r="8"/><path stroke-linecap="round" d="m21 21-4.35-4.35"/>
+      </svg>
+      <input type="text" id="helpSearch" placeholder="Search guide..." aria-label="Search usage guide">
+    </div>
+  </div>
+  <div class="help-sidebar-body" id="helpBody">
+    <div class="help-loading">Loading usage guide...</div>
+  </div>
+</aside>
+
+<nav class="tabs" role="tablist" id="tabNav">
+  <div class="tabs-inner" id="tabsInner">
+    <span class="tab-indicator" id="tabIndicator" aria-hidden="true"></span>
+    <button class="active" id="tab-quick" role="tab" aria-selected="true"
+            aria-controls="panel-quick" onclick="switchTab('quick')">Quick Test</button>
+    <button id="tab-runs" role="tab" aria-selected="false"
+            aria-controls="panel-runs" onclick="switchTab('runs')">Recent Runs</button>
+    <button id="tab-mapping" role="tab" aria-selected="false"
+            aria-controls="panel-mapping" onclick="switchTab('mapping')">Mapping Generator</button>
+    <button id="tab-tester" role="tab" aria-selected="false"
+            aria-controls="panel-tester" onclick="switchTab('tester')">API Tester</button>
+    <button id="tab-dbcompare" role="tab" aria-selected="false"
+            aria-controls="panel-dbcompare" onclick="switchTab('dbcompare')">DB Compare</button>
+    <button id="tab-downloader" role="tab" aria-selected="false"
+            aria-controls="panel-downloader" onclick="switchTab('downloader')">File Downloader</button>
+  </div>
+</nav>
+
+<main>
+
+  <!-- QUICK TEST PANEL -->
+  <div id="panel-quick" class="panel" role="tabpanel" aria-labelledby="tab-quick" tabindex="-1">
+    <h2>Quick Test</h2>
+
+    <!-- Primary drop zone -->
+    <div class="drop-zone" id="dropZone" tabindex="0"
+         role="button" aria-label="Click or drag a file here"
+         data-tooltip="Drop a batch file here, or click to browse (.txt, .csv, .dat, .pipe)">
+      <svg class="dz-icon" aria-hidden="true" focusable="false" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.4" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round"
+          d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+      </svg>
+      <span class="dz-label">Drag &amp; drop or click to browse</span>
+      <span class="dz-sub">Supports .txt, .csv, .dat, .pipe, fixed-width</span>
+    </div>
+    <input type="file" id="fileInput" aria-label="Upload batch file">
+
+    <!-- Primary file preview card -->
+    <div class="file-card" id="primaryFileCard">
+      <svg class="file-card-icon" aria-hidden="true" focusable="false" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round"
+          d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+      </svg>
+      <div class="file-card-info">
+        <div class="file-card-name" id="primaryFileName"></div>
+        <div class="file-card-meta" id="primaryFileMeta"></div>
+      </div>
+      <span class="file-card-badge" id="primaryFormatBadge"></span>
+      <button class="file-card-remove" id="btnRemovePrimary" aria-label="Remove file" title="Remove file">&times;</button>
+    </div>
+
+    <!-- Searchable mapping dropdown -->
+    <div class="mapping-search-wrap">
+      <label class="mapping-search-label" for="mappingFilter">Mapping</label>
+      <div style="position:relative">
+        <svg aria-hidden="true" focusable="false"
+             style="position:absolute;left:9px;top:50%;transform:translateY(-50%);width:14px;height:14px;pointer-events:none;color:var(--muted)"
+             fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <circle cx="11" cy="11" r="8"/><path stroke-linecap="round" d="m21 21-4.35-4.35"/>
+        </svg>
+        <input type="text" id="mappingFilter" class="mapping-search-input"
+               placeholder="Search mappings&hellip;"
+               data-tooltip="Type to filter the mapping list">
+      </div>
+      <select id="mappingSelect" class="mapping-select"
+              data-tooltip="Select a mapping schema to validate field positions and lengths">
+        <option value="">Loading mappings&hellip;</option>
+      </select>
+    </div>
+
+    <!-- Rules selector -->
+    <div class="mapping-search-wrap">
+      <div class="mapping-search-label">Rules (optional)</div>
+      <select id="rulesSelect" class="mapping-select" style="border-radius:10px"
+              data-tooltip="Select business rules to apply during validation"
+              aria-label="Select validation rules">
+        <option value="">— no rules —</option>
+      </select>
+    </div>
+
+    <!-- PII redaction toggle -->
+    <div class="mapping-search-wrap">
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-secondary)">
+        <input type="checkbox" id="suppressPii" checked>
+        Redact PII in report
+      </label>
+    </div>
+
+    <!-- Multi-record YAML (optional) -->
+    <div class="mapping-search-wrap">
+      <label style="font-size:12px;font-weight:600;color:var(--text-secondary);letter-spacing:.04em;text-transform:uppercase;display:block;margin-bottom:6px;">
+        Multi-record YAML
+        <span style="font-weight:400;text-transform:none;opacity:.7;margin-left:4px;">(optional — use instead of a mapping)</span>
+      </label>
+      <input type="file" id="qtMrYamlInput" accept=".yaml,.yml"
+             style="display:none;" aria-label="Multi-record YAML config file">
+      <label for="qtMrYamlInput" id="qtMrYamlLabel"
+             style="display:flex;align-items:center;gap:10px;padding:10px 14px;
+                    border:2px dashed var(--border);border-radius:10px;cursor:pointer;
+                    background:var(--surface);transition:border-color .15s;"
+             onmouseover="this.style.borderColor='var(--accent)'"
+             onmouseout="this.style.borderColor='var(--border)'">
+        <svg aria-hidden="true" focusable="false" width="18" height="18" fill="none"
+             stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"
+             style="flex-shrink:0;color:var(--accent)">
+          <path stroke-linecap="round" stroke-linejoin="round"
+            d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0
+               0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5
+               3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0
+               .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504
+               1.125-1.125V11.25a9 9 0 00-9-9z"/>
+        </svg>
+        <span id="qtMrYamlLabelText" style="font-size:13px;color:var(--text-secondary);">
+          Click to select a <strong style="color:var(--text-primary);">.yaml</strong>
+          umbrella config&hellip;
+        </span>
+      </label>
+      <div style="font-size:11px;color:var(--text-secondary);margin-top:4px;">
+        Select <code style="font-size:11px;background:var(--surface);padding:1px 5px;
+        border-radius:4px;border:1px solid var(--border);">config/mappings/SHAW_TRANERT.yaml</code>
+        or any umbrella YAML. Overrides the mapping dropdown above.
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary btn-lg" id="btnValidate" disabled
+              data-tooltip="Run structural validation against the selected mapping and rules">
+        <svg aria-hidden="true" focusable="false" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        Validate
+      </button>
+      <button class="btn btn-toggle" id="btnToggleCompare"
+              aria-expanded="false"
+              data-tooltip="Compare two batch files row-by-row and highlight differences">
+        <svg aria-hidden="true" focusable="false" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/>
+        </svg>
+        Compare Mode
+      </button>
+    </div>
+
+    <!-- Metric cards (hidden until validation runs) -->
+    <div class="metric-row" id="quickMetrics" style="display:none">
+      <div class="metric-card accent-blue">
+        <div class="metric-card-value" id="metricTotalRows">&#x2014;</div>
+        <div class="metric-card-label">Total Rows</div>
+      </div>
+      <div class="metric-card accent-fail">
+        <div class="metric-card-value" id="metricErrors">&#x2014;</div>
+        <div class="metric-card-label">Errors</div>
+      </div>
+      <div class="metric-card accent-pass">
+        <div class="metric-card-value" id="metricQuality">&#x2014;</div>
+        <div class="metric-card-label">Quality Score</div>
+      </div>
+    </div>
+
+    <!-- Download Failed Rows button (shown only when invalid_rows > 0) -->
+    <div id="exportErrorsRow" style="display:none;margin-top:12px;">
+      <button class="btn btn-secondary" id="btnDownloadErrors"
+              aria-label="Download rows that failed validation"
+              data-tooltip="Download a file containing only the rows that failed validation">
+        <svg aria-hidden="true" focusable="false" width="15" height="15" fill="none"
+             stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round"
+            d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M12 3v13.5m0 0l-4.5-4.5m4.5 4.5l4.5-4.5"/>
+        </svg>
+        Download Failed Rows
+      </button>
+    </div>
+
+    <!-- Drift warning badge (hidden by default, shown after validate if drift detected) -->
+    <div id="driftBadge" class="drift-badge" style="display:none;"
+         role="region" aria-label="Schema drift warning" aria-live="polite">
+      <div class="drift-badge-header" id="driftBadgeHeader"
+           tabindex="0" role="button" aria-expanded="false"
+           aria-controls="driftBadgeBody">
+        <span aria-hidden="true">&#x26A0;&#xFE0F;</span>
+        <span>Schema drift detected</span>
+        <span class="drift-badge-chevron" aria-hidden="true">&#x25BE;</span>
+      </div>
+      <div class="drift-badge-body" id="driftBadgeBody">
+        <table class="drift-fields-table" id="driftFieldsTable">
+          <thead>
+            <tr>
+              <th>Field</th>
+              <th>Exp. Start</th>
+              <th>Act. Start</th>
+              <th>Exp. Length</th>
+              <th>Severity</th>
+            </tr>
+          </thead>
+          <tbody id="driftFieldsBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Compare section: side-by-side cards -->
+    <div id="compare-section">
+      <div class="compare-cards">
+        <div>
+          <div class="compare-card-label">Second File</div>
+          <div class="drop-zone" id="dropZone2" tabindex="0"
+               role="button" aria-label="Click or drag the second file here">
+            <svg class="dz-icon" aria-hidden="true" focusable="false" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.4" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+            </svg>
+            <span class="dz-label">Drop second file here</span>
+            <span class="dz-sub">or click to browse</span>
+          </div>
+          <div class="file-card" id="secondaryFileCard">
+            <svg class="file-card-icon" aria-hidden="true" focusable="false" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+            </svg>
+            <div class="file-card-info">
+              <div class="file-card-name" id="secondaryFileName"></div>
+              <div class="file-card-meta" id="secondaryFileMeta"></div>
+            </div>
+            <span class="file-card-badge" id="secondaryFormatBadge"></span>
+            <button class="file-card-remove" id="btnRemoveSecondary" aria-label="Remove file" title="Remove file">&times;</button>
+          </div>
+          <input type="file" id="fileInput2" aria-label="Upload second batch file">
+        </div>
+        <div style="display:flex;flex-direction:column;justify-content:flex-end">
+          <button class="btn btn-secondary" id="btnCompare" disabled style="width:100%;justify-content:center"
+                  data-tooltip="Run a row-by-row comparison between the two selected files">Compare Files</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="status-msg info" id="statusMsg"
+         role="status" aria-live="polite" aria-atomic="true">Select a file and mapping to get started.</div>
+
+    <div id="reportPanel">
+      <div class="report-panel-bar">
+        <span>Inline Report</span>
+        <a id="reportOpenLink" href="#" target="_blank" rel="noopener noreferrer"
+           class="report-link">Open in new tab &#x2197;</a>
+        <button id="btnCloseReport" aria-label="Close report">&times;</button>
+      </div>
+      <iframe id="reportFrame" src="" title="Validation / Comparison Report" sandbox="allow-scripts"></iframe>
+    </div>
+  </div>
+
+  <!-- RECENT RUNS PANEL -->
+  <div id="panel-runs" class="panel panel-hidden" role="tabpanel" aria-labelledby="tab-runs">
+    <h2>Recent Runs</h2>
+
+    <!-- 4 summary cards -->
+    <div class="metric-row cols-4">
+      <div class="metric-card">
+        <div class="metric-card-value" id="cardTotalRuns">&#x2014;</div>
+        <div class="metric-card-label">Total Runs</div>
+      </div>
+      <div class="metric-card accent-pass">
+        <div class="metric-card-value" id="cardPassRate">&#x2014;</div>
+        <div class="metric-card-label">Pass Rate</div>
+      </div>
+      <div class="metric-card accent-blue">
+        <div class="metric-card-value" id="cardAvgQuality">&#x2014;</div>
+        <div class="metric-card-label">Avg Quality</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-card-value" id="cardLastRun" style="font-size:15px">&#x2014;</div>
+        <div class="metric-card-label">Last Run</div>
+      </div>
+    </div>
+
+    <div class="runs-toolbar">
+      <span style="font-size:12px;color:var(--muted)" id="runsCount"></span>
+      <div class="runs-toolbar-spacer"></div>
+      <div class="refresh-toggle" id="autoRefreshToggle" role="button" tabindex="0"
+           aria-expanded="false" onclick="toggleAutoRefresh()" title="Toggle 30-second auto-refresh">
+        <div class="refresh-dot"></div>
+        <span id="refreshToggleLabel">Auto-refresh off</span>
+      </div>
+      <button type="button" id="btnToggleBaselineCol"
+              style="font-size:12px;background:none;border:1px solid var(--border);border-radius:4px;padding:2px 8px;cursor:pointer;color:var(--text-secondary);"
+              onclick="toggleBaselineColumn()">Show baseline</button>
+      <button class="btn btn-secondary" onclick="loadRunHistory()" style="font-size:12px;padding:6px 14px" aria-label="Refresh run history">Refresh</button>
+    </div>
+
+    <!-- Suite summary cards (#252) -->
+    <div id="suiteSummaryCards" style="margin-bottom:20px;"></div>
+
+    <!-- Trend chart section (#249) -->
+    <div id="trendChartSection" style="margin-bottom:20px;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap;">
+        <span style="font-size:13px;font-weight:600;color:var(--text-primary);">Pass Rate &amp; Quality Trend</span>
+        <label for="trendSuiteSelect" style="font-size:11px;color:var(--text-secondary);">Suite:</label>
+        <select id="trendSuiteSelect" style="font-size:12px;padding:2px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg-secondary);color:var(--text-primary);">
+          <option value="">All suites</option>
+        </select>
+        <div style="display:flex;gap:4px;">
+          <button type="button" class="trend-day-btn active" data-days="7" onclick="setTrendDays(7)" aria-pressed="true">7d</button>
+          <button type="button" class="trend-day-btn" data-days="14" onclick="setTrendDays(14)" aria-pressed="false">14d</button>
+          <button type="button" class="trend-day-btn" data-days="30" onclick="setTrendDays(30)" aria-pressed="false">30d</button>
+        </div>
+      </div>
+      <div id="trendsChart" style="width:100%;min-height:120px;"></div>
+    </div>
+
+    <div class="table-wrap" id="runsTableWrap">
+      <p class="empty-msg" id="runsLoading">Loading run history&hellip;</p>
+    </div>
+  </div>
+
+  <!-- MAPPING GENERATOR PANEL -->
+  <div id="panel-mapping" class="panel panel-hidden" role="tabpanel" aria-labelledby="tab-mapping">
+    <h2>Mapping Generator</h2>
+
+    <!-- Download Templates -->
+    <div style="margin-bottom:20px;padding:16px 18px;border:1px solid rgba(74,158,255,0.25);border-radius:12px;background:linear-gradient(135deg,rgba(37,99,235,0.08),rgba(124,58,237,0.06))">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-secondary);margin-bottom:10px">
+        Sample Templates
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <a href="/api/v1/templates/mapping_template.csv" download
+           style="display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;color:#fff;background:linear-gradient(135deg,#2563eb,#1d4ed8);box-shadow:0 2px 8px rgba(37,99,235,0.3);transition:all 0.2s">
+          <svg aria-hidden="true" focusable="false" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m0 0l-4-4m4 4l4-4M4 19h16"/></svg>
+          Mapping Template
+        </a>
+        <a href="/api/v1/templates/rules_template.csv" download
+           style="display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;color:#fff;background:linear-gradient(135deg,#7c3aed,#6d28d9);box-shadow:0 2px 8px rgba(124,58,237,0.3);transition:all 0.2s">
+          <svg aria-hidden="true" focusable="false" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m0 0l-4-4m4 4l4-4M4 19h16"/></svg>
+          Rules Template
+        </a>
+      </div>
+      <div style="margin-top:10px;font-size:12px;color:var(--muted);line-height:1.5">
+        Download a template, fill in your field definitions, then upload it below to generate a mapping config.
+      </div>
+    </div>
+
+    <!-- Step indicators -->
+    <div class="step-indicators">
+      <div class="step active" id="mapStep1">
+        <div class="step-num">1</div>
+        <span>Upload</span>
+      </div>
+      <div class="step-sep"></div>
+      <div class="step" id="mapStep2">
+        <div class="step-num">2</div>
+        <span>Configure</span>
+      </div>
+      <div class="step-sep"></div>
+      <div class="step" id="mapStep3">
+        <div class="step-num">3</div>
+        <span>Generate</span>
+      </div>
+    </div>
+
+    <!-- Section 1: Field Mapping — two-panel layout -->
+    <div class="gen-section">
+      <div class="gen-section-title">Field Mapping</div>
+      <div class="gen-two-panel">
+        <!-- Left: upload -->
+        <div>
+          <div class="drop-zone" id="mapDropZone" tabindex="0"
+               role="button" aria-label="Click or drag a mapping template here"
+               data-tooltip="Upload an Excel or CSV template to generate a mapping JSON config">
+            <svg class="dz-icon" aria-hidden="true" focusable="false" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.4" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+            </svg>
+            <span class="dz-label">Drop template here or click to browse</span>
+            <span class="dz-sub">.xlsx, .xls, .csv</span>
+            <span class="dz-filename" id="mapFileName"></span>
+          </div>
+          <input type="file" id="mapFileInput" accept=".xlsx,.xls,.csv" aria-label="Upload mapping template">
+          <div class="form-row">
+            <label class="field-label" for="mapNameInput">Name</label>
+            <input type="text" id="mapNameInput" class="text-input" placeholder="(optional — uses filename)">
+          </div>
+          <div class="form-row">
+            <label class="field-label" for="mapFormatSelect">Format</label>
+            <select id="mapFormatSelect"
+                    data-tooltip="Override auto-detection if the file format is not detected correctly">
+              <option value="">Auto-detect</option>
+              <option value="fixed_width">Fixed Width</option>
+              <option value="pipe_delimited">Pipe-delimited</option>
+              <option value="csv">CSV</option>
+              <option value="tsv">TSV</option>
+            </select>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-primary" id="btnGenMapping" disabled
+                    data-tooltip="Convert the uploaded template into a mapping JSON config file">Generate Mapping</button>
+          </div>
+          <div class="result-bar info" id="mapResultBar">Select a mapping template to get started.</div>
+        </div>
+
+        <!-- Right: JSON preview -->
+        <div class="json-preview-wrap">
+          <div class="json-preview-toolbar">
+            <span>JSON Preview</span>
+            <button class="btn-copy" id="btnCopyMapJson" onclick="copyJson('mapJsonPreview','btnCopyMapJson')" title="Copy JSON to clipboard">Copy JSON</button>
+          </div>
+          <div class="json-preview" id="mapJsonPreview">No mapping generated yet.</div>
+          <!-- Field summary table -->
+          <div class="field-summary-table" id="mapFieldSummary" style="display:none">
+            <div style="font-size:11px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:var(--muted);margin:14px 0 8px">Field Summary</div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr>
+                  <th style="cursor:default">Field</th>
+                  <th style="cursor:default">Type</th>
+                  <th style="cursor:default">Start</th>
+                  <th style="cursor:default">Length</th>
+                </tr></thead>
+                <tbody id="mapFieldSummaryBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 2: Validation Rules -->
+    <div class="gen-section">
+      <div class="gen-section-title">Validation Rules</div>
+      <div class="gen-two-panel">
+        <!-- Left: upload -->
+        <div>
+          <div class="drop-zone" id="rulesDropZone" tabindex="0"
+               role="button" aria-label="Click or drag a rules template here"
+               data-tooltip="Upload an Excel or CSV template to generate a rules JSON config">
+            <svg class="dz-icon" aria-hidden="true" focusable="false" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.4" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+            </svg>
+            <span class="dz-label">Drop rules template here or click to browse</span>
+            <span class="dz-sub">.xlsx, .xls, .csv</span>
+            <span class="dz-filename" id="rulesFileName"></span>
+          </div>
+          <input type="file" id="rulesFileInput" accept=".xlsx,.xls,.csv" aria-label="Upload rules template">
+          <div class="form-row">
+            <label class="field-label" for="rulesNameInput">Name</label>
+            <input type="text" id="rulesNameInput" class="text-input" placeholder="(optional — uses filename)">
+          </div>
+          <div class="form-row">
+            <label class="field-label" for="rulesTypeSelect">Type</label>
+            <select id="rulesTypeSelect"
+                    data-tooltip="BA-friendly: human-readable rules. Technical: strict regex/type rules">
+              <option value="ba_friendly">BA-friendly</option>
+              <option value="technical">Technical</option>
+            </select>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-primary" id="btnGenRules" disabled
+                    data-tooltip="Convert the uploaded template into a rules JSON config file">Generate Rules</button>
+          </div>
+          <div class="result-bar info" id="rulesResultBar">Select a rules template to get started.</div>
+        </div>
+
+        <!-- Right: JSON preview -->
+        <div class="json-preview-wrap">
+          <div class="json-preview-toolbar">
+            <span>JSON Preview</span>
+            <button class="btn-copy" id="btnCopyRulesJson" onclick="copyJson('rulesJsonPreview','btnCopyRulesJson')" title="Copy JSON to clipboard">Copy JSON</button>
+          </div>
+          <div class="json-preview" id="rulesJsonPreview">No rules generated yet.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 3: Multi-Record Config Wizard -->
+    <div class="gen-section" id="mrWizardSection">
+      <div class="gen-section-title">Multi-Record Config Wizard
+        <button class="btn-secondary" id="mrToggleBtn" onclick="mrToggle()" aria-expanded="false"
+                aria-controls="mrWizardBody">Start Wizard</button>
+      </div>
+      <div id="mrWizardBody" style="display:none">
+        <!-- Step indicators -->
+        <div class="step-indicators" id="mrStepIndicators" role="tablist" aria-label="Wizard steps">
+          <button class="step-indicator active" data-step="1" role="tab" aria-selected="true"  aria-controls="mrStep1">1. Record Types</button>
+          <button class="step-indicator"        data-step="2" role="tab" aria-selected="false" aria-controls="mrStep2">2. Discriminator</button>
+          <button class="step-indicator"        data-step="3" role="tab" aria-selected="false" aria-controls="mrStep3">3. Map Codes</button>
+          <button class="step-indicator"        data-step="4" role="tab" aria-selected="false" aria-controls="mrStep4">4. Cross-Type Rules</button>
+          <button class="step-indicator"        data-step="5" role="tab" aria-selected="false" aria-controls="mrStep5">5. Preview &amp; Download</button>
+        </div>
+
+        <div class="mr-wizard">
+          <!-- Step 1: Select Record Types -->
+          <div class="mr-step-panel active" id="mrStep1" role="tabpanel" aria-labelledby="">
+            <h3 class="mr-step-title">Step 1 — Select Record Types</h3>
+            <p class="mr-step-desc">Choose the mapping(s) that define each record type in your batch file.</p>
+            <div id="mrMappingList" class="mr-mapping-list" aria-live="polite">Loading mappings…</div>
+            <p class="mr-validation-msg" id="mrStep1Error" role="alert" aria-live="assertive"></p>
+          </div>
+
+          <!-- Step 2: Configure Discriminator -->
+          <div class="mr-step-panel" id="mrStep2" role="tabpanel">
+            <h3 class="mr-step-title">Step 2 — Configure Discriminator</h3>
+            <p class="mr-step-desc">Specify the field that identifies each record type (e.g. a record-type code in columns 1–3).</p>
+            <div class="mr-field-row">
+              <label for="mrDiscField">Field Name</label>
+              <input type="text" id="mrDiscField" placeholder="e.g. REC_TYPE" autocomplete="off">
+            </div>
+            <div class="mr-field-row">
+              <label for="mrDiscPosition">Position (1-indexed)</label>
+              <input type="number" id="mrDiscPosition" min="1" placeholder="e.g. 1" autocomplete="off">
+            </div>
+            <div class="mr-field-row">
+              <label for="mrDiscLength">Length</label>
+              <input type="number" id="mrDiscLength" min="1" placeholder="e.g. 3" autocomplete="off">
+            </div>
+            <div class="mr-autodetect-row">
+              <label for="mrAutoDetectFile">Auto-detect from file (optional)</label>
+              <input type="file" id="mrAutoDetectFile" accept=".txt,.dat,.csv,.fixed">
+              <button class="btn-secondary" onclick="mrAutoDetect()" id="mrAutoDetectBtn">Auto-detect</button>
+              <span class="mr-autodetect-status" id="mrAutoDetectStatus" aria-live="polite"></span>
+            </div>
+            <p class="mr-validation-msg" id="mrStep2Error" role="alert" aria-live="assertive"></p>
+          </div>
+
+          <!-- Step 3: Map Codes to Record Types -->
+          <div class="mr-step-panel" id="mrStep3" role="tabpanel">
+            <h3 class="mr-step-title">Step 3 — Map Codes to Record Types</h3>
+            <p class="mr-step-desc">For each selected mapping, enter the discriminator code that identifies it and configure cardinality.</p>
+            <div id="mrTypeRows"></div>
+            <p class="mr-validation-msg" id="mrStep3Error" role="alert" aria-live="assertive"></p>
+          </div>
+
+          <!-- Step 4: Cross-Type Rules (optional) -->
+          <div class="mr-step-panel" id="mrStep4" role="tabpanel">
+            <h3 class="mr-step-title">Step 4 — Cross-Type Rules <span class="mr-optional">(optional)</span></h3>
+            <p class="mr-step-desc">Add rules that span multiple record types, e.g. header/trailer count checks.</p>
+            <div id="mrCrossRuleRows"></div>
+            <button class="btn-secondary" onclick="mrAddCrossRule()" id="mrAddRuleBtn">+ Add Rule</button>
+            <p><a href="#" class="mr-skip-link" onclick="mrGoTo(5);return false;">Skip this step →</a></p>
+          </div>
+
+          <!-- Step 5: Preview & Download -->
+          <div class="mr-step-panel" id="mrStep5" role="tabpanel">
+            <h3 class="mr-step-title">Step 5 — Preview &amp; Download</h3>
+            <p class="mr-step-desc">Review the generated YAML config, then download or validate directly.</p>
+            <div class="mr-preview-toolbar">
+              <button class="btn-secondary" onclick="mrGenerateYaml()" id="mrGenerateBtn">Generate YAML</button>
+              <button class="btn-secondary" onclick="mrCopyYaml()" id="mrCopyBtn" disabled>Copy YAML</button>
+              <button class="btn-secondary" onclick="mrDownloadYaml()" id="mrDownloadBtn" disabled>Download YAML</button>
+              <button class="btn-primary"   onclick="mrValidateWithConfig()" id="mrValidateBtn" disabled>Validate File With This Config</button>
+            </div>
+            <pre class="mr-yaml-preview" id="mrYamlPreview" aria-live="polite">Click "Generate YAML" to preview.</pre>
+          </div>
+        </div><!-- /.mr-wizard -->
+
+        <!-- Navigation buttons -->
+        <div class="btn-row mr-nav-row">
+          <button class="btn-secondary" id="mrBackBtn"  onclick="mrBack()" style="display:none">← Back</button>
+          <button class="btn-primary"   id="mrNextBtn"  onclick="mrNext()">Next →</button>
+        </div>
+      </div><!-- /#mrWizardBody -->
+    </div><!-- /#mrWizardSection -->
+
+  </div>
+
+  <!-- API TESTER PANEL -->
+  <div id="panel-tester" class="panel panel-hidden" role="tabpanel" aria-labelledby="tab-tester">
+    <h2>API Tester</h2>
+    <div class="at-layout">
+
+      <!-- LEFT: Request Builder -->
+      <div>
+        <div class="at-url-row">
+          <!-- Color-coded method badge -->
+          <select id="atMethod" class="method-GET" aria-label="HTTP method" onchange="atUpdateMethodColor(this)">
+            <option>GET</option><option>POST</option><option>PUT</option>
+            <option>PATCH</option><option>DELETE</option>
+          </select>
+          <input id="atBaseUrl" class="text-input at-url-input" type="text"
+                 placeholder="https://127.0.0.1:8000" aria-label="Base URL">
+        </div>
+        <div class="at-path-row">
+          <input id="atPath" class="text-input at-path-input" type="text"
+                 placeholder="/api/v1/system/health" aria-label="API path">
+        </div>
+
+        <!-- Horizontal tabs: Headers / Body / Assertions -->
+        <div class="at-req-tabs" role="tablist" aria-label="Request configuration">
+          <button class="active" role="tab" aria-selected="true"  aria-controls="atTabHeaders" onclick="atReqTab('Headers', this)">Headers</button>
+          <button role="tab" aria-selected="false" aria-controls="atTabBody"       onclick="atReqTab('Body', this)">Body</button>
+          <button role="tab" aria-selected="false" aria-controls="atTabAssertions" onclick="atReqTab('Assertions', this)">Assertions</button>
+        </div>
+
+        <div class="at-tab-panel active" id="atTabHeaders" role="tabpanel" aria-label="Request headers">
+          <div id="atHeaderRows"></div>
+          <button class="at-add-row" onclick="atAddHeader()">+ Add Header</button>
+        </div>
+
+        <div class="at-tab-panel" id="atTabBody" role="tabpanel" aria-label="Request body">
+          <div class="at-body-toggle" role="group" aria-label="Body type">
+            <button id="atBodyNone" class="active" aria-pressed="true"  onclick="atSetBodyType('none')">None</button>
+            <button id="atBodyJson"                aria-pressed="false" onclick="atSetBodyType('json')">JSON</button>
+            <button id="atBodyForm"                aria-pressed="false" onclick="atSetBodyType('form')">Form Data</button>
+          </div>
+          <div id="atBodyJsonArea" style="display:none">
+            <textarea id="atBodyJsonText" class="at-textarea" placeholder='{"key": "value"}' aria-label="Request body JSON"></textarea>
+          </div>
+          <div id="atBodyFormArea" style="display:none">
+            <div id="atFormRows"></div>
+            <button class="at-add-row" onclick="atAddFormField(false)">+ Add Field</button>
+            <button class="at-add-row" onclick="atAddFormField(true)" style="margin-top:4px">+ Add File</button>
+          </div>
+        </div>
+
+        <div class="at-tab-panel" id="atTabAssertions" role="tabpanel" aria-label="Request assertions">
+          <div id="atAssertionRows"></div>
+          <button class="at-add-row" onclick="atAddAssertion()">+ Add Assertion</button>
+        </div>
+
+        <div class="at-send-row">
+          <button class="btn btn-primary" onclick="atSend()">Send</button>
+          <input id="atReqName" class="text-input at-name-input" type="text"
+                 placeholder="Request name (for saving)" aria-label="Request name">
+          <select id="atSuiteSel" class="at-suite-sel" aria-label="Save to suite">
+            <option value="">&#x2014; save to suite &#x2014;</option>
+          </select>
+          <button class="btn btn-secondary" onclick="atSaveRequest()">Save</button>
+        </div>
+      </div>
+
+      <!-- RIGHT: Response Viewer -->
+      <div>
+        <!-- Response status line -->
+        <div class="at-resp-status-line" id="atRespStatusLine">
+          <span class="at-status-badge" id="atStatusBadge"></span>
+          <span class="at-elapsed"      id="atElapsed"></span>
+          <span class="at-resp-size"    id="atRespSize"></span>
+        </div>
+        <div class="at-resp-tabs" role="tablist" aria-label="Response view">
+          <button class="active" role="tab" aria-selected="true"  aria-controls="atRespBody"    onclick="atRespTab('Body',    this)">Body</button>
+          <button                role="tab" aria-selected="false" aria-controls="atRespHeaders" onclick="atRespTab('Headers', this)">Headers</button>
+          <button                role="tab" aria-selected="false" aria-controls="atRespRaw"     onclick="atRespTab('Raw',     this)">Raw</button>
+        </div>
+        <div class="at-resp-body" id="atRespBody" role="tabpanel" aria-label="Response body" aria-live="polite">
+          <span class="at-resp-placeholder">Send a request to see the response.</span>
+        </div>
+        <div class="at-resp-body" id="atRespHeaders" role="tabpanel" aria-label="Response headers" style="display:none"></div>
+        <div class="at-resp-body" id="atRespRaw"     role="tabpanel" aria-label="Raw response"     style="display:none"></div>
+      </div>
+
+    </div><!-- /.at-layout -->
+
+    <!-- Suite Runner -->
+    <div class="at-runner">
+      <h3>Suite Runner</h3>
+      <div class="at-runner-row">
+        <select id="atRunnerSuiteSel" style="flex:1" aria-label="Select suite to run" onchange="atLoadSuiteIntoRunner()">
+          <option value="">&#x2014; select a suite &#x2014;</option>
+        </select>
+        <button class="btn btn-primary"   onclick="atRunSuite()">Run Suite</button>
+        <button class="btn btn-secondary" onclick="atNewSuite()">New Suite</button>
+      </div>
+      <div class="at-req-list"      id="atRunnerReqList"></div>
+      <button id="btnSaveOrder" class="btn btn-secondary"
+              onclick="atSaveOrder()" style="display:none;margin-bottom:8px">Save Order</button>
+      <div class="at-runner-summary" id="atRunnerSummary" style="display:none"></div>
+    </div>
+
+  </div><!-- /#panel-tester -->
+
+  <!-- DB COMPARE PANEL -->
+  <div id="panel-dbcompare" class="panel panel-hidden" role="tabpanel" aria-labelledby="tab-dbcompare">
+    <h2>DB Compare</h2>
+
+    <!-- Direction Bar -->
+    <div class="dbc-direction-bar">
+      <span class="dbc-side-label dbc-side-db" id="dbcDbLabel">&#x1F5C4;&#xFE0F; Database</span>
+      <button class="btn btn-secondary dbc-swap-btn" id="dbcSwapBtn"
+              aria-label="Swap comparison direction">&#x21C4; swap</button>
+      <span class="dbc-side-label dbc-side-file" id="dbcFileLabel">&#x1F4C4; File</span>
+      <span class="dbc-direction-label" id="dbcDirectionLabel">DB is source &middot; File is actual</span>
+    </div>
+
+    <!-- Split Panel -->
+    <div class="dbc-split">
+
+      <!-- DB Panel (left) -->
+      <div class="dbc-panel dbc-panel--source" id="dbcDbPanel">
+        <div class="dbc-panel-header" id="dbcDbPanelHeader">DATABASE SOURCE</div>
+        <div class="dbc-panel-body">
+
+          <!-- DB Type dropdown -->
+          <div class="form-group" style="margin-bottom:8px">
+            <label for="dbcAdapterSelect" class="dbc-field-label">DB Type</label>
+            <select id="dbcAdapterSelect" class="select-input" style="width:100%">
+              <option value="oracle">Oracle</option>
+              <option value="postgresql">PostgreSQL</option>
+              <option value="sqlite">SQLite</option>
+            </select>
+          </div>
+
+          <!-- Named Connection dropdown -->
+          <div class="form-group" style="margin-bottom:8px">
+            <label for="dbcConnectionSelect" class="dbc-field-label">Connection</label>
+            <select id="dbcConnectionSelect" class="select-input" style="width:100%">
+              <option value="">&#x2014; enter manually &#x2014;</option>
+            </select>
+          </div>
+
+          <!-- Connection chip (collapsed) -->
+          <div class="dbc-conn-chip" id="dbcConnChip" tabindex="0"
+               role="button" aria-expanded="false" aria-controls="dbcConnForm"
+               aria-label="DB connection settings">
+            <span id="dbcConnChipText">&#x1F50C; <span class="dbc-chip-host">not configured</span></span>
+            <span class="dbc-chip-edit">&#x25B8; edit</span>
+          </div>
+
+          <!-- HTTPS warning (shown when not on HTTPS) -->
+          <div class="dbc-https-warning" id="dbcHttpsWarning" style="display:none">
+            &#x26A0;&#xFE0F; Connection credentials will be sent over an unencrypted connection.
+          </div>
+
+          <!-- Connection form (expanded) -->
+          <div class="dbc-conn-form" id="dbcConnForm" style="display:none">
+            <div class="dbc-conn-grid">
+              <div class="dbc-field dbc-field--full">
+                <label for="dbcProfileSelect">DB Profile</label>
+                <select id="dbcProfileSelect" aria-label="Select a named database profile">
+                  <option value="">&#8212; select a profile &#8212;</option>
+                  <option value="__custom__">Custom&#8230;</option>
+                </select>
+              </div>
+              <div id="dbcManualFields">
+                <div class="dbc-field">
+                  <label for="dbcAdapter">DB Adapter</label>
+                  <select id="dbcAdapter">
+                    <option value="oracle">oracle</option>
+                    <option value="postgresql">postgresql</option>
+                    <option value="sqlite">sqlite</option>
+                  </select>
+                </div>
+                <div class="dbc-field">
+                  <label for="dbcHost">Host / DSN</label>
+                  <input type="text" id="dbcHost" placeholder="localhost:1521/FREEPDB1">
+                </div>
+                <div class="dbc-field">
+                  <label for="dbcUser">Username</label>
+                  <input type="text" id="dbcUser" autocomplete="username">
+                </div>
+                <div class="dbc-field">
+                  <label for="dbcPassword">Password</label>
+                  <input type="password" id="dbcPassword" autocomplete="current-password">
+                </div>
+                <div class="dbc-field">
+                  <label for="dbcSchema">Schema</label>
+                  <input type="text" id="dbcSchema">
+                </div>
+                <div class="dbc-field dbc-field-action">
+                  <button class="btn btn-secondary" id="dbcTestConnBtn" type="button">&#x1F517; Test Connection</button>
+                </div>
+              </div><!-- /dbcManualFields -->
+            </div>
+            <div class="dbc-conn-result" id="dbcConnResult" style="display:none"></div>
+          </div>
+
+          <!-- SQL Editor -->
+          <div class="dbc-field-label">SQL QUERY</div>
+          <textarea id="dbcSqlEditor" class="dbc-sql-editor"
+                    placeholder="SELECT column1, column2 FROM SCHEMA.TABLE"
+                    aria-label="SQL query for DB extraction"></textarea>
+
+          <!-- Key columns -->
+          <div class="dbc-field-label">
+            <label for="dbcKeyColumns">KEY COLUMNS <span class="dbc-muted">(for row matching)</span></label>
+          </div>
+          <input type="text" id="dbcKeyColumns" class="dbc-key-input"
+                 placeholder="COL1, COL2"
+                 aria-label="Key columns for row matching (comma-separated)">
+
+        </div>
+      </div>
+
+      <!-- File Panel (right) -->
+      <div class="dbc-panel dbc-panel--actual" id="dbcFilePanel">
+        <div class="dbc-panel-header dbc-panel-header--actual" id="dbcFilePanelHeader">FILE (ACTUAL)</div>
+        <div class="dbc-panel-body">
+
+          <!-- Drop zone -->
+          <div class="drop-zone dbc-drop-zone" id="dbcDropZone" tabindex="0"
+               role="button" aria-label="Click or drag a file for DB comparison">
+            <svg class="dz-icon" aria-hidden="true" focusable="false" width="32" height="32"
+                 fill="none" stroke="currentColor" stroke-width="1.4" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+            </svg>
+            <span class="dz-label">Drag &amp; drop or click to browse</span>
+            <span class="dz-sub">Fixed-width, CSV, TSV, pipe-delimited</span>
+          </div>
+          <input type="file" id="dbcFileInput" style="display:none"
+                 accept=".txt,.csv,.tsv,.dat,.pipe"
+                 aria-label="Batch file for DB comparison">
+
+          <!-- Mapping select -->
+          <div class="dbc-field-label">
+            <label for="dbcMappingSelect">MAPPING</label>
+          </div>
+          <select id="dbcMappingSelect" aria-label="Mapping for DB comparison">
+            <option value="">&#x2014; select mapping &#x2014;</option>
+          </select>
+
+          <!-- Key columns info note -->
+          <div class="dbc-info-note">
+            &#x2139;&#xFE0F; Key columns are shared &mdash; set in the DB panel
+          </div>
+
+          <!-- Options -->
+          <div class="dbc-field-label">OPTIONS</div>
+          <div class="dbc-options">
+            <label class="dbc-option-row">
+              <input type="checkbox" id="dbcApplyTransforms" checked>
+              Apply transforms from mapping
+            </label>
+            <label class="dbc-option-row">
+              <input type="checkbox" id="dbcDownloadCsv" checked>
+              Download diff as CSV
+            </label>
+          </div>
+
+        </div>
+      </div>
+
+    </div><!-- /.dbc-split -->
+
+    <!-- Run button -->
+    <div class="dbc-run-row">
+      <button class="btn btn-primary btn-lg" id="dbcRunBtn" disabled
+              data-tooltip="Run DB to file comparison">&#x25B6; Run DB Compare</button>
+    </div>
+
+    <!-- Results -->
+    <div id="dbcResults" aria-live="polite" style="display:none">
+      <div id="dbcStatusBanner" class="dbc-status-banner"></div>
+      <div class="dbc-metrics" id="dbcMetrics"></div>
+      <div class="dbc-download-row" id="dbcDownloadRow" style="display:none">
+        <button class="btn btn-secondary" id="dbcDownloadDiffBtn" type="button">
+          &#x2B07; Download Diff CSV
+        </button>
+      </div>
+    </div>
+
+  </div><!-- /#panel-dbcompare -->
+
+  <!-- FILE DOWNLOADER PANEL -->
+  <div id="panel-downloader" class="panel panel-hidden" role="tabpanel"
+       aria-labelledby="tab-downloader" tabindex="-1">
+    <h2>File Downloader</h2>
+
+    <div class="fd-path-row">
+      <label class="fd-label" for="fdPathSelect">Path</label>
+      <select id="fdPathSelect" class="fd-select" onchange="onFdPathChange()">
+        <option value="">— select a path —</option>
+      </select>
+    </div>
+
+    <div class="fd-subtabs" role="tablist">
+      <button id="fdtab-browse" class="fd-subtab active" role="tab" aria-selected="true"
+              aria-controls="fdpanel-browse" onclick="switchFdSubTab('browse')">Browse &amp; Download</button>
+      <button id="fdtab-search" class="fd-subtab" role="tab" aria-selected="false"
+              aria-controls="fdpanel-search" onclick="switchFdSubTab('search')">Search Files</button>
+      <button id="fdtab-searcharch" class="fd-subtab" role="tab" aria-selected="false"
+              aria-controls="fdpanel-searcharch" onclick="switchFdSubTab('searcharch')">Search Archives</button>
+    </div>
+
+    <div id="fdpanel-browse" class="fd-subpanel" role="tabpanel" aria-labelledby="fdtab-browse">
+      <div class="fd-row">
+        <label class="fd-label" for="fdArchivePattern">Archive pattern</label>
+        <input id="fdArchivePattern" class="fd-input" type="text"
+               placeholder="e.g. batch_*.tar.gz  (leave blank for plain files)">
+        <button class="btn btn-secondary" onclick="fdBrowse()">Browse</button>
+      </div>
+      <div id="fdBreadcrumb" class="fd-breadcrumb" aria-label="Current browse path"></div>
+      <div id="fdBrowseResults" class="fd-results" aria-live="polite"></div>
+    </div>
+
+    <div id="fdpanel-search" class="fd-subpanel fd-subpanel--hidden" role="tabpanel" aria-labelledby="fdtab-search">
+      <div class="fd-field" id="fdSearchInGroup" style="display:none">
+        <label class="fd-label" for="fdSearchInPath">Search in</label>
+        <input id="fdSearchInPath" class="fd-input fd-input--linked" type="text" readonly
+               placeholder="(using root path from selector above)">
+        <button class="btn btn-link fd-clear-link" onclick="_fdLinkedPath=null;
+          document.getElementById('fdSearchInPath').value='';
+          document.getElementById('fdSearchInGroup').style.display='none'">&#x2715; clear</button>
+      </div>
+      <div class="fd-row">
+        <label class="fd-label" for="fdSearchFilename">Filename pattern</label>
+        <input id="fdSearchFilename" class="fd-input" type="text" placeholder="e.g. *.log">
+      </div>
+      <div class="fd-row">
+        <label class="fd-label" for="fdSearchString">Search string</label>
+        <input id="fdSearchString" class="fd-input" type="text" placeholder="e.g. ERROR">
+        <button id="fdSearchBtn" class="btn btn-secondary" onclick="fdSearchFiles()">Search</button>
+        <button id="fdSearchStopBtn" class="btn btn-danger" onclick="fdStopSearch('files')"
+                style="display:none" aria-label="Stop file search (Esc)" title="Stop search (Esc)">Stop</button>
+      </div>
+      <div id="fdSearchResults" class="fd-results" aria-live="polite"></div>
+    </div>
+
+    <div id="fdpanel-searcharch" class="fd-subpanel fd-subpanel--hidden" role="tabpanel" aria-labelledby="fdtab-searcharch">
+      <div class="fd-field" id="fdArchSearchInGroup" style="display:none">
+        <label class="fd-label" for="fdArchSearchInPath">Search in</label>
+        <input id="fdArchSearchInPath" class="fd-input fd-input--linked" type="text" readonly
+               placeholder="(using root path from selector above)">
+        <button class="btn btn-link fd-clear-link" onclick="_fdLinkedPath=null;
+          document.getElementById('fdArchSearchInPath').value='';
+          document.getElementById('fdArchSearchInGroup').style.display='none'">&#x2715; clear</button>
+      </div>
+      <div class="fd-row">
+        <label class="fd-label" for="fdArchSearchPattern">Archive pattern</label>
+        <input id="fdArchSearchPattern" class="fd-input" type="text"
+               placeholder="e.g. batch_*.tar.gz">
+      </div>
+      <div class="fd-row">
+        <label class="fd-label" for="fdArchFilePattern">File pattern</label>
+        <input id="fdArchFilePattern" class="fd-input" type="text" placeholder="e.g. *.log">
+      </div>
+      <div class="fd-row">
+        <label class="fd-label" for="fdArchSearchString">Search string</label>
+        <input id="fdArchSearchString" class="fd-input" type="text" placeholder="e.g. ERROR">
+        <button id="fdArchSearchBtn" class="btn btn-secondary" onclick="fdSearchArchive()">Search</button>
+        <button id="fdArchSearchStopBtn" class="btn btn-danger" onclick="fdStopSearch('archive')"
+                style="display:none" aria-label="Stop archive search (Esc)" title="Stop search (Esc)">Stop</button>
+      </div>
+      <div id="fdArchSearchResults" class="fd-results" aria-live="polite"></div>
+    </div>
+
+  </div><!-- /#panel-downloader -->
+
+</main>
+
+<footer class="status-bar" id="footerBar" aria-live="polite" aria-atomic="true">
+  <span class="health-dot pending" id="healthDot" role="img" aria-label="Server health: checking"></span>
+  <span id="healthLabel">Checking server&hellip;</span>
+</footer>
+
+<script src="/static/ui.js"></script>
+</body>
+</html>

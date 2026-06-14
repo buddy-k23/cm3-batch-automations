@@ -1,0 +1,108 @@
+source_row,index,severity,message
+1,1,error,"Row 1 length mismatch: expected 2809, got 2808"
+1,2,error,Field 'BALANCE-AMT' has invalid format for value '+000000031435080000'
+1,3,error,"Row 1 first misalignment at offset 25: field=CREDIT-LIMIT-AMT, reason=invalid_format, expected=9(12), actual=+000000071150"
+1,4,error,Field 'CREDIT-LIMIT-AMT' has invalid format for value '+000000071150'
+1,5,error,Field 'CURRENT-DUE-AMT' has invalid format for value '+000000001205320000'
+1,6,error,"Row 1 length mismatch: expected 2809, got 2808. Impacted/truncated fields: HMDA-ULI-CODE."
+2,7,error,Field 'BALANCE-AMT' has invalid format for value '+000000009517660000'
+2,8,error,Field 'CREDIT-LIMIT-AMT' has invalid format for value '+000000016833'
+2,9,error,Field 'CURRENT-DUE-AMT' has invalid format for value '+000000000340000000'
+2,10,error,"Row 2 first misalignment at offset 1: field=LOCATION-CODE, reason=required_empty, expected=non-empty, actual=empty"
+2,11,error,Required field 'LOCATION-CODE' is empty
+3,12,error,Field 'BALANCE-AMT' has invalid format for value '+000000004360200000'
+3,13,error,"Row 3 first misalignment at offset 25: field=CREDIT-LIMIT-AMT, reason=invalid_format, expected=9(12), actual=+000000040582"
+3,14,error,Field 'CREDIT-LIMIT-AMT' has invalid format for value '+000000040582'
+3,15,error,Field 'CURRENT-DUE-AMT' has invalid format for value '+000000000651620000'
+3,16,error,Field 'EXPIRATION-DATE' has invalid format for value 'ABCD1234'
+4,17,error,Field 'BALANCE-AMT' has invalid format for value '+000000036930120000'
+4,18,error,"Row 4 first misalignment at offset 25: field=CREDIT-LIMIT-AMT, reason=invalid_format, expected=9(12), actual=+000000040908"
+4,19,error,Field 'CREDIT-LIMIT-AMT' has invalid format for value '+000000040908'
+4,20,error,Field 'CURRENT-DUE-AMT' has invalid format for value '+000000000719060000'
+5,21,error,Field 'BALANCE-AMT' has invalid format for value '+000000039675250000'
+5,22,error,"Row 5 first misalignment at offset 25: field=CREDIT-LIMIT-AMT, reason=invalid_format, expected=9(12), actual=+000000052483"
+5,23,error,Field 'CREDIT-LIMIT-AMT' has invalid format for value '+000000052483'
+5,24,error,Field 'CURRENT-DUE-AMT' has invalid format for value '+000000001051900000'
+6,25,error,Field 'BALANCE-AMT' has invalid format for value '+000000000114200000'
+6,26,error,"Row 6 first misalignment at offset 25: field=CREDIT-LIMIT-AMT, reason=invalid_format, expected=9(12), actual=+000000025191"
+6,27,error,Field 'CREDIT-LIMIT-AMT' has invalid format for value '+000000025191'
+6,28,error,Field 'CURRENT-DUE-AMT' has invalid format for value '+000000000411930000'
+7,29,error,Field 'BALANCE-AMT' has invalid format for value '+000000015140160000'
+7,30,error,"Row 7 first misalignment at offset 25: field=CREDIT-LIMIT-AMT, reason=invalid_format, expected=9(12), actual=+000000023000"
+7,31,error,Field 'CREDIT-LIMIT-AMT' has invalid format for value '+000000023000'
+7,32,error,Field 'CURRENT-DUE-AMT' has invalid format for value '+000000000474650000'
+8,33,error,Field 'BALANCE-AMT' has invalid format for value '+000000054273620000'
+8,34,error,"Row 8 first misalignment at offset 25: field=CREDIT-LIMIT-AMT, reason=invalid_format, expected=9(12), actual=+000000060082"
+8,35,error,Field 'CREDIT-LIMIT-AMT' has invalid format for value '+000000060082'
+8,36,error,Field 'CURRENT-DUE-AMT' has invalid format for value '+000000000430110000'
+9,37,error,Field 'BALANCE-AMT' has invalid format for value '+000000069394160000'
+9,38,error,"Row 9 first misalignment at offset 25: field=CREDIT-LIMIT-AMT, reason=invalid_format, expected=9(12), actual=+000000076036"
+9,39,error,Field 'CREDIT-LIMIT-AMT' has invalid format for value '+000000076036'
+9,40,error,Field 'CURRENT-DUE-AMT' has invalid format for value '+000000001385280000'
+10,41,error,Field 'BALANCE-AMT' has invalid format for value '+000000039893470000'
+10,42,error,"Row 10 first misalignment at offset 25: field=CREDIT-LIMIT-AMT, reason=invalid_format, expected=9(12), actual=+000000043614"
+10,43,error,Field 'CREDIT-LIMIT-AMT' has invalid format for value '+000000043614'
+10,44,error,Field 'CURRENT-DUE-AMT' has invalid format for value '+000000000679850000'
+11,45,error,Field 'BALANCE-AMT' has invalid format for value '+000000002058000000'
+11,46,error,"Row 11 first misalignment at offset 25: field=CREDIT-LIMIT-AMT, reason=invalid_format, expected=9(12), actual=+000000057224"
+11,47,error,Field 'CREDIT-LIMIT-AMT' has invalid format for value '+000000057224'
+11,48,error,Field 'CURRENT-DUE-AMT' has invalid format for value '+000000001027200000'
+12,49,error,Field 'BALANCE-AMT' has invalid format for value '+000000021029580000'
+12,50,error,"Row 12 first misalignment at offset 25: field=CREDIT-LIMIT-AMT, reason=invalid_format, expected=9(12), actual=+000000143250"
+12,51,error,Field 'CREDIT-LIMIT-AMT' has invalid format for value '+000000143250'
+12,52,error,Field 'CURRENT-DUE-AMT' has invalid format for value '+000000001197310000'
+13,53,error,Field 'BALANCE-AMT' has invalid format for value '+000000023426530000'
+13,54,error,"Row 13 first misalignment at offset 25: field=CREDIT-LIMIT-AMT, reason=invalid_format, expected=9(12), actual=+000000051606"
+13,55,error,Field 'CREDIT-LIMIT-AMT' has invalid format for value '+000000051606'
+13,56,error,Field 'CURRENT-DUE-AMT' has invalid format for value '+000000000915810000'
+14,57,error,Field 'BALANCE-AMT' has invalid format for value '+000000017288010000'
+14,58,error,"Row 14 first misalignment at offset 25: field=CREDIT-LIMIT-AMT, reason=invalid_format, expected=9(12), actual=+000000034734"
+14,59,error,Field 'CREDIT-LIMIT-AMT' has invalid format for value '+000000034734'
+14,60,error,Field 'CURRENT-DUE-AMT' has invalid format for value '+000000000582760000'
+15,61,error,Field 'BALANCE-AMT' has invalid format for value '+000000027966020000'
+15,62,error,"Row 15 first misalignment at offset 25: field=CREDIT-LIMIT-AMT, reason=invalid_format, expected=9(12), actual=+000000048016"
+15,63,error,Field 'CREDIT-LIMIT-AMT' has invalid format for value '+000000048016'
+15,64,error,Field 'CURRENT-DUE-AMT' has invalid format for value '+000000000838880000'
+16,65,error,Field 'BALANCE-AMT' has invalid format for value '+000000031597770000'
+16,66,error,"Row 16 first misalignment at offset 25: field=CREDIT-LIMIT-AMT, reason=invalid_format, expected=9(12), actual=+000000037995"
+16,67,error,Field 'CREDIT-LIMIT-AMT' has invalid format for value '+000000037995'
+16,68,error,Field 'CURRENT-DUE-AMT' has invalid format for value '+000000000320420000'
+17,69,error,Field 'BALANCE-AMT' has invalid format for value '+000000016206770000'
+17,70,error,"Row 17 first misalignment at offset 25: field=CREDIT-LIMIT-AMT, reason=invalid_format, expected=9(12), actual=+000000039227"
+17,71,error,Field 'CREDIT-LIMIT-AMT' has invalid format for value '+000000039227'
+17,72,error,Field 'CURRENT-DUE-AMT' has invalid format for value '+000000000565090000'
+18,73,error,Field 'BALANCE-AMT' has invalid format for value '+000000019003580000'
+18,74,error,"Row 18 first misalignment at offset 25: field=CREDIT-LIMIT-AMT, reason=invalid_format, expected=9(12), actual=+000000029527"
+18,75,error,Field 'CREDIT-LIMIT-AMT' has invalid format for value '+000000029527'
+18,76,error,Field 'CURRENT-DUE-AMT' has invalid format for value '+000000000535440000'
+19,77,error,Field 'BALANCE-AMT' has invalid format for value '+000000063886050000'
+19,78,error,"Row 19 first misalignment at offset 25: field=CREDIT-LIMIT-AMT, reason=invalid_format, expected=9(12), actual=+000000074455"
+19,79,error,Field 'CREDIT-LIMIT-AMT' has invalid format for value '+000000074455'
+19,80,error,Field 'CURRENT-DUE-AMT' has invalid format for value '+000000001373940000'
+20,81,error,Field 'BALANCE-AMT' has invalid format for value '+000000014663090000'
+20,82,error,"Row 20 first misalignment at offset 25: field=CREDIT-LIMIT-AMT, reason=invalid_format, expected=9(12), actual=+000000045135"
+20,83,error,Field 'CREDIT-LIMIT-AMT' has invalid format for value '+000000045135'
+20,84,error,Field 'CURRENT-DUE-AMT' has invalid format for value '+000000000740270000'
+21,85,error,Field 'BALANCE-AMT' has invalid format for value '+000000011795530000'
+21,86,error,"Row 21 first misalignment at offset 25: field=CREDIT-LIMIT-AMT, reason=invalid_format, expected=9(12), actual=+000000026616"
+21,87,error,Field 'CREDIT-LIMIT-AMT' has invalid format for value '+000000026616'
+21,88,error,Field 'CURRENT-DUE-AMT' has invalid format for value '+000000000442550000'
+22,89,error,Field 'BALANCE-AMT' has invalid format for value '+000000037109090000'
+22,90,error,"Row 22 first misalignment at offset 25: field=CREDIT-LIMIT-AMT, reason=invalid_format, expected=9(12), actual=+000000055600"
+22,91,error,Field 'CREDIT-LIMIT-AMT' has invalid format for value '+000000055600'
+22,92,error,Field 'CURRENT-DUE-AMT' has invalid format for value '+000000000433250000'
+23,93,error,Field 'BALANCE-AMT' has invalid format for value '+000000002846880000'
+23,94,error,"Row 23 first misalignment at offset 25: field=CREDIT-LIMIT-AMT, reason=invalid_format, expected=9(12), actual=+000000012406"
+23,95,error,Field 'CREDIT-LIMIT-AMT' has invalid format for value '+000000012406'
+23,96,error,Field 'CURRENT-DUE-AMT' has invalid format for value '+000000000205170000'
+24,97,error,Field 'BALANCE-AMT' has invalid format for value '+000000009508750000'
+24,98,error,"Row 24 first misalignment at offset 25: field=CREDIT-LIMIT-AMT, reason=invalid_format, expected=9(12), actual=+000000034168"
+24,99,error,Field 'CREDIT-LIMIT-AMT' has invalid format for value '+000000034168'
+24,100,error,Field 'CURRENT-DUE-AMT' has invalid format for value '+000000000512540000'
+25,101,error,Field 'BALANCE-AMT' has invalid format for value '+000000043885720000'
+25,102,error,"Row 25 first misalignment at offset 25: field=CREDIT-LIMIT-AMT, reason=invalid_format, expected=9(12), actual=+000000051038"
+25,103,error,Field 'CREDIT-LIMIT-AMT' has invalid format for value '+000000051038'
+25,104,error,Field 'CURRENT-DUE-AMT' has invalid format for value '+000000000849680000'
+,105,critical,Invalid file format
+,106,error,Found first-misalignment issues in 25/25 rows (showing up to 200 rows).
+,107,error,Line length mismatch found in 1 of 25 rows (expected length=2809). Incorrect rows sample: [1]

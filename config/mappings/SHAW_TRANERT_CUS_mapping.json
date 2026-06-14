@@ -1,0 +1,780 @@
+{
+  "mapping_name": "SHAW_TRANERT_CUS_mapping",
+  "version": "1.0.0",
+  "description": "Generated from template: SHAW_TRANERT_CUS_mapping.csv",
+  "source": {
+    "type": "file",
+    "format": "fixed_width",
+    "encoding": "UTF-8"
+  },
+  "target": {
+    "type": "database"
+  },
+  "fields": [
+    {
+      "name": "BK-NUM-ERT",
+      "data_type": "decimal",
+      "target_name": "bk_num_ert",
+      "position": 1,
+      "length": 5,
+      "format": "9(5)",
+      "required": true,
+      "description": "A number, defined on the Bank Control Operation tables, which identifies the ... [Valid Values column contains prose,...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "APP-ERT",
+      "data_type": "decimal",
+      "target_name": "app_ert",
+      "position": 6,
+      "length": 3,
+      "format": "9(3)",
+      "required": true,
+      "description": "The application to which the account is to be associated. [Valid Values column contains prose, not a list: 'Applicati...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "LN-NUM-ERT",
+      "data_type": "string",
+      "target_name": "ln_num_ert",
+      "position": 9,
+      "length": 18,
+      "required": true,
+      "description": "The account number that is associated with the account.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "REF-NUM-ERT",
+      "data_type": "string",
+      "target_name": "ref_num_ert",
+      "position": 27,
+      "length": 3,
+      "required": false,
+      "description": "The applicable reference number for the transaction.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "FILLER",
+      "data_type": "string",
+      "target_name": "filler",
+      "position": 30,
+      "length": 130,
+      "required": false,
+      "description": "Filler for account key",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "EFF-DAT-ERT",
+      "data_type": "date",
+      "target_name": "eff_dat_ert",
+      "position": 160,
+      "length": 10,
+      "format": "MM/DD/CCYY",
+      "required": true,
+      "description": "The date the transaction was effective.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "TRN-COD-ERT",
+      "data_type": "decimal",
+      "target_name": "trn_cod_ert",
+      "position": 170,
+      "length": 5,
+      "format": "9(5)",
+      "required": true,
+      "description": "The transaction code for the transaction.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "32005"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "32005"
+      ]
+    },
+    {
+      "name": "BAT-ITM-NUM-ERT",
+      "data_type": "decimal",
+      "target_name": "bat_itm_num_ert",
+      "position": 175,
+      "length": 9,
+      "format": "9(9)",
+      "required": true,
+      "description": "The sequential number for this item within the batch.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "INP-SRC-COD-ERT",
+      "data_type": "decimal",
+      "target_name": "inp_src_cod_ert",
+      "position": 184,
+      "length": 3,
+      "format": "9(3)",
+      "required": false,
+      "description": "The source of the transaction.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "TRN-CNT-ERT",
+      "data_type": "decimal",
+      "target_name": "trn_cnt_ert",
+      "position": 187,
+      "length": 3,
+      "format": "9(3)",
+      "required": false,
+      "description": "The total number of transactions in the batch.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "TRN-MOR-DTA-FLG-ERT",
+      "data_type": "string",
+      "target_name": "trn_mor_dta_flg_ert",
+      "position": 190,
+      "length": 1,
+      "required": false,
+      "description": "Indicates if more data is available.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CIF-ACT-NUM-CUS",
+      "data_type": "string",
+      "target_name": "cif_act_num_cus",
+      "position": 191,
+      "length": 24,
+      "required": true,
+      "description": "Customer reference number pointing to the set of demographics data associated...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "CIF-ACT-COD-CUS",
+      "data_type": "string",
+      "target_name": "cif_act_cod_cus",
+      "position": 215,
+      "length": 1,
+      "required": true,
+      "description": "The relationship of the contact to the primary accountholder. [dropped 5 value(s) longer than length=1: Primary,Secon...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "CIF-CBR-RPT-IND-CUS",
+      "data_type": "string",
+      "target_name": "cif_cbr_rpt_ind_cus",
+      "position": 216,
+      "length": 1,
+      "required": false,
+      "description": "Indicates whether a credit bureau report interface extract record may be crea...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "Y",
+              "N"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "Y",
+        "N"
+      ]
+    },
+    {
+      "name": "CIF-CSM-INF-IND-CUS",
+      "data_type": "string",
+      "target_name": "cif_csm_inf_ind_cus",
+      "position": 217,
+      "length": 2,
+      "required": false,
+      "description": "Indicates the bankruptcy status of the contact as that status applies to the ... [Valid Values column contains prose,...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "DAT-BKY-REC-CUS",
+      "data_type": "date",
+      "target_name": "dat_bky_rec_cus",
+      "position": 219,
+      "length": 10,
+      "format": "MM/DD/CCYY",
+      "required": false,
+      "description": "The date the Bankruptcy Status was recorded.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CIF-ACT-COD-DES-CUS",
+      "data_type": "string",
+      "target_name": "cif_act_cod_des_cus",
+      "position": 229,
+      "length": 18,
+      "required": false,
+      "description": "Description of the relationship of the contact to the primary accountholder.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CIF-REF-NUM-CUS",
+      "data_type": "string",
+      "target_name": "cif_ref_num_cus",
+      "position": 247,
+      "length": 3,
+      "required": true,
+      "description": "APPS Enterprise supplied reference number used to keep multiple instances of ...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "LAS-CSM-INF-IND-CUS",
+      "data_type": "string",
+      "target_name": "las_csm_inf_ind_cus",
+      "position": 250,
+      "length": 2,
+      "required": false,
+      "description": "Indicates the bankruptcy status last reported to the credit bureau for the co... [Valid Values column contains prose,...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ECOA-CODE-CUS",
+      "data_type": "string",
+      "target_name": "ecoa_code_cus",
+      "position": 252,
+      "length": 1,
+      "required": false,
+      "description": "Indicates the current ECOA code for the contact as that status applies to the...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "1",
+              "2",
+              "3",
+              "4",
+              "5",
+              "6",
+              "7",
+              "T",
+              "W",
+              "X",
+              "Z"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "T",
+        "W",
+        "X",
+        "Z"
+      ]
+    },
+    {
+      "name": "LAST-ECOA-CODE-CUS",
+      "data_type": "string",
+      "target_name": "last_ecoa_code_cus",
+      "position": 253,
+      "length": 1,
+      "required": false,
+      "description": "Indicates the previous ECOA code for the contact as that status applies to th...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "1",
+              "2",
+              "3",
+              "4",
+              "5",
+              "6",
+              "7",
+              "T",
+              "W",
+              "X",
+              "Z"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "T",
+        "W",
+        "X",
+        "Z"
+      ]
+    },
+    {
+      "name": "LAST-BUREAU-RECORDED-DATE-CUS",
+      "data_type": "date",
+      "target_name": "last_bureau_recorded_date_cus",
+      "position": 254,
+      "length": 10,
+      "format": "MM/DD/CCYY",
+      "required": false,
+      "description": "The date the account was last reported to the credit bureau.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "FINAL-REPORT-INDICATOR-CUS",
+      "data_type": "string",
+      "target_name": "final_report_indicator_cus",
+      "position": 264,
+      "length": 1,
+      "required": false,
+      "description": "Indicates whether the final reporting to credit bureau has been completed for...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "Y",
+              "N"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "Y",
+        "N"
+      ]
+    },
+    {
+      "name": "LAST-REPORTED-SEG-TYPE-CUS",
+      "data_type": "string",
+      "target_name": "last_reported_seg_type_cus",
+      "position": 265,
+      "length": 2,
+      "required": false,
+      "description": "The bureau segment on which this contact was reported to credit bureau.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "BA",
+              "J1"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "BA",
+        "J1"
+      ]
+    },
+    {
+      "name": "LAST-CHEX-RECORDED-DATE-CUS",
+      "data_type": "date",
+      "target_name": "last_chex_recorded_date_cus",
+      "position": 267,
+      "length": 10,
+      "format": "MM/DD/CCYY",
+      "required": false,
+      "description": "The date the account was last reported to the ChexSystems.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ACTION-CODE",
+      "data_type": "string",
+      "target_name": "action_code",
+      "position": 277,
+      "length": 1,
+      "required": true,
+      "description": "The desired action for processing the Contact-Account transaction.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "CONTACT-ID",
+      "data_type": "string",
+      "target_name": "contact_id",
+      "position": 278,
+      "length": 24,
+      "required": true,
+      "description": "Unique identifier for the Contact.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "LOCATION-CODE",
+      "data_type": "string",
+      "target_name": "location_code",
+      "position": 302,
+      "length": 6,
+      "required": true,
+      "description": "The APPS Location for the Contact-Account relationship.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "ACCT-NUM",
+      "data_type": "string",
+      "target_name": "acct_num",
+      "position": 308,
+      "length": 18,
+      "required": true,
+      "description": "The Account Number for the Contact-Account relationship.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "NAME-RELATIONSHIP",
+      "data_type": "string",
+      "target_name": "name_relationship",
+      "position": 326,
+      "length": 1,
+      "required": true,
+      "description": "The Name Relationship for the contact on the Account, e.g., Primary, Secondar... [dropped 7 value(s) longer than leng...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "LEAD-CONTACT-IND",
+      "data_type": "boolean",
+      "target_name": "lead_contact_ind",
+      "position": 327,
+      "length": 1,
+      "required": true,
+      "description": "Indicates that the relationship between the contact and the account is the Le...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "0",
+              "1"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "0",
+        "1"
+      ]
+    },
+    {
+      "name": "RESPONSIBLE-PARTY",
+      "data_type": "boolean",
+      "target_name": "responsible_party",
+      "position": 328,
+      "length": 1,
+      "required": true,
+      "description": "Indicates that the contact is a responsible party on the account. This is use...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "0",
+              "1"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "0",
+        "1"
+      ]
+    },
+    {
+      "name": "CAS-ADDRESS-IND",
+      "data_type": "string",
+      "target_name": "cas_address_ind",
+      "position": 329,
+      "length": 1,
+      "required": true,
+      "description": "Indicates that this is a Legal contact.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "EXTERNAL-SYSTEM-ID",
+      "data_type": "string",
+      "target_name": "external_system_id",
+      "position": 330,
+      "length": 4,
+      "required": true,
+      "description": "The ID of the system providing the contact account information.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "PREFERRED-CURRENCY",
+      "data_type": "string",
+      "target_name": "preferred_currency",
+      "position": 334,
+      "length": 3,
+      "required": true,
+      "description": "The preferred currency for the contact for the account.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    }
+  ],
+  "key_columns": [
+    "BK-NUM-ERT"
+  ],
+  "metadata": {
+    "created_by": "template_converter",
+    "created_date": "2026-05-26T17:42:56.302978Z",
+    "last_modified": "2026-05-26T17:42:56.302986Z",
+    "source_template": "mappings\\csv\\shaw_tranert\\SHAW_TRANERT_CUS_mapping.csv"
+  },
+  "total_record_length": 336,
+  "warnings": []
+}

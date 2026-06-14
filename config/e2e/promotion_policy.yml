@@ -1,0 +1,20 @@
+# Baseline-Promotion Policy Configuration
+#
+# Loaded by scripts/e2e_lib/promote_baseline.py at promotion time.
+# Schema authority: docs/CONFIG_SCHEMA_REGISTRY.md (ADR 0015).
+#
+# approvers:
+#   List of identifiers (email addresses or LDAP DNs) that are authorised to
+#   promote a baseline. The value supplied via --approved-by must match one of
+#   these entries exactly (case-sensitive). Add or remove entries here to
+#   grant or revoke promotion rights — no code change required.
+#
+# This file must be reviewed as part of any CODEOWNERS MR that promotes a
+# baseline. See docs/adr/0015-baseline-promotion-policy.md.
+
+schema_version: 1
+
+approvers:
+  - qa-lead@example.com
+  - senior-qa@example.com
+  - release-manager@example.com

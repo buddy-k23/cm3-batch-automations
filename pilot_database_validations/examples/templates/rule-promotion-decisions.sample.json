@@ -1,0 +1,11 @@
+{
+  "decisions": {
+    "W4A_32005_ACCOUNT_ID_DEFAULT_AB12CD34": {
+      "reviewState": "approved",
+      "reviewer": "qa-owner",
+      "reviewedAt": "2026-02-24",
+      "notes": "Validated against BA examples"
+    },
+    "W4A_32010_RELATIONSHIP_TYPE_CONDITIONAL_FE45AA22": "deferred"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "environment": "test",
+  "database": {
+    "username": "test_user",
+    "password": "test_password",
+    "dsn": "localhost:1521/TESTDB",
+    "encoding": "UTF-8"
+  },
+  "test_data": {
+    "sample_files": [
+      "data/samples/test_pipe_delimited.txt",
+      "data/samples/test_fixed_width.txt"
+    ],
+    "expected_results": "tests/fixtures/expected_results.json"
+  }
+}

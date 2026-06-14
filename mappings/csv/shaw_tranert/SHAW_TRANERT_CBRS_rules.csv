@@ -1,0 +1,39 @@
+Rule ID,Rule Name,Field,Rule Type,Severity,Enabled,Message,Expected / Values
+R001,BK-NUM-ERT required,BK-NUM-ERT,not_empty,error,Yes,BK-NUM-ERT must not be empty,
+R002,BK-NUM-ERT numeric,BK-NUM-ERT,numeric,error,Yes,BK-NUM-ERT must be numeric,
+R003,BK-NUM-ERT length check,BK-NUM-ERT,exact_length,error,Yes,BK-NUM-ERT must be exactly 5 characters,5
+R004,BK-NUM-ERT valid values,BK-NUM-ERT,valid_values,error,Yes,BK-NUM-ERT must be one of: 00040,00040
+R005,APP-ERT required,APP-ERT,not_empty,error,Yes,APP-ERT must not be empty,
+R006,APP-ERT numeric,APP-ERT,numeric,error,Yes,APP-ERT must be numeric,
+R007,APP-ERT length check,APP-ERT,exact_length,error,Yes,APP-ERT must be exactly 3 characters,3
+R008,APP-ERT valid values,APP-ERT,valid_values,error,Yes,APP-ERT must be one of: 001,001
+R009,LN-NUM-ERT required,LN-NUM-ERT,not_empty,error,Yes,LN-NUM-ERT must not be empty,
+R010,LN-NUM-ERT length check,LN-NUM-ERT,length,error,Yes,LN-NUM-ERT payload length must be between 14 and 18 characters,14..18
+R011,EFF-DAT-ERT required,EFF-DAT-ERT,not_empty,error,Yes,EFF-DAT-ERT must not be empty,
+R012,EFF-DAT-ERT date format,EFF-DAT-ERT,date_format,error,Yes,EFF-DAT-ERT must be a valid date (MM/DD/CCYY),MM/DD/CCYY
+R013,EFF-DAT-ERT length check,EFF-DAT-ERT,exact_length,error,Yes,EFF-DAT-ERT must be exactly 10 characters,10
+R014,TRN-COD-ERT required,TRN-COD-ERT,not_empty,error,Yes,TRN-COD-ERT must not be empty,
+R015,TRN-COD-ERT numeric,TRN-COD-ERT,numeric,error,Yes,TRN-COD-ERT must be numeric,
+R016,TRN-COD-ERT length check,TRN-COD-ERT,exact_length,error,Yes,TRN-COD-ERT must be exactly 5 characters,5
+R017,TRN-COD-ERT valid values,TRN-COD-ERT,valid_values,error,Yes,TRN-COD-ERT must be one of: 32040,32040
+R018,BAT-ITM-NUM-ERT required,BAT-ITM-NUM-ERT,not_empty,error,Yes,BAT-ITM-NUM-ERT must not be empty,
+R019,BAT-ITM-NUM-ERT numeric,BAT-ITM-NUM-ERT,numeric,error,Yes,BAT-ITM-NUM-ERT must be numeric,
+R020,BAT-ITM-NUM-ERT length check,BAT-ITM-NUM-ERT,exact_length,error,Yes,BAT-ITM-NUM-ERT must be exactly 9 characters,9
+R021,INP-SRC-COD-ERT numeric,INP-SRC-COD-ERT,numeric,error,Yes,INP-SRC-COD-ERT must be numeric,
+R022,TRN-CNT-ERT numeric,TRN-CNT-ERT,numeric,error,Yes,TRN-CNT-ERT must be numeric,
+R023,DAT-DLQ-STR-CBRS date format,DAT-DLQ-STR-CBRS,date_format,error,Yes,DAT-DLQ-STR-CBRS must be a valid date (MM/DD/CCYY),MM/DD/CCYY
+R024,M2F-CMT-COD-CBRS valid values,M2F-CMT-COD-CBRS,valid_values,error,Yes,M2F-CMT-COD-CBRS must be one of: AW|AU,AW|AU
+R025,HGH-DAY-DLQ-CBRS numeric,HGH-DAY-DLQ-CBRS,numeric,error,Yes,HGH-DAY-DLQ-CBRS must be numeric,
+R026,HGH-AMT-DLQ-CBRS numeric,HGH-AMT-DLQ-CBRS,numeric,error,Yes,HGH-AMT-DLQ-CBRS must be numeric,
+R027,LAS-LN-BAL-CBRS numeric,LAS-LN-BAL-CBRS,numeric,error,Yes,LAS-LN-BAL-CBRS must be numeric,
+R028,LAS-DAT-RPT-CBRS date format,LAS-DAT-RPT-CBRS,date_format,error,Yes,LAS-DAT-RPT-CBRS must be a valid date (MM/DD/CCYY),MM/DD/CCYY
+R029,LAS-ACT-STA-CBRS valid values,LAS-ACT-STA-CBRS,valid_values,error,Yes,LAS-ACT-STA-CBRS must be one of: 05|63|64|96|97|DA|DF,05|63|64|96|97|DA|DF
+R030,LAS-CMT-COD-CBRS valid values,LAS-CMT-COD-CBRS,valid_values,error,Yes,LAS-CMT-COD-CBRS must be one of: AU|AW|ST,AU|AW|ST
+R031,CUR-PMT-RTG-CBRS valid values,CUR-PMT-RTG-CBRS,valid_values,error,Yes,CUR-PMT-RTG-CBRS must be one of: L,L
+R032,PET-DAT-CBRS date format,PET-DAT-CBRS,date_format,error,Yes,PET-DAT-CBRS must be a valid date (MM/DD/CCYY),MM/DD/CCYY
+R033,PET-SCH-PMT-AMT-CBRS numeric,PET-SCH-PMT-AMT-CBRS,numeric,error,Yes,PET-SCH-PMT-AMT-CBRS must be numeric,
+R034,PET-CUR-BAL-CBRS numeric,PET-CUR-BAL-CBRS,numeric,error,Yes,PET-CUR-BAL-CBRS must be numeric,
+R035,PET-AMT-PAS-DUE-CBRS numeric,PET-AMT-PAS-DUE-CBRS,numeric,error,Yes,PET-AMT-PAS-DUE-CBRS must be numeric,
+R036,CHX-LAS-DAT-RPT-CBRS date format,CHX-LAS-DAT-RPT-CBRS,date_format,error,Yes,CHX-LAS-DAT-RPT-CBRS must be a valid date (MM/DD/CCYY),MM/DD/CCYY
+R037,SEC-LAS-DAT-RPT-CBRS date format,SEC-LAS-DAT-RPT-CBRS,date_format,error,Yes,SEC-LAS-DAT-RPT-CBRS must be a valid date (MM/DD/CCYY),MM/DD/CCYY
+R038,SEC-LAS-LN-BAL-CBRS numeric,SEC-LAS-LN-BAL-CBRS,numeric,error,Yes,SEC-LAS-LN-BAL-CBRS must be numeric,

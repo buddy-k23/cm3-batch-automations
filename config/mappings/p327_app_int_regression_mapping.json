@@ -1,0 +1,26 @@
+{
+  "metadata": {
+    "name": "P327 app_int regression mapping",
+    "format": "pipe_delimited"
+  },
+  "fields": [
+    {"name": "ACCT-NUM", "type": "string", "required": true, "format": "X(16)"},
+    {"name": "ACCT-STAT-CODE-1", "type": "string", "required": true, "valid_values": ["ACTIVE", "INACTIVE", "SUSPENDED"]},
+    {"name": "ACCT-OPEN-DATE", "type": "date", "required": true, "format": "CCYYMMDD"},
+    {"name": "NEXT-DUE-DATE", "type": "date", "required": true, "format": "CCYYMMDD"},
+    {"name": "CURRENT-DUE-AMT", "type": "number", "required": true, "format": "9(18)"},
+    {"name": "TOTAL-DUE-AMT", "type": "number", "required": true, "format": "9(18)"},
+    {"name": "BASE-CURRENCY", "type": "string", "required": true, "valid_values": ["USD", "CAD", "EUR"]},
+    {"name": "LOCATION-CODE", "type": "string", "required": true}
+  ],
+  "mappings": [
+    {"source_column": "ACCT-NUM", "required": true},
+    {"source_column": "ACCT-STAT-CODE-1", "required": true},
+    {"source_column": "ACCT-OPEN-DATE", "required": true},
+    {"source_column": "NEXT-DUE-DATE", "required": true},
+    {"source_column": "CURRENT-DUE-AMT", "required": true},
+    {"source_column": "TOTAL-DUE-AMT", "required": true},
+    {"source_column": "BASE-CURRENCY", "required": true},
+    {"source_column": "LOCATION-CODE", "required": true}
+  ]
+}

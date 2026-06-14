@@ -1,0 +1,1013 @@
+{
+  "mapping_name": "est_cds_m06_mapping",
+  "version": "1.0.0",
+  "description": "Generated from template: est_cds_m06_mapping.csv",
+  "source": {
+    "type": "file",
+    "format": "fixed_width",
+    "encoding": "UTF-8"
+  },
+  "target": {
+    "type": "database"
+  },
+  "fields": [
+    {
+      "name": "LOCATION-CODE",
+      "data_type": "string",
+      "target_name": "location_code",
+      "position": 1,
+      "length": 6,
+      "required": true,
+      "description": "Account location code",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "100030"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "100030"
+      ]
+    },
+    {
+      "name": "ACCT-NUM",
+      "data_type": "string",
+      "target_name": "acct_num",
+      "position": 7,
+      "length": 18,
+      "format": "X(18)",
+      "required": true,
+      "description": "Account number",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "CDS-SEGMENT-ID",
+      "data_type": "string",
+      "target_name": "cds_segment_id",
+      "position": 25,
+      "length": 3,
+      "required": true,
+      "description": "CDS type",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "EST"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "EST"
+      ]
+    },
+    {
+      "name": "TRANSACTION-DATE",
+      "data_type": "date",
+      "target_name": "transaction_date",
+      "position": 28,
+      "length": 8,
+      "format": "CCYYMMDD",
+      "required": true,
+      "description": "Transaction date",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "ITA-PROCESSING-FLAG",
+      "data_type": "string",
+      "target_name": "ita_processing_flag",
+      "position": 36,
+      "length": 1,
+      "required": true,
+      "description": "Create 250 indicator",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "Y"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "Y"
+      ]
+    },
+    {
+      "name": "FUNCTION-CODE",
+      "data_type": "string",
+      "target_name": "function_code",
+      "position": 37,
+      "length": 1,
+      "required": true,
+      "description": "Processing action",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "U"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "U"
+      ]
+    },
+    {
+      "name": "SYSTEM-ID",
+      "data_type": "string",
+      "target_name": "system_id",
+      "position": 38,
+      "length": 8,
+      "required": true,
+      "description": "System identifier",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "7000"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "7000"
+      ]
+    },
+    {
+      "name": "BANKRUPTCY-STATUS",
+      "data_type": "string",
+      "target_name": "bankruptcy_status",
+      "position": 46,
+      "length": 3,
+      "required": false,
+      "description": "AFS bankruptcy mapped",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "07",
+              "11",
+              "12",
+              "13"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "07",
+        "11",
+        "12",
+        "13"
+      ]
+    },
+    {
+      "name": "REPOSSESSION-STATUS",
+      "data_type": "string",
+      "target_name": "repossession_status",
+      "position": 49,
+      "length": 1,
+      "required": false,
+      "description": "Repossession status",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LOAN-STATUS-RECOVERY",
+      "data_type": "string",
+      "target_name": "loan_status_recovery",
+      "position": 50,
+      "length": 2,
+      "required": false,
+      "description": "Loan recovery code",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "02",
+              "03",
+              "B2",
+              "04"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "02",
+        "03",
+        "B2",
+        "04"
+      ]
+    },
+    {
+      "name": "CEASE-FLAG",
+      "data_type": "string",
+      "target_name": "cease_flag",
+      "position": 52,
+      "length": 1,
+      "required": false,
+      "description": "Cease contact flag",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "0"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "0"
+      ]
+    },
+    {
+      "name": "FRAUD-FLAG",
+      "data_type": "string",
+      "target_name": "fraud_flag",
+      "position": 53,
+      "length": 1,
+      "required": false,
+      "description": "Fraud flag",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "0"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "0"
+      ]
+    },
+    {
+      "name": "DECEASED-FLAG",
+      "data_type": "string",
+      "target_name": "deceased_flag",
+      "position": 54,
+      "length": 1,
+      "required": false,
+      "description": "Deceased indicator",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "0",
+              "1"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "0",
+        "1"
+      ]
+    },
+    {
+      "name": "PRODUCT-DESCRIPTION",
+      "data_type": "string",
+      "target_name": "product_description",
+      "position": 55,
+      "length": 40,
+      "required": false,
+      "description": "Product description",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "PWM-INDICATOR",
+      "data_type": "string",
+      "target_name": "pwm_indicator",
+      "position": 95,
+      "length": 1,
+      "required": false,
+      "description": "PWM indicator",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "0",
+              "1"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "0",
+        "1"
+      ]
+    },
+    {
+      "name": "FORCE-TO-COLLECTIONS",
+      "data_type": "string",
+      "target_name": "force_to_collections",
+      "position": 96,
+      "length": 1,
+      "required": false,
+      "description": "Force collections",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CLOSED-TO-POST",
+      "data_type": "string",
+      "target_name": "closed_to_post",
+      "position": 97,
+      "length": 2,
+      "required": false,
+      "description": "Closed to post",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CMS-CONTACT-FLAG",
+      "data_type": "string",
+      "target_name": "cms_contact_flag",
+      "position": 99,
+      "length": 1,
+      "required": false,
+      "description": "CMS contact flag",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "N"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "N"
+      ]
+    },
+    {
+      "name": "ALS-ADDRESS-LINE-2",
+      "data_type": "string",
+      "target_name": "als_address_line_2",
+      "position": 100,
+      "length": 40,
+      "required": false,
+      "description": "Address line 2",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "BATCH-DATE",
+      "data_type": "date",
+      "target_name": "batch_date",
+      "position": 140,
+      "length": 8,
+      "format": "CCYYMMDD",
+      "required": true,
+      "description": "Batch date",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "ACCOUNT-HERITAGE",
+      "data_type": "string",
+      "target_name": "account_heritage",
+      "position": 148,
+      "length": 1,
+      "required": false,
+      "description": "Account heritage",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "T"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "T"
+      ]
+    },
+    {
+      "name": "CLOSED-TO-POST-REASON",
+      "data_type": "string",
+      "target_name": "closed_to_post_reason",
+      "position": 149,
+      "length": 4,
+      "required": false,
+      "description": "Closed to post reason",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "COVERED-PAYDAY-LOAN",
+      "data_type": "string",
+      "target_name": "covered_payday_loan",
+      "position": 153,
+      "length": 1,
+      "required": false,
+      "description": "Covered payday loan",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "TDR-FLAG",
+      "data_type": "string",
+      "target_name": "tdr_flag",
+      "position": 154,
+      "length": 1,
+      "required": false,
+      "description": "TDR flag",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "N"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "N"
+      ]
+    },
+    {
+      "name": "CREDIT-COUNSELING",
+      "data_type": "string",
+      "target_name": "credit_counseling",
+      "position": 155,
+      "length": 1,
+      "required": false,
+      "description": "Credit counseling",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "N"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "N"
+      ]
+    },
+    {
+      "name": "CREDIT-REVOKED",
+      "data_type": "string",
+      "target_name": "credit_revoked",
+      "position": 156,
+      "length": 2,
+      "required": false,
+      "description": "Credit revoked",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "NATURAL-DISASTER",
+      "data_type": "string",
+      "target_name": "natural_disaster",
+      "position": 158,
+      "length": 1,
+      "required": false,
+      "description": "Natural disaster",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "N"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "N"
+      ]
+    },
+    {
+      "name": "DEALER-STATE",
+      "data_type": "string",
+      "target_name": "dealer_state",
+      "position": 159,
+      "length": 2,
+      "required": false,
+      "description": "Dealer state",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "DIRECT-INDIRECT",
+      "data_type": "string",
+      "target_name": "direct_indirect",
+      "position": 161,
+      "length": 1,
+      "required": false,
+      "description": "Direct/Indirect",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LOB-CODE",
+      "data_type": "string",
+      "target_name": "lob_code",
+      "position": 162,
+      "length": 40,
+      "required": false,
+      "description": "LOB code",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CHANNEL",
+      "data_type": "string",
+      "target_name": "channel",
+      "position": 202,
+      "length": 40,
+      "required": false,
+      "description": "Channel",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LOANSALESTATUSID",
+      "data_type": "string",
+      "target_name": "loan_sale_status_id",
+      "position": 242,
+      "length": 1,
+      "required": false,
+      "description": "Loan sale status",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "SOLDLOANINVESTORNAME",
+      "data_type": "string",
+      "target_name": "sold_loan_investor_name",
+      "position": 243,
+      "length": 40,
+      "required": false,
+      "description": "Investor name",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "SOLDLOANPORTFOLIOID",
+      "data_type": "string",
+      "target_name": "sold_loan_portfolio_id",
+      "position": 283,
+      "length": 40,
+      "required": false,
+      "description": "Portfolio ID",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "ARG-ASSIGNED",
+      "data_type": "string",
+      "target_name": "arg_assigned",
+      "position": 323,
+      "length": 1,
+      "required": false,
+      "description": "ARG assigned",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "Y",
+              "N"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "Y",
+        "N"
+      ]
+    },
+    {
+      "name": "LINE-MATURED",
+      "data_type": "string",
+      "target_name": "line_matured",
+      "position": 324,
+      "length": 1,
+      "required": false,
+      "description": "Line matured",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "N"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "N"
+      ]
+    },
+    {
+      "name": "TRW-CODE",
+      "data_type": "string",
+      "target_name": "trw_code",
+      "position": 325,
+      "length": 2,
+      "required": false,
+      "description": "TRW code",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "WB-FC-SALE-DATE",
+      "data_type": "date",
+      "target_name": "wb_fc_sale_date",
+      "position": 327,
+      "length": 8,
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": "WB FC sale date",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "FC-CB-ACCOUNT-STAT",
+      "data_type": "string",
+      "target_name": "fc_cb_account_stat",
+      "position": 335,
+      "length": 2,
+      "required": false,
+      "description": "FC CB account status",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "FC-BORROWER-RESP",
+      "data_type": "string",
+      "target_name": "fc_borrower_resp",
+      "position": 337,
+      "length": 1,
+      "required": false,
+      "description": "FC borrower resp",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "EST-FEMA-ELIGIBLE-DT",
+      "data_type": "date",
+      "target_name": "est_fema_eligible_dt",
+      "position": 338,
+      "length": 8,
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": "FEMA eligible date",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "EST-FEMA-HOLD-REASON",
+      "data_type": "string",
+      "target_name": "est_fema_hold_reason",
+      "position": 346,
+      "length": 2,
+      "required": false,
+      "description": "FEMA hold reason",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "EST-FEMA-CLOSED-DATE",
+      "data_type": "date",
+      "target_name": "est_fema_closed_date",
+      "position": 348,
+      "length": 8,
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": "FEMA closed date",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CARD-CLOSE-DATE",
+      "data_type": "date",
+      "target_name": "card_close_date",
+      "position": 356,
+      "length": 8,
+      "format": "CCYYMMDD",
+      "required": false,
+      "description": "Card close date",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CARD-CLOSE-REASON",
+      "data_type": "string",
+      "target_name": "card_close_reason",
+      "position": 364,
+      "length": 2,
+      "required": false,
+      "description": "Card close reason",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "SBDS-ASSIGNED-AFS",
+      "data_type": "string",
+      "target_name": "sbds_assigned_afs",
+      "position": 366,
+      "length": 1,
+      "required": false,
+      "description": "SBDS assigned",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "Y",
+              "N"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "Y",
+        "N"
+      ]
+    },
+    {
+      "name": "ACCOUNT-STATUS-AFS",
+      "data_type": "string",
+      "target_name": "account_status_afs",
+      "position": 367,
+      "length": 1,
+      "required": false,
+      "description": "Account status AFS",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    }
+  ],
+  "key_columns": [
+    "LOCATION-CODE"
+  ],
+  "metadata": {
+    "created_by": "template_converter",
+    "created_date": "2026-04-27T21:02:07.647392Z",
+    "last_modified": "2026-04-27T21:02:07.647405Z",
+    "source_template": "uploads\\est_cds_m06_mapping.csv"
+  },
+  "total_record_length": 367,
+  "warnings": []
+}

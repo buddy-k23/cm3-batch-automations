@@ -1,0 +1,94 @@
+# Valdo E2E Batch Testing — Path & Convention Configuration
+#
+# This file is the single source of truth for:
+#   - environment-keyed root paths (sit / ait)
+#   - templated path patterns with placeholders {env}, {source}, {run_id},
+#     {file_type}, {release_tag}
+#   - filename regex patterns that map a dropped trigger file to
+#     (source, file_type, direction)
+#   - secret env-var names per environment (Vault migration is a config flip,
+#     not a code change — see scripts/e2e_lib/secret_resolver.py)
+#
+# Loaded by scripts/e2e_lib/path_resolver.py. See
+# prompts/e2e_batch_testing_prompt.md for the full design.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# Oracle credential convention
+# ─────────────────────────────────────────────────────────────────────────────
+# By default the harness reads the SAME env vars as the rest of Valdo:
+#   ORACLE_USER / ORACLE_PASSWORD / ORACLE_DSN
+# loaded from the repo-root .env via python-dotenv (see secret_resolver.py).
+# Operators switch environments by switching which .env is active — the same
+# pattern Valdo already uses (see scripts/env-switch.sh).
+#
+# When a site needs simultaneous access to both sit and ait creds in one
+# process, set per-env names here (e.g. ORACLE_DSN_SIT, ORACLE_DSN_AIT) and
+# define them in the environment / .env. The wrapper scripts pick these up
+# via FailureSink.for_oracle(dsn_env=..., user_env=..., password_env=...).
+
+schema_version: 1
+
+envs:
+  sit:
+    input_root:          "/data/sit/{source}/input"
+    output_root:         "/data/sit/{source}/output"
+    trigger_root:        "/data/sit/{source}/triggers"
+    report_root:         "/data/sit/_reports/{run_id}/{source}"
+    work_root:           "/data/sit/_work/{run_id}/{source}"
+    baseline_root:       "baselines/sit/{source}/{release_tag}"
+    log_root:            "logs"
+    # Default to Valdo's bare names (matches .env); override to ORACLE_*_SIT
+    # only if you need both envs' creds in one process. See header note above.
+    oracle_dsn_env:      "ORACLE_DSN"
+    oracle_user_env:     "ORACLE_USER"
+    oracle_password_env: "ORACLE_PASSWORD"
+    staging_schema:      "STG_SIT"
+    audit_schema:        "AUDIT"
+
+  ait:
+    input_root:          "/data/ait/{source}/input"
+    output_root:         "/data/ait/{source}/output"
+    trigger_root:        "/data/ait/{source}/triggers"
+    report_root:         "/data/ait/_reports/{run_id}/{source}"
+    work_root:           "/data/ait/_work/{run_id}/{source}"
+    baseline_root:       "baselines/ait/{source}/{release_tag}"
+    log_root:            "logs"
+    oracle_dsn_env:      "ORACLE_DSN"
+    oracle_user_env:     "ORACLE_USER"
+    oracle_password_env: "ORACLE_PASSWORD"
+    staging_schema:      "STG_AIT"
+    audit_schema:        "AUDIT"
+
+# Filename patterns evaluated in declaration order. The first regex to match a
+# basename wins. Named groups (?P<source>…) and (?P<file_type>…) are required.
+# `direction` must be one of: input | output.
+#
+# Per-source override (R-07): a source overlay
+# (config/e2e/sources/<SOURCE>.yml) may declare its own `filename_patterns:`
+# block. When present it REPLACES this global list for that source only (no
+# merging) and must satisfy the same contract (unique name, source/file_type
+# named groups, valid direction). Sources without an override keep using the
+# global patterns below. See docs/CONFIG_SCHEMA_REGISTRY.md.
+filename_patterns:
+  - name: standard_input
+    pattern: '^(?P<source>[A-Z0-9_]+)_input_(?P<file_type>[A-Z0-9_]+)_\d{8}\.dat$'
+    direction: input
+
+  - name: standard_output
+    pattern: '^(?P<source>[A-Z0-9_]+)_(?P<file_type>P327|P328|P329|P330|P331|P332)_\d{8}\.txt$'
+    direction: output
+
+# Trigger-file naming contract used by scripts/valdo_watch_wrapper.sh (M7).
+# A `.trigger` sidecar dropped by CA ESP next to the real data file announces
+# that the data file is fully written and ready to process. The wrapper extracts
+# the basename of the data file (recorded inside the trigger file as a single
+# line) and runs it through `filename_patterns`.
+#
+# Per-source override (R-07): a source overlay may declare its own
+# `trigger_file:` block overriding `suffix` and/or `data_file_line` so a
+# non-CA-ESP producer can use a different convention (e.g. suffix ".done").
+# Unspecified keys fall back to the global defaults below; sources without an
+# override (e.g. SHAW) are unchanged. See docs/CONFIG_SCHEMA_REGISTRY.md.
+trigger_file:
+  suffix: ".trigger"
+  data_file_line: 1   # which line in the .trigger file holds the data filename

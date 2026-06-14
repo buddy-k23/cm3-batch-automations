@@ -1,0 +1,276 @@
+{
+  "passed": 54,
+  "failed": 0,
+  "checks": [
+    {
+      "label": "GET /",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "GET /ui",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "GET /docs",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "GET /api/v1/system/health",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "  GET /api/v1/system/health \u2192 status=='healthy'",
+      "status": "PASS",
+      "detail": "got 'healthy'"
+    },
+    {
+      "label": "GET /api/v1/system/info",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "  /system/info \u2192 has python_version",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "POST /api/v1/mappings/upload",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "  /upload \u2192 mapping_id present",
+      "status": "PASS",
+      "detail": "got {'filename': 'e2e_test_mapping.csv', 'size': 406, 'mapping_id': 'e2e_test_mapping', 'message': \"Template converted successfully. Mapping saved as 'e2e_test_mapping'\"}"
+    },
+    {
+      "label": "GET /api/v1/mappings/",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "  /mappings/ \u2192 returns list",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "GET /api/v1/mappings/{id}",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "POST /api/v1/mappings/validate",
+      "status": "PASS",
+      "detail": "got 200: {\"valid\":false,\"errors\":[\"Field customer_id missing position for fixed-width format\",\"Field customer_id missing length for fixed-width format\"],\"warnings\":[]}"
+    },
+    {
+      "label": "DELETE /api/v1/mappings/{id}",
+      "status": "PASS",
+      "detail": "got 200"
+    },
+    {
+      "label": "POST /api/v1/files/detect",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "POST /api/v1/files/parse",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "  /parse \u2192 records > 0",
+      "status": "PASS",
+      "detail": "rows_parsed=11"
+    },
+    {
+      "label": "POST /api/v1/files/validate (customers)",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "  validate customers \u2192 valid=true",
+      "status": "PASS",
+      "detail": "valid=True"
+    },
+    {
+      "label": "  validate customers \u2192 row_count > 0",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "POST /api/v1/files/validate (transactions)",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "  validate transactions \u2192 has valid field",
+      "status": "PASS",
+      "detail": "keys=['valid', 'total_rows', 'valid_rows', 'invalid_rows', 'errors', 'warnings', 'quality_score', 'report_url']"
+    },
+    {
+      "label": "POST /api/v1/files/validate (p327 errors)",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "  validate p327 \u2192 valid=false",
+      "status": "PASS",
+      "detail": "valid=False"
+    },
+    {
+      "label": "  validate p327 \u2192 errors > 0",
+      "status": "PASS",
+      "detail": "invalid_rows=107"
+    },
+    {
+      "label": "POST /api/v1/files/compare",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "  compare \u2192 differences > 0",
+      "status": "PASS",
+      "detail": "differences=3"
+    },
+    {
+      "label": "POST /api/v1/files/compare-async",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "  compare-async \u2192 job_id present",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "GET /api/v1/files/compare-jobs/{id}",
+      "status": "PASS",
+      "detail": "final status='completed'"
+    },
+    {
+      "label": "POST /api/v1/rules/upload",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "  /rules/upload \u2192 rules_id present",
+      "status": "PASS",
+      "detail": "got {'rules_id': 'e2e_rules', 'filename': 'e2e_rules.csv', 'size': 745, 'message': \"Rules template converted and created successfully. Rules saved as 'e2e_rules'\"}"
+    },
+    {
+      "label": "GET /api/v1/rules/{id}.json",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "  rules JSON \u2192 is dict",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "POST /api/v1/runs/trigger",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "  /trigger \u2192 run_id present",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "  /trigger \u2192 status=queued",
+      "status": "PASS",
+      "detail": "status='queued'"
+    },
+    {
+      "label": "GET /api/v1/runs/{run_id}",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "  /runs/{id} \u2192 status field present",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "GET /api/v1/runs/history",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "  /runs/history \u2192 returns list",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "POST /api/v1/api-tester/proxy",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "  proxy \u2192 status_code=200",
+      "status": "PASS",
+      "detail": "got 200"
+    },
+    {
+      "label": "  proxy \u2192 body contains 'healthy'",
+      "status": "PASS",
+      "detail": "body='{\"status\":\"healthy\",\"version\":\"1.0.0\",\"timestamp\":\"2026-03-04T00:15:23.399464Z\"}'"
+    },
+    {
+      "label": "GET /api/v1/api-tester/suites",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "  /suites \u2192 returns list",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "POST /api/v1/api-tester/suites",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "  /suites POST \u2192 id present",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "  /suites POST \u2192 name correct",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "GET /api/v1/api-tester/suites/{id}",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "  /suites GET \u2192 id matches",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "PUT /api/v1/api-tester/suites/{id}",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "  /suites PUT \u2192 name updated",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "label": "DELETE /api/v1/api-tester/suites/{id}",
+      "status": "PASS",
+      "detail": "got 204"
+    }
+  ]
+}

@@ -1,0 +1,156 @@
+# Azure DevOps / TFS YAML pipeline for Valdo — package and publish to Artifactory
+# This pipeline packages the source code and uploads it to Artifactory.
+# Python setup, venv creation, and tests run on the RHEL server via setup-linux.sh during deploy.
+# Usage:
+# 1) Create a pipeline in Azure DevOps Server (TFS) pointing to this file.
+# 2) Configure the Artifactory service connection in Project Settings.
+
+name: $(date:yyyyMMdd)$(rev:.r)
+
+trigger:
+  branches:
+    include:
+      - valdo-engine
+  batch: true
+
+pr: none
+
+pool:
+  name: 'tdc'
+  demands:
+    - Agent.Name -equals TDC-TFSBLD01   # Python 3.12 at C:\Program Files\Python312\ (on PATH)
+
+variables:
+  - name: artifactoryService
+    value: '91a62b60-fb55-4402-aafd-8c4ddc4ca3db'
+  - name: artifactoryRepo
+    value: 'Collections360-SNAPSHOT'
+  - name: system.debug
+    value: 'false'
+
+steps:
+
+  # --- SonarQube: Prepare analysis ---
+  # CLI scanner mode — no Python/venv needed, scans source files directly
+  - task: SonarQubePrepare@4
+    displayName: Prepare SonarQube analysis
+    enabled: true
+    condition: succeeded()
+    inputs:
+      SonarQube: '5ca8fc7d-73e9-48d3-a6f3-f0b300111782'
+      scannerMode: 'CLI'
+      configMode: 'file'
+      configFile: 'sonar-project.properties'
+
+  # --- SonarQube: Run analysis ---
+  - task: SonarQubeAnalyze@4
+    displayName: Run SonarQube analysis
+    enabled: true
+    condition: succeeded()
+
+  # --- SonarQube: Publish Quality Gate result ---
+  - task: SonarQubePublish@4
+    displayName: Publish Quality Gate result
+    enabled: true
+    condition: succeeded()
+    inputs:
+      pollingTimeoutSec: '300'
+
+  # --- Copy all deploy files to staging ---
+  # Tests and venv are skipped here — the RHEL server runs setup-linux.sh on deploy
+  - task: CopyFiles@2
+    displayName: Stage application files
+    condition: succeeded()
+    inputs:
+      SourceFolder: ''
+      Contents: |
+        src/**
+        config/**
+        scripts/**
+        mappings/**
+        rules/**
+        sql/**
+        prompts/**
+        requirements.txt
+        requirements-api.txt
+        setup.py
+        setup-linux.sh
+        alembic.ini
+        alembic/**
+        .env.example
+      TargetFolder: '$(Build.ArtifactStagingDirectory)/valdo'
+      CleanTargetFolder: false
+      OverWrite: true
+
+  # --- Archive staged files ---
+  - task: ArchiveFiles@2
+    displayName: Archive artifact
+    condition: succeeded()
+    inputs:
+      rootFolderOrFile: '$(Build.ArtifactStagingDirectory)/valdo'
+      includeRootFolder: false
+      archiveType: 'zip'
+      archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildNumber).zip'
+      replaceExistingArchive: true
+
+  # --- Install JFrog CLI ---
+  - task: ArtifactoryToolsInstaller@1
+    displayName: Artifactory Tools Installer
+    condition: succeeded()
+    inputs:
+      artifactoryService: '$(artifactoryService)'
+      cliInstallationRepo: 'jfrog-cli-v1'
+      installCustomVersion: false
+
+  # --- Upload zip to Artifactory ---
+  - task: ArtifactoryGenericUpload@2
+    displayName: Artifactory Generic Upload
+    condition: succeeded()
+    inputs:
+      artifactoryService: '$(artifactoryService)'
+      specSource: 'taskConfiguration'
+      fileSpec: |
+        {
+          "files": [
+            {
+              "pattern": "$(Build.ArtifactStagingDirectory)/$(Build.BuildNumber).zip",
+              "target": "$(artifactoryRepo)/$(Build.DefinitionName)/",
+              "recursive": "false",
+              "flat": "true"
+            }
+          ]
+        }
+      collectBuildInfo: true
+      buildName: '$(Build.DefinitionName)'
+      buildNumber: '$(Build.BuildNumber)'
+      failNoOp: true
+      threads: '3'
+      retries: '3'
+
+  # --- Publish build info to Artifactory ---
+  - task: ArtifactoryPublishBuildInfo@1
+    displayName: Artifactory Publish Build Info
+    condition: succeeded()
+    inputs:
+      artifactoryService: '$(artifactoryService)'
+      buildName: '$(Build.DefinitionName)'
+      buildNumber: '$(Build.BuildNumber)'
+      excludeEnvVars: '*password*;*secret*;*key*;*token*'
+
+  # --- Veracode security scan (disabled) ---
+  - task: Veracode@3
+    displayName: Upload and scan artifact
+    enabled: false
+    condition: succeeded()
+    inputs:
+      ConnectionDetailsSelection: 'Endpoint'
+      AnalysisService: 'dd36194f-4ed8-40bc-ae7d-a7dcbbdf16ce'
+      veracodeAppProfile: 'APPID-33091157_valdo'
+      version: '$(Build.BuildNumber)_$(Build.SourceBranch)'
+      filepath: '$(Build.ArtifactStagingDirectory)/$(Build.BuildNumber).zip'
+      sandboxName: 'azure_pipeline_release'
+      createSandBox: true
+      createProfile: false
+      scanStatusCheckInterval: '60'
+      importResults: false
+      failBuildOnPolicyFail: false

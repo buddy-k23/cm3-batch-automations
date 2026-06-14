@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "business_rules_v1.schema.json",
+  "title": "BusinessRulesV1",
+  "type": "object",
+  "required": ["metadata", "rules"],
+  "properties": {
+    "metadata": { "type": "object" },
+    "rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "type", "severity", "enabled"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "type": { "type": "string", "enum": ["field_validation", "cross_field"] },
+          "severity": { "type": "string", "enum": ["error", "warning", "info"] },
+          "enabled": { "type": "boolean" },
+          "field": { "type": "string" },
+          "operator": { "type": "string" },
+          "left_field": { "type": "string" },
+          "right_field": { "type": "string" },
+          "values": { "type": ["array", "string"] },
+          "value": {},
+          "pattern": { "type": "string" },
+          "min": { "type": "number" },
+          "max": { "type": "number" },
+          "min_length": { "type": "number" },
+          "max_length": { "type": "number" },
+          "when": { "type": "string" }
+        },
+        "additionalProperties": true,
+        "allOf": [
+          {
+            "if": { "properties": { "type": { "const": "field_validation" } } },
+            "then": { "required": ["field", "operator"] }
+          },
+          {
+            "if": { "properties": { "type": { "const": "cross_field" } } },
+            "then": { "required": ["left_field", "right_field", "operator"] }
+          }
+        ]
+      }
+    }
+  },
+  "additionalProperties": true
+}

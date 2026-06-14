@@ -1,0 +1,52 @@
+{
+  "metadata": {
+    "name": "p327 app_int regression rules",
+    "description": "Business-rule checks for app_int transformation regression"
+  },
+  "rules": [
+    {
+      "id": "BR_P327_001",
+      "name": "Status allowed values",
+      "description": "status code must be in approved list",
+      "type": "field_validation",
+      "field": "ACCT-STAT-CODE-1",
+      "operator": "in",
+      "values": ["ACTIVE", "INACTIVE", "SUSPENDED"],
+      "severity": "error",
+      "enabled": true
+    },
+    {
+      "id": "BR_P327_002",
+      "name": "Currency allowed values",
+      "description": "base currency must be valid",
+      "type": "field_validation",
+      "field": "BASE-CURRENCY",
+      "operator": "in",
+      "values": ["USD", "CAD", "EUR"],
+      "severity": "error",
+      "enabled": true
+    },
+    {
+      "id": "BR_P327_003",
+      "name": "Total due not less than current due",
+      "description": "TOTAL-DUE-AMT must be >= CURRENT-DUE-AMT",
+      "type": "cross_field",
+      "left_field": "TOTAL-DUE-AMT",
+      "operator": ">=",
+      "right_field": "CURRENT-DUE-AMT",
+      "severity": "error",
+      "enabled": true
+    },
+    {
+      "id": "BR_P327_004",
+      "name": "Location required for active",
+      "description": "location required when status is ACTIVE",
+      "type": "field_validation",
+      "field": "LOCATION-CODE",
+      "operator": "not_null",
+      "when": "ACCT-STAT-CODE-1 = ACTIVE",
+      "severity": "warning",
+      "enabled": true
+    }
+  ]
+}

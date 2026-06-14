@@ -1,0 +1,97 @@
+# Example ETL Pipeline Validation Config
+# ----------------------------------------
+# Run with:
+#   valdo run-etl-pipeline --config config/pipelines/example_etl.yaml \
+#       --run-date 20260326 --output reports/pipeline_run.json
+#
+# Template variables:
+#   {source.name}         - short source identifier
+#   {source.mapping}      - path to source mapping JSON
+#   {source.input_path}   - path to source input file
+#   {source.output_pattern} - glob for output files
+#   {run_date}            - value of --run-date flag
+
+name: example-etl-pipeline
+description: |
+  Example ETL validation pipeline covering Gates 1-4 from the design doc.
+  Validates source files, output files, and reconciles against staging DB.
+
+# Source feeds.  Each source is referenced by gates with for_each: source.
+sources:
+  - name: customers
+    mapping: config/mappings/customer_batch_universal.json
+    rules: config/rules/customer_rules.json
+    input_path: data/samples/customers.txt
+    output_pattern: output/customers_*.txt
+
+  - name: accounts
+    mapping: config/mappings/account_batch_universal.json
+    rules: config/rules/account_rules.json
+    input_path: data/samples/accounts.txt
+    output_pattern: output/accounts_*.txt
+
+# Validation gates executed in order.
+# blocking: true  — a failure halts the pipeline immediately (default).
+# blocking: false — a failure is recorded but execution continues.
+gates:
+
+  # Gate 1: Input Validation (Source → Staging)
+  # Validates raw source files before they enter the staging tables.
+  - name: input_validation
+    stage: gate1
+    description: Validate raw source files against their mapping schemas
+    for_each: source
+    blocking: true
+    steps:
+      - type: validate
+        file: "{source.input_path}"
+        mapping: "{source.mapping}"
+        rules: "{source.rules}"
+        thresholds:
+          max_error_pct: 5.0
+          min_rows: 1
+
+  # Gate 3: Output File Validation (Transform → Output)
+  # Validates the generated output files against the target mapping.
+  - name: output_validation
+    stage: gate3
+    description: Validate transformed output files
+    for_each: source
+    blocking: true
+    steps:
+      - type: validate
+        file: "{source.output_pattern}"
+        mapping: "{source.mapping}"
+        thresholds:
+          max_error_pct: 0.0
+
+  # Gate 4: Pre-Load Reconciliation (Concatenated Files ↔ Source DB)
+  # Compares the final concatenated file against the staging DB extract.
+  - name: pre_load_reconciliation
+    stage: gate4
+    description: Reconcile concatenated output against staging DB
+    blocking: true
+    steps:
+      - type: db_compare
+        query: "SELECT * FROM SHAW_SRC_P327 WHERE BATCH_DATE = '{run_date}'"
+        file: output/concatenated_all_{run_date}.txt
+        mapping: config/mappings/customer_batch_universal.json
+        key_columns:
+          - ACCT-KEY
+        thresholds:
+          max_errors: 0
+
+  # Gate 5: Post-Load Verification (non-blocking — report only)
+  # Requires DB access to the target system.  Non-blocking so pipeline
+  # result reflects Gate 1-4 health independently.
+  - name: post_load_verification
+    stage: gate5
+    description: Verify records loaded into target system (non-blocking)
+    blocking: false
+    steps:
+      - type: db_compare
+        query: "SELECT account_id, balance, status FROM loaded_accounts WHERE load_date = '{run_date}'"
+        file: output/concatenated_all_{run_date}.txt
+        mapping: config/mappings/customer_batch_universal.json
+        key_columns:
+          - ACCT-KEY

@@ -1,0 +1,253 @@
+Field Name,Data Type,Position,Length,Target Name,Required,Format,Transformation,Valid Values,Description
+LOCATION-CODE,String,1,6,location_code,Yes,,Default to '100030' FDR – Credit Card = 100010 Compass – Business Banking = 100020 Encore & ALS – Loans & Lines = 100030,100010|100020|100030|100040|100050|200000,The APPS Location that the account ; combined with the ACCT-NUM - this is the Ke
+ACCT-NUM,String,7,18,acct_num,Yes,,ILMAST-KEY = BR + CUS + LN,,The identifier for the account (account number).
+CREDIT-LIMIT-AMT,Numeric,25,13,credit_limit_amt,No,+9(12),IF ORG not null then ORG; ELSE Default to +000000000000 Truncate decimal places. Pad with zeros (0's) Eg. A) 20.51 becom,,The Credit Limit on the account.
+EXPIRATION-DATE,Date,38,8,expiration_date,No,CCYYMMDD,IF PAST-DTE is not Null then PAST-DTE else Default to '00000000',,The date the account expires.
+BALANCE-AMT,Numeric,46,19,balance_amt,No,+9(12)V9(6),IF LN-BAL not null then LN-BAL; ELSE Default to +000000000000000000 If LN-BAL is -ve then move the Absolute value;,,Total Balance of the account. Used throughout the system in displays and reports
+OVERLIMIT-AMT,Numeric,65,19,overlimit_amt,No,+9(12)V9(6),Default to +000000000000000000,,Amount the account is over its limit. This amount is added to TOTAL-DELINQ-AMT f
+DISPUTED-AMT,Numeric,84,19,disputed_amt,No,+9(12)V9(6),IF M-DISPUTE-AMT not null then M-DISPUTE-AMT; ELSE Default to +000000000000000000,,Amount that is in dispute. Must be less than the
+TOTAL-DUE-AMT,Numeric,103,19,total_due_amt,No,+9(12)V9(6),IF DUE-PRIN not null then DUE-PRIN; ELSE Default to +000000000000000000,,The total amount that is due.
+CURRENT-DUE-AMT,Numeric,122,19,current_due_amt,No,+9(12)V9(6),IF PAYMENT not null then PAYMENT; ELSE Default to +000000000000000000,,The current due amount.
+COLL-ASGN-UD-1,String,141,12,coll_asgn_ud_1,No,,Leave Blank <spaces>,,First user-defined field used for Collector Assignment.
+COLL-ASGN-UD-TYPE1,String,153,2,coll_asgn_ud_type1,No,,If M-CTP-REASON-CODE =’FRUU’ then pass ‘1’ else pass ‘0’,0|1,Not used in baseline processing; available as an element.
+COLL-ASGN-UD-FMT-1,String,155,2,coll_asgn_ud_fmt_1,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+COLL-ASGN-UD-2,String,157,12,coll_asgn_ud_2,No,,Leave Blank <spaces>,,Second user-defined field used for Collector Assignment.
+COLL-ASGN-UD-TYPE2,String,169,2,coll_asgn_ud_type2,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+COLL-ASGN-UD-FMT-2,String,171,2,coll_asgn_ud_fmt_2,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+TOTAL-DELINQ-AMT,Numeric,173,19,total_delinq_amt,No,+9(12)V9(6),TOTAL-DELINQ-AMT = Add below fields (Values and pass) M-AMT-PAST-DUE UNPAID-LCHRGS + UNPAID-OTH-CHRG + M-MISC-FEES-UNPD,,The total amount that is delinquent.
+CYCLES-DELINQ-CNT,Numeric,192,2,cycles_delinq_cnt,No,9(2),IF NO-PMTS-PDUE not null then NO-PMTS-PDUE; ELSE Default to '00',,Number of cycles the account is delinquent.
+DAYS-DELINQ-CNT,Numeric,194,5,days_delinq_cnt,No,9(5),IF M-DAYS-PAST-DUE not null then M-DAYS-PAST-DUE; ELSE Default to '00000',,The number of days the account is delinquent.
+LAST-PAYMENT-AMT,Numeric,199,19,last_payment_amt,No,+9(12)V9(6),IF M-BBT-LST-PAYMNT-AMT not null then M-BBT-LST-PAYMNT-AMT; ELSE Default to +000000000000000000,,The amount of the last payment.
+CHARGE-OFF-DATE,Date,218,8,charge_off_date,No,CCYYMMDD,Zeroes if note not charged-off; IF CHG-OFF-CD = '1' THEN M-DATE-PAID-OFF; ELSE '00000000',,The date that the account was charged off.
+DLQ-DAYS-CHRG-OFF,Numeric,226,5,dlq_days_chrg_off,No,9(5),IF Charge-Off if CHG-OFF-CD = '1' THEN M-DAYS-PAST-DUE; ELSE Default to '00000',,Number of days the account was Delinquent when it was charged off.
+LST-PART-COF-AMT,Numeric,231,19,lst_part_cof_amt,No,+9(12)V9(6),Default to '+000000000000000000',,Last Partial Charge-Off amount.
+LST-PART-COF-DATE,Date,250,8,lst_part_cof_date,No,CCYYMMDD,Nullable --> '00000000',,Last Partial Charge-Off date.
+TOT-PART-COF-AMT,Numeric,258,19,tot_part_cof_amt,No,+9(12)V9(6),Default to '+000000000000000000',,Total Partial Charge-Off amount.
+BAL-PART-COF-AMT,Numeric,277,19,bal_part_cof_amt,No,+9(12)V9(6),Default to '+000000000000000000',,Balance Amount plus Total Partial Charge-Off Amount.
+PART-COF-ACCT-NUM,String,296,30,part_cof_acct_num,No,,Leave Blank <spaces>,,The account number that is used to track the partial charge-off amount.
+USER-DEFINED-7,String,326,12,user_defined_7,No,,IF M-DAYS-PAST-DUE not null then M-DAYS-PAST-DUE; ELSE Default to +000000000000000000,,User-defined value that will be recorded on the collection history entry saved o
+UD-7-TYPE,String,338,2,ud_7_type,No,,Default to 'C' Default to 'I',I,
+UD-7-FMT,String,340,2,ud_7_fmt,No,,Leave Blank <spaces>,,
+ACCT-OPEN-DATE,Date,342,8,acct_open_date,No,CCYYMMDD,IF NOTE-DTE not null then NOTE-DTE; ELSE Default to '00000000',,The date the account was opened.
+NEXT-DUE-DATE,Date,350,8,next_due_date,No,CCYYMMDD,IF DUE-DTE-I not null then DUE-DTE-I; ELSEIF DUE-DTE-P not null then DUE-DTE-P; ELSE Default to '00000000',,The date that the next payment is due on the account.
+INTEREST-RATE,Numeric,358,6,interest_rate,No,9(3)V9(3),S9(2)V9(5) Comp-3 to be transformed to 9(3)V9(3).,,The Annual Percentage Rate (APR) on the account.
+OTH-DELINQ-AMT,Numeric,364,19,oth_delinq_amt,No,+9(12)V9(6),UNPAID-LCHRGS + UNPAID-OTH-CHRG + M-MISC-FEES-UNPD,,Delinquent amount that is not principal or interest.
+REPO-CHARGES,Numeric,383,19,repo_charges,No,+9(12)V9(6),Default to '+000000000000000000',,The amount of the charges for the repossession activities.
+REPOSSESSION-DATE,Date,402,8,repossession_date,No,CCYYMMDD,IF M-REPO-DTE not null then M-REPO-DTE; ELSE Default to '00000000',,Date the collateral was repossessed.
+MATURITY-DATE,Date,410,8,maturity_date,No,CCYYMMDD,IF M-FINAL-DATE not null then M-FINAL-DATE; ELSEIF MAT-DTE not null then MAT-DTE; ELSE Default to '00000000',,Due date of the final payment on the account.
+PAYMENT-AMT,Numeric,418,19,payment_amt,No,+9(12)V9(6),IF PAYMENT not null then PAYMENT; ELSE Default to +000000000000000000,,The payment amount on the account.
+PRINCIPAL-DELQ-AMT,Numeric,437,19,principal_delq_amt,No,+9(12)V9(6),Pass as is,,The amount of Principal that is delinquent.
+INTEREST-DELQ-AMT,Numeric,456,19,interest_delq_amt,No,+9(12)V9(6),Pass as is,,The amount of Interest that is delinquent.
+USER-DEF-SEARCH-1,String,475,10,user_def_search_1,No,,Batch Date Format - mm/dd/yyyy,,The first User Defined Search field used for Name Search.
+UD-SEARCH-1-TYPE,String,485,2,ud_search_1_type,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+UD-SEARCH-1-FMT,String,487,2,ud_search_1_fmt,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+USER-DEF-SEARCH-2,String,489,10,user_def_search_2,No,,Pass Blank <spaces> IF ACCT-NUM not present in C360_Data_<yyyymmdd>.txt THEN Leave Blank ELSE N1099_C_TYPE_8085,,The second User Defined Search field used for Name Search.
+UD-SEARCH-2-TYPE,String,499,2,ud_search_2_type,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+UD-SEARCH-2-FMT,String,501,2,ud_search_2_fmt,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+ACCT-NUM-SORT,String,503,7,acct_num_sort,No,,Leave Blank <spaces>,,"This field is used to contain up to 7 digits from the account number, e.g., the "
+CYCLE-ID,Numeric,510,2,cycle_id,No,9(2),IF DUE-DTE-I not null then 'DD' from DUE-DTE-I; ELSEIF DUE-DTE-P not null then 'DD' from DUE-DTE-P; ELSE Default to '01',,The ID of the Cycle that the account is assigned to for billing purposes (usuall
+UD-DATE-FIELD-1,Date,512,8,ud_date_field_1,No,CCYYMMDD,"IF M-ORG-PRIN-DUE-DTE is not Null, then M-ORG-PRIN-DUE-DTE, else Default to '00000000'.",,User defined date field.
+LAST-BILLING-DATE,Date,520,8,last_billing_date,No,CCYYMMDD,IF M-CYCLE-BEG-DTE not null then (M-CYCLE-BEG-DTE - 1); ELSE Default to '00000000',,The date that the account was last billed.
+AGED-HISTORY,String,528,12,aged_history,No,,Take first 12 bytes,,This represents the history of delinquency status for the past 12 months. For Re
+CREDIT-LIMIT-DATE,Date,540,8,credit_limit_date,No,CCYYMMDD,IF M-BBT-MODIFY-DATE not null then M-BBT-MODIFY-DATE; ELSE Default to '00000000',,The date that the credit limit was established or updated.
+INT-LATE-CHG-AMT,Numeric,548,19,int_late_chg_amt,No,+9(12)V9(6),INT-PAY + UNPAID-LCHRGS,,The amount of interest and late charges on the account.
+DELINQ-AMT-AGE-1,Numeric,567,19,delinq_amt_age_1,No,+9(12)V9(6),Default to +000000000000000000,,Amount that is delinquent 30 days.
+DELINQ-AMT-AGE-2,Numeric,586,19,delinq_amt_age_2,No,+9(12)V9(6),Default to '+000000000000000000',,Amount that is delinquent 60 days.
+DELINQ-AMT-AGE-3,Numeric,605,19,delinq_amt_age_3,No,+9(12)V9(6),Default to '+000000000000000000',,Amount that is delinquent 90 days.
+DELINQ-AMT-AGE-4,Numeric,624,19,delinq_amt_age_4,No,+9(12)V9(6),Default to '+000000000000000000',,Amount that is delinquent 120 days.
+NUMBER-OF-CARDS,Numeric,643,2,number_of_cards,No,9(2),Default to '00',,Number of credit cards that are currently active on the account.
+WARN-BULLETIN-DATE,Date,645,8,warn_bulletin_date,No,CCYYMMDD,Default to '00000000',,Date of the Warning Bulletin that the account is included.
+WARN-BULLETIN-ZONE,String,653,4,warn_bulletin_zone,No,,Leave Blank <spaces>,,Zone of Warning Bulletin on which the account is included.
+OTHER-ACCT-NUM,String,657,18,other_acct_num,No,,Leave Blank <spaces>,,Other Account Number associated with the Primary accountholder.
+CREDIT-SCORE,String,675,5,credit_score,No,,"Format should be 00000 to 99999 So, if it's 0-4 digit no., pad 0's in front to make a 5 byte no.. Eg. 9 becomes 00009; 9",,The Credit Score derived during originations processing of the credit applicatio
+BEHAVIOR-INDEX,String,680,4,behavior_index,No,,IF M-USER-IDX4 is not Null THEN M-USER-IDX4 ELSE PASS 'NA',,Behavior Index (score) for the accountholder.
+LAST-PAYMENT-DATE,Date,684,8,last_payment_date,No,CCYYMMDD,IF M-BBT-LST-PAYMNT-DTE not null then M-BBT-LST-PAYMNT-DTE; ELSE Default to '00000000',,"Date of the last payment. For overdraft accounts, date of last deposit."
+LAST-MONETARY-AMT,Numeric,692,19,last_monetary_amt,No,+9(12)V9(6),IF M-LAST-TRAN-AMT not null then M-LAST-TRAN-AMT; ELSE Default to '+000000000000000000',,Amount of the last monetary transaction.
+LAST-MONETARY-DATE,Date,711,8,last_monetary_date,No,CCYYMMDD,IF DTE-LAST not null then DTE-LAST; ELSE Default to '00000000',,Date of the last monetary transaction.
+LAST-MONETARY-TYPE,String,719,2,last_monetary_type,No,,Take first 2 bytes; trim rest of the data,,Transaction Type for the last monetary transaction.
+CHARGE-OFF-AMT,Numeric,721,19,charge_off_amt,No,+9(12)V9(6),IF M-CHARGE-OFF-AMT not null then M-CHARGE-OFF-AMT; ELSE Default to '+000000000000000000',,Amount of principal charged-off.
+SORT-VALUE-1,Numeric,740,12,sort_value_1,No,9(12),IF M-REWRITE-NO not null then M-REWRITE-NO; ELSE Default to '000000000000',,First User-defined field used for Work List Sort criteria.
+SORT-VALUE-1-TYPE,String,752,2,sort_value_1_type,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+SORT-VALUE-1-FMT,String,754,2,sort_value_1_fmt,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+SORT-VALUE-2,String,756,12,sort_value_2,No,,IF M-OFFICER not null then M-OFFICER; ELSE Leave Blank <spaces> For MOE 5: Pass blank For MOE 7: The field is Chls offic,,Second User-defined field used for Work List Sort criteria.
+SORT-VALUE-2-TYPE,String,768,2,sort_value_2_type,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+SORT-VALUE-2-FMT,String,770,2,sort_value_2_fmt,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+USER-DEFINED-1,String,772,17,user_defined_1,No,,Leave Blank <spaces>,,Free format user-defined area used for installation specific data.
+UD-1-TYPE,String,789,2,ud_1_type,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+UD-1-FMT,String,791,2,ud_1_fmt,No,,"Format should be 00 to 99 So, if it's a single digit no., pad a 0 in front. Eg. 1 becomes 01; 9 becomes 09 If Null then ",,Not used in baseline processing; available as an element.
+USER-DEFINED-2,String,793,30,user_defined_2,No,,Pass as is,,Free format user-defined area used for installation specific data.
+UD-2-TYPE,String,823,2,ud_2_type,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+UD-2-FMT,String,825,2,ud_2_fmt,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+USER-DEFINED-3,String,827,14,user_defined_3,No,,Left Algined,,Free format user-defined area used for installation specific data.
+UD-3-TYPE,String,841,2,ud_3_type,No,,"IF (M-ACH-CODE = '1', '2' or '3') THEN '1'; ELSE '2'",1|2,Not used in baseline processing; available as an element.
+UD-3-FMT,String,843,2,ud_3_fmt,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+USER-DEFINED-4,String,845,79,user_defined_4,No,,IF CHRG not null then CHRG; ELSE Leave Blank <spaces>,,Free format user-defined area used for installation specific data.
+UD-4-TYPE,String,924,2,ud_4_type,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+UD-4-FMT,String,926,2,ud_4_fmt,No,,If source is <blank> pass <blank> else Pass the last 2 bytes of the source. Eg. If M-PAYOFF-TRANS = '36CCOOT' Pass last ,,Not used in baseline processing; available as an element.
+USER-DEFINED-5,String,928,79,user_defined_5,No,,Comupte If (Term - NO-PMTS-MD) > 0 pass (Term - NO-PMTS-MD) else pass blank,,Free format user-defined area used for installation specific data.
+UD-5-TYPE,String,1007,2,ud_5_type,No,,Pass Blank <spaces> IF ACCT-NUM not present in C360_Data_<yyyymmdd>.txt THEN Leave Blank ELSE COURT_STATE_8970,,Not used in baseline processing; available as an element.
+UD-5-FMT,String,1009,2,ud_5_fmt,No,,IF (LN-BAL > 0) THEN 1; ELSEIF (LN-BAL < 0) THEN 2; ELSE '0',0|1|2,Not used in baseline processing; available as an element.
+USER-DEFINED-6,String,1011,12,user_defined_6,No,,"Hard-Code to ""DPD""",DPD,The label field for the User-Defined-7 field included on each collections entry.
+UD-6-TYPE,String,1023,2,ud_6_type,No,,Left Aligned IF Acct-Num present in file 'SCAS_C360_accomodationsRiskScores_<yyyymmdd>.txt' THEN Risk-Score ELES Leave B,,Not used in baseline processing; available as an element.
+UD-6-FMT,String,1025,2,ud_6_fmt,No,,Get 'Day of the Week' for Batch Date; Batch Date = (ie. If C360 batch is running Today morning then Batch Date = Yesterd,01|02|03|04|05|06|07,Not used in baseline processing; available as an element.
+USER-DEFINED-8-1,String,1027,79,user_defined_8_1,No,,Leave Blank <spaces>,,Free format user-defined area used for installation specific data.
+USER-DEFINED-8-2,String,1106,79,user_defined_8_2,No,,Pass Value,,Free format user-defined area used for installation specific data.
+USER-DEFINED-8-3,String,1185,79,user_defined_8_3,No,,Leave Blank <spaces>,,Free format user-defined area used for installation specific data.
+USER-DEFINED-8-4,String,1264,79,user_defined_8_4,No,,Leave Blank <spaces>,,Free format user-defined area used for installation specific data.
+USER-DEFINED-8-5,String,1343,79,user_defined_8_5,No,,Pass Blank <spaces> IF ACCT-NUM not present in C360_Data_<yyyymmdd>.txt THEN Leave Blank ELSE INSTRUCTION-CODE-1-8086,,Free format user-defined area used for installation specific data.
+UD-8-1-TYPE,String,1422,2,ud_8_1_type,No,,"Format should be 00 to 99 So, if it's a single digit no., pad a 0 in front. Eg. 1 becomes 01; 9 becomes 09 If Null then ",,Not used in baseline processing; available as an element.
+UD-8-2-TYPE,String,1424,2,ud_8_2_type,No,,"Format should be 00 to 99 So, if it's a single digit no., pad a 0 in front. Eg. 1 becomes 01; 9 becomes 09 If Null then ",,Not used in baseline processing; available as an element.
+UD-8-3-TYPE,String,1426,2,ud_8_3_type,No,,"IF NTD-10-29 > 99 THEN 99 ELSE NTD-10-29 Format should be 00 to 99 So, if it's a single digit no., pad a 0 in front. Eg.",,Not used in baseline processing; available as an element.
+UD-8-4-TYPE,String,1428,2,ud_8_4_type,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+UD-8-5-TYPE,String,1430,2,ud_8_5_type,No,,Pass Blank <spaces>,,Not used in baseline processing; available as an element.
+UD-8-1-FMT,String,1432,2,ud_8_1_fmt,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+UD-8-2-FMT,String,1434,2,ud_8_2_fmt,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+UD-8-3-FMT,String,1436,2,ud_8_3_fmt,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+UD-8-4-FMT,String,1438,2,ud_8_4_fmt,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+UD-8-5-FMT,String,1440,2,ud_8_5_fmt,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+PRINCIPAL-AMT,Numeric,1442,19,principal_amt,No,+9(12)V9(6),IF LN-BAL not null then LN-BAL; ELSE Default to +000000000000000000,,Principal amount owed on the account.
+OTHER-AMT,Numeric,1461,19,other_amt,No,+9(12)V9(6),Default to '+000000000000000000',,Other amount owed on the account. Recovery Accounting populates with the sum of 
+ORIG-BALANCE-AMT,Numeric,1480,19,orig_balance_amt,No,+9(12)V9(6),IF ORG not null then ORG; ELSE Default to +000000000000000000,,Original amount of the loan.
+OFFICER-NUM,String,1499,9,officer_num,No,,IF M-BBT-SELL-OFFICER not null then M-BBT-SELL-OFFICER; ELSE Leave Blank <spaces>,,Financial institution officer ID or User ID that approved the loan/account. May 
+BRANCH-NUM,String,1508,6,branch_num,No,,RPT-BR-NO,,Financial institution 'branch number' where the loan was processed.
+ORIGINAL-TERM,String,1514,4,original_term,No,,Ensure that Length is not greater than 4 If greater than 4 then place '9999',,Original Term (months) for the loan.
+ORIG-INTEREST-RATE,Numeric,1518,6,orig_interest_rate,No,9(3)V9(3),Multiply by 100; To be transformed to 9(3)V9(3) Eg. .1179 --> 011790 1.25319 --> 125319,,Original interest rate on the account.
+DEALER-NUM,String,1524,7,dealer_num,No,,IF DLR-NUM not null then DLR-NUM; ELSE Leave Blank <spaces>,,"The identifier of the dealer that initiated origination of the loan, e.g., car d"
+PAYMENT-FREQUENCY,String,1531,2,payment_frequency,No,,IF INT-SCH not null then INT-SCH; ELSEIF PRIN-SCH not null then PRIN-SCH; ELSE Leave Blank <spaces> Transformation: 0 - ,MO|QT|SA|AN|SI|UE|WK|BW|IO|BL|NA,Frequency of payment on the loan.
+REFINANCE-DATE,Date,1533,8,refinance_date,No,CCYYMMDD,IF M-BBT-MODIFY-DATE not null then M-BBT-MODIFY-DATE; ELSE Default to '00000000',,Date the loan was refinanced.
+DEPOSIT-IND,String,1541,1,deposit_ind,No,,Leave Blank <spaces>,,Used to indicate if there is a deposit on the account. This is usually applicabl
+ON-BUDGET-IND,String,1542,1,on_budget_ind,No,,Leave Blank <spaces>,,Used to indicate if the customer is on a Budget Assistance Plan.
+DPA-IND,String,1543,1,dpa_ind,No,,Leave Blank <spaces>,,Used to indicate if there is a Deferred Payment Arrangement set up on the accoun
+CUT-OFF-DATE,Date,1544,8,cut_off_date,No,CCYYMMDD,Leave Blank <spaces>,,Date service was cut off.
+CUT-OFF-CODE,String,1552,3,cut_off_code,No,,If CLOS = '1' then pass 'CL' else pass 'AC',CL|AC,3 byte code indicating why the service was cut off.
+ACCOUNT-TYPE,String,1555,3,account_type,No,,,,Specifies type of account. Used to populate database key for Third Party Vintage
+SERVICE-TYPE,String,1558,3,service_type,No,,Pass Blank <spaces> IF ACCT-NUM not present in C360_Data_<yyyymmdd>.txt THEN Leave Blank ELSE COURT_TYPE_8165,,Specifies type of service.
+BUDGET-PAYMENT-AMT,Numeric,1561,19,budget_payment_amt,No,+9(12)V9(6),Default to '+000000000000000000',,The Budget Payment amount set up for the customer.
+TERMINATE-AMT,Numeric,1580,19,terminate_amt,No,+9(12)V9(6),Send M-PO-AMOUNT,,The amount the customer must pay to avoid termination of service.
+TERMINATE-EXP-DATE,Date,1599,8,terminate_exp_date,No,CCYYMMDD,Default to '00000000',,The date the service will be terminated if the TERMINATE-AMT is not paid.
+SAT-USER-DEFINED-1,String,1607,12,sat_user_defined_1,No,,Pass Blank <spaces> IF ACCT-NUM not present in C360_Data_<yyyymmdd>.txt THEN Leave Blank ELSE [ IF JUDGMENT_DATE__4_8968,,First user-defined value for Transaction/State assignment processing.
+SAT-UD-1-TYPE,String,1619,2,sat_ud_1_type,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+SAT-UD-1-FMT,String,1621,2,sat_ud_1_fmt,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+SAT-USER-DEFINED-2,String,1623,12,sat_user_defined_2,No,,Leave Blank <spaces>,,First user-defined value for Transaction/State assignment processing.
+SAT-UD-2-TYPE,String,1635,2,sat_ud_2_type,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+SAT-UD-2-FMT,String,1637,2,sat_ud_2_fmt,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+LETTER-USER-DEF-1,String,1639,30,letter_user_def_1,No,,Leave Blank <spaces>,,User-defined value that can be used in letters or other functions.
+LETTER-UD-1-TYPE,String,1669,2,letter_ud_1_type,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+LETTER-UD-1-FMT,String,1671,2,letter_ud_1_fmt,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+LETTER-USER-DEF-2,String,1673,30,letter_user_def_2,No,,Leave Blank <spaces>,,User-defined value that can be used in letters or other functions.
+LETTER-UD-2-TYPE,String,1703,2,letter_ud_2_type,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+LETTER-UD-2-FMT,String,1705,2,letter_ud_2_fmt,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+LETTER-USER-DEF-3,String,1707,30,letter_user_def_3,No,,Leave Blank <spaces>,,User-defined value that can be used in letters or other functions.
+LETTER-UD-3-TYPE,String,1737,2,letter_ud_3_type,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+LETTER-UD-3-FMT,String,1739,2,letter_ud_3_fmt,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+LETTER-USER-DEF-4,String,1741,30,letter_user_def_4,No,,Leave Blank <spaces>,,User-defined value that can be used in letters or other functions.
+LETTER-UD-4-TYPE,String,1771,2,letter_ud_4_type,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+LETTER-UD-4-FMT,String,1773,2,letter_ud_4_fmt,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+LETTER-USER-DEF-5,String,1775,30,letter_user_def_5,No,,Leave Blank <spaces>,,User-defined value that can be used in letters or other functions.
+LETTER-UD-5-TYPE,String,1805,2,letter_ud_5_type,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+LETTER-UD-5-FMT,String,1807,2,letter_ud_5_fmt,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+LETTER-USER-DEF-6,String,1809,30,letter_user_def_6,No,,Leave Blank <spaces>,,User-defined value that can be used in letters or other functions.
+LETTER-UD-6-TYPE,String,1839,2,letter_ud_6_type,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+LETTER-UD-6-FMT,String,1841,2,letter_ud_6_fmt,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+LETTER-USER-DEF-7,String,1843,30,letter_user_def_7,No,,Leave Blank <spaces>,,User-defined value that can be used in letters or other functions.
+LETTER-UD-7-TYPE,String,1873,2,letter_ud_7_type,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+LETTER-UD-7-FMT,String,1875,2,letter_ud_7_fmt,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+LETTER-USER-DEF-8,Numeric,1877,19,letter_user_def_8,No,+9(12)V9(6),IF M-BBT-LTV-RATE not null then M-BBT-LTV-RATE; ELSE Default to +000000000000000000,,User-defined value that can be used in letters or other functions.
+LETTER-UD-8-TYPE,String,1896,2,letter_ud_8_type,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+LETTER-UD-8-FMT,String,1898,2,letter_ud_8_fmt,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+LETTER-USER-DEF-9,Numeric,1900,19,letter_user_def_9,No,+9(12)V9(6),PS28-NO-PMT(1) + PS28-NO-PMT(2) + PS28-NO-PMT(3) + PS28-NO-PMT(4) + PS28-NO-PMT(5) + PS28-NO-PMT(6) + PS28-NO-PMT(7) + P,,User-defined value that can be used in letters or other functions.
+LETTER-UD-9-TYPE,String,1919,2,letter_ud_9_type,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+LETTER-UD-9-FMT,String,1921,2,letter_ud_9_fmt,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+LETTER-USER-DEF-10,Numeric,1923,19,letter_user_def_10,No,+9(12)V9(6),IF M-NO-NSF not null then M-NO-NSF; ELSE Default to +000000000000000000,,User-defined value that can be used in letters or other functions.
+LETTER-UD-10-TYPE,String,1942,2,letter_ud_10_type,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+LETTER-UD-10-FMT,String,1944,2,letter_ud_10_fmt,No,,Leave Blank <spaces>,,Not used in baseline processing; available as an element.
+BANK-NUM,Numeric,1946,5,bank_num,No,9(5),Prefix 0's to make a 5-digit number,,The Bank Number assigned to the account in the accounting system.
+APP-CODE,Numeric,1951,3,app_code,No,9(3),Default to '000',000,The Application Code assigned to the account in the accounting system.
+ESTIMATED-MNTH-PAY,Numeric,1954,19,estimated_mnth_pay,No,+9(12)V9(6),IF PAYMENT not null then PAYMENT; ELSE Default to +000000000000000000,,The expected amount the account/customer will have on the next bill.
+ACI-INDICATOR,String,1973,1,aci_indicator,No,,Daily File - To be fetched from full CCI file maintained in Mainframe/ Java,,"Used by Strata to determine the CCI value of the account, and to determine which"
+SERVICING-SYSTEM,String,1974,8,servicing_system,No,,Default to '100030',100030,Identifier of Servicing System used by Strata.
+NATL-CURRENCY,String,1982,3,natl_currency,No,,Default = USD,USD,The National Currency for the account.
+BASE-CURRENCY,String,1985,3,base_currency,Yes,,Default = USD,USD,Currency that all values on the Financial Extract are stored. All accounts in th
+VALUE-CODE,String,1988,2,value_code,No,,Leave Blank <spaces>,,User-defined value rating.
+RISK-CODE,String,1990,2,risk_code,No,,Leave Blank <spaces>,,User-defined risk level.
+RECOMMENDED-ACT-CD,String,1992,2,recommended_act_cd,No,,Default to 'LS',LS,User-defined recommended action.
+ACTG-SYS-ID,String,1994,4,actg_sys_id,No,,Default to 'LS',LS|CAS|CASW|SHCO,This field identifies the accounting system (system of record) that is the sourc
+EXTERNAL-ACCT-NUM,String,1998,30,external_acct_num,No,,For MOE 5: Pass blank For MOE 7: Pass data from M-Auxiliary-Search if data is Null then pass data from the field M-User-,,An alternate account number for this account. For Payment Card Industry (PCI) pr
+ACCT-STAT-CODE-1,String,2028,1,acct_stat_code_1,No,,Leave Blank <spaces>,,The first Status Code for the account provided by the accounting system. If Reco
+ACCT-STAT-CODE-2,String,2029,1,acct_stat_code_2,No,,Leave Blank <spaces>,,The second Status Code for the account provided by the accounting system. If Rec
+ACCT-STAT-CODE-3,String,2030,1,acct_stat_code_3,No,,Leave Blank <spaces>,,The third Status Code for the account provided by the accounting system. If Reco
+ACCT-STAT-CODE-4,String,2031,1,acct_stat_code_4,No,,Leave Blank <spaces>,,The fourth Status Code for the account provided by the accounting system. If Rec
+ACCT-STAT-CODE-5,String,2032,1,acct_stat_code_5,No,,Leave Blank <spaces>,,The fifth Status Code for the account provided by the accounting system.
+ACCT-STAT-CODE-6,String,2033,1,acct_stat_code_6,No,,Leave Blank <spaces>,,The sixth Status Code for the account provided by the accounting system.
+ACCT-STAT-CODE-7,String,2034,1,acct_stat_code_7,No,,Leave Blank <spaces>,,The seventh Status Code for the account provided by the accounting system.
+ACCT-STAT-CODE-8,String,2035,1,acct_stat_code_8,No,,Leave Blank <spaces>,,The eighth Status Code for the account provided by the accounting system.
+ACCT-STAT-CODE-9,String,2036,1,acct_stat_code_9,No,,Leave Blank <spaces>,,The ninth Status Code for the account provided by the accounting system.
+ACCT-STAT-CODE-10,String,2037,1,acct_stat_code_10,No,,Leave Blank <spaces>,,The tenth Status Code for the account provided by the accounting system.
+LGL-STATUS,String,2038,3,lgl_status,No,,,,Legal Status code assigned to the account - valid values are controlled via refe
+REC-INT-MTD-AMT,Numeric,2041,19,rec_int_mtd_amt,No,+9(12)V9(6),Default to '+000000000000000000',,Post charge-off accrued interest recovered month-to-date
+REC-PRIN-MTD-AMT,Numeric,2060,19,rec_prin_mtd_amt,No,+9(12)V9(6),Default to '+000000000000000000',,Principal recovered month-to-date
+REC-TOT-COST-MTD,Numeric,2079,19,rec_tot_cost_mtd,No,+9(12)V9(6),Default to '+000000000000000000',,Total recovery costs recovered month-to-date
+JGMT-EFFECT-DATE,Date,2098,8,jgmt_effect_date,No,CCYYMMDD,Default to '00000000',,The judgment effective date from the most recent judgment record
+JGMT-INT-AMT,Numeric,2106,19,jgmt_int_amt,No,+9(12)V9(6),Default to '+000000000000000000',,The interest amount awarded in the most recent judgment
+JGMT-PRIN-AMT,Numeric,2125,19,jgmt_prin_amt,No,+9(12)V9(6),Default to '+000000000000000000',,The principal amount awarded in the most recent judgment
+JGMT-TOT-COST-AMT,Numeric,2144,19,jgmt_tot_cost_amt,No,+9(12)V9(6),Default to '+000000000000000000',,Additional balances/recovery costs awarded in the most recent judgment
+ADDL-JGMTS-IND,String,2163,1,addl_jgmts_ind,No,,Leave Blank <spaces>,,Indicates if there is more than one judgment that has been posted to the account
+REC-CODST-IN-BAL,Numeric,2164,19,rec_codst_in_bal,No,+9(12)V9(6),Default to '+000000000000000000',,Sum of all recovery costs on the account where they are identified as 'included 
+REC-COST-NOT-BAL,Numeric,2183,19,rec_cost_not_bal,No,+9(12)V9(6),Default to '+000000000000000000',,Sum of all recovery costs on the account where they are identified as 'not inclu
+REC-COST-ASSES-MTD,Numeric,2202,19,rec_cost_asses_mtd,No,+9(12)V9(6),Default to '+000000000000000000',,The sum of all recovery costs assessed month-to-date.
+REC-COST-WAIVE-MTD,Numeric,2221,19,rec_cost_waive_mtd,No,+9(12)V9(6),Default to '+000000000000000000',,Not currently used by Recovery Accounting.
+REC-COST-CAPT-LTD,Numeric,2240,19,rec_cost_capt_ltd,No,+9(12)V9(6),Default to '+000000000000000000',,Sum of all recovery costs capitalized (added to principal) since charge off.
+REC-COST-CAT-1,String,2259,3,rec_cost_cat_1,No,,Leave Blank <spaces>,,The first Recovery Cost type defined in the Recovery Accounting Bank Control Fil
+REC-COST-AMT-1,Numeric,2262,19,rec_cost_amt_1,No,+9(12)V9(6),Default to '+000000000000000000',,The post charge-off recovery cost due balance amount associated with the first r
+REC-COST-CAT-2,String,2281,3,rec_cost_cat_2,No,,Leave Blank <spaces>,,The second Recovery Cost type defined in the Recovery Accounting Bank Control Fi
+REC-COST-AMT-2,Numeric,2284,19,rec_cost_amt_2,No,+9(12)V9(6),Default to '+000000000000000000',,The post charge-off recovery cost due balance amount associated with the second 
+REC-COST-CAT-3,String,2303,3,rec_cost_cat_3,No,,Leave Blank <spaces>,,The third Recovery Cost type defined in the Recovery Accounting Bank Control Fil
+REC-COST-AMT-3,Numeric,2306,19,rec_cost_amt_3,No,+9(12)V9(6),Default to '+000000000000000000',,The post charge-off recovery cost due balance amount associated with the third r
+REC-COST-CAT-4,String,2325,3,rec_cost_cat_4,No,,Leave Blank <spaces>,,The fourth Recovery Cost type defined in the Recovery Accounting Bank Control Fi
+REC-COST-AMT-4,Numeric,2328,19,rec_cost_amt_4,No,+9(12)V9(6),Default to '+000000000000000000',,The post charge-off recovery cost due balance amount associated with the fourth 
+REC-COST-CAT-5,String,2347,3,rec_cost_cat_5,No,,Leave Blank <spaces>,,The fifth Recovery Cost type defined in the Recovery Accounting Bank Control Fil
+REC-COST-AMT-5,Numeric,2350,19,rec_cost_amt_5,No,+9(12)V9(6),Default to '+000000000000000000',,The post charge-off recovery cost due balance amount associated with the fifth r
+REC-COST-CAT-6,String,2369,3,rec_cost_cat_6,No,,Leave Blank <spaces>,,The sixth Recovery Cost type defined in the Recovery Accounting Bank Control Fil
+REC-COST-AMT-6,Numeric,2372,19,rec_cost_amt_6,No,+9(12)V9(6),Default to '+000000000000000000',,The post charge-off recovery cost due balance amount associated with the sixth r
+REC-COST-CAT-7,String,2391,3,rec_cost_cat_7,No,,Leave Blank <spaces>,,The seventh Recovery Cost type defined in the Recovery Accounting Bank Control F
+REC-COST-AMT-7,Numeric,2394,19,rec_cost_amt_7,No,+9(12)V9(6),Default to '+000000000000000000',,The post charge-off recovery cost due balance amount associated with the seventh
+REC-COST-CAT-8,String,2413,3,rec_cost_cat_8,No,,Leave Blank <spaces>,,The eighth Recovery Cost type defined in the Recovery Accounting Bank Control Fi
+REC-COST-AMT-8,Numeric,2416,19,rec_cost_amt_8,No,+9(12)V9(6),Default to '+000000000000000000',,The post charge-off recovery cost due balance amount associated with the eighth 
+REC-COST-CAT-9,String,2435,3,rec_cost_cat_9,No,,Leave Blank <spaces>,,The ninth Recovery Cost type defined in the Recovery Accounting Bank Control Fil
+REC-COST-AMT-9,Numeric,2438,19,rec_cost_amt_9,No,+9(12)V9(6),Default to '+000000000000000000',,The post charge-off recovery cost due balance amount associated with the ninth r
+REC-COST-CAT-10,String,2457,3,rec_cost_cat_10,No,,Leave Blank <spaces>,,The tenth Recovery Cost type defined in the Recovery Accounting Bank Control Fil
+REC-COST-AMT-10,Numeric,2460,19,rec_cost_amt_10,No,+9(12)V9(6),Default to '+000000000000000000',,The post charge-off recovery cost due balance amount associated with the tenth r
+REC-COST-CAT-11,String,2479,3,rec_cost_cat_11,No,,Leave Blank <spaces>,,The eleventh Recovery Cost type defined in the Recovery Accounting Bank Control 
+REC-COST-AMT-11,Numeric,2482,19,rec_cost_amt_11,No,+9(12)V9(6),Default to '+000000000000000000',,The post charge-off recovery cost due balance amount associated with the elevent
+REC-COST-CAT-12,String,2501,3,rec_cost_cat_12,No,,Leave Blank <spaces>,,The twelfth Recovery Cost type defined in the Recovery Accounting Bank Control F
+REC-COST-AMT-12,Numeric,2504,19,rec_cost_amt_12,No,+9(12)V9(6),Default to '+000000000000000000',,The post charge-off recovery cost due balance amount associated with the twelfth
+REC-COST-CAT-13,String,2523,3,rec_cost_cat_13,No,,Leave Blank <spaces>,,The first Recovery Cost type thirteenth in the Recovery Accounting Bank Control 
+REC-COST-AMT-13,Numeric,2526,19,rec_cost_amt_13,No,+9(12)V9(6),Default to '+000000000000000000',,The post charge-off recovery cost due balance amount associated with the thirtee
+REC-COST-CAT-14,String,2545,3,rec_cost_cat_14,No,,Leave Blank <spaces>,,The fourteenth Recovery Cost type defined in the Recovery Accounting Bank Contro
+REC-COST-AMT-14,Numeric,2548,19,rec_cost_amt_14,No,+9(12)V9(6),Default to '+000000000000000000',,The post charge-off recovery cost due balance amount associated with the fourtee
+REC-COST-CAT-15,String,2567,3,rec_cost_cat_15,No,,Leave Blank <spaces>,,The fifteenth Recovery Cost type defined in the Recovery Accounting Bank Control
+REC-COST-AMT-15,Numeric,2570,19,rec_cost_amt_15,No,+9(12)V9(6),Default to '+000000000000000000',,The post charge-off recovery cost due balance amount associated with the fifteen
+REC-COST-CAT-16,String,2589,3,rec_cost_cat_16,No,,Leave Blank <spaces>,,The sixteenth Recovery Cost type defined in the Recovery Accounting Bank Control
+REC-COST-AMT-16,Numeric,2592,19,rec_cost_amt_16,No,+9(12)V9(6),Default to '+000000000000000000',,The post charge-off recovery cost due balance amount associated with the sixteen
+REC-COST-CAT-17,String,2611,3,rec_cost_cat_17,No,,Leave Blank <spaces>,,The seventeenth Recovery Cost type defined in the Recovery Accounting Bank Contr
+REC-COST-AMT-17,Numeric,2614,19,rec_cost_amt_17,No,+9(12)V9(6),Default to '+000000000000000000',,The post charge-off recovery cost due balance amount associated with the sevente
+REC-COST-CAT-18,String,2633,3,rec_cost_cat_18,No,,Leave Blank <spaces>,,The eighteenth Recovery Cost type defined in the Recovery Accounting Bank Contro
+REC-COST-AMT-18,Numeric,2636,19,rec_cost_amt_18,No,+9(12)V9(6),Default to '+000000000000000000',,The post charge-off recovery cost due balance amount associated with the eightee
+REC-COST-CAT-19,String,2655,3,rec_cost_cat_19,No,,Leave Blank <spaces>,,The nineteenth Recovery Cost type defined in the Recovery Accounting Bank Contro
+REC-COST-AMT-19,Numeric,2658,19,rec_cost_amt_19,No,+9(12)V9(6),Default to '+000000000000000000',,The post charge-off recovery cost due balance amount associated with the ninetee
+REC-COST-CAT-20,String,2677,3,rec_cost_cat_20,No,,Leave Blank <spaces>,,The twentieth Recovery Cost type defined in the Recovery Accounting Bank Control
+REC-COST-AMT-20,Numeric,2680,19,rec_cost_amt_20,No,+9(12)V9(6),Default to '+000000000000000000',,The post charge-off recovery cost due balance amount associated with the twentie
+LOAN-POOL-NUM,Numeric,2699,7,loan_pool_num,No,9(7),Default to '0000000',,The whole asset sales Pool Number that the account is assigned to for sales acti
+LOAN-POOL-SLD-DATE,Date,2706,8,loan_pool_sld_date,No,CCYYMMDD,Default to '00000000',,The date that the account was sold to an investor as a part of a post charge-off
+ORIG-PORTF-TYPE,String,2714,1,orig_portf_type,No,,"IF M-BBT-MARKETING-CODE = 'P1', 'P2', 'P3', 'P4' THEN 'Y'; ELSE 'N'",Y|N,The original type of account when it was charged off.
+DAYS-SNC-CHRGOFF,Numeric,2715,7,days_snc_chrgoff,No,9(7),Default to '0000000',,Number of days since charge-off.
+LAST-EXT-UPD-DATE,Date,2722,8,last_ext_upd_date,No,CCYYMMDD,IF DTE-LAST-RUN not null then DTE-LAST-RUN; ELSE Default to Batch-Date,,The date that the Financial Extract was last updated.
+LEGAL-STATE,String,2730,3,legal_state,No,,IF 001 THEN 'NC'; ELSEIF 002 THEN 'SC'; ELSEIF 003 THEN 'VA'; ELSEIF 004 THEN 'GA'; ELSEIF 005 THEN 'MD'; ELSEIF 006 THE,,The Legal State when state laws apply (used in Recovery Accounting).
+CHRG-OFF-DOWN-IND,String,2733,1,chrg_off_down_ind,No,,IF (CHG-OFF-CD = '1' or 'C') THEN '1'; ELSE '0',0|1,Charge-off / Charge Down Indicator - indicates if this is a full charge-off or p
+INVESTOR-NUM,Numeric,2734,7,investor_num,No,9(7),Default to '0000000',0000000,The investor number associated with the whole asset sales Pool Number that the a
+EXT-RAND-NUM,Numeric,2741,3,ext_rand_num,No,9(3),Default to '000',,Random number calculated as part of the interface that can be used as a criteria
+CMPL-CODE,String,2744,4,cmpl_code,No,,Leave Blank <spaces>,,The Compliance Code assigned to this account to associate to a set of compliance
+TCPA-EXEMPT,String,2748,1,tcpa_exempt,No,,Leave Blank <spaces>,,Indicates if the account has been identified as TCPA exempt for compliance proce
+PRODUCT-TYPE,String,2749,8,product_type,No,,IF M-USER-IDX4 is not Null THEN M-USER-IDX4 ELSE PASS 'NA',R28|R31|R32|R33|R34|R36|C30|C31|R07|R10|R20|R25|R26|R27|R03|R02|R04|R16|R35|R17|R08|R13|R15|R19|R98|R99|NA,The product type code used to display the Product type information in the Collec
+NEXT-BILL-DATE,Date,2757,8,next_bill_date,No,CCYYMMDD,IF M-CYCLE-END-DTE not null then M-CYCLE-END-DTE; ELSE Default to '00000000',,The next billing date.
+HMDA-ULI-CODE,String,2765,45,hmda_uli_code,No,,Leave Blank <spaces>,,"Sourced from the accounting system, this is a unique identifier for each individ"

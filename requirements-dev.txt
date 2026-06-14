@@ -1,0 +1,11 @@
+# Development-only dependencies
+# Install with: pip install -r requirements-dev.txt
+
+# Include all main requirements
+-r requirements.txt
+
+# Additional development tools
+ipython>=8.0.0
+jupyter>=1.0.0
+sphinx>=7.3.0
+playwright~=1.40  # Playwright sync API for E2E UI tests

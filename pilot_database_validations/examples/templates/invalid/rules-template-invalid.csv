@@ -1,0 +1,5 @@
+rule_id,rule_name,scope,severity,priority,group_by,expression,message_template,enabled
+GRP_PRIMARY_UNIQUENESS,One primary per account,group,ERROR,10,,count(where(relationship='PRIMARY')) == 1,Exactly one primary contact required per account,Y
+GRP_PRIMARY_UNIQUENESS,Duplicate ID test,record,ERROR,20,,START_DATE <= END_DATE,START_DATE must be <= END_DATE,Y
+REC_BAD_SEVERITY,Bad severity enum,record,FATAL,30,,A > B,Severity test,N
+FIL_BAD_PRIORITY,Priority not integer,file,ERROR,high,,header.total_count == detail.count,Header detail count mismatch,Y

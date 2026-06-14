@@ -1,0 +1,156 @@
+{
+  "mapping_name": "order_batch_universal",
+  "version": "1.0.0",
+  "description": "Generated from template: order_batch_template.csv",
+  "source": {
+    "type": "file",
+    "format": "csv",
+    "encoding": "UTF-8",
+    "delimiter": ","
+  },
+  "target": {
+    "type": "database"
+  },
+  "fields": [
+    {
+      "name": "order_id",
+      "data_type": "string",
+      "target_name": "ORDER_ID",
+      "required": true,
+      "description": "Order identifier",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "order_date",
+      "data_type": "date",
+      "target_name": "ORDER_DATE",
+      "required": true,
+      "description": "Order date in YYYY-MM-DD",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "customer_id",
+      "data_type": "string",
+      "target_name": "CUSTOMER_ID",
+      "required": true,
+      "description": "Customer identifier",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "item_sku",
+      "data_type": "string",
+      "target_name": "ITEM_SKU",
+      "required": true,
+      "description": "Product SKU",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "quantity",
+      "data_type": "integer",
+      "target_name": "QUANTITY",
+      "required": true,
+      "description": "Ordered quantity",
+      "default_value": "1",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "unit_price",
+      "data_type": "decimal",
+      "target_name": "UNIT_PRICE",
+      "required": true,
+      "description": "Unit price",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "currency",
+      "data_type": "string",
+      "target_name": "CURRENCY",
+      "required": false,
+      "description": "Currency code",
+      "default_value": "USD",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "order_status",
+      "data_type": "string",
+      "target_name": "ORDER_STATUS",
+      "required": false,
+      "description": "Order status",
+      "default_value": "PENDING",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    }
+  ],
+  "key_columns": [
+    "order_id"
+  ],
+  "metadata": {
+    "created_by": "template_converter",
+    "created_date": "2026-02-15T19:19:27.101306Z",
+    "last_modified": "2026-02-15T19:19:27.101499Z",
+    "source_template": "data/mappings/order_batch_template.csv"
+  }
+}

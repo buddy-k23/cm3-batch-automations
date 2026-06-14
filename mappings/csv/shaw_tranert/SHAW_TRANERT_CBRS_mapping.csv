@@ -1,0 +1,70 @@
+Field Name,Data Type,Position,Length,Target Name,Required,Format,Transformation,Valid Values,Description
+BK-NUM-ERT,Numeric,1,5,bk_num_ert,Yes,9(5),Default to '00040' for Consumer Create Tranert records only for Accounts which were charged-off yesterday (chrgoff_dt = batch date). i.e. IF Charge-Off if CHG-OFF-CD = '1' and M-DATE-PAID-OFF = Batch Date,00040,"A number, defined on the Bank Control Operation tables, which identifies the ..."
+APP-ERT,Numeric,6,3,app_ert,Yes,9(3),Default to '001',001,The application to which the account is to be associated.
+LN-NUM-ERT,String,9,18,ln_num_ert,Yes,,LN-NUM-ERT = BK + BR + CUS + LN,,The account number that is associated with the account.
+REF-NUM-ERT,String,27,3,ref_num_ert,No,,Leave Blank <spaces>,,The applicable reference number for the transaction.
+FILLER,String,30,130,filler,No,,Leave Blank <spaces>,,Filler for account key
+EFF-DAT-ERT,Date,160,10,eff_dat_ert,Yes,MM/DD/CCYY,,,The date the transaction was effective.
+TRN-COD-ERT,Numeric,170,5,trn_cod_ert,Yes,9(5),Default to '32040',32040,The transaction code for the transaction.
+BAT-ITM-NUM-ERT,Numeric,175,9,bat_itm_num_ert,Yes,9(9),if 1st account in batch then '1'; if 2nd account in batch then '2'; . . . if nth account in batch then 'n';,,The sequential number for this item within the batch.
+INP-SRC-COD-ERT,Numeric,184,3,inp_src_cod_ert,No,9(3),Leave Blank <spaces>,,The source of the transaction.
+TRN-CNT-ERT,Numeric,187,3,trn_cnt_ert,No,9(3),Leave Blank <spaces>,,The total number of transactions in the batch.
+TRN-MOR-DTA-FLG-ERT,String,190,1,trn_mor_dta_flg_ert,No,,Leave Blank <spaces>,,Indicates if more data is available.
+DAT-DLQ-STR-CBRS,Date,191,10,dat_dlq_str_cbrs,No,MM/DD/CCYY,If M-FIRST-DELQ-DT > current date then pass blank else pass as is.,,The date the account went delinquent leading to the charge-off.
+M2F-CMT-COD-CBRS,String,201,2,m2f_cmt_cod_cbrs,No,,If M-TRW-COMMENTS = 'AW' or 'AU' then Pass M-TRW-COMMENTS else If last 2 bytes M-PAYOFF-TRANS = 'ST' pass 'AU' Else pass <blank>,AW|AU,Special comment codes for reporting the current account to the credit bureaus.
+HGH-DAY-DLQ-CBRS,Numeric,203,5,hgh_day_dlq_cbrs,No,9(5),Leave Blank <spaces>,,The highest number of days delinquent.
+M2F-CMP-CON-COD-CBRS,String,208,2,m2f_cmp_con_cod_cbrs,No,,Pass as is,,Indicates if currently the account is in compliance for specified reasons.
+HGH-AMT-DLQ-CBRS,Numeric,210,22,hgh_amt_dlq_cbrs,No,-Z(12).9(2),,,The highest total dollar amount delinquent.
+PRE-COF-L1-NUM-CBRS,String,232,30,pre_cof_l1_num_cbrs,No,,ILMAST-KEY = BK + BR + CUS + LN Note : If BK is not 3 digit make it 3 digit by padding zeros on the left. Eg. If BK is 1 then make it 001 and then concatenate with rest of the fields.,,The account number used to identify the account to the credit bureau when it ...
+24-CYC-DLQ-01-CBRS,String,262,1,24_cyc_dlq_01_cbrs,No,,Default to 'D' <space>,D,The delinquency history profile for the current month.
+24-CYC-DLQ-12-CBRS,String,263,1,24_cyc_dlq_12_cbrs,No,,Default to 'D' <space>,D,The delinquency history profile for 12 months ago.
+24-CYC-DLQ-23-CBRS,String,264,1,24_cyc_dlq_23_cbrs,No,,Default to 'D' <space>,D,The delinquency history profile for 23 months ago.
+24-CYC-DLQ-02-CBRS,String,265,1,24_cyc_dlq_02_cbrs,No,,Default to 'D' <space>,D,The delinquency history profile for 2 months ago.
+24-CYC-DLQ-13-CBRS,String,266,1,24_cyc_dlq_13_cbrs,No,,Default to 'D' <space>,D,The delinquency history profile for 13 months ago.
+24-CYC-DLQ-24-CBRS,String,267,1,24_cyc_dlq_24_cbrs,No,,Default to 'D' <space>,D,The delinquency history profile for 24 months ago.
+24-CYC-DLQ-03-CBRS,String,268,1,24_cyc_dlq_03_cbrs,No,,Default to 'D' <space>,D,The delinquency history profile for 3 months ago.
+24-CYC-DLQ-14-CBRS,String,269,1,24_cyc_dlq_14_cbrs,No,,Default to 'D' <space>,D,The delinquency history profile for 14 months ago.
+24-CYC-DLQ-25-CBRS,String,270,1,24_cyc_dlq_25_cbrs,No,,Default to 'D' <space>,D,The delinquency history profile for 25 months ago.
+24-CYC-DLQ-04-CBRS,String,271,1,24_cyc_dlq_04_cbrs,No,,Default to 'D' <space>,D,The delinquency history profile for 4 months ago.
+24-CYC-DLQ-15-CBRS,String,272,1,24_cyc_dlq_15_cbrs,No,,Default to 'D' <space>,D,The delinquency history profile for 15 months ago.
+24-CYC-DLQ-05-CBRS,String,273,1,24_cyc_dlq_05_cbrs,No,,Default to 'D' <space>,D,The delinquency history profile for 5 months ago.
+24-CYC-DLQ-16-CBRS,String,274,1,24_cyc_dlq_16_cbrs,No,,Default to 'D' <space>,D,The delinquency history profile for 16 months ago.
+24-CYC-DLQ-06-CBRS,String,275,1,24_cyc_dlq_06_cbrs,No,,Default to 'D' <space>,D,The delinquency history profile for 6 months ago.
+24-CYC-DLQ-17-CBRS,String,276,1,24_cyc_dlq_17_cbrs,No,,Default to 'D' <space>,D,The delinquency history profile for 17 months ago.
+24-CYC-DLQ-07-CBRS,String,277,1,24_cyc_dlq_07_cbrs,No,,Default to 'D' <space>,D,The delinquency history profile for 7 months ago.
+24-CYC-DLQ-18-CBRS,String,278,1,24_cyc_dlq_18_cbrs,No,,Default to 'D' <space>,D,The delinquency history profile for 18 months ago.
+24-CYC-DLQ-08-CBRS,String,279,1,24_cyc_dlq_08_cbrs,No,,Default to 'D' <space>,D,The delinquency history profile for 8 months ago.
+24-CYC-DLQ-19-CBRS,String,280,1,24_cyc_dlq_19_cbrs,No,,Default to 'D' <space>,D,The delinquency history profile for 19 months ago.
+24-CYC-DLQ-09-CBRS,String,281,1,24_cyc_dlq_09_cbrs,No,,Default to 'D' <space>,D,The delinquency history profile for 9 months ago.
+24-CYC-DLQ-20-CBRS,String,282,1,24_cyc_dlq_20_cbrs,No,,Default to 'D' <space>,D,The delinquency history profile for 20 months ago.
+24-CYC-DLQ-10-CBRS,String,283,1,24_cyc_dlq_10_cbrs,No,,Default to 'D' <space>,D,The delinquency history profile for 10 months ago.
+24-CYC-DLQ-21-CBRS,String,284,1,24_cyc_dlq_21_cbrs,No,,Default to 'D' <space>,D,The delinquency history profile for 21 months ago.
+24-CYC-DLQ-11-CBRS,String,285,1,24_cyc_dlq_11_cbrs,No,,Default to 'D' <space>,D,The delinquency history profile for 11 months ago.
+24-CYC-DLQ-22-CBRS,String,286,1,24_cyc_dlq_22_cbrs,No,,Default to 'D' <space>,D,The delinquency history profile for 22 months ago.
+ACT-TYP-CBRS,String,287,3,act_typ_cbrs,No,,,,"The original type of account, such as installment loan, charge cards, commerc..."
+LAS-LN-BAL-CBRS,Numeric,290,22,las_ln_bal_cbrs,No,-Z(12).9(2),Leave Blank <spaces>,,The loan balance at the time of the last report to the credit bureau.
+LAS-DAT-RPT-CBRS,Date,312,10,las_dat_rpt_cbrs,No,MM/DD/CCYY,If (M-TRW-COMMENTS = 'AU' Pass M-DATE-PAID-OFF) else if M-TRW-COMMENTS = 'AW' the pass <blank> Else if (last 2 bytes M-PAYOFF-TRANS = 'ST'pass M-DATE-PAID-OFF) Else pass <Blank>,AW|ST,The date the account was last reported to the credit bureau.
+LAS-ACT-STA-CBRS,String,322,2,las_act_sta_cbrs,No,,If M-TRW-COMMENTS = 'AU' or last 2 bytes M-PAYOFF-TRANS = 'ST' pass '13' ELSE PASS <BLANK>,05|63|64|96|97|DA|DF,The account status at the time of the last report to the credit bureau.
+LAS-CMT-COD-CBRS,String,324,2,las_cmt_cod_cbrs,No,,If M-TRW-COMMENTS = 'AU' then pass M-TRW-COMMENTS else if M-TRW-COMMENTS = 'AW' the pass <blank> else If last 2 bytes M-PAYOFF-TRANS = 'ST' pass 'AU' Else pass <blank>,AU|AW|ST,The special comment codes reported to the credit bureau the last time the acc...
+LAS-CMP-COD-CBRS,String,326,2,las_cmp_cod_cbrs,No,,Leave Blank <spaces>,,The compliance code reported to the credit bureau the last time the account w...
+CUR-PMT-RTG-CBRS,String,328,1,cur_pmt_rtg_cbrs,No,,Default to 'L',L,The current metro 2 payment rating being reported to the credit bureau.
+PET-DAT-CBRS,Date,329,10,pet_dat_cbrs,No,MM/DD/CCYY,,,The petition date when bankruptcy is filed.
+PET-ACT-STA-CBRS,String,339,2,pet_act_sta_cbrs,No,,If M-MISC-CODE2 = 'W' Pass <Blank> else ( Join the Credit Bureau table(Base record) 14 digit account number with account number for which CBRS transaction is created. The 14 digit account number in Credit Bureau File(Base) can be identified as BR + CUS + LN IF (M-BANKRUPTCY-DT is NOT NULL ) Then [ if account is present in CB file THEN pass first 2 bytes of ACCOUNT_STATUS else pass blank] else leave <blank> ),,The metro 2 account status code at bankruptcy filing.
+PET-SCH-PMT-AMT-CBRS,Numeric,341,22,pet_sch_pmt_amt_cbrs,No,-Z(12).9(2),If M-MISC-CODE2 = 'W' Pass <Blank> Else IF M-BANKRUPTCY-DT is NOT NULL THEN PAYMENT ELSE Leave Blank,,The scheduled monthly payment amount at bankruptcy filing.
+PET-CUR-BAL-CBRS,Numeric,363,22,pet_cur_bal_cbrs,No,-Z(12).9(2),If M-MISC-CODE2 = 'W' Pass <Blank> Else IF M-BANKRUPTCY-DT is NOT NULL THEN M-CHARGE-OFF-AMT ELSE Leave Blank,,The current account balance at bankruptcy filing.
+PET-AMT-PAS-DUE-CBRS,Numeric,385,22,pet_amt_pas_due_cbrs,No,-Z(12).9(2),If M-MISC-CODE2 = 'W' [ Pass <blank>] else [ Join the Credit Bureau table(Base record) 14 digit account number with account number for which CBRS transaction is created. The 14 digit account number in Credit Bureau File(Base) can be identified as BR + CUS + LN IF (M-BANKRUPTCY-DT is NOT NULL ) Then [ if account is present in CB file THEN pass PAST-DUE ELSE Leave Blank ] Else Leave blank ],,The amount past due on account at bankruptcy filing.
+PET-PMT-RTG-CBRS,String,407,1,pet_pmt_rtg_cbrs,No,,Leave Blank <spaces>,,The metro 2 payment rating at bankruptcy filing.
+CHX-RTG-TRN-NUM-CBRS,String,408,9,chx_rtg_trn_num_cbrs,No,,Leave Blank <spaces>,,The numeric bank code and check digit code assigned by the American Bankers A...
+CHX-ACT-NUM-CBRS,String,417,20,chx_act_num_cbrs,No,,Leave Blank <spaces>,,The account number reported in this field should match the account number in ...
+CHX-ACT-TYP-CBRS,String,437,3,chx_act_typ_cbrs,No,,Leave Blank <spaces>,,This code defines the account type to be reported to ChexSystems.
+CHX-REA-COD-1-CBRS,String,440,2,chx_rea_cod_1_cbrs,No,,Leave Blank <spaces>,,Closure Reason Code 1 describes the primary reason for the account closure.
+CHX-REA-COD-2-CBRS,String,442,2,chx_rea_cod_2_cbrs,No,,Leave Blank <spaces>,,Closure Reason Code 2 describes the secondary reason for the account closure.
+CHX-REA-COD-3-CBRS,String,444,2,chx_rea_cod_3_cbrs,No,,Leave Blank <spaces>,,Describes the third reason for the account closure.
+CHX-DIS-IND-CBRS,String,446,1,chx_dis_ind_cbrs,No,,Leave Blank <spaces>,,This is a notification that the consumer is disputing information reported to...
+CHX-LAS-DAT-RPT-CBRS,Date,447,10,chx_las_dat_rpt_cbrs,No,MM/DD/CCYY,Leave Blank <spaces>,,Date account was last reported to bureau via Chex Systems format.
+CHX-LAS-REA-RPT-CBRS,String,457,2,chx_las_rea_rpt_cbrs,No,,Leave Blank <spaces>,,The last reason the account was reported to ChexSystems.
+CHX-LAS-CLO-STA-CBRS,String,459,2,chx_las_clo_sta_cbrs,No,,Leave Blank <spaces>,,The last closure status reported to ChexSystems.
+SEC-LAS-DAT-RPT-CBRS,Date,461,10,sec_las_dat_rpt_cbrs,No,MM/DD/CCYY,Leave Blank <spaces>,,The date the second plan account was last reported to the credit bureau.
+SEC-LN-NUM-CBRS,String,471,30,sec_ln_num_cbrs,No,,Leave Blank <spaces>,,The account number used to identify the second plan account to the credit bur...
+SEC-LAS-ACT-STA-CBRS,String,501,2,sec_las_act_sta_cbrs,No,,Leave Blank <spaces>,,The account status at the time of the last report to the credit bureau for th...
+SEC-LAS-LN-BAL-CBRS,Numeric,503,22,sec_las_ln_bal_cbrs,No,-Z(12).9(2),Leave Blank <spaces>,,The loan balance at the time of the last report to the credit bureau for the ...

@@ -1,0 +1,1517 @@
+{
+  "mapping_name": "SHAW_TRANERT_CBRS_mapping",
+  "version": "1.0.0",
+  "description": "Generated from template: SHAW_TRANERT_CBRS_mapping.csv",
+  "source": {
+    "type": "file",
+    "format": "fixed_width",
+    "encoding": "UTF-8"
+  },
+  "target": {
+    "type": "database"
+  },
+  "fields": [
+    {
+      "name": "BK-NUM-ERT",
+      "data_type": "decimal",
+      "target_name": "bk_num_ert",
+      "position": 1,
+      "length": 5,
+      "format": "9(5)",
+      "required": true,
+      "description": "A number, defined on the Bank Control Operation tables, which identifies the ...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "00040"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "00040"
+      ]
+    },
+    {
+      "name": "APP-ERT",
+      "data_type": "decimal",
+      "target_name": "app_ert",
+      "position": 6,
+      "length": 3,
+      "format": "9(3)",
+      "required": true,
+      "description": "The application to which the account is to be associated.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "001"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "001"
+      ]
+    },
+    {
+      "name": "LN-NUM-ERT",
+      "data_type": "string",
+      "target_name": "ln_num_ert",
+      "position": 9,
+      "length": 18,
+      "required": true,
+      "description": "The account number that is associated with the account.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "REF-NUM-ERT",
+      "data_type": "string",
+      "target_name": "ref_num_ert",
+      "position": 27,
+      "length": 3,
+      "required": false,
+      "description": "The applicable reference number for the transaction.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "FILLER",
+      "data_type": "string",
+      "target_name": "filler",
+      "position": 30,
+      "length": 130,
+      "required": false,
+      "description": "Filler for account key",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "EFF-DAT-ERT",
+      "data_type": "date",
+      "target_name": "eff_dat_ert",
+      "position": 160,
+      "length": 10,
+      "format": "MM/DD/CCYY",
+      "required": true,
+      "description": "The date the transaction was effective.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "TRN-COD-ERT",
+      "data_type": "decimal",
+      "target_name": "trn_cod_ert",
+      "position": 170,
+      "length": 5,
+      "format": "9(5)",
+      "required": true,
+      "description": "The transaction code for the transaction.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        },
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "32040"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "32040"
+      ]
+    },
+    {
+      "name": "BAT-ITM-NUM-ERT",
+      "data_type": "decimal",
+      "target_name": "bat_itm_num_ert",
+      "position": 175,
+      "length": 9,
+      "format": "9(9)",
+      "required": true,
+      "description": "The sequential number for this item within the batch.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    },
+    {
+      "name": "INP-SRC-COD-ERT",
+      "data_type": "decimal",
+      "target_name": "inp_src_cod_ert",
+      "position": 184,
+      "length": 3,
+      "format": "9(3)",
+      "required": false,
+      "description": "The source of the transaction.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "TRN-CNT-ERT",
+      "data_type": "decimal",
+      "target_name": "trn_cnt_ert",
+      "position": 187,
+      "length": 3,
+      "format": "9(3)",
+      "required": false,
+      "description": "The total number of transactions in the batch.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "TRN-MOR-DTA-FLG-ERT",
+      "data_type": "string",
+      "target_name": "trn_mor_dta_flg_ert",
+      "position": 190,
+      "length": 1,
+      "required": false,
+      "description": "Indicates if more data is available.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "DAT-DLQ-STR-CBRS",
+      "data_type": "date",
+      "target_name": "dat_dlq_str_cbrs",
+      "position": 191,
+      "length": 10,
+      "format": "MM/DD/CCYY",
+      "required": false,
+      "description": "The date the account went delinquent leading to the charge-off.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "M2F-CMT-COD-CBRS",
+      "data_type": "string",
+      "target_name": "m2f_cmt_cod_cbrs",
+      "position": 201,
+      "length": 2,
+      "required": false,
+      "description": "Special comment codes for reporting the current account to the credit bureaus.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "AW",
+              "AU"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "AW",
+        "AU"
+      ]
+    },
+    {
+      "name": "HGH-DAY-DLQ-CBRS",
+      "data_type": "decimal",
+      "target_name": "hgh_day_dlq_cbrs",
+      "position": 203,
+      "length": 5,
+      "format": "9(5)",
+      "required": false,
+      "description": "The highest number of days delinquent.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "M2F-CMP-CON-COD-CBRS",
+      "data_type": "string",
+      "target_name": "m2f_cmp_con_cod_cbrs",
+      "position": 208,
+      "length": 2,
+      "required": false,
+      "description": "Indicates if currently the account is in compliance for specified reasons.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "HGH-AMT-DLQ-CBRS",
+      "data_type": "decimal",
+      "target_name": "hgh_amt_dlq_cbrs",
+      "position": 210,
+      "length": 22,
+      "format": "-Z(12).9(2)",
+      "required": false,
+      "description": "The highest total dollar amount delinquent.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "PRE-COF-L1-NUM-CBRS",
+      "data_type": "string",
+      "target_name": "pre_cof_l1_num_cbrs",
+      "position": 232,
+      "length": 30,
+      "required": false,
+      "description": "The account number used to identify the account to the credit bureau when it ...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "24-CYC-DLQ-01-CBRS",
+      "data_type": "string",
+      "target_name": "24_cyc_dlq_01_cbrs",
+      "position": 262,
+      "length": 1,
+      "required": false,
+      "description": "The delinquency history profile for the current month.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "D"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "D"
+      ]
+    },
+    {
+      "name": "24-CYC-DLQ-12-CBRS",
+      "data_type": "string",
+      "target_name": "24_cyc_dlq_12_cbrs",
+      "position": 263,
+      "length": 1,
+      "required": false,
+      "description": "The delinquency history profile for 12 months ago.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "D"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "D"
+      ]
+    },
+    {
+      "name": "24-CYC-DLQ-23-CBRS",
+      "data_type": "string",
+      "target_name": "24_cyc_dlq_23_cbrs",
+      "position": 264,
+      "length": 1,
+      "required": false,
+      "description": "The delinquency history profile for 23 months ago.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "D"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "D"
+      ]
+    },
+    {
+      "name": "24-CYC-DLQ-02-CBRS",
+      "data_type": "string",
+      "target_name": "24_cyc_dlq_02_cbrs",
+      "position": 265,
+      "length": 1,
+      "required": false,
+      "description": "The delinquency history profile for 2 months ago.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "D"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "D"
+      ]
+    },
+    {
+      "name": "24-CYC-DLQ-13-CBRS",
+      "data_type": "string",
+      "target_name": "24_cyc_dlq_13_cbrs",
+      "position": 266,
+      "length": 1,
+      "required": false,
+      "description": "The delinquency history profile for 13 months ago.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "D"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "D"
+      ]
+    },
+    {
+      "name": "24-CYC-DLQ-24-CBRS",
+      "data_type": "string",
+      "target_name": "24_cyc_dlq_24_cbrs",
+      "position": 267,
+      "length": 1,
+      "required": false,
+      "description": "The delinquency history profile for 24 months ago.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "D"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "D"
+      ]
+    },
+    {
+      "name": "24-CYC-DLQ-03-CBRS",
+      "data_type": "string",
+      "target_name": "24_cyc_dlq_03_cbrs",
+      "position": 268,
+      "length": 1,
+      "required": false,
+      "description": "The delinquency history profile for 3 months ago.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "D"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "D"
+      ]
+    },
+    {
+      "name": "24-CYC-DLQ-14-CBRS",
+      "data_type": "string",
+      "target_name": "24_cyc_dlq_14_cbrs",
+      "position": 269,
+      "length": 1,
+      "required": false,
+      "description": "The delinquency history profile for 14 months ago.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "D"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "D"
+      ]
+    },
+    {
+      "name": "24-CYC-DLQ-25-CBRS",
+      "data_type": "string",
+      "target_name": "24_cyc_dlq_25_cbrs",
+      "position": 270,
+      "length": 1,
+      "required": false,
+      "description": "The delinquency history profile for 25 months ago.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "D"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "D"
+      ]
+    },
+    {
+      "name": "24-CYC-DLQ-04-CBRS",
+      "data_type": "string",
+      "target_name": "24_cyc_dlq_04_cbrs",
+      "position": 271,
+      "length": 1,
+      "required": false,
+      "description": "The delinquency history profile for 4 months ago.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "D"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "D"
+      ]
+    },
+    {
+      "name": "24-CYC-DLQ-15-CBRS",
+      "data_type": "string",
+      "target_name": "24_cyc_dlq_15_cbrs",
+      "position": 272,
+      "length": 1,
+      "required": false,
+      "description": "The delinquency history profile for 15 months ago.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "D"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "D"
+      ]
+    },
+    {
+      "name": "24-CYC-DLQ-05-CBRS",
+      "data_type": "string",
+      "target_name": "24_cyc_dlq_05_cbrs",
+      "position": 273,
+      "length": 1,
+      "required": false,
+      "description": "The delinquency history profile for 5 months ago.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "D"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "D"
+      ]
+    },
+    {
+      "name": "24-CYC-DLQ-16-CBRS",
+      "data_type": "string",
+      "target_name": "24_cyc_dlq_16_cbrs",
+      "position": 274,
+      "length": 1,
+      "required": false,
+      "description": "The delinquency history profile for 16 months ago.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "D"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "D"
+      ]
+    },
+    {
+      "name": "24-CYC-DLQ-06-CBRS",
+      "data_type": "string",
+      "target_name": "24_cyc_dlq_06_cbrs",
+      "position": 275,
+      "length": 1,
+      "required": false,
+      "description": "The delinquency history profile for 6 months ago.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "D"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "D"
+      ]
+    },
+    {
+      "name": "24-CYC-DLQ-17-CBRS",
+      "data_type": "string",
+      "target_name": "24_cyc_dlq_17_cbrs",
+      "position": 276,
+      "length": 1,
+      "required": false,
+      "description": "The delinquency history profile for 17 months ago.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "D"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "D"
+      ]
+    },
+    {
+      "name": "24-CYC-DLQ-07-CBRS",
+      "data_type": "string",
+      "target_name": "24_cyc_dlq_07_cbrs",
+      "position": 277,
+      "length": 1,
+      "required": false,
+      "description": "The delinquency history profile for 7 months ago.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "D"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "D"
+      ]
+    },
+    {
+      "name": "24-CYC-DLQ-18-CBRS",
+      "data_type": "string",
+      "target_name": "24_cyc_dlq_18_cbrs",
+      "position": 278,
+      "length": 1,
+      "required": false,
+      "description": "The delinquency history profile for 18 months ago.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "D"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "D"
+      ]
+    },
+    {
+      "name": "24-CYC-DLQ-08-CBRS",
+      "data_type": "string",
+      "target_name": "24_cyc_dlq_08_cbrs",
+      "position": 279,
+      "length": 1,
+      "required": false,
+      "description": "The delinquency history profile for 8 months ago.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "D"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "D"
+      ]
+    },
+    {
+      "name": "24-CYC-DLQ-19-CBRS",
+      "data_type": "string",
+      "target_name": "24_cyc_dlq_19_cbrs",
+      "position": 280,
+      "length": 1,
+      "required": false,
+      "description": "The delinquency history profile for 19 months ago.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "D"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "D"
+      ]
+    },
+    {
+      "name": "24-CYC-DLQ-09-CBRS",
+      "data_type": "string",
+      "target_name": "24_cyc_dlq_09_cbrs",
+      "position": 281,
+      "length": 1,
+      "required": false,
+      "description": "The delinquency history profile for 9 months ago.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "D"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "D"
+      ]
+    },
+    {
+      "name": "24-CYC-DLQ-20-CBRS",
+      "data_type": "string",
+      "target_name": "24_cyc_dlq_20_cbrs",
+      "position": 282,
+      "length": 1,
+      "required": false,
+      "description": "The delinquency history profile for 20 months ago.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "D"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "D"
+      ]
+    },
+    {
+      "name": "24-CYC-DLQ-10-CBRS",
+      "data_type": "string",
+      "target_name": "24_cyc_dlq_10_cbrs",
+      "position": 283,
+      "length": 1,
+      "required": false,
+      "description": "The delinquency history profile for 10 months ago.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "D"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "D"
+      ]
+    },
+    {
+      "name": "24-CYC-DLQ-21-CBRS",
+      "data_type": "string",
+      "target_name": "24_cyc_dlq_21_cbrs",
+      "position": 284,
+      "length": 1,
+      "required": false,
+      "description": "The delinquency history profile for 21 months ago.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "D"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "D"
+      ]
+    },
+    {
+      "name": "24-CYC-DLQ-11-CBRS",
+      "data_type": "string",
+      "target_name": "24_cyc_dlq_11_cbrs",
+      "position": 285,
+      "length": 1,
+      "required": false,
+      "description": "The delinquency history profile for 11 months ago.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "D"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "D"
+      ]
+    },
+    {
+      "name": "24-CYC-DLQ-22-CBRS",
+      "data_type": "string",
+      "target_name": "24_cyc_dlq_22_cbrs",
+      "position": 286,
+      "length": 1,
+      "required": false,
+      "description": "The delinquency history profile for 22 months ago.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "D"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "D"
+      ]
+    },
+    {
+      "name": "ACT-TYP-CBRS",
+      "data_type": "string",
+      "target_name": "act_typ_cbrs",
+      "position": 287,
+      "length": 3,
+      "required": false,
+      "description": "The original type of account, such as installment loan, charge cards, commerc...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LAS-LN-BAL-CBRS",
+      "data_type": "decimal",
+      "target_name": "las_ln_bal_cbrs",
+      "position": 290,
+      "length": 22,
+      "format": "-Z(12).9(2)",
+      "required": false,
+      "description": "The loan balance at the time of the last report to the credit bureau.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "LAS-DAT-RPT-CBRS",
+      "data_type": "date",
+      "target_name": "las_dat_rpt_cbrs",
+      "position": 312,
+      "length": 10,
+      "format": "MM/DD/CCYY",
+      "required": false,
+      "description": "The date the account was last reported to the credit bureau.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "AW",
+              "ST"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "AW",
+        "ST"
+      ]
+    },
+    {
+      "name": "LAS-ACT-STA-CBRS",
+      "data_type": "string",
+      "target_name": "las_act_sta_cbrs",
+      "position": 322,
+      "length": 2,
+      "required": false,
+      "description": "The account status at the time of the last report to the credit bureau.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "05",
+              "63",
+              "64",
+              "96",
+              "97",
+              "DA",
+              "DF"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "05",
+        "63",
+        "64",
+        "96",
+        "97",
+        "DA",
+        "DF"
+      ]
+    },
+    {
+      "name": "LAS-CMT-COD-CBRS",
+      "data_type": "string",
+      "target_name": "las_cmt_cod_cbrs",
+      "position": 324,
+      "length": 2,
+      "required": false,
+      "description": "The special comment codes reported to the credit bureau the last time the acc...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "AU",
+              "AW",
+              "ST"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "AU",
+        "AW",
+        "ST"
+      ]
+    },
+    {
+      "name": "LAS-CMP-COD-CBRS",
+      "data_type": "string",
+      "target_name": "las_cmp_cod_cbrs",
+      "position": 326,
+      "length": 2,
+      "required": false,
+      "description": "The compliance code reported to the credit bureau the last time the account w...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CUR-PMT-RTG-CBRS",
+      "data_type": "string",
+      "target_name": "cur_pmt_rtg_cbrs",
+      "position": 328,
+      "length": 1,
+      "required": false,
+      "description": "The current metro 2 payment rating being reported to the credit bureau.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "in_list",
+          "parameters": {
+            "values": [
+              "L"
+            ]
+          }
+        }
+      ],
+      "valid_values": [
+        "L"
+      ]
+    },
+    {
+      "name": "PET-DAT-CBRS",
+      "data_type": "date",
+      "target_name": "pet_dat_cbrs",
+      "position": 329,
+      "length": 10,
+      "format": "MM/DD/CCYY",
+      "required": false,
+      "description": "The petition date when bankruptcy is filed.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "PET-ACT-STA-CBRS",
+      "data_type": "string",
+      "target_name": "pet_act_sta_cbrs",
+      "position": 339,
+      "length": 2,
+      "required": false,
+      "description": "The metro 2 account status code at bankruptcy filing.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "PET-SCH-PMT-AMT-CBRS",
+      "data_type": "decimal",
+      "target_name": "pet_sch_pmt_amt_cbrs",
+      "position": 341,
+      "length": 22,
+      "format": "-Z(12).9(2)",
+      "required": false,
+      "description": "The scheduled monthly payment amount at bankruptcy filing.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "PET-CUR-BAL-CBRS",
+      "data_type": "decimal",
+      "target_name": "pet_cur_bal_cbrs",
+      "position": 363,
+      "length": 22,
+      "format": "-Z(12).9(2)",
+      "required": false,
+      "description": "The current account balance at bankruptcy filing.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "PET-AMT-PAS-DUE-CBRS",
+      "data_type": "decimal",
+      "target_name": "pet_amt_pas_due_cbrs",
+      "position": 385,
+      "length": 22,
+      "format": "-Z(12).9(2)",
+      "required": false,
+      "description": "The amount past due on account at bankruptcy filing.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "PET-PMT-RTG-CBRS",
+      "data_type": "string",
+      "target_name": "pet_pmt_rtg_cbrs",
+      "position": 407,
+      "length": 1,
+      "required": false,
+      "description": "The metro 2 payment rating at bankruptcy filing.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CHX-RTG-TRN-NUM-CBRS",
+      "data_type": "string",
+      "target_name": "chx_rtg_trn_num_cbrs",
+      "position": 408,
+      "length": 9,
+      "required": false,
+      "description": "The numeric bank code and check digit code assigned by the American Bankers A...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CHX-ACT-NUM-CBRS",
+      "data_type": "string",
+      "target_name": "chx_act_num_cbrs",
+      "position": 417,
+      "length": 20,
+      "required": false,
+      "description": "The account number reported in this field should match the account number in ...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CHX-ACT-TYP-CBRS",
+      "data_type": "string",
+      "target_name": "chx_act_typ_cbrs",
+      "position": 437,
+      "length": 3,
+      "required": false,
+      "description": "This code defines the account type to be reported to ChexSystems.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CHX-REA-COD-1-CBRS",
+      "data_type": "string",
+      "target_name": "chx_rea_cod_1_cbrs",
+      "position": 440,
+      "length": 2,
+      "required": false,
+      "description": "Closure Reason Code 1 describes the primary reason for the account closure.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CHX-REA-COD-2-CBRS",
+      "data_type": "string",
+      "target_name": "chx_rea_cod_2_cbrs",
+      "position": 442,
+      "length": 2,
+      "required": false,
+      "description": "Closure Reason Code 2 describes the secondary reason for the account closure.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CHX-REA-COD-3-CBRS",
+      "data_type": "string",
+      "target_name": "chx_rea_cod_3_cbrs",
+      "position": 444,
+      "length": 2,
+      "required": false,
+      "description": "Describes the third reason for the account closure.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CHX-DIS-IND-CBRS",
+      "data_type": "string",
+      "target_name": "chx_dis_ind_cbrs",
+      "position": 446,
+      "length": 1,
+      "required": false,
+      "description": "This is a notification that the consumer is disputing information reported to...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CHX-LAS-DAT-RPT-CBRS",
+      "data_type": "date",
+      "target_name": "chx_las_dat_rpt_cbrs",
+      "position": 447,
+      "length": 10,
+      "format": "MM/DD/CCYY",
+      "required": false,
+      "description": "Date account was last reported to bureau via Chex Systems format.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CHX-LAS-REA-RPT-CBRS",
+      "data_type": "string",
+      "target_name": "chx_las_rea_rpt_cbrs",
+      "position": 457,
+      "length": 2,
+      "required": false,
+      "description": "The last reason the account was reported to ChexSystems.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "CHX-LAS-CLO-STA-CBRS",
+      "data_type": "string",
+      "target_name": "chx_las_clo_sta_cbrs",
+      "position": 459,
+      "length": 2,
+      "required": false,
+      "description": "The last closure status reported to ChexSystems.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "SEC-LAS-DAT-RPT-CBRS",
+      "data_type": "date",
+      "target_name": "sec_las_dat_rpt_cbrs",
+      "position": 461,
+      "length": 10,
+      "format": "MM/DD/CCYY",
+      "required": false,
+      "description": "The date the second plan account was last reported to the credit bureau.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "SEC-LN-NUM-CBRS",
+      "data_type": "string",
+      "target_name": "sec_ln_num_cbrs",
+      "position": 471,
+      "length": 30,
+      "required": false,
+      "description": "The account number used to identify the second plan account to the credit bur...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "SEC-LAS-ACT-STA-CBRS",
+      "data_type": "string",
+      "target_name": "sec_las_act_sta_cbrs",
+      "position": 501,
+      "length": 2,
+      "required": false,
+      "description": "The account status at the time of the last report to the credit bureau for th...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    },
+    {
+      "name": "SEC-LAS-LN-BAL-CBRS",
+      "data_type": "decimal",
+      "target_name": "sec_las_ln_bal_cbrs",
+      "position": 503,
+      "length": 22,
+      "format": "-Z(12).9(2)",
+      "required": false,
+      "description": "The loan balance at the time of the last report to the credit bureau for the ...",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": []
+    }
+  ],
+  "key_columns": [
+    "BK-NUM-ERT"
+  ],
+  "metadata": {
+    "created_by": "template_converter",
+    "created_date": "2026-05-26T17:42:56.256338Z",
+    "last_modified": "2026-05-26T17:42:56.256348Z",
+    "source_template": "mappings\\csv\\shaw_tranert\\SHAW_TRANERT_CBRS_mapping.csv"
+  },
+  "total_record_length": 524,
+  "warnings": []
+}

@@ -1,0 +1,169 @@
+{
+  "metadata": {
+    "name": "SHAW_ATOCTRAN_100_rules",
+    "description": "Generated from BA-friendly template: SHAW_ATOCTRAN_100_rules.csv",
+    "created_by": "ba_rules_template_converter",
+    "created_date": "2026-05-18T19:15:04.737952Z",
+    "template_path": "mappings\\csv\\shaw_atoctran\\SHAW_ATOCTRAN_100_rules.csv",
+    "template_type": "ba_friendly"
+  },
+  "rules": [
+    {
+      "id": "R001",
+      "name": "LOCATION-CODE required",
+      "description": "LOCATION-CODE required",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "not_empty",
+      "field": "LOCATION-CODE",
+      "operator": "not_empty",
+      "message": "LOCATION-CODE must not be empty"
+    },
+    {
+      "id": "R002",
+      "name": "LOCATION-CODE length check",
+      "description": "LOCATION-CODE length check",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "length",
+      "field": "LOCATION-CODE",
+      "operator": "length",
+      "min_length": 1,
+      "max_length": 6
+    },
+    {
+      "id": "R003",
+      "name": "LOCATION-CODE valid values",
+      "description": "LOCATION-CODE valid values",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "valid_values",
+      "field": "LOCATION-CODE",
+      "operator": "valid_values",
+      "values": [
+        "100030",
+        "100040",
+        "200000"
+      ],
+      "message": "LOCATION-CODE must be one of: 100030|100040|200000"
+    },
+    {
+      "id": "R004",
+      "name": "TRANSACTION-CODE required",
+      "description": "TRANSACTION-CODE required",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "not_empty",
+      "field": "TRANSACTION-CODE",
+      "operator": "not_empty",
+      "message": "TRANSACTION-CODE must not be empty"
+    },
+    {
+      "id": "R005",
+      "name": "TRANSACTION-CODE length check",
+      "description": "TRANSACTION-CODE length check",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "length",
+      "field": "TRANSACTION-CODE",
+      "operator": "length",
+      "min_length": 1,
+      "max_length": 3
+    },
+    {
+      "id": "R006",
+      "name": "TRANSACTION-CODE valid values",
+      "description": "TRANSACTION-CODE valid values",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "valid_values",
+      "field": "TRANSACTION-CODE",
+      "operator": "valid_values",
+      "values": [
+        "100"
+      ],
+      "message": "TRANSACTION-CODE must be one of: 100"
+    },
+    {
+      "id": "R007",
+      "name": "TRANSACTION-DATE required",
+      "description": "TRANSACTION-DATE required",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "not_empty",
+      "field": "TRANSACTION-DATE",
+      "operator": "not_empty",
+      "message": "TRANSACTION-DATE must not be empty"
+    },
+    {
+      "id": "R008",
+      "name": "TRANSACTION-DATE date format",
+      "description": "TRANSACTION-DATE date format",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "date_format",
+      "field": "TRANSACTION-DATE",
+      "operator": "date_format",
+      "format": "CCYYMMDD",
+      "message": "TRANSACTION-DATE must be a valid date (CCYYMMDD)"
+    },
+    {
+      "id": "R009",
+      "name": "TRANSACTION-DATE length check",
+      "description": "TRANSACTION-DATE length check",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "exact_length",
+      "field": "TRANSACTION-DATE",
+      "operator": "exact_length",
+      "value": 8,
+      "message": "TRANSACTION-DATE must be exactly 8 characters"
+    },
+    {
+      "id": "R010",
+      "name": "CYCLE-ARRAY-TRANS-AREA required",
+      "description": "CYCLE-ARRAY-TRANS-AREA required",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "not_empty",
+      "field": "CYCLE-ARRAY-TRANS-AREA",
+      "operator": "not_empty",
+      "message": "CYCLE-ARRAY-TRANS-AREA must not be empty"
+    },
+    {
+      "id": "R011",
+      "name": "CYCLE-ARRAY-TRANS-AREA numeric",
+      "description": "CYCLE-ARRAY-TRANS-AREA numeric",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "numeric",
+      "field": "CYCLE-ARRAY-TRANS-AREA",
+      "operator": "numeric",
+      "message": "CYCLE-ARRAY-TRANS-AREA must be numeric"
+    },
+    {
+      "id": "R012",
+      "name": "CYCLE-ARRAY-TRANS-AREA length check",
+      "description": "CYCLE-ARRAY-TRANS-AREA length check",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "exact_length",
+      "field": "CYCLE-ARRAY-TRANS-AREA",
+      "operator": "exact_length",
+      "value": 40,
+      "message": "CYCLE-ARRAY-TRANS-AREA must be exactly 40 characters"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+field_name,data_type,position,length,target_name,required,format,default_value,transformation,valid_values,description
+RECORD_TYPE,String,1,2,record_type,Yes,,DR,Default to 'DR' for detail records,,Record type identifier (HD=Header DR=Detail TR=Trailer)
+ACCOUNT_NUM,String,3,18,account_number,Yes,,,ACCT_BR + ACCT_CUS + ACCT_LN,,Customer account number (composite key)
+FIRST_NAME,String,21,30,first_name,Yes,,,Trim trailing spaces,,Customer first name
+LAST_NAME,String,51,30,last_name,Yes,,,Trim trailing spaces,,Customer last name
+SSN,String,81,9,ssn,No,,,Mask for non-prod environments,^\d{9}$,Social security number (9 digits no dashes)
+BALANCE,Numeric,90,12,balance,Yes,9(10)V99,+00000000000,Divide by 100 to get dollars,,Account balance in cents (right-justified zero-padded)
+OPEN_DATE,Date,102,8,open_date,Yes,CCYYMMDD,,,,,Account open date
+CLOSE_DATE,Date,110,8,close_date,No,CCYYMMDD,00000000,Blank if active,,Account close date
+STATUS,String,118,1,status,Yes,,,IF CLOSE_DATE not blank THEN 'C' ELSE pass as-is,A|I|C,Account status
+BRANCH_CODE,String,119,4,branch_code,Yes,,,,,,Branch identifier (4-digit code)
+CURRENCY,String,123,3,currency,No,,USD,Default to 'USD' if blank,USD|CAD|GBP|EUR,ISO currency code
+FILLER,String,126,5,filler,No,,,Initialize to spaces,,Reserved for future use

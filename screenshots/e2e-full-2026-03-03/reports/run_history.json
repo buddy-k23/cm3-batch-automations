@@ -1,0 +1,80 @@
+[
+  {
+    "run_id": "551cbfec-a91c-4ee3-b1e3-29eef8473b4d",
+    "suite_name": "E2E Full Regression Suite",
+    "environment": "dev",
+    "timestamp": "2026-03-04T00:04:03.360010Z",
+    "status": "PARTIAL",
+    "report_url": "/reports/E2E_Full_Regression_Suite_551cbfec-a91c-4ee3-b1e3-29eef8473b4d_suite.html",
+    "pass_count": 2,
+    "fail_count": 3,
+    "skip_count": 0,
+    "total_count": 5,
+    "archive_path": "/Users/buddy/claude-code/automations/cm3-batch-automations/reports/archive/2026/03/04/551cbfec-a91c-4ee3-b1e3-29eef8473b4d"
+  },
+  {
+    "run_id": "ae701b0d-1070-484f-a6bd-ca6023cce938",
+    "suite_name": "E2E Full Regression Suite",
+    "environment": "dev",
+    "timestamp": "2026-03-04T00:07:04.738277Z",
+    "status": "PARTIAL",
+    "report_url": "/reports/E2E_Full_Regression_Suite_ae701b0d-1070-484f-a6bd-ca6023cce938_suite.html",
+    "pass_count": 2,
+    "fail_count": 3,
+    "skip_count": 0,
+    "total_count": 5,
+    "archive_path": "/Users/buddy/claude-code/automations/cm3-batch-automations/reports/archive/2026/03/04/ae701b0d-1070-484f-a6bd-ca6023cce938"
+  },
+  {
+    "run_id": "35539911-c422-4e51-a651-72399ae6debf",
+    "suite_name": "E2E Full Regression Suite",
+    "environment": "dev",
+    "timestamp": "2026-03-04T00:07:25.599947Z",
+    "status": "PARTIAL",
+    "report_url": "/reports/E2E_Full_Regression_Suite_35539911-c422-4e51-a651-72399ae6debf_suite.html",
+    "pass_count": 4,
+    "fail_count": 1,
+    "skip_count": 0,
+    "total_count": 5,
+    "archive_path": "/Users/buddy/claude-code/automations/cm3-batch-automations/reports/archive/2026/03/04/35539911-c422-4e51-a651-72399ae6debf"
+  },
+  {
+    "run_id": "2cc1d61e-3fca-4aa4-bff5-c3860f17d4e3",
+    "suite_name": "E2E Full Regression Suite",
+    "environment": "dev",
+    "timestamp": "2026-03-04T00:07:40.327149Z",
+    "status": "PASS",
+    "report_url": "/reports/E2E_Full_Regression_Suite_2cc1d61e-3fca-4aa4-bff5-c3860f17d4e3_suite.html",
+    "pass_count": 5,
+    "fail_count": 0,
+    "skip_count": 0,
+    "total_count": 5,
+    "archive_path": "/Users/buddy/claude-code/automations/cm3-batch-automations/reports/archive/2026/03/04/2cc1d61e-3fca-4aa4-bff5-c3860f17d4e3"
+  },
+  {
+    "run_id": "b6a2dcb5-be10-4883-a108-5da0666505ed",
+    "suite_name": "E2E Full Regression Suite",
+    "environment": "dev",
+    "timestamp": "2026-03-04T00:07:47.360157Z",
+    "status": "PASS",
+    "report_url": "/reports/E2E_Full_Regression_Suite_b6a2dcb5-be10-4883-a108-5da0666505ed_suite.html",
+    "pass_count": 5,
+    "fail_count": 0,
+    "skip_count": 0,
+    "total_count": 5,
+    "archive_path": "/Users/buddy/claude-code/automations/cm3-batch-automations/reports/archive/2026/03/04/b6a2dcb5-be10-4883-a108-5da0666505ed"
+  },
+  {
+    "run_id": "205f1446-f046-466a-b194-771b6f7cc605",
+    "suite_name": "E2E Full Regression Suite",
+    "environment": "dev",
+    "timestamp": "2026-03-04T00:15:20.897698Z",
+    "status": "PASS",
+    "report_url": "/reports/E2E_Full_Regression_Suite_205f1446-f046-466a-b194-771b6f7cc605_suite.html",
+    "pass_count": 5,
+    "fail_count": 0,
+    "skip_count": 0,
+    "total_count": 5,
+    "archive_path": "/Users/buddy/claude-code/automations/cm3-batch-automations/reports/archive/2026/03/04/205f1446-f046-466a-b194-771b6f7cc605"
+  }
+]

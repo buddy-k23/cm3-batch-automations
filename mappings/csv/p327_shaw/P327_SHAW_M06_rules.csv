@@ -1,0 +1,122 @@
+Rule ID,Rule Name,Field,Rule Type,Severity,Enabled,Message,Expected / Values
+R001,LOCATION-CODE required,LOCATION-CODE,not_empty,error,Yes,LOCATION-CODE must not be empty,
+R002,LOCATION-CODE length check,LOCATION-CODE,exact_length,error,Yes,LOCATION-CODE must be exactly 6 characters,6
+R003,LOCATION-CODE valid values,LOCATION-CODE,valid_values,error,Yes,LOCATION-CODE must be one of: 100010|100020|100030|100040|100050|200000,100010|100020|100030|100040|100050|200000
+R004,ACCT-NUM required,ACCT-NUM,not_empty,error,Yes,ACCT-NUM must not be empty,
+R005,ACCT-NUM length check,ACCT-NUM,exact_length,error,Yes,ACCT-NUM must be exactly 18 characters,18
+R006,CREDIT-LIMIT-AMT numeric,CREDIT-LIMIT-AMT,numeric,error,Yes,CREDIT-LIMIT-AMT must be numeric,
+R007,EXPIRATION-DATE date format,EXPIRATION-DATE,date_format,error,Yes,EXPIRATION-DATE must match CCYYMMDD,CCYYMMDD
+R008,BALANCE-AMT numeric,BALANCE-AMT,numeric,error,Yes,BALANCE-AMT must be numeric,
+R009,OVERLIMIT-AMT numeric,OVERLIMIT-AMT,numeric,error,Yes,OVERLIMIT-AMT must be numeric,
+R010,DISPUTED-AMT numeric,DISPUTED-AMT,numeric,error,Yes,DISPUTED-AMT must be numeric,
+R011,TOTAL-DUE-AMT numeric,TOTAL-DUE-AMT,numeric,error,Yes,TOTAL-DUE-AMT must be numeric,
+R012,CURRENT-DUE-AMT numeric,CURRENT-DUE-AMT,numeric,error,Yes,CURRENT-DUE-AMT must be numeric,
+R013,COLL-ASGN-UD-TYPE1 valid values,COLL-ASGN-UD-TYPE1,valid_values,error,Yes,COLL-ASGN-UD-TYPE1 must be one of: 0|1,0|1
+R014,TOTAL-DELINQ-AMT numeric,TOTAL-DELINQ-AMT,numeric,error,Yes,TOTAL-DELINQ-AMT must be numeric,
+R015,CYCLES-DELINQ-CNT numeric,CYCLES-DELINQ-CNT,numeric,error,Yes,CYCLES-DELINQ-CNT must be numeric,
+R016,DAYS-DELINQ-CNT numeric,DAYS-DELINQ-CNT,numeric,error,Yes,DAYS-DELINQ-CNT must be numeric,
+R017,LAST-PAYMENT-AMT numeric,LAST-PAYMENT-AMT,numeric,error,Yes,LAST-PAYMENT-AMT must be numeric,
+R018,CHARGE-OFF-DATE date format,CHARGE-OFF-DATE,date_format,error,Yes,CHARGE-OFF-DATE must match CCYYMMDD,CCYYMMDD
+R019,DLQ-DAYS-CHRG-OFF numeric,DLQ-DAYS-CHRG-OFF,numeric,error,Yes,DLQ-DAYS-CHRG-OFF must be numeric,
+R020,LST-PART-COF-AMT numeric,LST-PART-COF-AMT,numeric,error,Yes,LST-PART-COF-AMT must be numeric,
+R021,LST-PART-COF-DATE date format,LST-PART-COF-DATE,date_format,error,Yes,LST-PART-COF-DATE must match CCYYMMDD,CCYYMMDD
+R022,TOT-PART-COF-AMT numeric,TOT-PART-COF-AMT,numeric,error,Yes,TOT-PART-COF-AMT must be numeric,
+R023,BAL-PART-COF-AMT numeric,BAL-PART-COF-AMT,numeric,error,Yes,BAL-PART-COF-AMT must be numeric,
+R024,UD-7-TYPE valid values,UD-7-TYPE,valid_values,error,Yes,UD-7-TYPE must be: I,I
+R025,ACCT-OPEN-DATE date format,ACCT-OPEN-DATE,date_format,error,Yes,ACCT-OPEN-DATE must match CCYYMMDD,CCYYMMDD
+R026,NEXT-DUE-DATE date format,NEXT-DUE-DATE,date_format,error,Yes,NEXT-DUE-DATE must match CCYYMMDD,CCYYMMDD
+R027,INTEREST-RATE numeric,INTEREST-RATE,numeric,error,Yes,INTEREST-RATE must be numeric,
+R028,OTH-DELINQ-AMT numeric,OTH-DELINQ-AMT,numeric,error,Yes,OTH-DELINQ-AMT must be numeric,
+R029,REPO-CHARGES numeric,REPO-CHARGES,numeric,error,Yes,REPO-CHARGES must be numeric,
+R030,REPOSSESSION-DATE date format,REPOSSESSION-DATE,date_format,error,Yes,REPOSSESSION-DATE must match CCYYMMDD,CCYYMMDD
+R031,MATURITY-DATE date format,MATURITY-DATE,date_format,error,Yes,MATURITY-DATE must match CCYYMMDD,CCYYMMDD
+R032,PAYMENT-AMT numeric,PAYMENT-AMT,numeric,error,Yes,PAYMENT-AMT must be numeric,
+R033,PRINCIPAL-DELQ-AMT numeric,PRINCIPAL-DELQ-AMT,numeric,error,Yes,PRINCIPAL-DELQ-AMT must be numeric,
+R034,INTEREST-DELQ-AMT numeric,INTEREST-DELQ-AMT,numeric,error,Yes,INTEREST-DELQ-AMT must be numeric,
+R035,CYCLE-ID numeric,CYCLE-ID,numeric,error,Yes,CYCLE-ID must be numeric,
+R036,UD-DATE-FIELD-1 date format,UD-DATE-FIELD-1,date_format,error,Yes,UD-DATE-FIELD-1 must match CCYYMMDD,CCYYMMDD
+R037,LAST-BILLING-DATE date format,LAST-BILLING-DATE,date_format,error,Yes,LAST-BILLING-DATE must match CCYYMMDD,CCYYMMDD
+R038,CREDIT-LIMIT-DATE date format,CREDIT-LIMIT-DATE,date_format,error,Yes,CREDIT-LIMIT-DATE must match CCYYMMDD,CCYYMMDD
+R039,INT-LATE-CHG-AMT numeric,INT-LATE-CHG-AMT,numeric,error,Yes,INT-LATE-CHG-AMT must be numeric,
+R040,DELINQ-AMT-AGE-1 numeric,DELINQ-AMT-AGE-1,numeric,error,Yes,DELINQ-AMT-AGE-1 must be numeric,
+R041,DELINQ-AMT-AGE-2 numeric,DELINQ-AMT-AGE-2,numeric,error,Yes,DELINQ-AMT-AGE-2 must be numeric,
+R042,DELINQ-AMT-AGE-3 numeric,DELINQ-AMT-AGE-3,numeric,error,Yes,DELINQ-AMT-AGE-3 must be numeric,
+R043,DELINQ-AMT-AGE-4 numeric,DELINQ-AMT-AGE-4,numeric,error,Yes,DELINQ-AMT-AGE-4 must be numeric,
+R044,NUMBER-OF-CARDS numeric,NUMBER-OF-CARDS,numeric,error,Yes,NUMBER-OF-CARDS must be numeric,
+R045,WARN-BULLETIN-DATE date format,WARN-BULLETIN-DATE,date_format,error,Yes,WARN-BULLETIN-DATE must match CCYYMMDD,CCYYMMDD
+R046,LAST-PAYMENT-DATE date format,LAST-PAYMENT-DATE,date_format,error,Yes,LAST-PAYMENT-DATE must match CCYYMMDD,CCYYMMDD
+R047,LAST-MONETARY-AMT numeric,LAST-MONETARY-AMT,numeric,error,Yes,LAST-MONETARY-AMT must be numeric,
+R048,LAST-MONETARY-DATE date format,LAST-MONETARY-DATE,date_format,error,Yes,LAST-MONETARY-DATE must match CCYYMMDD,CCYYMMDD
+R049,CHARGE-OFF-AMT numeric,CHARGE-OFF-AMT,numeric,error,Yes,CHARGE-OFF-AMT must be numeric,
+R050,SORT-VALUE-1 numeric,SORT-VALUE-1,numeric,error,Yes,SORT-VALUE-1 must be numeric,
+R051,UD-3-TYPE valid values,UD-3-TYPE,valid_values,error,Yes,UD-3-TYPE must be one of: 1|2,1|2
+R052,UD-5-FMT valid values,UD-5-FMT,valid_values,error,Yes,UD-5-FMT must be one of: 0|1|2,0|1|2
+R053,USER-DEFINED-6 valid values,USER-DEFINED-6,valid_values,error,Yes,USER-DEFINED-6 must be: DPD,DPD
+R054,UD-6-FMT valid values,UD-6-FMT,valid_values,error,Yes,UD-6-FMT must be one of: 01|02|03|04|05|06|07,01|02|03|04|05|06|07
+R055,PRINCIPAL-AMT numeric,PRINCIPAL-AMT,numeric,error,Yes,PRINCIPAL-AMT must be numeric,
+R056,OTHER-AMT numeric,OTHER-AMT,numeric,error,Yes,OTHER-AMT must be numeric,
+R057,ORIG-BALANCE-AMT numeric,ORIG-BALANCE-AMT,numeric,error,Yes,ORIG-BALANCE-AMT must be numeric,
+R058,ORIG-INTEREST-RATE numeric,ORIG-INTEREST-RATE,numeric,error,Yes,ORIG-INTEREST-RATE must be numeric,
+R059,PAYMENT-FREQUENCY valid values,PAYMENT-FREQUENCY,valid_values,error,Yes,PAYMENT-FREQUENCY must be one of: MO|QT|SA|AN|BW|WK| ,MO|QT|SA|AN|BW|WK| 
+R060,REFINANCE-DATE date format,REFINANCE-DATE,date_format,error,Yes,REFINANCE-DATE must match CCYYMMDD,CCYYMMDD
+R061,CUT-OFF-DATE date format,CUT-OFF-DATE,date_format,error,Yes,CUT-OFF-DATE must match CCYYMMDD,CCYYMMDD
+R062,CUT-OFF-CODE valid values,CUT-OFF-CODE,valid_values,error,Yes,CUT-OFF-CODE must be one of: CL|AC,CL|AC
+R063,BUDGET-PAYMENT-AMT numeric,BUDGET-PAYMENT-AMT,numeric,error,Yes,BUDGET-PAYMENT-AMT must be numeric,
+R064,TERMINATE-AMT numeric,TERMINATE-AMT,numeric,error,Yes,TERMINATE-AMT must be numeric,
+R065,TERMINATE-EXP-DATE date format,TERMINATE-EXP-DATE,date_format,error,Yes,TERMINATE-EXP-DATE must match CCYYMMDD,CCYYMMDD
+R066,LETTER-USER-DEF-8 numeric,LETTER-USER-DEF-8,numeric,error,Yes,LETTER-USER-DEF-8 must be numeric,
+R067,LETTER-USER-DEF-9 numeric,LETTER-USER-DEF-9,numeric,error,Yes,LETTER-USER-DEF-9 must be numeric,
+R068,LETTER-USER-DEF-10 numeric,LETTER-USER-DEF-10,numeric,error,Yes,LETTER-USER-DEF-10 must be numeric,
+R069,BANK-NUM numeric,BANK-NUM,numeric,error,Yes,BANK-NUM must be numeric,
+R070,APP-CODE numeric,APP-CODE,numeric,error,Yes,APP-CODE must be numeric,
+R071,APP-CODE valid values,APP-CODE,valid_values,error,Yes,APP-CODE must be: 000,000
+R072,ESTIMATED-MNTH-PAY numeric,ESTIMATED-MNTH-PAY,numeric,error,Yes,ESTIMATED-MNTH-PAY must be numeric,
+R073,NATL-CURRENCY valid values,NATL-CURRENCY,valid_values,error,Yes,NATL-CURRENCY must be: USD,USD
+R074,BASE-CURRENCY required,BASE-CURRENCY,not_empty,error,Yes,BASE-CURRENCY must not be empty,
+R075,BASE-CURRENCY length check,BASE-CURRENCY,exact_length,error,Yes,BASE-CURRENCY must be exactly 3 characters,3
+R076,BASE-CURRENCY valid values,BASE-CURRENCY,valid_values,error,Yes,BASE-CURRENCY must be: USD,USD
+R077,RECOMMENDED-ACT-CD valid values,RECOMMENDED-ACT-CD,valid_values,error,Yes,RECOMMENDED-ACT-CD must be: LS,LS
+R078,ACTG-SYS-ID valid values,ACTG-SYS-ID,valid_values,error,Yes,ACTG-SYS-ID must be one of: LS|CAS|CASW,LS|CAS|CASW
+R079,REC-INT-MTD-AMT numeric,REC-INT-MTD-AMT,numeric,error,Yes,REC-INT-MTD-AMT must be numeric,
+R080,REC-PRIN-MTD-AMT numeric,REC-PRIN-MTD-AMT,numeric,error,Yes,REC-PRIN-MTD-AMT must be numeric,
+R081,REC-TOT-COST-MTD numeric,REC-TOT-COST-MTD,numeric,error,Yes,REC-TOT-COST-MTD must be numeric,
+R082,JGMT-EFFECT-DATE date format,JGMT-EFFECT-DATE,date_format,error,Yes,JGMT-EFFECT-DATE must match CCYYMMDD,CCYYMMDD
+R083,JGMT-INT-AMT numeric,JGMT-INT-AMT,numeric,error,Yes,JGMT-INT-AMT must be numeric,
+R084,JGMT-PRIN-AMT numeric,JGMT-PRIN-AMT,numeric,error,Yes,JGMT-PRIN-AMT must be numeric,
+R085,JGMT-TOT-COST-AMT numeric,JGMT-TOT-COST-AMT,numeric,error,Yes,JGMT-TOT-COST-AMT must be numeric,
+R086,REC-CODST-IN-BAL numeric,REC-CODST-IN-BAL,numeric,error,Yes,REC-CODST-IN-BAL must be numeric,
+R087,REC-COST-NOT-BAL numeric,REC-COST-NOT-BAL,numeric,error,Yes,REC-COST-NOT-BAL must be numeric,
+R088,REC-COST-ASSES-MTD numeric,REC-COST-ASSES-MTD,numeric,error,Yes,REC-COST-ASSES-MTD must be numeric,
+R089,REC-COST-WAIVE-MTD numeric,REC-COST-WAIVE-MTD,numeric,error,Yes,REC-COST-WAIVE-MTD must be numeric,
+R090,REC-COST-CAPT-LTD numeric,REC-COST-CAPT-LTD,numeric,error,Yes,REC-COST-CAPT-LTD must be numeric,
+R091,REC-COST-AMT-1 numeric,REC-COST-AMT-1,numeric,error,Yes,REC-COST-AMT-1 must be numeric,
+R092,REC-COST-AMT-2 numeric,REC-COST-AMT-2,numeric,error,Yes,REC-COST-AMT-2 must be numeric,
+R093,REC-COST-AMT-3 numeric,REC-COST-AMT-3,numeric,error,Yes,REC-COST-AMT-3 must be numeric,
+R094,REC-COST-AMT-4 numeric,REC-COST-AMT-4,numeric,error,Yes,REC-COST-AMT-4 must be numeric,
+R095,REC-COST-AMT-5 numeric,REC-COST-AMT-5,numeric,error,Yes,REC-COST-AMT-5 must be numeric,
+R096,REC-COST-AMT-6 numeric,REC-COST-AMT-6,numeric,error,Yes,REC-COST-AMT-6 must be numeric,
+R097,REC-COST-AMT-7 numeric,REC-COST-AMT-7,numeric,error,Yes,REC-COST-AMT-7 must be numeric,
+R098,REC-COST-AMT-8 numeric,REC-COST-AMT-8,numeric,error,Yes,REC-COST-AMT-8 must be numeric,
+R099,REC-COST-AMT-9 numeric,REC-COST-AMT-9,numeric,error,Yes,REC-COST-AMT-9 must be numeric,
+R100,REC-COST-AMT-10 numeric,REC-COST-AMT-10,numeric,error,Yes,REC-COST-AMT-10 must be numeric,
+R101,REC-COST-AMT-11 numeric,REC-COST-AMT-11,numeric,error,Yes,REC-COST-AMT-11 must be numeric,
+R102,REC-COST-AMT-12 numeric,REC-COST-AMT-12,numeric,error,Yes,REC-COST-AMT-12 must be numeric,
+R103,REC-COST-AMT-13 numeric,REC-COST-AMT-13,numeric,error,Yes,REC-COST-AMT-13 must be numeric,
+R104,REC-COST-AMT-14 numeric,REC-COST-AMT-14,numeric,error,Yes,REC-COST-AMT-14 must be numeric,
+R105,REC-COST-AMT-15 numeric,REC-COST-AMT-15,numeric,error,Yes,REC-COST-AMT-15 must be numeric,
+R106,REC-COST-AMT-16 numeric,REC-COST-AMT-16,numeric,error,Yes,REC-COST-AMT-16 must be numeric,
+R107,REC-COST-AMT-17 numeric,REC-COST-AMT-17,numeric,error,Yes,REC-COST-AMT-17 must be numeric,
+R108,REC-COST-AMT-18 numeric,REC-COST-AMT-18,numeric,error,Yes,REC-COST-AMT-18 must be numeric,
+R109,REC-COST-AMT-19 numeric,REC-COST-AMT-19,numeric,error,Yes,REC-COST-AMT-19 must be numeric,
+R110,REC-COST-AMT-20 numeric,REC-COST-AMT-20,numeric,error,Yes,REC-COST-AMT-20 must be numeric,
+R111,LOAN-POOL-NUM numeric,LOAN-POOL-NUM,numeric,error,Yes,LOAN-POOL-NUM must be numeric,
+R112,LOAN-POOL-SLD-DATE date format,LOAN-POOL-SLD-DATE,date_format,error,Yes,LOAN-POOL-SLD-DATE must match CCYYMMDD,CCYYMMDD
+R113,ORIG-PORTF-TYPE valid values,ORIG-PORTF-TYPE,valid_values,error,Yes,ORIG-PORTF-TYPE must be one of: Y|N,Y|N
+R114,DAYS-SNC-CHRGOFF numeric,DAYS-SNC-CHRGOFF,numeric,error,Yes,DAYS-SNC-CHRGOFF must be numeric,
+R115,LAST-EXT-UPD-DATE date format,LAST-EXT-UPD-DATE,date_format,error,Yes,LAST-EXT-UPD-DATE must match CCYYMMDD,CCYYMMDD
+R116,CHRG-OFF-DOWN-IND valid values,CHRG-OFF-DOWN-IND,valid_values,error,Yes,CHRG-OFF-DOWN-IND must be one of: 0|1,0|1
+R117,INVESTOR-NUM numeric,INVESTOR-NUM,numeric,error,Yes,INVESTOR-NUM must be numeric,
+R118,EXT-RAND-NUM numeric,EXT-RAND-NUM,numeric,error,Yes,EXT-RAND-NUM must be numeric,
+R119,PRODUCT-TYPE valid values,PRODUCT-TYPE,valid_values,error,Yes,PRODUCT-TYPE must be one of: R28|R31|R32|R33|R34|R36|C30|C31|R07|R10|R20|R25|R26|R27|R03|R02|R04|R16|R35|R17|R08|R13|R15|R19|R98|R99|NA,R28|R31|R32|R33|R34|R36|C30|C31|R07|R10|R20|R25|R26|R27|R03|R02|R04|R16|R35|R17|R08|R13|R15|R19|R98|R99|NA
+R120,NEXT-BILL-DATE date format,NEXT-BILL-DATE,date_format,error,Yes,NEXT-BILL-DATE must match CCYYMMDD,CCYYMMDD
+CR001,Account key unique,LOCATION-CODE|ACCT-NUM,cross_row:unique_composite,error,Yes,LOCATION-CODE + ACCT-NUM must be unique across all rows,

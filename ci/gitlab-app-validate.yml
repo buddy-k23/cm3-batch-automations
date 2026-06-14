@@ -1,0 +1,31 @@
+# GitLab CI include template for post-batch Valdo validation
+# Usage in your pipeline:
+#   include:
+#     - project: 'your-group/valdo'
+#       file: 'ci/gitlab-app-validate.yml'
+
+.app_validate:
+  stage: validate
+  image: python:3.11-slim
+  variables:
+    APP_SUITE: "config/test_suites/default.yaml"
+    APP_ENV: "dev"
+    APP_OUTPUT_DIR: "reports"
+    APP_RUN_DATE: ""   # Set to YYYYMMDD or leave blank for today
+  before_script:
+    - pip install -e . --quiet
+  script:
+    - |
+      PARAMS=""
+      if [ -n "$APP_RUN_DATE" ]; then
+        PARAMS="--params run_date=$APP_RUN_DATE"
+      fi
+      valdo run-tests --suite "$APP_SUITE" --env "$APP_ENV" --output-dir "$APP_OUTPUT_DIR" $PARAMS
+  artifacts:
+    when: always
+    paths:
+      - reports/
+    expire_in: 30 days
+
+app-validate:
+  extends: .app_validate

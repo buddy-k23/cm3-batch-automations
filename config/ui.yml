@@ -1,0 +1,132 @@
+# Tab visibility — set to true to show, false (or omit) to hide.
+# All keys default to false if absent. The file must exist for any tab to appear.
+tabs:
+  quick: true
+  runs: true
+  mapping: true
+  tester: true
+  dbcompare: false
+  downloader: true
+
+# File Downloader configuration — replaces the env var ENABLE_FILE_DOWNLOADER
+# and the separate config/file-downloader.yml (now deprecated).
+downloader:
+  enabled: true
+  log_path: "logs/file-downloads.log"
+  archive_base_dir: "/data/archives"
+  # Search controls -- kill long-running file searches automatically or via UI cancel.
+  # timeout_seconds:     max wall-clock seconds a search may run before being
+  #                      terminated. Per-request override allowed in the body.
+  # max_timeout_seconds: hard upper bound for any client-supplied override.
+  search:
+    timeout_seconds: 30
+    max_timeout_seconds: 300
+  paths:
+    - label: "Batch Output"
+      path: /data/batch/output
+    - label: "ETL Logs"
+      path: /opt/etl/logs
+    - label: "Report Archive"
+      path: /data/reports
+    - label: "Batch Output Windows"
+      path: C:/gitlab-ws/python/valdo/data/batch/output
+    - label: "ETL Logs Windows"
+      path: C:/gitlab-ws/python/valdo/logs
+    - label: "Report Archive Windows"
+      path: C:/gitlab-ws/python/valdo/data
+
+security:
+  ip_whitelist: []        # Add IPs/CIDR ranges to restrict access, e.g. ["10.0.0.0/8"]
+  trust_proxy: false      # Set true if behind a reverse proxy (uses X-Forwarded-For)
+  trusted_proxies: []     # Required when trust_proxy: true. List the IPs/CIDR ranges
+                          # of every reverse proxy / load balancer in front of Valdo,
+                          # e.g. ["10.0.0.5", "10.0.0.6/32"]. The middleware walks the
+                          # X-Forwarded-For header right-to-left and uses the first
+                          # address NOT in this list as the client IP.
+  callback_allowlist: []  # Optional hostname allowlist for webhook callback URLs.
+                          # When non-empty, only callback_url values whose hostname
+                          # matches an entry exactly are accepted, e.g.
+                          # ["hooks.example.com", "ci.example.com"]. When empty,
+                          # only the SSRF scheme/IP-range checks apply.
+
+# TLS configuration — switch strategy by changing 'strategy' value only, no code changes needed.
+# Strategies: manual (default), self_signed, enterprise_ca
+#
+# Example — manual (pre-existing cert files):
+#   tls:
+#     enabled: true
+#     strategy: "manual"
+#     cert_path: "/etc/valdo/tls/cert.pem"
+#     key_path: "/etc/valdo/tls/key.pem"
+#
+# Example — self_signed (generated at startup, useful for dev/internal):
+#   tls:
+#     enabled: true
+#     strategy: "self_signed"
+#     cert_path: "/tmp/valdo-tls/cert.pem"
+#     key_path: "/tmp/valdo-tls/key.pem"
+#     cn: "valdo.internal"
+#     san:
+#       - "valdo.internal"
+#       - "localhost"
+#
+# Example — enterprise_ca (fetch from internal CA API):
+#   tls:
+#     enabled: true
+#     strategy: "enterprise_ca"
+#     ca_api_url: "https://ca.corp.example.com/issue"
+#     ca_api_token_env: "CA_API_TOKEN"   # env var holding the bearer token
+#     cert_path: "/etc/valdo/tls/cert.pem"
+#     key_path: "/etc/valdo/tls/key.pem"
+#     cn: "valdo.internal"
+#     san:
+#       - "valdo.internal"
+#     expiry_warn_days: 30
+tls:
+  enabled: false
+  strategy: "manual"            # "manual" | "self_signed" | "enterprise_ca"
+  cert_path: "/etc/valdo/tls/cert.pem"
+  key_path: "/etc/valdo/tls/key.pem"
+  cn: "valdo.internal"
+  san:
+    - "valdo.internal"
+  ca_api_url: ""               # enterprise_ca only: URL to CA API
+  ca_api_token_env: "CA_API_TOKEN"  # enterprise_ca only: env var holding the bearer token
+  expiry_warn_days: 30
+
+# Login / authentication — when enabled, Valdo serves a /auth/login form
+# that authenticates users against the corporate LDAP directory via LDAPS,
+# then issues a signed session cookie. X-API-Key authentication remains
+# available for service-to-service callers (session wins when both are
+# present on a request). When auth.enabled: false (the default), only
+# X-API-Key authentication is accepted, preserving pre-existing behaviour.
+#
+# Lower-environment LDAP server : ldaps://ldap-wil.bank.internal:636
+# Service Accounts search base  : OU=Service Accounts,DC=bank,DC=internal
+#
+# NOTE: Refine user_search_base to the correct Users OU once discovered,
+# e.g. "OU=Users,DC=bank,DC=internal". The value below targets the Service
+# Accounts OU as provided for the lower environment.
+auth:
+  enabled: true                          # set true in environments where LDAPS is reachable
+  mode: "ldap"
+  ldap:
+    server_uri: "ldaps://ldap-wil.bank.internal:636"
+    bind_strategy: "upn"
+    user_domain: "bank.internal"
+    user_search_base: "DC=bank,DC=internal"
+    user_search_filter: "(sAMAccountName={username})"
+    ca_cert_path: "C:/gitlab-ws/python/valdo/certs/corp-ca-bundle.pem"
+    connect_timeout_seconds: 5
+    group_attr: "memberOf"
+    group_role_map:
+      "valdo-admins": "admin"
+      "valdo-mapping-owners": "mapping_owner"
+      "*": "tester"
+  session:
+    cookie_name: "valdo_session"
+    cookie_secure: true      # local HTTP dev — set true in prod
+    cookie_samesite: "lax"
+    max_age_minutes: 60
+    signing_key_env: "VALDO_SESSION_SIGNING_KEY"
+

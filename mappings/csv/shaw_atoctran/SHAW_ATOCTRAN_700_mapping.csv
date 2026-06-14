@@ -1,0 +1,14 @@
+Field Name,Data Type,Position,Length,Target Name,Required,Format,Transformation,Valid Values,Description
+LOCATION-CODE,String,1,6,location_code,Yes,,Hard-code to 100030,100030,Location Code for Account
+ACCT-NUM,String,7,18,acct_num,Yes,,"No-Good (NSF) Check • Generated when the CCI = 1, 9 • OR Generated when the CCI = 0, 2 and a New Account (200) transaction is generated R_TR_BR (TR-BR) + R_TR_CUS (TR-CUS) + R_TR_LN (TR-LN)",,Account Number
+TRANSACTION-CODE,String,25,3,transaction_code,Yes,,"""700"" - If record has valid mapping for NG-CHECK-AMOUNT",700,Type of Transaction
+TRANSACTION-DATE,Date,28,8,transaction_date,Yes,CCYYMMDD,,,Date of Transaction
+NG-CHECK-AMOUNT,Numeric,36,18,ng_check_amount,Yes,9(12)V9(6),"Need to create following record for each account: Add all source's payment reversals (TR-TOTAL-AMT) for a particular account in one record (for all payment transactions from source refer tab 'Transactions Worksheet'), where TR-PROC-DATE = Batch Date and (TR-TR + TR-AC-CODE) in columnE of tab 'Transactions Worksheet' and TR-DESC not equal ""****"" IF none of the Transaction-Codes for Payment Reversals present in source file THEN Don't Create this Record",,The currency amount of the no good check.
+THIRD-PARTY-ID,String,54,8,third_party_id,No,,Leave Blank <spaces>,,ID of the third party providing the transaction
+THIRD-PARTY-COMM-AMT,Numeric,62,18,third_party_comm_amt,No,9(12)V9(6),Default to '000000000000000000',000000000000000000,The amount of commission or expense the Third Party believes they are due for...
+BATCH-INFO,String,80,25,batch_info,No,,Leave Blank <spaces>,,The information describing the batch.
+ORIGINAL-TRAN-INFO,String,105,10,original_tran_info,No,,Leave Blank <spaces>,,The original transaction.
+THIRD-PARTY-WITHHELD-FLAG,String,115,1,third_party_withheld_flag,No,,Leave Blank <spaces>,,Indicates if the third party withheld money from the transaction
+INPUT-SOURCE-CODE,Numeric,116,3,input_source_code,No,9(3),Default to '000',000,An optional field that can be used for the General Ledger mapping of Third Pa...
+REFERENCE-NUM,String,119,3,reference_num,No,,Leave Blank <spaces>,,An optional field that can be used to identify the Third Party Expense transa...
+THIRD-PARTY-AMT-AFFECTED,String,122,1,third_party_amt_affected,No,,Leave Blank <spaces>,,Used to indicate how this transaction affects the Third Party.
