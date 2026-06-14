@@ -53,6 +53,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reintroduction. All subprocess calls use explicit arg-arrays.
 
 ### Added
+- EC-S4 (Sprint 2): `src/onboarding/emitters/mapping_emitter.py`
+  emits per-file flat mapping JSONs and per-multi-record umbrella YAMLs
+  + per-record-type JSONs from an `OnboardingWorkbook`. Delegates field-
+  mapping conversion to the existing `src/config/template_converter.py`
+  (no duplicated converter logic). Returns `EmittedMappingArtefact`
+  instances; does not write to disk (EC-S6 CLI handles persistence).
+  SHAW workbook round-trips to artefacts structurally equivalent to
+  the committed `config/mappings/SHAW_*.json|yaml`.
 - EC-S3 (Sprint 2): `src/onboarding/emitters/source_yaml_emitter.py`
   converts an `OnboardingWorkbook` (from EC-S2) into a source-YAML text
   semantically equivalent to today's committed
