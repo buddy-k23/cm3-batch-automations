@@ -53,6 +53,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reintroduction. All subprocess calls use explicit arg-arrays.
 
 ### Added
+- EC-S2 (Sprint 2): `src/onboarding/workbook_reader.py` parses the
+  onboarding workbook into typed `OnboardingWorkbook` dataclass
+  (`src/onboarding/models.py`). DASH-style field names preserved
+  verbatim; pipe-separated cells parsed; blank optional cells return
+  `None`; bool cells accept `true/false/yes/no/1/0` case-insensitively.
+  Delegates schema validation to EC-S1. EC-S3/S4/S5 emitters consume
+  `OnboardingWorkbook` rather than raw openpyxl rows.
 - EC-S1 (Sprint 2): Canonical source-onboarding Excel workbook template
   at `templates/source_onboarding_template.xlsx` + worked-example
   `templates/SHAW_onboarding.xlsx`. Schema validator at
