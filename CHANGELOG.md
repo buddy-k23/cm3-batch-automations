@@ -29,6 +29,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reintroduction. All subprocess calls use explicit arg-arrays.
 
 ### Added
+- EF-S3: MCP resources `taxonomy://violations` and `taxonomy://rules`.
+  Live taxonomies introspected from the engine (no hardcoded duplicates).
+  Agents can pull both via MCP `resources/read` to ground violation
+  diagnosis and rule recommendations.
 - EF-S1: MCP Streamable HTTP server scaffold mounted at `/mcp` on the FastAPI
   process. `initialize` handshake advertises tools/resources/prompts capabilities
   (registries empty in this scaffold). Dev-mode auth via `VALDO_MCP_AUTH=dev`;

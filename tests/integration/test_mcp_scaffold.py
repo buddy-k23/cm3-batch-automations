@@ -171,13 +171,17 @@ def test_mcp_without_dev_auth_returns_401(monkeypatch):
     assert response.json() == {"error": "MCP auth not configured"}
 
 
-def test_mcp_capabilities_advertise_empty_registries(monkeypatch):
-    """Registry shape guard: ``*/list`` return empty arrays in the scaffold.
+def test_mcp_capabilities_advertise_expected_registries(monkeypatch):
+    """Registry shape guard: ``*/list`` returns the EF-S3 baseline.
 
-    EF-S1 does not register any tools, resources, or prompts. The
-    Streamable-HTTP transport must therefore answer the corresponding
-    JSON-RPC ``list`` calls with empty arrays. EF-S2 / EF-S3 / EF-S6 will
-    populate these registries; this test pins the baseline.
+    Baseline pinned after each MCP-track story lands:
+
+    * ``tools/list``     — empty array (EF-S2 will populate).
+    * ``resources/list`` — exactly two entries, the
+      ``taxonomy://violations`` and ``taxonomy://rules`` URIs added by
+      EF-S3. Stories EF-S4 and onwards will extend this; this test pins
+      the current expected set so accidental drift is caught.
+    * ``prompts/list``   — empty array (EF-S6 will populate).
 
     Each ``*/list`` call is sent as its own POST because the scaffold uses
     stateless HTTP (``stateless_http=True``); there is no session token
@@ -195,6 +199,7 @@ def test_mcp_capabilities_advertise_empty_registries(monkeypatch):
         init = client.post("/mcp/", json=_INIT_PAYLOAD, headers=_MCP_HEADERS)
         assert init.status_code == 200, init.text
 
+        list_results: dict[str, list] = {}
         for idx, (method, result_key) in enumerate(
             [
                 ("tools/list", "tools"),
@@ -215,7 +220,17 @@ def test_mcp_capabilities_advertise_empty_registries(monkeypatch):
             )
             body = _parse_streamable_body(response)
             assert "result" in body, f"{method} body missing 'result': {body!r}"
-            registry = body["result"].get(result_key)
-            assert registry == [], (
-                f"{method} expected empty {result_key} array, got {registry!r}"
-            )
+            list_results[method] = body["result"].get(result_key, [])
+
+    # EF-S2 / EF-S6 still pending — these stay empty.
+    assert list_results["tools/list"] == [], list_results["tools/list"]
+    assert list_results["prompts/list"] == [], list_results["prompts/list"]
+
+    # EF-S3 — exactly the two taxonomy resources, no more, no less. The
+    # shape of each entry is asserted in
+    # ``test_mcp_taxonomy_resources.py``; here we only verify the
+    # registry size and URIs so this test stays a focused baseline.
+    resource_uris = sorted(r["uri"] for r in list_results["resources/list"])
+    assert resource_uris == ["taxonomy://rules", "taxonomy://violations"], (
+        f"resources/list URIs drifted from EF-S3 baseline: {resource_uris!r}"
+    )

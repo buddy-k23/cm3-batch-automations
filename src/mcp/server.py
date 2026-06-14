@@ -1,17 +1,18 @@
-"""MCP (Model Context Protocol) server scaffold for Valdo (EF-S1).
+"""MCP (Model Context Protocol) server scaffold for Valdo (EF-S1 + EF-S3).
 
 This module wires a Streamable-HTTP MCP server (built on `mcp.server.fastmcp`)
-into the existing FastAPI process. The server is intentionally empty in this
-milestone:
+into the existing FastAPI process. The server registers the following
+capabilities:
 
-* No tools are registered (EF-S2 introduces the validation tool surface).
-* No resources are registered (EF-S3 will expose mappings/rules as resources).
-* No prompts are registered (EF-S6 will introduce prompt templates).
+* Tools: empty (EF-S2 introduces the validation tool surface).
+* Resources: ``taxonomy://violations`` and ``taxonomy://rules`` (EF-S3 —
+  live introspection of the engine's violation kinds and rule check names;
+  see :mod:`src.mcp.taxonomy`).
+* Prompts: empty (EF-S6 will introduce prompt templates).
 
-The MCP capability advertisement is therefore "all three present, all three
-empty" — clients can still complete the JSON-RPC ``initialize`` handshake and
-inspect that Valdo *intends* to expose tools, resources, and prompts, but
-listing any registry returns an empty array.
+The MCP capability advertisement therefore exposes tools, resources, and
+prompts — ``resources/list`` returns the two taxonomy URIs while the other
+``*/list`` calls return empty arrays.
 
 Auth posture (dev-only, replaced in EF-S7):
     The MCP sub-app is protected by a small Starlette ``BaseHTTPMiddleware``
@@ -33,6 +34,7 @@ Transport security:
 
 from __future__ import annotations
 
+import json
 import os
 from typing import Tuple
 
@@ -43,7 +45,18 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
+from src.mcp.taxonomy import list_rule_taxonomy, list_violation_taxonomy
+
 __all__ = ["build_mcp_server", "MCPAuthMiddleware"]
+
+# Resource URIs (kept module-level so tests and external callers can import
+# them rather than hard-coding string literals).
+TAXONOMY_VIOLATIONS_URI = "taxonomy://violations"
+TAXONOMY_RULES_URI = "taxonomy://rules"
+
+# JSON MIME type advertised on each taxonomy resource — agents that fetch
+# the resource know to ``json.loads`` the text body without sniffing.
+_JSON_MIME = "application/json"
 
 # Server identity advertised in the MCP `initialize` response. Kept in sync
 # with the FastAPI app version in ``src/api/main.py``.
@@ -115,11 +128,15 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
           to ``FastAPI.mount("/mcp", mounted_app)``.
 
     Notes:
-        Tools, resources, and prompts intentionally remain empty in EF-S1.
-        FastMCP advertises all three capability buckets unconditionally,
-        so the ``initialize`` response still exposes the ``tools``,
-        ``resources``, and ``prompts`` keys — they simply yield empty
-        ``*/list`` results.
+        Tools and prompts remain empty in EF-S3 (they land in EF-S2 and
+        EF-S6 respectively). Two resources are registered here —
+        ``taxonomy://violations`` and ``taxonomy://rules`` — backed by
+        live introspection of the engine via :mod:`src.mcp.taxonomy`. We
+        deliberately do NOT cache the taxonomy snapshots at registration
+        time: each ``resources/read`` call re-runs the introspection so
+        an in-process engine edit (during development or hot-reload) is
+        reflected immediately, and stale snapshots cannot accidentally
+        mislead an agent.
     """
     # DNS-rebinding protection is disabled only when we are explicitly in
     # dev mode (the same flag that opens the auth middleware). Production
@@ -159,6 +176,53 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
         # only when the test asserts the specific version (it does not
         # today; the test only asserts `serverInfo.name == "valdo"`).
         pass
+
+    # ------------------------------------------------------------------
+    # EF-S3 — taxonomy resources.
+    #
+    # The resource handlers MUST be registered before
+    # ``streamable_http_app()`` materialises the session manager so the
+    # MCP transport advertises them in ``resources/list`` from the very
+    # first request. They return plain JSON strings (``application/json``
+    # MIME type); FastMCP wraps them in the spec-mandated
+    # ``ReadResourceContents`` envelope automatically.
+    #
+    # We use ``json.dumps`` with ``ensure_ascii=False`` and stable
+    # ``indent=2`` formatting so the resource text is human-readable when
+    # an agent surfaces it back to a user verbatim — diff-friendly too.
+    # ------------------------------------------------------------------
+
+    @mcp_server.resource(
+        TAXONOMY_VIOLATIONS_URI,
+        name="violation-taxonomy",
+        title="Valdo violation taxonomy",
+        description=(
+            "Live list of violation kinds the Valdo engine emits during "
+            "validation and SQL-truth reconciliation. Each entry has a "
+            "canonical 'name' (the literal string used in reports) and a "
+            "one-line 'description'. Introspected from the engine on "
+            "every read — no hardcoded duplicates."
+        ),
+        mime_type=_JSON_MIME,
+    )
+    def _violation_taxonomy_resource() -> str:
+        return json.dumps(list_violation_taxonomy(), ensure_ascii=False, indent=2)
+
+    @mcp_server.resource(
+        TAXONOMY_RULES_URI,
+        name="rule-taxonomy",
+        title="Valdo rule taxonomy",
+        description=(
+            "Live list of rule check types the Valdo rule engine accepts, "
+            "covering per-field validations, cross-row checks, and "
+            "cross-record-type checks. Each entry has 'name', 'category' "
+            "('per-field' | 'cross-row' | 'cross-type'), and a one-line "
+            "'description'. Introspected from the engine on every read."
+        ),
+        mime_type=_JSON_MIME,
+    )
+    def _rule_taxonomy_resource() -> str:
+        return json.dumps(list_rule_taxonomy(), ensure_ascii=False, indent=2)
 
     # Materialise the Streamable HTTP transport. This call is what creates
     # the session manager; accessing `mcp_server.session_manager` before
