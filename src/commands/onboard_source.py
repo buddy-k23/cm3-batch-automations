@@ -62,6 +62,10 @@ from src.onboarding.emitters.mapping_emitter import (
     EmittedMappingArtefact,
     emit_mapping_artefacts,
 )
+from src.onboarding.emitters.reconciliation_emitter import (
+    EmittedReconciliationArtefact,
+    emit_reconciliation_artefacts,
+)
 from src.onboarding.emitters.rules_emitter import (
     EmittedRulesArtefact,
     emit_rules_artefacts,
@@ -176,6 +180,7 @@ def _plan_writes(
     source_dir: Path | None,
     mapping_dir: Path | None,
     rules_dir: Path | None,
+    reconciliation_dir: Path | None = None,
     frozen_timestamp: str | None = None,
 ) -> list[_PlannedWrite]:
     """Run all three emitters and resolve every artefact's destination path.
@@ -187,6 +192,11 @@ def _plan_writes(
         source_dir: Override for source YAML directory or ``None``.
         mapping_dir: Override for mapping directory or ``None``.
         rules_dir: Override for rules directory or ``None``.
+        reconciliation_dir: Override for reconciliation YAML directory
+            or ``None``. When provided, reconciliation artefacts are
+            written under ``<reconciliation_dir>/<filetype>.yml``
+            instead of the default
+            ``config/e2e/sources/<SOURCE>/reconciliation/`` layout.
         frozen_timestamp: Optional EC-S10 deterministic timestamp
             plumbed through to the mapping + rules emitters. When set
             (either via the ``--frozen-timestamp`` flag or as part of
@@ -258,6 +268,29 @@ def _plan_writes(
                 content=artefact.content,
                 category="rules",
                 kind=artefact.kind,
+            )
+        )
+
+    # 4. Reconciliation artefacts (ED-S1). Emitted per
+    # ``Reconciliation_<FILETYPE>`` sheet under
+    # ``config/e2e/sources/<SOURCE>/reconciliation/<filetype>.yml``.
+    # The ``ED-S2`` SQL auto-derivation pass reads the marker token
+    # ``expected_sql: auto`` to know which legs to fill in.
+    reconciliation_artefacts: list[EmittedReconciliationArtefact] = (
+        emit_reconciliation_artefacts(workbook)
+    )
+    for recon_artefact in reconciliation_artefacts:
+        plans.append(
+            _PlannedWrite(
+                path=_resolve_artefact_path(
+                    recon_artefact.path,
+                    default_subdir="config/e2e/sources",
+                    output_root=output_root,
+                    override_dir=reconciliation_dir,
+                ),
+                content=recon_artefact.content,
+                category="reconciliation",
+                kind="reconciliation_yaml",
             )
         )
 
@@ -509,7 +542,10 @@ def _compare_artefact(
     if not exists:
         return False, f"committed file does not exist (would be created)"
 
-    if plan.category == "source_yaml":
+    if plan.category in {"source_yaml", "reconciliation"}:
+        # Source YAML and reconciliation YAML carry no converter-embedded
+        # timestamps — direct semantic equality via ``yaml.safe_load`` is
+        # the correct equivalence contract.
         if emitted_data == committed_data:
             return True, None
         return False, _summarise_dict_drift(emitted_data, committed_data)
@@ -615,7 +651,8 @@ def _render_summary_block(
     source_count, source_bytes = _category_summary(plans, "source_yaml")
     mapping_count, mapping_bytes = _category_summary(plans, "mapping")
     rules_count, rules_bytes = _category_summary(plans, "rules")
-    total = source_count + mapping_count + rules_count
+    recon_count, recon_bytes = _category_summary(plans, "reconciliation")
+    total = source_count + mapping_count + rules_count + recon_count
 
     if dry_run:
         verb = "would write"
@@ -624,9 +661,14 @@ def _render_summary_block(
 
     lines = [
         f"onboard-source: {source_code}",
-        f"  source YAML       -> 1 file ({source_bytes} bytes)",
-        f"  mapping artefacts -> {mapping_count} files ({mapping_bytes} bytes)",
-        f"  rules artefacts   -> {rules_count} files ({rules_bytes} bytes)",
+        f"  source YAML              -> 1 file ({source_bytes} bytes)",
+        f"  mapping artefacts        -> {mapping_count} files ({mapping_bytes} bytes)",
+        f"  rules artefacts          -> {rules_count} files ({rules_bytes} bytes)",
+        (
+            f"  reconciliation artefacts -> "
+            f"config/e2e/sources/{source_code}/reconciliation/* "
+            f"({recon_count} files, {recon_bytes} bytes)"
+        ),
         "  " + ("-" * 60),
         f"  {total} files {verb}.",
     ]
@@ -761,6 +803,7 @@ def run_onboard_source(
     source_dir: str | None = None,
     mapping_dir: str | None = None,
     rules_dir: str | None = None,
+    reconciliation_dir: str | None = None,
     dry_run: bool = False,
     check: bool = False,
     quiet: bool = False,
@@ -817,6 +860,9 @@ def run_onboard_source(
     source_dir_path = Path(source_dir) if source_dir else None
     mapping_dir_path = Path(mapping_dir) if mapping_dir else None
     rules_dir_path = Path(rules_dir) if rules_dir else None
+    reconciliation_dir_path = (
+        Path(reconciliation_dir) if reconciliation_dir else None
+    )
 
     # 1. Read the workbook.
     try:
@@ -842,6 +888,7 @@ def run_onboard_source(
             source_dir=source_dir_path,
             mapping_dir=mapping_dir_path,
             rules_dir=rules_dir_path,
+            reconciliation_dir=reconciliation_dir_path,
             frozen_timestamp=frozen_timestamp,
         )
     except EmitterError as exc:
@@ -896,6 +943,16 @@ def run_onboard_source(
     help='Directory for rules JSON artefacts (default: "config/rules").',
 )
 @click.option(
+    "--reconciliation-dir",
+    default=None,
+    type=click.Path(file_okay=False),
+    help=(
+        "Directory for reconciliation YAML artefacts (default: "
+        '"config/e2e/sources/<SOURCE>/reconciliation/"). When provided, '
+        "every artefact is flattened into the supplied directory."
+    ),
+)
+@click.option(
     "--dry-run",
     is_flag=True,
     default=False,
@@ -934,6 +991,7 @@ def onboard_source(
     source_dir: str | None,
     mapping_dir: str | None,
     rules_dir: str | None,
+    reconciliation_dir: str | None,
     dry_run: bool,
     check: bool,
     quiet: bool,
@@ -961,6 +1019,7 @@ def onboard_source(
         source_dir=source_dir,
         mapping_dir=mapping_dir,
         rules_dir=rules_dir,
+        reconciliation_dir=reconciliation_dir,
         dry_run=dry_run,
         check=check,
         quiet=quiet,

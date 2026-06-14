@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- ED-S1 (Sprint 3 / Move 4): `src/onboarding/emitters/reconciliation_emitter.py`
+  emits reconciliation YAML artefacts from `Reconciliation_<FILETYPE>`
+  workbook sheets to `config/e2e/sources/<NAME>/reconciliation/<filetype>.yml`.
+  `expected_sql: auto` marker convention reserved for ED-S2 SQL auto-derivation.
+  Wired into `valdo onboard-source` CLI.
 - EC-S11 (Sprint 3): GitHub Actions workflow
   `.github/workflows/workbook-drift-check.yml` runs
   `valdo onboard-source <workbook> --check` for every committed

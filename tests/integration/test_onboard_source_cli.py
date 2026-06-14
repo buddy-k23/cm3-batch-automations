@@ -49,8 +49,14 @@ COMMITTED_RULES_DIR = REPO_ROOT / "config" / "rules"
 EXPECTED_SOURCE_YAML_COUNT = 1
 EXPECTED_MAPPING_COUNT = 36
 EXPECTED_RULES_COUNT = 28
+# ED-S1 added the Reconciliation_<FILETYPE> -> reconciliation YAML emitter.
+# SHAW currently carries one reconciliation sheet (TRANERT).
+EXPECTED_RECONCILIATION_COUNT = 1
 EXPECTED_TOTAL_COUNT = (
-    EXPECTED_SOURCE_YAML_COUNT + EXPECTED_MAPPING_COUNT + EXPECTED_RULES_COUNT
+    EXPECTED_SOURCE_YAML_COUNT
+    + EXPECTED_MAPPING_COUNT
+    + EXPECTED_RULES_COUNT
+    + EXPECTED_RECONCILIATION_COUNT
 )
 
 
@@ -93,10 +99,12 @@ def _make_malformed_workbook(tmp_path: Path) -> Path:
 
 def test_normal_mode_writes_all_artefacts_to_tmp_path(tmp_path):
     """Run normal mode against tmp output dirs; assert every artefact
-    landed on disk and the summary line reports 65 files written."""
+    landed on disk and the summary line reports the full file total
+    (1 source + 36 mappings + 28 rules + 1 reconciliation = 66 after ED-S1)."""
     source_dir = tmp_path / "sources"
     mapping_dir = tmp_path / "mappings"
     rules_dir = tmp_path / "rules"
+    reconciliation_dir = tmp_path / "reconciliation"
 
     result = _invoke(
         [
@@ -107,6 +115,8 @@ def test_normal_mode_writes_all_artefacts_to_tmp_path(tmp_path):
             str(mapping_dir),
             "--rules-dir",
             str(rules_dir),
+            "--reconciliation-dir",
+            str(reconciliation_dir),
         ]
     )
 
@@ -124,6 +134,7 @@ def test_normal_mode_writes_all_artefacts_to_tmp_path(tmp_path):
     source_files = list(source_dir.glob("*.yml"))
     mapping_files = list(mapping_dir.glob("*"))
     rules_files = list(rules_dir.glob("*"))
+    reconciliation_files = list(reconciliation_dir.glob("*.yml"))
 
     assert len(source_files) == EXPECTED_SOURCE_YAML_COUNT, (
         f"Expected {EXPECTED_SOURCE_YAML_COUNT} source YAML; got {source_files}"
@@ -135,6 +146,11 @@ def test_normal_mode_writes_all_artefacts_to_tmp_path(tmp_path):
     assert len(rules_files) == EXPECTED_RULES_COUNT, (
         f"Expected {EXPECTED_RULES_COUNT} rules files; got "
         f"{len(rules_files)}: {[f.name for f in rules_files]}"
+    )
+    assert len(reconciliation_files) == EXPECTED_RECONCILIATION_COUNT, (
+        f"Expected {EXPECTED_RECONCILIATION_COUNT} reconciliation files; "
+        f"got {len(reconciliation_files)}: "
+        f"{[f.name for f in reconciliation_files]}"
     )
 
 
@@ -148,6 +164,7 @@ def test_dry_run_writes_nothing(tmp_path):
     source_dir = tmp_path / "sources"
     mapping_dir = tmp_path / "mappings"
     rules_dir = tmp_path / "rules"
+    reconciliation_dir = tmp_path / "reconciliation"
 
     result = _invoke(
         [
@@ -159,6 +176,8 @@ def test_dry_run_writes_nothing(tmp_path):
             str(mapping_dir),
             "--rules-dir",
             str(rules_dir),
+            "--reconciliation-dir",
+            str(reconciliation_dir),
         ]
     )
 
@@ -174,6 +193,10 @@ def test_dry_run_writes_nothing(tmp_path):
     assert not source_dir.exists() or list(source_dir.glob("*")) == []
     assert not mapping_dir.exists() or list(mapping_dir.glob("*")) == []
     assert not rules_dir.exists() or list(rules_dir.glob("*")) == []
+    assert (
+        not reconciliation_dir.exists()
+        or list(reconciliation_dir.glob("*")) == []
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -214,6 +237,7 @@ def test_check_mode_clean_on_committed_state(tmp_path):
     source_dir = tmp_path / "sources"
     mapping_dir = tmp_path / "mappings"
     rules_dir = tmp_path / "rules"
+    reconciliation_dir = tmp_path / "reconciliation"
 
     # First: write a fresh artefact tree.
     write_result = _invoke(
@@ -225,6 +249,8 @@ def test_check_mode_clean_on_committed_state(tmp_path):
             str(mapping_dir),
             "--rules-dir",
             str(rules_dir),
+            "--reconciliation-dir",
+            str(reconciliation_dir),
         ]
     )
     assert write_result.exit_code == 0, (
@@ -242,6 +268,8 @@ def test_check_mode_clean_on_committed_state(tmp_path):
             str(mapping_dir),
             "--rules-dir",
             str(rules_dir),
+            "--reconciliation-dir",
+            str(reconciliation_dir),
         ]
     )
     assert check_result.exit_code == 0, (
@@ -268,6 +296,9 @@ def test_check_mode_detects_drift(tmp_path):
     the source YAML."""
     drift_sources = tmp_path / "sources"
     drift_sources.mkdir()
+    # ED-S1: reconciliation-dir is pointed at a tmp dir so the test
+    # never accidentally touches the committed reconciliation YAMLs.
+    reconciliation_dir = tmp_path / "reconciliation"
 
     # Copy the committed SHAW.yml and mutate one field.
     committed_yaml_text = (COMMITTED_SOURCES_DIR / "SHAW.yml").read_text(
@@ -288,6 +319,8 @@ def test_check_mode_detects_drift(tmp_path):
             str(COMMITTED_MAPPINGS_DIR),
             "--rules-dir",
             str(COMMITTED_RULES_DIR),
+            "--reconciliation-dir",
+            str(reconciliation_dir),
         ]
     )
 
@@ -349,10 +382,12 @@ def test_invalid_workbook_returns_exit_1_with_schema_error(tmp_path):
 
 
 def test_summary_counts_match_emitter_counts(tmp_path):
-    """Normal-mode summary reports the 1 + 36 + 28 = 65 SHAW breakdown."""
+    """Normal-mode summary reports the 1 + 36 + 28 + 1 = 66 SHAW breakdown
+    (ED-S1 added the reconciliation artefact count to the summary)."""
     source_dir = tmp_path / "sources"
     mapping_dir = tmp_path / "mappings"
     rules_dir = tmp_path / "rules"
+    reconciliation_dir = tmp_path / "reconciliation"
 
     result = _invoke(
         [
@@ -363,6 +398,8 @@ def test_summary_counts_match_emitter_counts(tmp_path):
             str(mapping_dir),
             "--rules-dir",
             str(rules_dir),
+            "--reconciliation-dir",
+            str(reconciliation_dir),
         ]
     )
 
@@ -380,6 +417,16 @@ def test_summary_counts_match_emitter_counts(tmp_path):
     assert f"{EXPECTED_RULES_COUNT} files" in out, (
         f"Expected '{EXPECTED_RULES_COUNT} files' in rules summary:\n{out}"
     )
+    # ED-S1 reconciliation summary line.
+    assert "reconciliation artefacts" in out, (
+        f"Expected reconciliation summary line in:\n{out}"
+    )
+    assert (
+        f"config/e2e/sources/SHAW/reconciliation/" in out
+    ), f"Expected reconciliation path summary in:\n{out}"
+    assert (
+        f"{EXPECTED_RECONCILIATION_COUNT} files" in out
+    ), f"Expected '{EXPECTED_RECONCILIATION_COUNT} files' in recon summary:\n{out}"
     # Total.
     assert f"{EXPECTED_TOTAL_COUNT} files written" in out, (
         f"Expected '{EXPECTED_TOTAL_COUNT} files written' total:\n{out}"
@@ -404,6 +451,7 @@ def test_idempotent_on_second_run(tmp_path):
     source_dir = tmp_path / "sources"
     mapping_dir = tmp_path / "mappings"
     rules_dir = tmp_path / "rules"
+    reconciliation_dir = tmp_path / "reconciliation"
 
     common_args = [
         str(SHAW_WORKBOOK),
@@ -413,16 +461,19 @@ def test_idempotent_on_second_run(tmp_path):
         str(mapping_dir),
         "--rules-dir",
         str(rules_dir),
+        "--reconciliation-dir",
+        str(reconciliation_dir),
     ]
 
     def _path_set(root: Path) -> set[Path]:
-        # Use full paths so basenames colliding across the three dirs
+        # Use full paths so basenames colliding across the four dirs
         # (mapping + rules JSONs for the same record-type share a stem)
         # do not collapse and inflate / deflate the count.
         return {
             *source_dir.glob("*"),
             *mapping_dir.glob("*"),
             *rules_dir.glob("*"),
+            *reconciliation_dir.glob("*"),
         }
 
     result1 = _invoke(common_args)
@@ -645,8 +696,7 @@ def test_check_mode_clean_against_committed_state():
         + "\n".join(mapping_drift_lines)
     )
 
-    # 3. SOLE remaining drift line points at SHAW_TRANERT_CUS_rules.json
-    # (the R028B carve-out).
+    # 3. Rules drift continues to be the SOLE R028B carve-out line.
     rules_drift_lines = [
         line for line in drift_lines if "/config/rules/" in line
     ]
@@ -665,10 +715,34 @@ def test_check_mode_clean_against_committed_state():
         f"mismatch: {rules_drift_lines[0]!r}"
     )
 
-    # 4. Match count is exactly 64 of 65.
-    assert "64 of 65 artefacts match" in result.stderr, (
-        "EC-S9 contract violation: expected '64 of 65 artefacts match' "
-        f"summary line; got:\n{result.stderr}"
+    # 3b. ED-S1 carve-out: the SOLE reconciliation drift line points at
+    # the committed ``SHAW/reconciliation/tranert.yml`` and cites
+    # ``record_types`` -- the committed YAML carries hand-CURATED
+    # ``fields:`` arrays (5-15 fields per record_type) while the ED-S1
+    # emitter conservatively projects the FULL mapping field set from
+    # each ``*_Mapping`` sheet (22+ fields). The curation gap is
+    # documented in the ED-S1 module docstring; ED-S2 will reconcile it
+    # alongside the SQL auto-derivation pass.
+    reconciliation_drift_lines = [
+        line
+        for line in drift_lines
+        if "/config/e2e/sources/SHAW/reconciliation/" in line
+    ]
+    assert len(reconciliation_drift_lines) == 1, (
+        "ED-S1 contract violation: expected exactly 1 reconciliation "
+        "drift line (TRANERT field-curation carve-out); got "
+        f"{len(reconciliation_drift_lines)}:\n"
+        + "\n".join(reconciliation_drift_lines)
+    )
+    assert "tranert.yml" in reconciliation_drift_lines[0]
+    assert "record_types" in reconciliation_drift_lines[0]
+
+    # 4. Match count is exactly 64 of 66 -- the original R028B carve-out
+    # plus the ED-S1 reconciliation field-curation carve-out documented
+    # above. ED-S2 reconciles the curation gap.
+    assert "64 of 66 artefacts match" in result.stderr, (
+        "Combined ED-S1 / EC-S9 contract violation: expected '64 of 66 "
+        f"artefacts match' summary line; got:\n{result.stderr}"
     )
 
 
@@ -693,6 +767,7 @@ def test_help_lists_all_flags():
         "--source-dir",
         "--mapping-dir",
         "--rules-dir",
+        "--reconciliation-dir",
     ):
         assert flag in help_text, (
             f"Expected flag '{flag}' in --help output; missing.\n"
