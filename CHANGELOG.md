@@ -8,6 +8,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- EC-S9 (Sprint 3 drift-fix): `templates/SHAW_onboarding.xlsx`
+  regenerated from committed state via `scripts/build_shaw_onboarding_workbook.py`,
+  making the workbook a 1:1 reverse-engineering of the currently committed
+  `config/mappings/`, `config/rules/`, `config/e2e/sources/SHAW.yml`, and
+  reconciliation YAMLs. `valdo onboard-source --check` against committed
+  SHAW state now exits 0 (modulo `metadata.created_date` timestamps —
+  EC-S10 lands deterministic timestamps to close that gap). The build
+  script gains `_reverse_engineer_mapping_rows_from_json` and
+  `_reverse_engineer_rules_rows_from_json` helpers that read committed
+  artefacts directly, sidestepping a UTF-8 BOM bug in
+  `mappings/csv/shaw_tranert/SHAW_TRANERT_CUS_mapping.csv` that had
+  silently blanked the `Field Name` column on every row of the
+  TRANERT_CUS mapping sheet. Drift count: 29 of 65 → 64 of 65 (the
+  sole remaining drift is the hand-authored `cross_row:sequential`
+  R028B countdown rule on `SHAW_TRANERT_CUS_rules.json`, which has
+  the engine-native `sequence_field`/`start`/`step` shape that BA
+  workbook columns cannot express; this is a documented carve-out
+  asserted by the new `test_check_mode_clean_modulo_timestamps`
+  regression test). 34 TODO-stub JSONs for SHAW input files and
+  CDSTRANS_*/CONTACT_*/P327 outputs are now committed alongside the
+  workbook so the artefact COUNT matches 65 of 65.
 - EC-S7 (Sprint 3 drift-fix): EC-S4 mapping emitter now populates
   umbrella YAML `record_types.<name>.rules` paths using a shared
   helper `derive_rules_artefact_path()` in

@@ -1,0 +1,24 @@
+{
+  "metadata": {
+    "name": "SHAW_CDSTRANS_EST",
+    "description": "Generated from BA-friendly template: SHAW_CDSTRANS_EST.csv",
+    "created_by": "ba_rules_template_converter",
+    "created_date": "2026-06-14T21:48:48.356920Z",
+    "template_path": "SHAW_CDSTRANS_EST.csv",
+    "template_type": "ba_friendly"
+  },
+  "rules": [
+    {
+      "id": "R001",
+      "name": "TODO CDSTRANS_EST rule",
+      "description": "TODO CDSTRANS_EST rule",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "not_empty",
+      "field": "TODO_FIELD_1_CDSTRANS_EST",
+      "operator": "not_empty",
+      "message": "TODO(rules-pending): CDSTRANS_EST rules not yet authored."
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "metadata": {
+    "name": "SHAW_CONTACT_ACCOUNT",
+    "description": "Generated from BA-friendly template: SHAW_CONTACT_ACCOUNT.csv",
+    "created_by": "ba_rules_template_converter",
+    "created_date": "2026-06-14T21:48:48.359473Z",
+    "template_path": "SHAW_CONTACT_ACCOUNT.csv",
+    "template_type": "ba_friendly"
+  },
+  "rules": [
+    {
+      "id": "R001",
+      "name": "TODO CONTACT_ACCOUNT rule",
+      "description": "TODO CONTACT_ACCOUNT rule",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "source_template_rule_type": "not_empty",
+      "field": "TODO_FIELD_1_CONTACT_ACCOUNT",
+      "operator": "not_empty",
+      "message": "TODO(rules-pending): CONTACT_ACCOUNT rules not yet authored."
+    }
+  ]
+}

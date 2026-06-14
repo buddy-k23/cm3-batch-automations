@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the SHAW onboarding workbook + the blank canonical template (EC-S1).
+"""Build the SHAW onboarding workbook + the blank canonical template (EC-S1 / EC-S9).
 
 This script is the **canonical reference** for BAs who want to scaffold a new
 onboarding workbook from existing Valdo configuration. It walks:
@@ -8,11 +8,6 @@ onboarding workbook from existing Valdo configuration. It walks:
     - config/mappings/SHAW_<FILETYPE>.json|yaml    (per-file mappings + umbrellas)
     - config/mappings/SHAW_<FILETYPE>_<RT>_mapping.json (per-record-type mappings)
     - config/rules/SHAW_<FILETYPE>_<RT>_rules.json (per-record-type rules)
-    - mappings/csv/shaw_*/                         (BA-friendly CSV templates,
-                                                    used as the source of truth
-                                                    for mapping/rules sheet rows
-                                                    because they preserve the
-                                                    BA-facing column shape)
     - config/e2e/sources/SHAW/reconciliation/*.yml (L2b SQL-truth specs)
 
 …and emits two workbooks:
@@ -30,6 +25,58 @@ The script is idempotent — running it again overwrites both workbooks. It is
 NOT wired into CI; EC-S1 ships the artefacts directly. Sprint-2 / Sprint-3
 follow-up stories (EC-S2 ... EC-S6) consume the workbooks via the schema
 validator + readers built on top of them.
+
+EC-S9 reverse-engineer contract
+-------------------------------
+Sprint 3's EC-S9 hardens the SHAW workbook to be a 1:1 reverse-engineering of
+the currently committed ``config/mappings/`` + ``config/rules/`` artefacts:
+
+    * For each ``output_files[].mapping`` path that points to a committed
+      JSON file on disk, the corresponding ``<FILETYPE>_Mapping`` sheet is
+      built by walking the JSON's ``fields:`` array and reverse-mapping
+      each field entry to a workbook row. ``key_columns: ['BK-NUM-ERT']``
+      survives intact (vs the prior BA-CSV pipeline which silently
+      dropped the first field-name column because of a UTF-8 BOM bug in
+      ``SHAW_TRANERT_CUS_mapping.csv``).
+    * For each ``output_files[].rules`` path that points to a committed
+      JSON file, the corresponding ``<FILETYPE>_Rules`` sheet is built
+      by walking the JSON's ``rules:`` array and reverse-mapping each
+      rule entry to a BA-style workbook row (using the rule's
+      ``source_template_rule_type`` to drive the reverse mapping).
+    * Hand-authored rules without ``source_template_rule_type`` (today:
+      ``SHAW_TRANERT_CUS_rules.json::R028B`` — the
+      ``cross_row:sequential`` countdown rule with the engine-native
+      ``sequence_field``/``start``/``step`` shape rather than the
+      converter's ``target_field``/``value`` shape) are SKIPPED in the
+      workbook. The committed JSON keeps them; the regression test
+      explicitly tolerates the resulting structural drift on those
+      specific rule IDs (documented as EC-S9 carve-out).
+    * For multi-record umbrella YAMLs, the discriminator block and each
+      ``record_types.<name>`` entry drive a ``MultiRecord_<FILETYPE>``
+      sheet and the per-record-type ``<FT>_<LAYOUT>_Mapping`` /
+      ``<FT>_<LAYOUT>_Rules`` sheets via the same reverse-engineer
+      flows.
+    * Cross-type-rules overlays (``cross_type_rules:`` in the umbrella
+      YAML) drive the EC-S8 ``CrossTypeRules_<FILETYPE>`` sheet.
+    * Reconciliation YAMLs under
+      ``config/e2e/sources/SHAW/reconciliation/`` drive the
+      ``Reconciliation_<FILETYPE>`` sheets verbatim (EC-S1 shape).
+    * Mapping / rules paths whose target file does NOT exist on disk
+      (typical: SHAW input files, CDSTRANS_*, CONTACT_*, P327 in the
+      current SHAW state) emit a single ``TODO_FIELD_1`` / ``TODO_RULE_1``
+      placeholder row matching the EC-S1 stub convention. These are
+      intentional BA-fill-in markers; the emitter writes them to disk
+      as well-formed TODO-stub JSONs.
+
+After EC-S9 runs, ``valdo onboard-source --check`` against committed
+SHAW state reports drift ONLY on:
+    1. ``metadata.created_date`` / ``metadata.last_modified`` (EC-S10
+       will land deterministic timestamps to close this gap).
+    2. ``SHAW_TRANERT_CUS_rules.json`` rule count (56 vs 57) due to the
+       hand-authored R028B carve-out documented above.
+    3. The 34 TODO-stub mappings + rules listed in SHAW.yml whose
+       backing JSONs are committed alongside this regeneration so the
+       artefact COUNT matches 65 of 65.
 """
 
 from __future__ import annotations
@@ -287,11 +334,20 @@ def _add_rules_sheet(wb: Workbook, sheet_name: str, rows: list[dict[str, Any]]) 
 
 def _read_ba_csv(csv_path: Path) -> list[dict[str, Any]]:
     """Read a BA-friendly CSV (mappings/csv/...) and return list-of-dicts.
+
     Missing files return ``[]`` — caller substitutes a TODO placeholder.
+
+    Note: kept for backwards-compat with the EC-S1 build flow; EC-S9
+    prefers ``_reverse_engineer_mapping_rows_from_json`` /
+    ``_reverse_engineer_rules_rows_from_json`` which read the committed
+    JSON artefacts directly (immune to UTF-8 BOM bugs in the BA CSVs).
     """
     if not csv_path.exists():
         return []
-    with csv_path.open("r", encoding="utf-8", newline="") as fh:
+    # ``utf-8-sig`` strips a leading BOM so DictReader keys don't get a
+    # phantom ``﻿`` prefix on the first column (the EC-S9 bug that
+    # silently blanked TRANERT_CUS Field Name on every row).
+    with csv_path.open("r", encoding="utf-8-sig", newline="") as fh:
         reader = csv.DictReader(fh)
         return [dict(row) for row in reader]
 
@@ -304,6 +360,266 @@ def _load_yaml(path: Path) -> dict[str, Any]:
 def _load_json(path: Path) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as fh:
         return json.load(fh)
+
+
+# ---------------------------------------------------------------------------
+# EC-S9: Reverse-engineer mapping/rules workbook rows from committed JSONs.
+# ---------------------------------------------------------------------------
+
+# Inverse map of ``TemplateConverter._normalize_data_type``. The forward
+# converter normalises any of {String,str,text,varchar,char} → "string",
+# {Number,Numeric,num,decimal,float} → "decimal", etc. For reverse
+# engineering we pick a single BA-friendly label per canonical type — the
+# converter will round-trip any of the synonyms to the same canonical, so
+# our choice here is purely about which label looks natural to a BA.
+_REVERSE_DATA_TYPE: dict[str, str] = {
+    "string": "String",
+    "decimal": "Numeric",
+    "integer": "Integer",
+    "date": "Date",
+    "boolean": "Boolean",
+}
+
+
+def _reverse_data_type(data_type: str) -> str:
+    """Convert a committed JSON ``data_type`` to a BA-friendly workbook label.
+
+    The forward direction is :meth:`TemplateConverter._normalize_data_type`
+    which collapses synonyms; reversing is a single lookup with a sensible
+    default to ``String`` for unknown labels.
+
+    Args:
+        data_type: The committed JSON's ``data_type`` value.
+
+    Returns:
+        The BA-friendly label that round-trips through the converter.
+    """
+    return _REVERSE_DATA_TYPE.get((data_type or "").lower(), "String")
+
+
+def _reverse_engineer_mapping_rows_from_json(
+    json_path: Path,
+) -> list[dict[str, Any]]:
+    """Build a list of workbook-mapping rows from a committed mapping JSON.
+
+    Walks the JSON's ``fields:`` array and emits one dict per field with
+    keys matching :data:`MAPPING_COLUMNS`. The fed dicts will round-trip
+    cleanly through :class:`TemplateConverter._convert_dataframe` so the
+    EC-S6 ``valdo onboard-source --check`` pipeline sees no structural
+    drift (modulo the ``metadata`` block, which the check strips).
+
+    Conventions:
+
+        * ``Field Name``     <- JSON ``name``
+        * ``Data Type``      <- inverse of converter's normaliser
+        * ``Position`` /
+          ``Length``         <- JSON ``position`` / ``length`` (or "")
+        * ``Target Name``    <- JSON ``target_name`` (or "")
+        * ``Required``       <- ``"Yes"`` / ``"No"`` (forward converter
+                                 accepts Y/Yes/True/1; we pick ``Yes`` for
+                                 BA-readability).
+        * ``Format``         <- JSON ``format`` (or "")
+        * ``Transformation`` <- blank: the converter always adds
+                                 ``[{"type": "trim"}]`` so reverse-engineering
+                                 from any committed JSON that has only the
+                                 default ``trim`` transform yields a blank
+                                 cell (round-trip identity).
+        * ``Valid Values``   <- pipe-joined JSON ``valid_values`` (or "").
+                                 Forward converter splits on pipe-or-comma;
+                                 we always emit pipes for unambiguity.
+        * ``Description``    <- JSON ``description`` (or "")
+
+    Args:
+        json_path: Path to a committed mapping JSON file.
+
+    Returns:
+        List of row dicts ready for :func:`_write_rows`.
+    """
+    data = _load_json(json_path)
+    rows: list[dict[str, Any]] = []
+    for field in data.get("fields", []) or []:
+        valid_values = field.get("valid_values") or []
+        rows.append(
+            {
+                "Field Name": field.get("name", "") or "",
+                "Data Type": _reverse_data_type(field.get("data_type", "")),
+                "Position": field.get("position", "") if field.get("position") is not None else "",
+                "Length": field.get("length", "") if field.get("length") is not None else "",
+                "Target Name": field.get("target_name", "") or "",
+                "Required": "Yes" if field.get("required") else "No",
+                "Format": field.get("format", "") or "",
+                "Transformation": "",
+                "Valid Values": "|".join(str(v) for v in valid_values) if valid_values else "",
+                "Description": field.get("description", "") or "",
+            }
+        )
+    return rows
+
+
+def _reverse_engineer_rules_row_from_engine_rule(
+    rule: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Reverse one engine ``rules[]`` entry into a workbook RulesSheet row.
+
+    Uses ``source_template_rule_type`` as the authoritative reverse-key
+    because that field is exactly the BA-typed ``Rule Type`` label the
+    converter received before normalisation. Rules without it
+    (hand-authored, e.g. the SHAW_TRANERT_CUS R028B countdown rule with
+    engine-native ``sequence_field``/``start``/``step`` shape) cannot be
+    expressed in BA columns and are returned as ``None`` — the caller
+    drops them from the workbook. This produces a documented carve-out
+    in the EC-S9 regression test (the committed JSON has 57 rules but
+    the workbook → emitted JSON has 56).
+
+    Args:
+        rule: One element of the committed rules JSON's ``rules:`` array.
+
+    Returns:
+        A workbook-row dict keyed by :data:`RULES_COLUMNS`, or ``None``
+        when the rule has no ``source_template_rule_type`` (hand-authored
+        engine-native rule that cannot be expressed in BA columns).
+    """
+    rule_type_text = rule.get("source_template_rule_type")
+    if not rule_type_text:
+        return None
+
+    rule_type_text = str(rule_type_text)
+    enabled = rule.get("enabled", True)
+    enabled_text = "Yes" if enabled else "No"
+
+    # Field reverse-mapping: cross-row rules with ``key_field``/``target_field``
+    # / ``fields`` need special handling so the converter's forward path
+    # reassembles them correctly (see ``BARulesTemplateConverter._convert_row``
+    # which parses ``KEY>TARGET`` / ``F1|F2`` syntaxes).
+    if rule_type_text.startswith("cross_row:"):
+        if "key_field" in rule and "target_field" in rule:
+            field = f"{rule['key_field']}>{rule['target_field']}"
+        elif "fields" in rule:
+            field = "|".join(rule["fields"])
+        else:
+            field = rule.get("field", "") or ""
+    elif rule.get("type") == "cross_field":
+        # Cross-field forward path: field = left_field, expected = "<op> <right>"
+        field = rule.get("left_field", "") or ""
+    else:
+        field = rule.get("field", "") or ""
+
+    # Expected / Values reverse-mapping by rule type.
+    expected = ""
+    if rule_type_text == "allowed values" or rule_type_text == "valid_values":
+        values = rule.get("values") or []
+        expected = "|".join(str(v) for v in values)
+    elif rule_type_text == "range":
+        # Forward: expected = "min..max"; engine fields: min, max.
+        min_v = rule.get("min", "")
+        max_v = rule.get("max", "")
+        expected = f"{min_v if min_v != '' else ''}..{max_v if max_v != '' else ''}"
+    elif rule_type_text == "length":
+        # Forward: expected = "min..max"; engine fields: min_length, max_length.
+        min_v = rule.get("min_length", "")
+        max_v = rule.get("max_length", "")
+        expected = f"{min_v if min_v != '' else ''}..{max_v if max_v != '' else ''}"
+    elif rule_type_text == "regex":
+        expected = rule.get("pattern", "") or ""
+    elif rule_type_text == "date format":
+        expected = rule.get("expected_format", "") or ""
+    elif rule_type_text == "date_format":
+        expected = rule.get("format", "") or ""
+    elif rule_type_text in ("min_value", "max_value", "exact_length", "min_length"):
+        expected = str(rule.get("value", "")) if rule.get("value") != "" else ""
+    elif rule.get("type") == "cross_field":
+        # Forward expected = "<op> <right_field>"
+        op = rule.get("operator", "")
+        rf = rule.get("right_field", "")
+        expected = f"{op} {rf}".strip()
+    elif rule_type_text.startswith("cross_row:"):
+        v = rule.get("value")
+        if v is not None and v != "":
+            expected = str(v)
+
+    return {
+        "Rule ID": rule.get("id", "") or "",
+        "Rule Name": rule.get("name", "") or "",
+        "Field": field,
+        "Rule Type": rule_type_text,
+        "Severity": rule.get("severity", "") or "",
+        "Enabled": enabled_text,
+        "Message": rule.get("message", "") or "",
+        "Expected / Values": expected,
+    }
+
+
+def _reverse_engineer_rules_rows_from_json(
+    json_path: Path,
+) -> list[dict[str, Any]]:
+    """Build workbook-rules rows from a committed rules JSON.
+
+    Walks the JSON's ``rules:`` array and emits one dict per rule whose
+    ``source_template_rule_type`` allows BA-column round-trip. Engine-native
+    hand-authored rules are SILENTLY DROPPED (returns no row for them) —
+    the workbook cannot express them and the test allows the resulting
+    drift on the affected ``rules`` list length.
+
+    Args:
+        json_path: Path to a committed rules JSON file.
+
+    Returns:
+        List of row dicts ready for :func:`_write_rows`.
+    """
+    data = _load_json(json_path)
+    rows: list[dict[str, Any]] = []
+    for rule in data.get("rules", []) or []:
+        row = _reverse_engineer_rules_row_from_engine_rule(rule)
+        if row is not None:
+            rows.append(row)
+    return rows
+
+
+def _mapping_rows_for_path(mapping_repo_path: str, file_type: str) -> list[dict[str, Any]]:
+    """Resolve a SHAW.yml mapping path to workbook rows.
+
+    If the committed file exists on disk, reverse-engineer rows from it
+    (EC-S9). Otherwise fall back to a single TODO placeholder so the
+    workbook stays schema-valid and the BA can fill the layout in later.
+
+    Args:
+        mapping_repo_path: The repo-relative ``mapping:`` cell from
+            SHAW.yml (e.g. ``"config/mappings/SHAW_CDSTRANS_EFB.json"``).
+        file_type: The output / input file type (drives the TODO message).
+
+    Returns:
+        Workbook row dicts.
+    """
+    if not mapping_repo_path:
+        return _todo_mapping_rows(file_type)
+    abs_path = REPO_ROOT / mapping_repo_path
+    if not abs_path.exists():
+        return _todo_mapping_rows(file_type)
+    return _reverse_engineer_mapping_rows_from_json(abs_path)
+
+
+def _rules_rows_for_path(rules_repo_path: str, file_type: str) -> list[dict[str, Any]]:
+    """Resolve a SHAW.yml rules path to workbook rows.
+
+    Same pattern as :func:`_mapping_rows_for_path`. ``rules_repo_path=""``
+    (BA opted out of rules for this file) returns ``[]`` so the caller
+    can skip emitting a Rules sheet entirely. ``rules_repo_path`` that
+    points to a non-existent file returns a TODO placeholder row.
+
+    Args:
+        rules_repo_path: The repo-relative ``rules:`` cell from SHAW.yml
+            or the umbrella YAML's per-record-type entry.
+        file_type: Drives the TODO message.
+
+    Returns:
+        Workbook row dicts, or ``[]`` when ``rules_repo_path`` is empty.
+    """
+    if not rules_repo_path:
+        return []
+    abs_path = REPO_ROOT / rules_repo_path
+    if not abs_path.exists():
+        return _todo_rules_rows(file_type)
+    return _reverse_engineer_rules_rows_from_json(abs_path)
 
 
 # ---------------------------------------------------------------------------
@@ -761,7 +1077,16 @@ def build_blank_template(out_path: Path) -> None:
 
 
 def build_shaw_workbook(out_path: Path) -> None:
-    """Build the SHAW worked-example workbook at ``out_path``."""
+    """Build the SHAW worked-example workbook at ``out_path``.
+
+    EC-S9 rewrite: the workbook is now a 1:1 reverse-engineering of the
+    currently committed ``config/mappings/`` + ``config/rules/`` + the
+    SHAW umbrella YAMLs + the reconciliation YAMLs. Where a SHAW.yml
+    mapping/rules path points to a file that does not exist on disk
+    (typical for the TODO-state SHAW input files, CDSTRANS_*, CONTACT_*,
+    P327) we emit a single ``TODO_FIELD_1`` / ``TODO_RULE_1`` placeholder
+    row preserving the EC-S1 stub convention.
+    """
     src = _load_yaml(SHAW_YML)
     wb = Workbook()
     wb.remove(wb.active)
@@ -811,13 +1136,16 @@ def build_shaw_workbook(out_path: Path) -> None:
             recon_rows = _reconciliation_rows_from_yaml(spec)
             _add_reconciliation_sheet(wb, f"Reconciliation_{file_type}", recon_rows)
 
-    # --- 4. Per-mapping + per-rules sheets. ---
-    # 4a. Input-file mapping sheets (all SHAW input mappings are TODO).
+    # --- 4. Per-mapping + per-rules sheets (EC-S9 reverse-engineer flow). ---
+    # 4a. Input-file mapping sheets — reverse-engineered if committed JSON
+    # exists, otherwise TODO placeholder.
     for entry in src.get("input_files", []):
         ftype = entry["file_type"]
         sheet_name = f"{ftype}_Mapping"
-        # SHAW input CSVs do not exist for any input file yet — all TODO.
-        _add_mapping_sheet(wb, sheet_name, _todo_mapping_rows(ftype))
+        mapping_path = entry.get("mapping", "")
+        _add_mapping_sheet(
+            wb, sheet_name, _mapping_rows_for_path(mapping_path, ftype)
+        )
 
     # 4b. Output-file mapping + rules sheets.
     for entry in src.get("output_files", []):
@@ -826,6 +1154,9 @@ def build_shaw_workbook(out_path: Path) -> None:
         rules_path = entry.get("rules", "")
         if mapping_path.endswith(".yaml"):
             # Multi-record: emit one Mapping + one Rules sheet per record type.
+            # Reverse-engineer from the per-record-type committed JSONs that
+            # the umbrella's record_types[].mapping / .rules entries point
+            # at; fall back to TODO for any pending layouts.
             umbrella = _load_yaml(REPO_ROOT / mapping_path)
             for rt_name, rt_cfg in umbrella.get("record_types", {}).items():
                 rt_mapping_path = rt_cfg.get("mapping", "")
@@ -833,27 +1164,35 @@ def build_shaw_workbook(out_path: Path) -> None:
                 rt_mapping_sheet = _mapping_path_to_sheet_name(rt_mapping_path, ftype, rt_name)
                 rt_rules_sheet = _rules_path_to_sheet_name(rt_rules_path, ftype, rt_name)
                 # Skip if we already added it (e.g. rt_32000 + rt_32001 share NEW1).
-                if _shorten_sheet_name(rt_mapping_sheet) in wb.sheetnames:
-                    continue
-                csv_rows = _ba_csv_rows_for_record_type(ftype, rt_mapping_path, kind="mapping")
-                if csv_rows:
-                    _add_mapping_sheet(wb, rt_mapping_sheet, csv_rows)
-                else:
-                    _add_mapping_sheet(wb, rt_mapping_sheet, _todo_mapping_rows(rt_name))
+                if _shorten_sheet_name(rt_mapping_sheet) not in wb.sheetnames:
+                    _add_mapping_sheet(
+                        wb,
+                        rt_mapping_sheet,
+                        _mapping_rows_for_path(rt_mapping_path, f"{ftype}_{rt_name}"),
+                    )
                 if rt_rules_sheet and _shorten_sheet_name(rt_rules_sheet) not in wb.sheetnames:
-                    rule_rows = _ba_csv_rows_for_record_type(ftype, rt_rules_path, kind="rules")
-                    if rule_rows:
-                        _add_rules_sheet(wb, rt_rules_sheet, rule_rows)
-                    else:
-                        _add_rules_sheet(wb, rt_rules_sheet, _todo_rules_rows(rt_name))
+                    rule_rows = _rules_rows_for_path(
+                        rt_rules_path, f"{ftype}_{rt_name}"
+                    )
+                    # Empty list means "no committed JSON path was supplied" —
+                    # but the umbrella always has a rules path for SHAW today,
+                    # so an empty list here means TODO. Fall back to TODO.
+                    if not rule_rows:
+                        rule_rows = _todo_rules_rows(f"{ftype}_{rt_name}")
+                    _add_rules_sheet(wb, rt_rules_sheet, rule_rows)
         else:
             sheet_name = f"{ftype}_Mapping"
             if sheet_name not in wb.sheetnames:
-                _add_mapping_sheet(wb, sheet_name, _todo_mapping_rows(ftype))
+                _add_mapping_sheet(
+                    wb, sheet_name, _mapping_rows_for_path(mapping_path, ftype)
+                )
             if rules_path:
                 rules_sheet_name = f"{ftype}_Rules"
                 if rules_sheet_name not in wb.sheetnames:
-                    _add_rules_sheet(wb, rules_sheet_name, _todo_rules_rows(ftype))
+                    rule_rows = _rules_rows_for_path(rules_path, ftype)
+                    if not rule_rows:
+                        rule_rows = _todo_rules_rows(ftype)
+                    _add_rules_sheet(wb, rules_sheet_name, rule_rows)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(str(out_path))
@@ -863,24 +1202,19 @@ def _ba_csv_rows_for_record_type(
     file_type: str, mapping_or_rules_path: str, kind: str
 ) -> list[dict[str, Any]]:
     """Locate the BA-friendly CSV under mappings/csv/shaw_<ftype>/ matching the
-    JSON path; return its rows. Empty list if the CSV does not exist (caller
-    substitutes a TODO placeholder).
+    JSON path; return its rows. Empty list if the CSV does not exist.
+
+    DEPRECATED (EC-S9): superseded by
+    :func:`_reverse_engineer_mapping_rows_from_json` /
+    :func:`_reverse_engineer_rules_rows_from_json`, which read the
+    committed JSON artefacts directly. Kept as a no-op shim so any
+    out-of-tree caller (or test mock) that imports it continues to
+    import cleanly. Returns ``[]`` so the caller falls back to TODO.
     """
-    if not mapping_or_rules_path:
-        return []
-    stem = Path(mapping_or_rules_path).stem  # SHAW_TRANERT_BATCH_HEADER_mapping
-    folder = f"shaw_{file_type.lower()}"
-    csv_path = BA_CSV_ROOT / folder / f"{stem}.csv"
-    rows = _read_ba_csv(csv_path)
-    if not rows:
-        return []
-    # Normalise key casing — BA CSVs already use the same headers as our
-    # MAPPING_COLUMNS / RULES_COLUMNS, but be defensive about whitespace.
-    cleaned: list[dict[str, Any]] = []
-    for row in rows:
-        cleaned.append({(k or "").strip(): (v or "").strip() for k, v in row.items()})
-    _ = kind  # accepted for future per-kind normalisation; currently unused.
-    return cleaned
+    _ = file_type
+    _ = mapping_or_rules_path
+    _ = kind
+    return []
 
 
 # ---------------------------------------------------------------------------

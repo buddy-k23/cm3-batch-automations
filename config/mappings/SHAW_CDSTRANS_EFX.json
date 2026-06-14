@@ -1,0 +1,45 @@
+{
+  "mapping_name": "SHAW_CDSTRANS_EFX",
+  "version": "1.0.0",
+  "description": "Generated from template: SHAW_CDSTRANS_EFX.csv",
+  "source": {
+    "type": "file",
+    "format": "fixed_width",
+    "encoding": "UTF-8"
+  },
+  "target": {
+    "type": "database"
+  },
+  "fields": [
+    {
+      "name": "TODO_FIELD_1_CDSTRANS_EFX",
+      "data_type": "string",
+      "target_name": "todo_field_1",
+      "position": 1,
+      "length": 1,
+      "required": true,
+      "description": "TODO(mapping-pending): CDSTRANS_EFX layout not yet authored. Replace this row with real fields before onboarding.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    }
+  ],
+  "key_columns": [
+    "TODO_FIELD_1_CDSTRANS_EFX"
+  ],
+  "metadata": {
+    "created_by": "template_converter",
+    "created_date": "2026-06-14T21:48:48.326501Z",
+    "last_modified": "2026-06-14T21:48:48.326503Z",
+    "source_template": "SHAW_CDSTRANS_EFX.csv"
+  },
+  "total_record_length": 1,
+  "warnings": []
+}

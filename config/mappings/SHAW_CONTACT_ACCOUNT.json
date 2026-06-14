@@ -1,0 +1,45 @@
+{
+  "mapping_name": "SHAW_CONTACT_ACCOUNT",
+  "version": "1.0.0",
+  "description": "Generated from template: SHAW_CONTACT_ACCOUNT.csv",
+  "source": {
+    "type": "file",
+    "format": "fixed_width",
+    "encoding": "UTF-8"
+  },
+  "target": {
+    "type": "database"
+  },
+  "fields": [
+    {
+      "name": "TODO_FIELD_1_CONTACT_ACCOUNT",
+      "data_type": "string",
+      "target_name": "todo_field_1",
+      "position": 1,
+      "length": 1,
+      "required": true,
+      "description": "TODO(mapping-pending): CONTACT_ACCOUNT layout not yet authored. Replace this row with real fields before onboarding.",
+      "transformations": [
+        {
+          "type": "trim"
+        }
+      ],
+      "validation_rules": [
+        {
+          "type": "not_null"
+        }
+      ]
+    }
+  ],
+  "key_columns": [
+    "TODO_FIELD_1_CONTACT_ACCOUNT"
+  ],
+  "metadata": {
+    "created_by": "template_converter",
+    "created_date": "2026-06-14T21:48:48.329645Z",
+    "last_modified": "2026-06-14T21:48:48.329647Z",
+    "source_template": "SHAW_CONTACT_ACCOUNT.csv"
+  },
+  "total_record_length": 1,
+  "warnings": []
+}

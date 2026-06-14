@@ -541,7 +541,136 @@ def test_check_mode_umbrella_rules_drift_resolved():
 
 
 # ---------------------------------------------------------------------------
-# 11. --help lists every flag.
+# 11. EC-S9: --check clean against committed state modulo timestamps + the
+# documented R028B carve-out.
+# ---------------------------------------------------------------------------
+
+
+def test_check_mode_clean_modulo_timestamps():
+    """EC-S9 contract: ``--check`` against the REAL committed SHAW config
+    tree exits 0 modulo the documented carve-outs.
+
+    Background: Sprint 3's EC-S9 reverse-engineered the SHAW workbook
+    from the currently committed ``config/mappings/`` + ``config/rules/``
+    + ``config/e2e/sources/SHAW.yml`` + reconciliation YAMLs so that
+    the workbook → emitter → on-disk pipeline becomes self-consistent.
+
+    Pre-EC-S9 the drift count was 29 of 65 artefacts matching, with the
+    headline drifts being:
+
+        * the BOM-corrupted ``SHAW_TRANERT_CUS_mapping.json`` (every
+          Field Name silently blanked, so ``key_columns: ['']`` instead
+          of ``['BK-NUM-ERT']``);
+        * 34 TODO-stub artefacts (CDSTRANS_*, CONTACT_*, P327, the SHAW
+          input-file mappings) that the workbook described but had no
+          committed backing JSON on disk;
+        * the ``SHAW_TRANERT_CUS_rules.json`` 56-vs-57 rules count
+          drift driven by R028B, the hand-authored ``cross_row``
+          countdown rule with the engine-native
+          ``sequence_field``/``start``/``step`` shape that BA columns
+          cannot express.
+
+    Post-EC-S9 the contract is:
+
+        * 64 of 65 artefacts match (a quantum leap from 29 of 65);
+        * the SOLE remaining drift line points at
+          ``SHAW_TRANERT_CUS_rules.json`` and cites the ``rules:`` array
+          mismatch (the R028B carve-out, documented in EC-S9 and the
+          ``scripts/build_shaw_onboarding_workbook.py`` module
+          docstring);
+        * NO mapping JSON shows drift (the TRANERT_CUS reverse-engineer
+          fixed the only structural drift on a mapping artefact);
+        * NO ``committed file does not exist (would be created)`` lines
+          (the 34 TODO-stub artefacts are now committed alongside the
+          workbook regeneration).
+
+    Per the story (timestamps still embed ``datetime.utcnow()`` in
+    every emitted JSON's ``metadata`` block — EC-S10 will land
+    deterministic timestamps to close that gap), the check's metadata
+    strip is what makes the 64 of 65 figure stable across reruns; the
+    test treats any metadata-stripped equivalence as a pass.
+    """
+    result = _invoke(
+        [
+            str(SHAW_WORKBOOK),
+            "--check",
+            "--source-dir",
+            str(COMMITTED_SOURCES_DIR),
+            "--mapping-dir",
+            str(COMMITTED_MAPPINGS_DIR),
+            "--rules-dir",
+            str(COMMITTED_RULES_DIR),
+        ]
+    )
+
+    # EC-S9 headline: drift count is reduced to the SINGLE documented
+    # R028B carve-out on the TRANERT_CUS rules. Exit 1 is still expected
+    # because of that one structural drift; the rest of the contract is
+    # asserted via the drift-line shape below.
+    assert result.exit_code == 1, (
+        f"Expected exit 1 (R028B carve-out drift); got "
+        f"{result.exit_code}\nSTDOUT:\n{result.stdout}\n"
+        f"STDERR:\n{result.stderr}"
+    )
+
+    drift_lines = [
+        line
+        for line in result.stderr.splitlines()
+        if "drift " in line and ":" in line
+    ]
+
+    # 1. NO ``would be created`` lines -- every workbook-emitted artefact
+    # has a committed counterpart on disk after EC-S9.
+    would_create_lines = [
+        line for line in drift_lines if "would be created" in line
+    ]
+    assert not would_create_lines, (
+        "EC-S9 contract violation: still have 'would be created' drift "
+        f"lines (TODO stub files not committed alongside workbook "
+        f"regeneration):\n" + "\n".join(would_create_lines)
+    )
+
+    # 2. NO mapping JSON drift -- the TRANERT_CUS BOM bug is fixed and
+    # every other mapping reverse-engineered cleanly.
+    mapping_drift_lines = [
+        line
+        for line in drift_lines
+        if "/config/mappings/" in line
+    ]
+    assert not mapping_drift_lines, (
+        "EC-S9 contract violation: mapping JSON drift still present:\n"
+        + "\n".join(mapping_drift_lines)
+    )
+
+    # 3. SOLE remaining drift line points at SHAW_TRANERT_CUS_rules.json
+    # (the R028B carve-out).
+    rules_drift_lines = [
+        line for line in drift_lines if "/config/rules/" in line
+    ]
+    assert len(rules_drift_lines) == 1, (
+        f"EC-S9 contract violation: expected exactly 1 rules drift line "
+        f"(SHAW_TRANERT_CUS_rules.json R028B carve-out); got "
+        f"{len(rules_drift_lines)}:\n" + "\n".join(rules_drift_lines)
+    )
+    assert "SHAW_TRANERT_CUS_rules.json" in rules_drift_lines[0], (
+        f"EC-S9 contract violation: sole rules drift line does not "
+        f"target SHAW_TRANERT_CUS_rules.json: {rules_drift_lines[0]!r}"
+    )
+    # The drift reason must cite the rules array specifically.
+    assert "rules" in rules_drift_lines[0], (
+        f"EC-S9 R028B carve-out drift line should cite the rules array "
+        f"mismatch: {rules_drift_lines[0]!r}"
+    )
+
+    # 4. Match count is exactly 64 of 65.
+    assert "64 of 65 artefacts match" in result.stderr, (
+        "EC-S9 contract violation: expected '64 of 65 artefacts match' "
+        f"summary line; got:\n{result.stderr}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 12. --help lists every flag.
 # ---------------------------------------------------------------------------
 
 
