@@ -527,16 +527,17 @@ class TestCli:
 
 def _multi_record_source_body(
     *,
-    multi_record: bool,
     mapping: str,
     rules: str = "",
 ) -> str:
     """Source-YAML body fixture with one input + one output entry.
 
-    Helper for the ADR 0005 multi-record tests below. The output entry's
-    ``multi_record`` flag and ``mapping`` extension are the two axes the
-    tests exercise. Built line-by-line to keep indentation explicit and
-    avoid textwrap.dedent / f-string interaction footguns.
+    Helper for the ADR 0005 multi-record tests below. Per EB-S1, multi-
+    record dispatch is inferred from the ``mapping`` file extension; the
+    legacy ``multi_record:`` key is rejected by ``OutputFileConfig`` and
+    no longer appears in this fixture. Built line-by-line to keep
+    indentation explicit and avoid textwrap.dedent / f-string interaction
+    footguns.
     """
     lines = [
         "schema_version: 1",
@@ -554,7 +555,6 @@ def _multi_record_source_body(
     ]
     if rules:
         lines.append(f'    rules: "{rules}"')
-    lines.append(f"    multi_record: {str(multi_record).lower()}")
     lines.extend(
         [
             "gates:",
@@ -572,13 +572,16 @@ class TestMultiRecordDispatch:
     def test_l1_emits_validate_multi_record_for_umbrella(
         self, tmp_path: Path
     ) -> None:
-        """multi_record: true → L1 step is ``validate_multi_record``."""
+        """``.yaml`` mapping -> L1 step is ``validate_multi_record``.
+
+        Multi-record dispatch is inferred from the mapping extension per
+        EB-S1 / ADR 0005; no explicit flag is supplied (or accepted).
+        """
         paths_yaml, sources_dir = _write_minimal_paths_yml(tmp_path)
         _write_source(
             sources_dir,
             "M",
             _multi_record_source_body(
-                multi_record=True,
                 mapping="config/mappings/M_P1.yaml",
             ),
         )
@@ -597,7 +600,7 @@ class TestMultiRecordDispatch:
     def test_l3_remains_compare_step_for_umbrella(
         self, tmp_path: Path
     ) -> None:
-        """multi_record only changes L1; L3 stays as ``compare``.
+        """Multi-record dispatch only changes L1; L3 stays as ``compare``.
 
         (L2_regeneration was retired in ADR 0012 and must not be emitted.)
         """
@@ -606,7 +609,6 @@ class TestMultiRecordDispatch:
             sources_dir,
             "M",
             _multi_record_source_body(
-                multi_record=True,
                 mapping="config/mappings/M_P1.yaml",
             ),
         )
@@ -620,13 +622,15 @@ class TestMultiRecordDispatch:
     def test_single_record_entries_still_emit_plain_validate(
         self, tmp_path: Path
     ) -> None:
-        """multi_record: false (or absent) keeps the current ``validate`` shape."""
+        """``.json`` mapping keeps the current ``validate`` shape.
+
+        Inferred single-record dispatch per EB-S1 / ADR 0005.
+        """
         paths_yaml, sources_dir = _write_minimal_paths_yml(tmp_path)
         _write_source(
             sources_dir,
             "M",
             _multi_record_source_body(
-                multi_record=False,
                 mapping="config/mappings/M_P1.json",
                 rules="config/rules/M_P1.json",
             ),
@@ -641,44 +645,44 @@ class TestMultiRecordDispatch:
         # Single-record path preserves the per-file rules wiring.
         assert step["rules"] == "config/rules/M_P1.json"
 
-    def test_umbrella_yaml_without_multi_record_flag_raises(
+    def test_legacy_multi_record_key_rejected_at_source_validation(
         self, tmp_path: Path
     ) -> None:
-        """multi_record: false + .yaml mapping is a fail-fast configuration bug.
+        """Per EB-S1 the legacy ``multi_record:`` key is rejected by the
+        ``OutputFileConfig`` model validator. EA-S2 wires
+        :class:`SourceConfig` into the generator, so the rejection now
+        propagates as a :class:`PipelineGenerationError` mentioning the
+        ADR-cited error message.
 
-        This is the exact class of mistake ADR 0005 calls out: a YAML
-        umbrella accidentally wired into a plain ``validate`` step would
-        fail at run time when the validator tries to JSON-parse it. The
-        generator rejects the source config before any YAML lands on disk.
+        This supersedes the pre-EA-S2
+        ``test_umbrella_yaml_without_multi_record_flag_raises`` test, which
+        relied on the generator's own duplicate extension-mismatch check
+        (now retired -- the model is the only source of truth).
         """
         paths_yaml, sources_dir = _write_minimal_paths_yml(tmp_path)
-        _write_source(
-            sources_dir,
-            "M",
-            _multi_record_source_body(
-                multi_record=False,
-                mapping="config/mappings/M_P1.yaml",
-            ),
+        # Hand-roll a source body that still carries the deprecated key.
+        body = (
+            "schema_version: 1\n"
+            "source: M\n"
+            'release_tag: "R1"\n'
+            "input_files:\n"
+            "  - file_type: H\n"
+            '    glob: "M_H_*.dat"\n'
+            '    mapping: "config/mappings/M_H.json"\n'
+            '    target_staging_table: "STG_M_H"\n'
+            "output_files:\n"
+            "  - file_type: P1\n"
+            '    glob: "M_P1_*.txt"\n'
+            '    mapping: "config/mappings/M_P1.yaml"\n'
+            "    multi_record: true\n"
+            "gates:\n"
+            "  file_to_staging:  { blocking: true,  invoke_java: false }\n"
+            "  L1_structural:    { blocking: true,  invoke_java: false }\n"
+            "  L3_baseline_diff: { blocking: false, invoke_java: false }\n"
         )
+        _write_source(sources_dir, "M", body)
         resolver = PathResolver.from_files(paths_yaml, sources_dir)
         with pytest.raises(PipelineGenerationError, match="multi_record"):
-            build_pipeline_dict(env="sit", source="M", resolver=resolver)
-
-    def test_multi_record_true_with_json_mapping_raises(
-        self, tmp_path: Path
-    ) -> None:
-        """multi_record: true + .json mapping is the inverse misconfiguration."""
-        paths_yaml, sources_dir = _write_minimal_paths_yml(tmp_path)
-        _write_source(
-            sources_dir,
-            "M",
-            _multi_record_source_body(
-                multi_record=True,
-                mapping="config/mappings/M_P1.json",
-            ),
-        )
-        resolver = PathResolver.from_files(paths_yaml, sources_dir)
-        with pytest.raises(PipelineGenerationError, match="umbrella"):
             build_pipeline_dict(env="sit", source="M", resolver=resolver)
 
     def test_yml_extension_is_accepted_for_umbrella(
@@ -690,7 +694,6 @@ class TestMultiRecordDispatch:
             sources_dir,
             "M",
             _multi_record_source_body(
-                multi_record=True,
                 mapping="config/mappings/M_P1.yml",
             ),
         )

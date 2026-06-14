@@ -74,6 +74,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
+from pydantic import ValidationError
 
 # Make the repo importable when invoked as a script.
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -83,6 +84,13 @@ if str(_REPO_ROOT) not in sys.path:
 from scripts.e2e_lib.path_resolver import (  # noqa: E402
     PathResolver,
     PathResolverError,
+)
+from src.pipeline.etl_config import (  # noqa: E402
+    InputFileConfig,
+    OutputFileConfig,
+    SourceConfig,
+    ThresholdsConfig,
+    ToleranceConfig,
 )
 
 # Gates emitted into the YAML. Order matters — it is the execution order.
@@ -143,8 +151,22 @@ def build_pipeline_dict(
     """Build a Python dict representing the pipeline YAML for ``(env, source)``.
 
     The output is the canonical, stable shape that
-    ``yaml.safe_dump`` serializes for the golden-file test. Field order is
-    fixed so a diff against the golden file is meaningful.
+    ``yaml.safe_dump`` (via :func:`render_yaml`) serializes for the golden-
+    file test. Field order is fixed so a diff against the golden file is
+    meaningful.
+
+    The raw source YAML is validated through
+    :class:`~src.pipeline.etl_config.SourceConfig` (EA-S2) before pipeline
+    construction so the generator has access to defaulted-vs-explicit field
+    information for each ``input_files[]`` / ``output_files[]`` entry. The
+    Pydantic model is also the single source of truth for default values
+    emitted in ``# default: <field>=<value>`` comments by
+    :func:`render_yaml`.
+
+    The validated :class:`SourceConfig` is attached to the returned dict under
+    the ``_source_config`` key so :func:`render_yaml` can read each entry's
+    ``model_fields_set`` and decide which fields need a default comment. The
+    key is stripped before serialization and never lands on disk.
 
     Args:
         env: One of the env names declared in ``paths.yml`` (e.g. ``sit``).
@@ -152,14 +174,29 @@ def build_pipeline_dict(
         resolver: A ready :class:`PathResolver`.
 
     Returns:
-        A dict compatible with :class:`PipelineDefinition.model_validate`.
+        A dict compatible with :class:`PipelineDefinition.model_validate`
+        plus the private ``_source_config`` key consumed by
+        :func:`render_yaml`.
 
     Raises:
         PipelineGenerationError: If the source config is missing required
-            sections, or if a referenced gate is not declared in the source.
+            sections, fails Pydantic validation, or if a referenced gate is
+            not declared in the source.
     """
     src_cfg = resolver.source_config(source)
     _validate_source_cfg(src_cfg, source)
+
+    # EA-S2: validate the raw source dict through the Pydantic model so we
+    # can track which fields were explicit vs implicitly defaulted. The
+    # validated model is the source of truth for both default detection
+    # (model_fields_set) and the default values themselves (the model's
+    # field defaults), so render_yaml can never drift from etl_config.py.
+    try:
+        validated_source = SourceConfig.model_validate(src_cfg)
+    except ValidationError as exc:
+        raise PipelineGenerationError(
+            f"source '{source}' failed SourceConfig validation: {exc}"
+        ) from exc
 
     pipeline_name = f"e2e_{env}_{source}"
     description = (
@@ -182,6 +219,10 @@ def build_pipeline_dict(
     # Resolve every input/output file into a concrete dict that the gate
     # builders consume. Paths are fully materialized here so the emitted
     # YAML contains no {source.…} placeholders — only {run_id} is deferred.
+    # We consume the validated SourceConfig (Pydantic models) instead of
+    # raw dicts so multi-record dispatch can use the inferred
+    # ``is_multi_record`` computed field rather than re-checking the
+    # mapping extension by hand.
     input_files = [
         _resolve_input_entry(
             entry,
@@ -189,7 +230,7 @@ def build_pipeline_dict(
             input_root=input_root,
             staging_schema=staging_schema,
         )
-        for entry in src_cfg.get("input_files", [])
+        for entry in validated_source.input_files
     ]
     output_files = [
         _resolve_output_entry(
@@ -198,7 +239,7 @@ def build_pipeline_dict(
             output_root=output_root,
             baseline_root=baseline_root,
         )
-        for entry in src_cfg.get("output_files", [])
+        for entry in validated_source.output_files
     ]
 
     # SourceDefinitions: one per file, exposing concrete paths. Steps in
@@ -252,11 +293,17 @@ def build_pipeline_dict(
         )
         gates.append(gate)
 
+    # EA-S2: ``_source_config`` is a private hand-off to render_yaml so it
+    # can read each entry's ``model_fields_set`` and emit
+    # ``# default: <field>=<value>`` comments for omitted fields. The key is
+    # stripped from the dict before YAML serialization and never lands on
+    # disk; ``PipelineDefinition.model_validate`` would ignore it anyway.
     return {
         "name": pipeline_name,
         "description": description,
         "sources": sources,
         "gates": gates,
+        "_source_config": validated_source,
     }
 
 
@@ -266,36 +313,41 @@ def build_pipeline_dict(
 
 
 def _resolve_input_entry(
-    entry: Dict[str, Any],
+    entry: InputFileConfig,
     *,
     source: str,
     input_root: str,
     staging_schema: str,
 ) -> Dict[str, Any]:
-    """Materialize a single input_files entry into concrete paths."""
-    file_type = _require(entry, "file_type", "input_files entry")
-    mapping = _require(entry, "mapping", f"input_files[{file_type}]")
-    glob = _require(entry, "glob", f"input_files[{file_type}]")
-    target_table = _require(entry, "target_staging_table", f"input_files[{file_type}]")
+    """Materialize a single input_files entry into concrete paths.
+
+    Takes a validated :class:`InputFileConfig` (EA-S2) rather than the raw
+    dict; required fields are guaranteed present by Pydantic and the
+    ``thresholds`` block carries its implicit defaults.
+    """
+    file_type = entry.file_type
+    target_table = entry.target_staging_table
     qualified_table = (
         target_table if "." in target_table else f"{staging_schema}.{target_table}"
     )
     return {
         "source_def_name": f"{source}__input__{file_type}",
         "file_type": file_type,
-        "mapping": mapping,
+        "mapping": entry.mapping,
         # Concrete file path. The glob is preserved so the wrapper script
         # can resolve the latest match on disk at run time; Valdo's existing
         # CLI surfaces accept globs.
-        "input_path": f"{input_root}/{glob}",
+        "input_path": f"{input_root}/{entry.glob}",
         "target_staging_table": target_table,
         "qualified_staging_table": qualified_table,
-        "thresholds": entry.get("thresholds"),
+        # Dump the thresholds model to the legacy dict shape expected by
+        # _threshold_block. Pass even when implicit so defaults flow through.
+        "thresholds": entry.thresholds.model_dump(),
     }
 
 
 def _resolve_output_entry(
-    entry: Dict[str, Any],
+    entry: OutputFileConfig,
     *,
     source: str,
     output_root: str,
@@ -303,50 +355,29 @@ def _resolve_output_entry(
 ) -> Dict[str, Any]:
     """Materialize a single output_files entry into concrete paths.
 
-    Per ADR 0005, entries with ``multi_record: true`` carry an umbrella
-    YAML in ``mapping`` (consumed at L1 by ``validate_multi_record`` steps).
-    A fail-fast sanity check rejects mismatches between the ``multi_record``
-    flag and the mapping file extension before the YAML ships, catching
-    the class of bug where a ``.yaml`` umbrella is accidentally wired into
-    a ``validate`` step that would try to JSON-parse it at run time.
+    Takes a validated :class:`OutputFileConfig` (EA-S2). Per ADR 0005 /
+    EB-S1, multi-record dispatch is inferred from the mapping file
+    extension via ``OutputFileConfig.is_multi_record`` -- the
+    ``validate``/``validate_multi_record`` switch in
+    :func:`_steps_l1_structural` reads that computed flag. Legacy
+    ``multi_record:`` / ``discriminator_field:`` keys at the entry level
+    are rejected by the model itself (no need for a duplicate fail-fast
+    check here).
     """
-    file_type = _require(entry, "file_type", "output_files entry")
-    mapping = _require(entry, "mapping", f"output_files[{file_type}]")
-    glob = _require(entry, "glob", f"output_files[{file_type}]")
-    rules = entry.get("rules", "") or ""
-    multi_record = bool(entry.get("multi_record", False))
-
-    # Sanity check: mapping extension must agree with multi_record flag.
-    # Compare on the lower-cased path so callers are not punished for case.
-    mapping_lower = mapping.lower()
-    if multi_record:
-        if not (mapping_lower.endswith(".yaml") or mapping_lower.endswith(".yml")):
-            raise PipelineGenerationError(
-                f"output_files[{file_type}]: multi_record is true but "
-                f"mapping {mapping!r} is not a .yaml/.yml umbrella file. "
-                f"Multi-record entries must reference a MultiRecordConfig "
-                f"umbrella YAML (see ADR 0005)."
-            )
-    else:
-        if mapping_lower.endswith(".yaml") or mapping_lower.endswith(".yml"):
-            raise PipelineGenerationError(
-                f"output_files[{file_type}]: mapping {mapping!r} looks like "
-                f"a multi-record umbrella (.yaml/.yml) but multi_record is "
-                f"false. Set multi_record: true or point at a flat mapping "
-                f"JSON (see ADR 0005)."
-            )
-
+    file_type = entry.file_type
     return {
         "source_def_name": f"{source}__output__{file_type}",
         "file_type": file_type,
-        "mapping": mapping,
-        "rules": rules,
-        "multi_record": multi_record,
+        "mapping": entry.mapping,
+        "rules": entry.rules,
+        "multi_record": entry.is_multi_record,
         # Java-generated output (resolved by the wrapper from the glob).
-        "java_output_path": f"{output_root}/{glob}",
+        "java_output_path": f"{output_root}/{entry.glob}",
         # L3 reference: pinned golden baseline.
         "baseline_path": f"{baseline_root}/{file_type}.txt",
-        "tolerance": entry.get("tolerance"),
+        # Dump the tolerance model to the legacy dict shape expected by
+        # _threshold_block. Pass even when implicit so defaults flow through.
+        "tolerance": entry.tolerance.model_dump(),
     }
 
 
@@ -573,11 +604,27 @@ def render_yaml(pipeline_dict: Dict[str, Any]) -> str:
       * uses block style (``default_flow_style=False``)
       * indents lists for readability
       * ends in a single trailing newline
+      * emits ``input_files:`` and ``output_files:`` informational manifest
+        blocks (EA-S2) with ``# default: <field>=<value>`` comments next to
+        every implicitly-defaulted boilerplate field, so an SRE reading the
+        generated YAML sees the effective configuration without consulting
+        the Pydantic source
+
+    The manifest blocks are silently ignored by
+    :class:`PipelineDefinition.model_validate` (Pydantic v2's default
+    ``extra='ignore'`` behaviour); they exist purely for human debug.
 
     These are the properties the golden-file test depends on.
     """
+    # EA-S2: lift the private SourceConfig out of the dict so it does not
+    # land in the serialized YAML. The SourceConfig is the source of truth
+    # for both the defaulted-vs-explicit set and the default values
+    # themselves, used to render the manifest blocks below.
+    source_cfg: Optional[SourceConfig] = pipeline_dict.get("_source_config")
+    core_dict = {k: v for k, v in pipeline_dict.items() if k != "_source_config"}
+
     text = yaml.safe_dump(
-        pipeline_dict,
+        core_dict,
         sort_keys=False,
         default_flow_style=False,
         allow_unicode=True,
@@ -586,7 +633,339 @@ def render_yaml(pipeline_dict: Dict[str, Any]) -> str:
     )
     if not text.endswith("\n"):
         text += "\n"
+
+    if source_cfg is not None:
+        manifest = _render_manifests_with_defaults(source_cfg)
+        if manifest:
+            text = _splice_manifests_after_description(text, manifest)
     return text
+
+
+# --------------------------------------------------------------------------- #
+# EA-S2: defaults-as-comments manifest emission
+# --------------------------------------------------------------------------- #
+
+
+# Canonical default values rendered into ``# default: <field>=<value>``
+# comments. Read from the Pydantic models so they stay in lockstep with
+# ``src/pipeline/etl_config.py``; any future default change in the model
+# automatically updates the generated comments.
+def _format_default_value(value: Any) -> str:
+    """Format a Pydantic default value for inclusion in a YAML comment.
+
+    Args:
+        value: A scalar or list default value.
+
+    Returns:
+        A short, deterministic textual representation. Booleans become
+        ``"true"``/``"false"`` (YAML convention, not Python ``True``/``False``),
+        lists render as JSON-ish ``[]`` / ``[a, b]``, and floats render
+        without trailing zeros where safe.
+    """
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, list):
+        if not value:
+            return "[]"
+        return "[" + ", ".join(_format_default_value(v) for v in value) + "]"
+    if isinstance(value, str):
+        return value
+    return repr(value) if not isinstance(value, (int, float)) else str(value)
+
+
+def _output_file_default_comments(entry: OutputFileConfig) -> List[str]:
+    """Return ``# default: <field>=<value>`` comment lines for one entry.
+
+    Inspects ``entry.model_fields_set`` (and the nested
+    ``entry.tolerance.model_fields_set``) to decide which fields were
+    implicitly defaulted in the source YAML. The values inserted in the
+    comments are read from the Pydantic model's field defaults so the
+    generator and ``etl_config.py`` can never drift apart.
+
+    Args:
+        entry: A validated :class:`OutputFileConfig` instance.
+
+    Returns:
+        A list of zero or more comment lines, each beginning with
+        ``"# default: "``. Empty when every boilerplate field was explicitly
+        declared in the source YAML.
+    """
+    lines: List[str] = []
+    explicit = entry.model_fields_set
+    field_defaults = OutputFileConfig.model_fields
+
+    for field_name in ("strict_fixed_width", "strict_level"):
+        if field_name not in explicit:
+            # ``get_default(call_default_factory=True)`` returns the actual
+            # default whether the field uses ``default=...`` or
+            # ``default_factory=...``. The bare ``.default`` attribute
+            # returns ``PydanticUndefined`` for default-factory fields.
+            default = field_defaults[field_name].get_default(
+                call_default_factory=True
+            )
+            lines.append(
+                f"# default: {field_name}={_format_default_value(default)}"
+            )
+
+    # tolerance: if the entire block was omitted, every sub-field is implicit.
+    # If the block was present, check each sub-field individually against the
+    # nested ``tolerance.model_fields_set``. Access ``model_fields`` on the
+    # class (instance access is deprecated in Pydantic 2.11+).
+    tolerance_explicit = "tolerance" in explicit
+    tol_fields_set = entry.tolerance.model_fields_set if tolerance_explicit else set()
+    tol_defaults = ToleranceConfig.model_fields
+    for tol_field in ("ignore_fields", "max_errors", "max_error_pct"):
+        if not tolerance_explicit or tol_field not in tol_fields_set:
+            default = tol_defaults[tol_field].get_default(
+                call_default_factory=True
+            )
+            lines.append(
+                f"# default: tolerance.{tol_field}={_format_default_value(default)}"
+            )
+    return lines
+
+
+def _input_file_default_comments(entry: InputFileConfig) -> List[str]:
+    """Return ``# default: <field>=<value>`` comment lines for one entry.
+
+    Mirrors :func:`_output_file_default_comments` for the
+    ``InputFileConfig`` shape. Currently only ``thresholds.max_errors``
+    is implicitly defaulted; the function is structured for future
+    additions.
+
+    Args:
+        entry: A validated :class:`InputFileConfig` instance.
+
+    Returns:
+        A list of zero or one comment lines (``# default:
+        thresholds.max_errors=0`` when omitted; empty otherwise).
+    """
+    lines: List[str] = []
+    explicit = entry.model_fields_set
+    thresholds_explicit = "thresholds" in explicit
+    thr_fields_set = (
+        entry.thresholds.model_fields_set if thresholds_explicit else set()
+    )
+    thr_defaults = ThresholdsConfig.model_fields
+    for thr_field in ("max_errors",):
+        if not thresholds_explicit or thr_field not in thr_fields_set:
+            default = thr_defaults[thr_field].get_default(
+                call_default_factory=True
+            )
+            lines.append(
+                f"# default: thresholds.{thr_field}={_format_default_value(default)}"
+            )
+    return lines
+
+
+def _render_manifests_with_defaults(source_cfg: SourceConfig) -> str:
+    """Render the ``input_files:`` and ``output_files:`` manifest blocks.
+
+    Emits each entry's explicit fields verbatim and appends a
+    ``# default: <field>=<value>`` comment for every implicitly-defaulted
+    field. The blocks are informational only -- they let SREs see the
+    effective configuration inside the generated pipeline YAML.
+
+    Args:
+        source_cfg: The validated :class:`SourceConfig` whose entries are
+            to be rendered.
+
+    Returns:
+        A YAML fragment (already trailing-newline terminated) containing
+        the two manifest blocks. Empty string when both ``input_files`` and
+        ``output_files`` are empty (defensive; the pipeline generator
+        already rejects empty sources upstream).
+    """
+    if not source_cfg.input_files and not source_cfg.output_files:
+        return ""
+
+    out: List[str] = []
+    if source_cfg.input_files:
+        out.append("input_files:")
+        for entry in source_cfg.input_files:
+            out.extend(_render_input_entry(entry))
+    if source_cfg.output_files:
+        out.append("output_files:")
+        for entry in source_cfg.output_files:
+            out.extend(_render_output_entry(entry))
+    return "\n".join(out) + "\n"
+
+
+def _render_input_entry(entry: InputFileConfig) -> List[str]:
+    """Render one input_files entry as a list of YAML lines.
+
+    Explicit fields are emitted as ``key: value`` pairs (one per line,
+    quoted as YAML requires); implicit fields are emitted as
+    ``# default: <field>=<value>`` comment lines at the end of the entry.
+
+    Args:
+        entry: A validated :class:`InputFileConfig` instance.
+
+    Returns:
+        An ordered list of YAML lines (no trailing newlines) starting with
+        ``"  - file_type: ..."`` and ending with any default comments.
+    """
+    explicit = entry.model_fields_set
+    lines: List[str] = [
+        f"  - file_type: {entry.file_type}",
+        f"    glob: {_yaml_scalar(entry.glob)}",
+        f"    mapping: {_yaml_scalar(entry.mapping)}",
+        f"    target_staging_table: {_yaml_scalar(entry.target_staging_table)}",
+    ]
+    # thresholds block: emit explicit values, then comments for omitted.
+    if "thresholds" in explicit:
+        thr_set = entry.thresholds.model_fields_set
+        if thr_set:
+            lines.append("    thresholds:")
+            for thr_field in ("max_errors",):
+                if thr_field in thr_set:
+                    val = getattr(entry.thresholds, thr_field)
+                    lines.append(f"      {thr_field}: {_format_yaml_value(val)}")
+    for comment in _input_file_default_comments(entry):
+        lines.append(f"    {comment}")
+    return lines
+
+
+def _render_output_entry(entry: OutputFileConfig) -> List[str]:
+    """Render one output_files entry as a list of YAML lines.
+
+    Explicit fields are emitted verbatim; implicit fields trail as
+    ``# default: <field>=<value>`` comment lines. The
+    ``# default: tolerance.*`` lines are emitted at the entry level (not
+    nested under a ``tolerance:`` key) because YAML comments cannot belong
+    to a key that does not exist in the document.
+
+    Args:
+        entry: A validated :class:`OutputFileConfig` instance.
+
+    Returns:
+        An ordered list of YAML lines starting with
+        ``"  - file_type: ..."`` and ending with any default comments.
+    """
+    explicit = entry.model_fields_set
+    lines: List[str] = [
+        f"  - file_type: {entry.file_type}",
+        f"    glob: {_yaml_scalar(entry.glob)}",
+        f"    mapping: {_yaml_scalar(entry.mapping)}",
+    ]
+    if "rules" in explicit:
+        lines.append(f"    rules: {_yaml_scalar(entry.rules)}")
+    if "strict_fixed_width" in explicit:
+        lines.append(
+            f"    strict_fixed_width: {_format_yaml_value(entry.strict_fixed_width)}"
+        )
+    if "strict_level" in explicit:
+        lines.append(f"    strict_level: {entry.strict_level}")
+    # tolerance: render explicit sub-fields as a nested mapping, then add
+    # default comments at the entry level for omitted sub-fields.
+    if "tolerance" in explicit:
+        tol_set = entry.tolerance.model_fields_set
+        if tol_set:
+            lines.append("    tolerance:")
+            for tol_field in ("ignore_fields", "max_errors", "max_error_pct"):
+                if tol_field in tol_set:
+                    val = getattr(entry.tolerance, tol_field)
+                    lines.append(f"      {tol_field}: {_format_yaml_value(val)}")
+    for comment in _output_file_default_comments(entry):
+        lines.append(f"    {comment}")
+    return lines
+
+
+def _yaml_scalar(value: str) -> str:
+    """Format a string scalar for safe inclusion in the hand-rendered YAML.
+
+    The hand-rendered manifest blocks need scalar formatting that matches
+    what ``yaml.safe_dump`` would produce, so the round-trip test passes.
+    Empty strings render as ``''`` (YAML's explicit empty scalar). All
+    other strings round-trip via ``yaml.safe_dump`` and the result has
+    the trailing newline stripped.
+
+    Args:
+        value: The scalar string value.
+
+    Returns:
+        A YAML-safe string representation (may include quotes).
+    """
+    if value == "":
+        return "''"
+    # Round-trip via yaml.safe_dump so glob patterns / paths / etc. are
+    # quoted exactly the way yaml.safe_dump quotes them elsewhere in the
+    # rendered text. Strip the trailing newline.
+    dumped = yaml.safe_dump(value, default_flow_style=True).rstrip("\n")
+    # safe_dump wraps scalars in flow style as e.g. ``'foo'\n`` -- when the
+    # scalar needs no quoting, it emits ``foo\n...\n`` (with a document end
+    # marker on the next line) for some inputs; trim that.
+    if dumped.endswith("\n..."):
+        dumped = dumped[: -len("\n...")]
+    return dumped
+
+
+def _format_yaml_value(value: Any) -> str:
+    """Format a non-string scalar/list for the hand-rendered manifest.
+
+    Booleans become YAML ``true``/``false``; lists round-trip via
+    ``yaml.safe_dump`` so the formatting matches what the rest of the
+    rendered YAML uses; numbers are stringified directly.
+
+    Args:
+        value: The value to format.
+
+    Returns:
+        A YAML-safe representation suitable for placement after ``key: ``.
+    """
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, list):
+        # Flow style for short lists matches our manifest aesthetic; safe
+        # for empty + simple scalars.
+        if not value:
+            return "[]"
+        return yaml.safe_dump(
+            value, default_flow_style=True, width=120
+        ).rstrip("\n")
+    return str(value)
+
+
+def _splice_manifests_after_description(yaml_text: str, manifest_text: str) -> str:
+    """Insert the manifest blocks immediately after the ``description:`` line.
+
+    Placing the manifest at the top of the generated YAML makes the
+    effective per-file configuration the first thing an SRE sees when they
+    open the file to debug a run. The manifest is anchored after the
+    ``description:`` line so the YAML's top-level key order remains
+    deterministic.
+
+    Args:
+        yaml_text: The serialized core pipeline YAML produced by
+            ``yaml.safe_dump``.
+        manifest_text: The hand-rendered manifest YAML fragment ending in
+            a single newline.
+
+    Returns:
+        The combined YAML text with the manifest spliced in. If a
+        ``description:`` block is not found (defensive guard), the manifest
+        is prepended to the output instead.
+    """
+    lines = yaml_text.splitlines(keepends=True)
+    # The description value can wrap across multiple lines because
+    # yaml.safe_dump folds long values; find the END of the description
+    # block, defined as the next line that begins with a non-space char
+    # at column 0 (i.e. the next top-level key, typically ``sources:``).
+    splice_after_idx: Optional[int] = None
+    in_description = False
+    for idx, line in enumerate(lines):
+        if line.startswith("description:"):
+            in_description = True
+            continue
+        if in_description and line and not line[0].isspace():
+            splice_after_idx = idx
+            break
+    if splice_after_idx is None:
+        # Fallback: prepend.
+        return manifest_text + yaml_text
+    head = "".join(lines[:splice_after_idx])
+    tail = "".join(lines[splice_after_idx:])
+    return head + manifest_text + tail
 
 
 def write_pipeline_file(

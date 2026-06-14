@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- EA-S2: `scripts/generate_pipeline_yaml.py` now emits
+  `# default: <field>=<value>` comments next to every implicitly-defaulted
+  field in `output_files[]` and `input_files[]` entries. SREs can see the
+  effective configuration without consulting the Pydantic source.
+  Generator wires `SourceConfig.model_validate()` to track defaulted vs
+  explicit fields via `model_fields_set`; default values are read from the
+  Pydantic model's field defaults so the generator and `etl_config.py` can
+  never drift apart. Comments are idempotent across regeneration. The
+  generated pipeline YAML now carries informational `input_files:` /
+  `output_files:` manifest sections (silently ignored by
+  `PipelineDefinition.model_validate`'s default `extra='ignore'`).
+  `config/e2e/sources/SRC_A.yml` migrated to drop the legacy
+  `multi_record:` keys (EB-S1 inline migration follow-up); golden fixture
+  regenerated to reflect the new manifest blocks.
 - EB-S1: `multi_record` / `discriminator_field` fields removed from
   `OutputFileConfig`; multi-record dispatch is now inferred from the
   mapping file extension (`.yaml` -> umbrella, `.json` -> flat) per ADR 0005.
