@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- EA-S3: Stripped ~146 lines of redundant strict/tolerance/thresholds
+  boilerplate from `config/e2e/sources/SHAW.yml` (-116 lines) and
+  `config/e2e/sources/SRC_A.yml` (-30 lines). The deleted values are now
+  restored from the Pydantic defaults added in EA-S1; the generated
+  pipeline YAML carries `# default:` comments per EA-S2 for SRE
+  traceability. The stale tolerance-defaults header comment in SHAW.yml is
+  also removed. SRC_A's non-default `tolerance.ignore_fields` overrides
+  are preserved verbatim (surgical strip). `SRC_A.sit.golden.yaml`
+  regenerated to reflect the new `# default:` comments. EB-S2 will add
+  the CI guardrail preventing reintroduction of the stripped keys.
 - EA-S2: `scripts/generate_pipeline_yaml.py` now emits
   `# default: <field>=<value>` comments next to every implicitly-defaulted
   field in `output_files[]` and `input_files[]` entries. SREs can see the
