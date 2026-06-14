@@ -53,6 +53,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reintroduction. All subprocess calls use explicit arg-arrays.
 
 ### Added
+- EC-S3 (Sprint 2): `src/onboarding/emitters/source_yaml_emitter.py`
+  converts an `OnboardingWorkbook` (from EC-S2) into a source-YAML text
+  semantically equivalent to today's committed
+  `config/e2e/sources/SHAW.yml`. Honours every Sprint 1 contract:
+  no EA-S1 default boilerplate, EA-S3 surgical-strip preserved for
+  non-default `tolerance`/`thresholds` overrides, EB-S1 multi-record
+  convention (mapping path extension drives `is_multi_record`), EB-S2
+  guardrail-clean. Emitted YAML validates through `SourceConfig`.
 - EC-S2 (Sprint 2): `src/onboarding/workbook_reader.py` parses the
   onboarding workbook into typed `OnboardingWorkbook` dataclass
   (`src/onboarding/models.py`). DASH-style field names preserved
