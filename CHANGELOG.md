@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- EC-S7 (Sprint 3 drift-fix): EC-S4 mapping emitter now populates
+  umbrella YAML `record_types.<name>.rules` paths using a shared
+  helper `derive_rules_artefact_path()` in
+  `src/onboarding/emitters/__init__.py`. EC-S5 rules emitter refactored
+  to call the same helper -- both emitters now agree on the canonical
+  rules artefact path. Resolves the `rules: ""` drift category in
+  `valdo onboard-source --check` against committed SHAW state.
 - EA-S3: Stripped ~146 lines of redundant strict/tolerance/thresholds
   boilerplate from `config/e2e/sources/SHAW.yml` (-116 lines) and
   `config/e2e/sources/SRC_A.yml` (-30 lines). The deleted values are now

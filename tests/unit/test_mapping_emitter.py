@@ -52,6 +52,7 @@ from src.onboarding.workbook_reader import read_workbook
 from src.onboarding.workbook_schema import (
     INPUT_FILES_REQUIRED_COLUMNS,
     MAPPING_SHEET_REQUIRED_COLUMNS,
+    MULTI_RECORD_REQUIRED_COLUMNS,
     OUTPUT_FILES_REQUIRED_COLUMNS,
     SOURCE_SHEET_REQUIRED_COLUMNS,
 )
@@ -113,6 +114,8 @@ def _build_synthetic_workbook(
     input_files_rows: list[dict[str, object]] | None = None,
     output_files_rows: list[dict[str, object]] | None = None,
     mapping_sheets: dict[str, list[dict[str, object]]] | None = None,
+    multi_record_sheets: dict[str, list[dict[str, object]]] | None = None,
+    rules_sheets: dict[str, list[dict[str, object]]] | None = None,
     filename: str = "synthetic.xlsx",
 ) -> Path:
     """Synthesise a minimal valid-shape workbook with arbitrary mapping sheets.
@@ -126,6 +129,12 @@ def _build_synthetic_workbook(
             :data:`MAPPING_SHEET_REQUIRED_COLUMNS` plus the optional columns
             EC-S2 reads (Position, Length, Target Name, Required, Format,
             Transformation, Valid Values, Description).
+        multi_record_sheets: Dict ``MultiRecord_<FILETYPE>`` sheet name ->
+            list of multi-record row dicts. Row dict keys must be a subset
+            of :data:`MULTI_RECORD_REQUIRED_COLUMNS`.
+        rules_sheets: Dict rules sheet name -> list of rules-row dicts.
+            Each row dict's keys must be a subset of the BA-friendly column
+            set (Rule ID, Field, Rule Type, plus optional columns).
         filename: Output filename in tmp_path.
 
     Returns:
@@ -134,6 +143,8 @@ def _build_synthetic_workbook(
     input_files_rows = input_files_rows or []
     output_files_rows = output_files_rows or []
     mapping_sheets = mapping_sheets or {}
+    multi_record_sheets = multi_record_sheets or {}
+    rules_sheets = rules_sheets or {}
 
     wb = Workbook()
     wb.remove(wb.active)
@@ -158,6 +169,15 @@ def _build_synthetic_workbook(
             ws, idx, [row_dict.get(col) for col in OUTPUT_FILES_REQUIRED_COLUMNS]
         )
 
+    # MultiRecord_<FILETYPE> sheets.
+    for sheet_name, rows in multi_record_sheets.items():
+        ws = wb.create_sheet(sheet_name)
+        _write_row(ws, 1, list(MULTI_RECORD_REQUIRED_COLUMNS))
+        for idx, row_dict in enumerate(rows, start=2):
+            _write_row(
+                ws, idx, [row_dict.get(col) for col in MULTI_RECORD_REQUIRED_COLUMNS]
+            )
+
     # Full mapping-sheet column set the EC-S2 reader looks up.
     mapping_columns = [
         "Field Name",
@@ -176,6 +196,25 @@ def _build_synthetic_workbook(
         _write_row(ws, 1, mapping_columns)
         for idx, row_dict in enumerate(rows, start=2):
             _write_row(ws, idx, [row_dict.get(col) for col in mapping_columns])
+
+    # Rules sheets (BA-friendly column set).
+    rules_columns = [
+        "Rule ID",
+        "Rule Name",
+        "Field",
+        "Rule Type",
+        "Severity",
+        "Expected / Values",
+        "Enabled",
+        "Message",
+        "Condition (optional)",
+        "Notes",
+    ]
+    for sheet_name, rows in rules_sheets.items():
+        ws = wb.create_sheet(sheet_name)
+        _write_row(ws, 1, rules_columns)
+        for idx, row_dict in enumerate(rows, start=2):
+            _write_row(ws, idx, [row_dict.get(col) for col in rules_columns])
 
     out_path = tmp_path / filename
     wb.save(str(out_path))
@@ -279,14 +318,16 @@ def test_emitted_umbrella_yaml_matches_committed():
     Strict checks:
         * ``discriminator`` block (field, position, length) is exactly equal.
         * ``record_types`` keys are exactly equal and in the same order.
-        * Per-record-type ``match`` (or ``position``) and ``mapping`` path
-          are exactly equal.
+        * Per-record-type ``match`` (or ``position``), ``mapping`` path,
+          AND ``rules`` path are exactly equal (EC-S7: ``rules`` is no
+          longer masked from the comparison; EC-S4 now populates the
+          rules paths via the shared
+          :func:`derive_rules_artefact_path` helper).
 
     Documented exemptions:
-        * ``rules`` paths -- committed file has them populated by hand;
-          EC-S4 emits empty strings (EC-S5 wires rules).
         * ``cross_type_rules`` -- committed file has an operator-authored
-          ``header_trailer_count`` overlay; EC-S4 always emits an empty list.
+          ``header_trailer_count`` overlay; EC-S4 always emits an empty
+          list (EC-S8 follow-up).
         * ``default_action`` -- committed file uses ``error``; EC-S4 also
           uses ``error`` (both match here).
     """
@@ -309,7 +350,12 @@ def test_emitted_umbrella_yaml_matches_committed():
         committed_data["record_types"].keys()
     )
 
-    # Per-entry: match/position and mapping path equal.
+    # Per-entry: match/position, mapping path AND rules path equal.
+    # EC-S7: the umbrella YAML now carries populated rules paths. The
+    # ``derive_rules_artefact_path`` shared helper drives both EC-S4's
+    # umbrella YAML emission and EC-S5's per-record-type JSON
+    # filenames, so the committed and emitted ``rules`` values are
+    # guaranteed to agree by construction.
     for rt_name, emitted_entry in emitted_data["record_types"].items():
         committed_entry = committed_data["record_types"][rt_name]
         for key in ("match", "position"):
@@ -321,6 +367,12 @@ def test_emitted_umbrella_yaml_matches_committed():
                 )
         assert emitted_entry["mapping"] == committed_entry["mapping"], (
             f"record_types.{rt_name}.mapping path mismatch"
+        )
+        # EC-S7: rules path must now exactly match the committed value.
+        assert emitted_entry.get("rules") == committed_entry.get("rules"), (
+            f"record_types.{rt_name}.rules path mismatch: "
+            f"emitted={emitted_entry.get('rules')!r} "
+            f"committed={committed_entry.get('rules')!r}"
         )
 
     # Top-level key set: emitted has the canonical four keys.
@@ -503,6 +555,232 @@ def test_emit_all_returns_no_disk_writes():
     )
     # Sanity: we actually emitted something (otherwise the test is vacuous).
     assert artefacts, "Expected non-empty artefact list."
+
+
+# ---------------------------------------------------------------------------
+# 8. EC-S7: umbrella YAML populates record_types.<name>.rules paths.
+# ---------------------------------------------------------------------------
+
+
+def test_umbrella_yaml_populates_rules_path_per_record_type(tmp_path):
+    """A synthetic 2-record-type multi-record workbook emits an umbrella
+    YAML whose ``record_types.<name>.rules`` paths match the shared
+    helper's canonical layout-tagged convention.
+
+    Guards against regression of the EC-S7 fix: prior to EC-S7, EC-S4
+    emitted ``rules: ""`` for every record type because rules-path
+    derivation was deferred to EC-S5. EC-S7 wires the shared
+    :func:`src.onboarding.emitters.derive_rules_artefact_path` helper
+    into EC-S4 so both emitters agree on the path by construction.
+    """
+    wb_path = _build_synthetic_workbook(
+        tmp_path,
+        output_files_rows=[
+            {
+                "file_type": "ATOC",
+                "glob": "atoc_*.txt",
+                "mapping_sheet": "(umbrella)",
+                "rules_sheet": "(umbrella)",
+                "tolerance_max_errors": None,
+                "tolerance_max_error_pct": None,
+                "tolerance_ignore_fields": None,
+            },
+        ],
+        multi_record_sheets={
+            "MultiRecord_ATOC": [
+                {
+                    "record_type_name": "rt_100",
+                    "discriminator_field": "TYPE",
+                    "discriminator_position": 1,
+                    "discriminator_length": 3,
+                    "match_kind": "discriminator_equals",
+                    "match_value": "100",
+                    "mapping_sheet": "ATOC_HDR_Mapping",
+                    "rules_sheet": "ATOC_HDR_Rules",
+                    "cardinality": "one_per_driver_row",
+                },
+                {
+                    "record_type_name": "rt_200",
+                    "discriminator_field": "TYPE",
+                    "discriminator_position": 1,
+                    "discriminator_length": 3,
+                    "match_kind": "discriminator_equals",
+                    "match_value": "200",
+                    "mapping_sheet": "ATOC_DTL_Mapping",
+                    "rules_sheet": "ATOC_DTL_Rules",
+                    "cardinality": "many_per_driver_row",
+                },
+            ],
+        },
+        mapping_sheets={
+            "ATOC_HDR_Mapping": [
+                {
+                    "Field Name": "TYPE",
+                    "Data Type": "String",
+                    "Position": 1,
+                    "Length": 3,
+                    "Required": "Yes",
+                }
+            ],
+            "ATOC_DTL_Mapping": [
+                {
+                    "Field Name": "TYPE",
+                    "Data Type": "String",
+                    "Position": 1,
+                    "Length": 3,
+                    "Required": "Yes",
+                }
+            ],
+        },
+        rules_sheets={
+            "ATOC_HDR_Rules": [
+                {
+                    "Rule ID": "R001",
+                    "Rule Name": "TYPE required",
+                    "Field": "TYPE",
+                    "Rule Type": "not_empty",
+                    "Severity": "error",
+                    "Enabled": "Yes",
+                    "Message": "TYPE required",
+                }
+            ],
+            "ATOC_DTL_Rules": [
+                {
+                    "Rule ID": "R001",
+                    "Rule Name": "TYPE required",
+                    "Field": "TYPE",
+                    "Rule Type": "not_empty",
+                    "Severity": "error",
+                    "Enabled": "Yes",
+                    "Message": "TYPE required",
+                }
+            ],
+        },
+    )
+
+    workbook = read_workbook(wb_path)
+    artefacts = emit_mapping_artefacts(workbook)
+
+    umbrella = next(
+        a for a in artefacts if a.path == "config/mappings/TEST_ATOC.yaml"
+    )
+    data = yaml.safe_load(umbrella.content)
+
+    # Each record-type entry carries the canonical layout-tagged rules path.
+    assert data["record_types"]["rt_100"]["rules"] == (
+        "config/rules/TEST_ATOC_HDR_rules.json"
+    )
+    assert data["record_types"]["rt_200"]["rules"] == (
+        "config/rules/TEST_ATOC_DTL_rules.json"
+    )
+
+
+def test_umbrella_yaml_omits_rules_key_when_rules_sheet_empty(tmp_path):
+    """When a multi-record row's ``rules_sheet`` cell is blank, the
+    corresponding umbrella record-type entry MUST omit the ``rules`` key
+    entirely (NOT emit ``rules: ""``).
+
+    Acceptance criterion #2 in EC-S7: the empty string was the original
+    bug. The MultiRecordConfig schema treats ``rules`` as an optional
+    field with default ``""`` so omitting the key is the cleanest way
+    to signal "no rules for this layout" without polluting the umbrella
+    YAML's shape.
+    """
+    wb_path = _build_synthetic_workbook(
+        tmp_path,
+        output_files_rows=[
+            {
+                "file_type": "MIX",
+                "glob": "mix_*.txt",
+                "mapping_sheet": "(umbrella)",
+                "rules_sheet": "(umbrella)",
+                "tolerance_max_errors": None,
+                "tolerance_max_error_pct": None,
+                "tolerance_ignore_fields": None,
+            },
+        ],
+        multi_record_sheets={
+            "MultiRecord_MIX": [
+                {
+                    "record_type_name": "rt_with_rules",
+                    "discriminator_field": "TYPE",
+                    "discriminator_position": 1,
+                    "discriminator_length": 3,
+                    "match_kind": "discriminator_equals",
+                    "match_value": "100",
+                    "mapping_sheet": "MIX_HDR_Mapping",
+                    "rules_sheet": "MIX_HDR_Rules",
+                    "cardinality": "one_per_driver_row",
+                },
+                {
+                    "record_type_name": "rt_no_rules",
+                    "discriminator_field": "TYPE",
+                    "discriminator_position": 1,
+                    "discriminator_length": 3,
+                    "match_kind": "discriminator_equals",
+                    "match_value": "200",
+                    "mapping_sheet": "MIX_DTL_Mapping",
+                    "rules_sheet": "",  # explicit opt-out
+                    "cardinality": "many_per_driver_row",
+                },
+            ],
+        },
+        mapping_sheets={
+            "MIX_HDR_Mapping": [
+                {
+                    "Field Name": "TYPE",
+                    "Data Type": "String",
+                    "Position": 1,
+                    "Length": 3,
+                    "Required": "Yes",
+                }
+            ],
+            "MIX_DTL_Mapping": [
+                {
+                    "Field Name": "TYPE",
+                    "Data Type": "String",
+                    "Position": 1,
+                    "Length": 3,
+                    "Required": "Yes",
+                }
+            ],
+        },
+        rules_sheets={
+            "MIX_HDR_Rules": [
+                {
+                    "Rule ID": "R001",
+                    "Rule Name": "TYPE required",
+                    "Field": "TYPE",
+                    "Rule Type": "not_empty",
+                    "Severity": "error",
+                    "Enabled": "Yes",
+                    "Message": "TYPE required",
+                }
+            ],
+        },
+    )
+
+    workbook = read_workbook(wb_path)
+    artefacts = emit_mapping_artefacts(workbook)
+
+    umbrella = next(
+        a for a in artefacts if a.path == "config/mappings/TEST_MIX.yaml"
+    )
+    data = yaml.safe_load(umbrella.content)
+
+    # The record_type WITH rules has the rules key.
+    assert "rules" in data["record_types"]["rt_with_rules"], (
+        "Expected 'rules' key on record type with non-blank rules_sheet."
+    )
+    assert data["record_types"]["rt_with_rules"]["rules"] == (
+        "config/rules/TEST_MIX_HDR_rules.json"
+    )
+    # The record_type WITHOUT rules OMITS the rules key entirely.
+    assert "rules" not in data["record_types"]["rt_no_rules"], (
+        "Expected 'rules' key to be ABSENT (not '', not None) when "
+        "rules_sheet is blank; got entry: "
+        f"{data['record_types']['rt_no_rules']!r}"
+    )
 
 
 # ---------------------------------------------------------------------------

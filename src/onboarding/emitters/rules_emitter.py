@@ -38,9 +38,13 @@ Design contract
   snake_case ``condition`` / ``notes`` attributes; the emitter renames
   those two columns when building the DataFrame so the converter picks
   them up.
-* **Layout-tag de-duplication shared with EC-S4.** Both emitters call
-  :func:`src.onboarding.emitters.derive_layout_tag` so a single change
-  in naming convention propagates to mapping AND rules artefacts.
+* **Layout-tag de-duplication shared with EC-S4.** Both emitters
+  derive the rules artefact path via
+  :func:`src.onboarding.emitters.derive_rules_artefact_path` (EC-S7
+  shared helper); EC-S4 uses it to populate ``record_types.<name>.rules``
+  in the umbrella YAML and EC-S5 uses it to choose the on-disk JSON
+  filename. The single source of truth means the umbrella's
+  ``rules:`` paths are guaranteed to resolve to artefacts EC-S5 emits.
 * **No disk writes.** ``emit_all`` returns
   :class:`EmittedRulesArtefact` instances; EC-S6's
   ``valdo onboard-source`` CLI is responsible for writing them to the
@@ -84,12 +88,16 @@ from __future__ import annotations
 import dataclasses
 import json
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Literal
 
 import pandas as pd
 
 from src.config.ba_rules_template_converter import BARulesTemplateConverter
-from src.onboarding.emitters import EmitterError, derive_layout_tag
+from src.onboarding.emitters import (
+    EmitterError,
+    derive_rules_artefact_path,
+)
 from src.onboarding.models import (
     MultiRecordSheet,
     OnboardingWorkbook,
@@ -400,14 +408,26 @@ class RulesEmitter:
         cell blank -- no artefact is emitted for that file (matching
         the EC-S3 source-YAML convention that emits ``rules: ""`` in
         the corresponding ``output_files[]`` entry).
+
+        Delegates path derivation to
+        :func:`src.onboarding.emitters.derive_rules_artefact_path` so
+        the EC-S4 mapping emitter's umbrella ``rules:`` paths and the
+        actual emitted JSON paths are guaranteed-equal (EC-S7
+        cross-emitter coordination).
         """
-        if not spec.rules_sheet:
+        artefact_path = derive_rules_artefact_path(
+            self.source_code,
+            spec.file_type,
+            spec.rules_sheet,
+            rules_dir=self.output_dir,
+        )
+        if artefact_path is None:
             return None
         sheet = _resolve_rules_sheet(workbook, spec.rules_sheet)
-        rules_id = f"{self.source_code}_{spec.file_type}"
+        rules_id = Path(artefact_path).stem  # e.g. "SHAW_CDSTRANS_EFB"
         data = _convert_rules_sheet_to_dict(sheet, rules_id)
         return EmittedRulesArtefact(
-            path=f"{self.output_dir}/{rules_id}.json",
+            path=artefact_path,
             content=_serialise_json(data),
             kind="flat_rules_json",
         )
@@ -443,30 +463,35 @@ class RulesEmitter:
             )
 
         artefacts: list[EmittedRulesArtefact] = []
-        seen_layouts: set[str] = set()
+        seen_paths: set[str] = set()
 
         for row in mr_sheet.rows:
-            if not row.rules_sheet:
+            # Both the blank-rules and the canonical-path derivation
+            # are owned by the shared helper so EC-S4's umbrella YAML
+            # ``rules:`` paths and the emitted JSON paths cannot drift
+            # (EC-S7 cross-emitter coordination).
+            artefact_path = derive_rules_artefact_path(
+                self.source_code,
+                spec.file_type,
+                row.rules_sheet,
+                rules_dir=self.output_dir,
+            )
+            if artefact_path is None:
                 # This record type has no rules; nothing to emit. Other
                 # record types in the same MR file may still emit.
                 continue
-            layout_tag = derive_layout_tag(
-                spec.file_type, row.rules_sheet, suffix="_Rules"
-            )
-            if layout_tag in seen_layouts:
+            if artefact_path in seen_paths:
                 # Two record types share a rules layout (e.g. rt_32000
                 # + rt_32001 -> TRANERT_NEW1_Rules) -- emit once.
                 continue
-            seen_layouts.add(layout_tag)
+            seen_paths.add(artefact_path)
 
             sheet = _resolve_rules_sheet(workbook, row.rules_sheet)
-            rules_id = (
-                f"{self.source_code}_{spec.file_type}_{layout_tag}_rules"
-            )
+            rules_id = Path(artefact_path).stem  # e.g. "SHAW_TRANERT_NEW1_rules"
             data = _convert_rules_sheet_to_dict(sheet, rules_id)
             artefacts.append(
                 EmittedRulesArtefact(
-                    path=f"{self.output_dir}/{rules_id}.json",
+                    path=artefact_path,
                     content=_serialise_json(data),
                     kind="per_type_rules_json",
                 )

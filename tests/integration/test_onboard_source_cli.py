@@ -4,7 +4,7 @@ Closes Sprint 2: end-to-end proof that a BA can take an Excel
 onboarding workbook and produce the full SHAW-equivalent artefact
 tree with a single command.
 
-Test cases (9):
+Test cases (10):
 
   1. test_normal_mode_writes_all_artefacts_to_tmp_path -- exit 0,
      summary line, 65 paths on disk.
@@ -22,7 +22,10 @@ Test cases (9):
   8. test_idempotent_on_second_run -- second normal-mode run exits 0
      and produces the same file set (content may have updated
      ``metadata.created_date`` per the documented limitation).
-  9. test_help_lists_all_flags -- ``--help`` includes every flag.
+  9. test_check_mode_umbrella_rules_drift_resolved -- EC-S7 regression
+     guard: the umbrella ``rules:`` drift category against the real
+     committed config tree is resolved.
+ 10. test_help_lists_all_flags -- ``--help`` includes every flag.
 """
 
 from __future__ import annotations
@@ -442,7 +445,93 @@ def test_idempotent_on_second_run(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# 9. --help lists every flag.
+# 10. EC-S7: umbrella-rules drift category is resolved.
+# ---------------------------------------------------------------------------
+
+
+def test_check_mode_umbrella_rules_drift_resolved():
+    """Run ``--check`` against the REAL committed config tree and assert
+    that no drift line points to a SHAW_*.yaml umbrella for the
+    ``rules:`` mismatch reason.
+
+    Background: EC-S6's first ``--check`` run reported 38 of 65
+    artefacts in drift. EC-S7 specifically resolves the umbrella-rules
+    category, which previously surfaced as two drift lines:
+
+        config/mappings/SHAW_ATOCTRAN.yaml:  value for key 'record_types' differs
+        config/mappings/SHAW_TRANERT.yaml:   value for key 'cross_type_rules' differs
+
+    The ATOCTRAN line was caused entirely by ``rules: ""`` divergence on
+    every record_type entry. The TRANERT line surfaced
+    ``cross_type_rules`` first (the operator-overlay; out of EC-S7's
+    scope -- EC-S8 owns it), but the underlying ``rules: ""``
+    divergence on every record_type was ALSO present.
+
+    After EC-S7:
+        * SHAW_ATOCTRAN.yaml fully matches (no cross_type_rules overlay
+          on that file).
+        * SHAW_TRANERT.yaml still drifts on cross_type_rules (EC-S8) but
+          NOT on record_types (the rules drift inside is gone).
+
+    Other drift categories (input-file flat mappings without committed
+    counterparts, the CDSTRANS_EFB / CONTACT / P327 etc. flat outputs
+    not yet in the committed tree, the CUS layout content drift) stay
+    unresolved -- those are EC-S8 / EC-S9 / EC-S10's jobs.
+    """
+    result = _invoke(
+        [
+            str(SHAW_WORKBOOK),
+            "--check",
+            "--source-dir",
+            str(COMMITTED_SOURCES_DIR),
+            "--mapping-dir",
+            str(COMMITTED_MAPPINGS_DIR),
+            "--rules-dir",
+            str(COMMITTED_RULES_DIR),
+        ]
+    )
+
+    # Exit 1 is expected (other drift categories still pending --
+    # EC-S8/S9/S10 own them).
+    assert result.exit_code == 1, (
+        f"Expected exit 1 (other drift categories pending); got "
+        f"{result.exit_code}\nSTDOUT:\n{result.stdout}\n"
+        f"STDERR:\n{result.stderr}"
+    )
+
+    # The headline EC-S7 contract: SHAW_ATOCTRAN.yaml matches now.
+    # Prior to EC-S7 the stderr drift report contained the line
+    # "drift .../SHAW_ATOCTRAN.yaml: value for key 'record_types' differs".
+    atoctran_drift_lines = [
+        line
+        for line in result.stderr.splitlines()
+        if "SHAW_ATOCTRAN.yaml" in line and "drift" in line
+    ]
+    assert not atoctran_drift_lines, (
+        "EC-S7 contract violation: SHAW_ATOCTRAN.yaml still shows "
+        f"drift lines after the fix:\n{atoctran_drift_lines}\n"
+        f"Full stderr:\n{result.stderr}"
+    )
+
+    # SHAW_TRANERT.yaml is still expected to drift, but ONLY on
+    # cross_type_rules -- not on record_types (the rules drift category).
+    tranert_drift_lines = [
+        line
+        for line in result.stderr.splitlines()
+        if "SHAW_TRANERT.yaml" in line and "drift" in line
+    ]
+    # If TRANERT drift remains, it must be on cross_type_rules, not on
+    # record_types. (EC-S8 will resolve the cross_type_rules overlay.)
+    for line in tranert_drift_lines:
+        assert "record_types" not in line, (
+            "EC-S7 contract violation: SHAW_TRANERT.yaml drift line "
+            f"still cites record_types: {line!r}\n"
+            f"Full stderr:\n{result.stderr}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# 11. --help lists every flag.
 # ---------------------------------------------------------------------------
 
 

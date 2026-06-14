@@ -89,4 +89,109 @@ def derive_layout_tag(file_type: str, sheet_name: str, *, suffix: str) -> str:
     return sheet_name[len(expected_prefix) : -len(suffix)]
 
 
-__all__ = ["EmitterError", "derive_layout_tag"]
+def derive_rules_artefact_path(
+    source_code: str,
+    file_type: str,
+    rules_sheet_name: str,
+    *,
+    rules_dir: str = "config/rules",
+) -> str | None:
+    """Compute the canonical rules-artefact path for one workbook row.
+
+    Shared helper called by BOTH emitters so EC-S4's umbrella YAML and
+    EC-S5's rules JSON emission stay perfectly in sync on the
+    rules-artefact filename. Resolves the EC-S7 drift category where
+    the umbrella YAML carried ``rules: ""`` while EC-S5 was actually
+    emitting a real per-record-type rules JSON at the layout-tagged
+    path.
+
+    Path-derivation rules:
+
+        * ``rules_sheet_name == ""`` (BA explicitly omitted rules) ->
+          returns ``None`` so the caller can omit the ``rules`` key
+          entirely (EC-S7 acceptance criterion #1) rather than emit
+          ``""``.
+        * ``rules_sheet_name == "(umbrella)"`` -> returns ``None``.
+          The umbrella token never resolves to a rules artefact: it
+          is the sentinel that says "see the per-record-type rows in
+          the MultiRecord_<FT> sheet". Each row carries its own
+          ``rules_sheet`` which this helper resolves separately.
+        * Otherwise: when the sheet name matches the
+          ``<FILE_TYPE>_<LAYOUT>_Rules`` convention, returns
+          ``<rules_dir>/<SOURCE>_<FT>_<LAYOUT>_rules.json``. When it
+          does not (the FLAT-output convention where
+          ``OutputFileSpec.rules_sheet`` is e.g. ``CDSTRANS_EFB_Rules``
+          but there is only one rules layout per flat file), returns
+          ``<rules_dir>/<SOURCE>_<FT>.json``. The fallback is taken
+          ONLY when the layout-tag derivation raises
+          :class:`EmitterError` -- i.e. the convention check is the
+          discriminator between multi-record (layout-tagged) and flat
+          (no layout tag) rules paths.
+
+    Args:
+        source_code: The source code (e.g. ``"SHAW"``). Becomes the
+            filename prefix.
+        file_type: The output-file file type (e.g. ``"TRANERT"``).
+            Becomes the second filename component.
+        rules_sheet_name: The ``rules_sheet`` cell value from either
+            an :class:`~src.onboarding.models.OutputFileSpec` (flat
+            output) or a :class:`~src.onboarding.models.MultiRecordRow`
+            (multi-record per-type).
+        rules_dir: Directory prefix for the emitted artefact. Defaults
+            to ``"config/rules"`` to match the committed convention;
+            tests may override.
+
+    Returns:
+        The canonical rules-artefact path (e.g.
+        ``"config/rules/SHAW_TRANERT_NEW1_rules.json"`` or
+        ``"config/rules/SHAW_CDSTRANS_EFB.json"``), or ``None`` when
+        no rules artefact should be emitted (blank or umbrella token).
+
+    Examples:
+        >>> derive_rules_artefact_path("SHAW", "TRANERT", "TRANERT_NEW1_Rules")
+        'config/rules/SHAW_TRANERT_NEW1_rules.json'
+        >>> derive_rules_artefact_path("SHAW", "CDSTRANS_EFB", "CDSTRANS_EFB_Rules")
+        'config/rules/SHAW_CDSTRANS_EFB.json'
+        >>> derive_rules_artefact_path("SHAW", "TRANERT", "") is None
+        True
+        >>> derive_rules_artefact_path("SHAW", "TRANERT", "(umbrella)") is None
+        True
+    """
+    if not rules_sheet_name:
+        return None
+    if rules_sheet_name == "(umbrella)":
+        return None
+
+    rules_dir = rules_dir.rstrip("/")
+
+    # Decide between two filename shapes by inspecting the sheet name:
+    #
+    #   * Multi-record layout convention:
+    #       ``<FILE_TYPE>_<LAYOUT>_Rules`` (non-empty <LAYOUT>)
+    #       -> ``<rules_dir>/<SOURCE>_<FT>_<LAYOUT>_rules.json``
+    #   * Flat-output convention:
+    #       ``<FILE_TYPE>_Rules``           (no <LAYOUT> segment)
+    #       -> ``<rules_dir>/<SOURCE>_<FT>.json``
+    #
+    # ``derive_layout_tag`` returns the empty string for the flat shape
+    # (it succeeds because the prefix + suffix consume the whole sheet
+    # name with nothing in between) and raises ``EmitterError`` only
+    # when the sheet name does not conform at all. The empty-tag case
+    # is the discriminator we use to pick the flat path.
+    try:
+        layout_tag = derive_layout_tag(
+            file_type, rules_sheet_name, suffix="_Rules"
+        )
+    except EmitterError:
+        # Sheet name does not conform to either convention -- re-raise
+        # so the caller can surface the BA error (vs. silently emitting
+        # an unsupported path).
+        raise
+
+    if layout_tag == "":
+        # Flat-output convention: ``<FT>_Rules`` -> ``<SOURCE>_<FT>.json``.
+        return f"{rules_dir}/{source_code}_{file_type}.json"
+    return f"{rules_dir}/{source_code}_{file_type}_{layout_tag}_rules.json"
+
+
+__all__ = ["EmitterError", "derive_layout_tag", "derive_rules_artefact_path"]

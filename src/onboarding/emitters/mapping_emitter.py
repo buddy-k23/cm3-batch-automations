@@ -126,7 +126,11 @@ import pandas as pd
 import yaml
 
 from src.config.template_converter import TemplateConverter
-from src.onboarding.emitters import EmitterError, derive_layout_tag
+from src.onboarding.emitters import (
+    EmitterError,
+    derive_layout_tag,
+    derive_rules_artefact_path,
+)
 from src.onboarding.models import (
     InputFileSpec,
     MappingFieldRow,
@@ -391,9 +395,14 @@ def _build_record_type_entry(
     ``rt_32001`` both -> ``TRANERT_NEW1_Mapping``) end up pointing at
     the same emitted JSON.
 
-    Rules path: blank string for now (per-record-type rules emission
-    lands in EC-S5). Operators add the rules path by hand if needed
-    until EC-S5 wires it in.
+    Rules path: derived via the EC-S7 shared helper
+    :func:`src.onboarding.emitters.derive_rules_artefact_path` so EC-S4
+    and EC-S5 cannot drift on the canonical filename. When the
+    workbook row's ``rules_sheet`` cell is blank the helper returns
+    ``None`` and the ``rules`` key is OMITTED from the umbrella entry
+    entirely (NOT emitted as ``""``); this matches the
+    :class:`src.config.multi_record_config.RecordTypeConfig` schema
+    where ``rules`` is an optional field with default ``""``.
 
     Expect: translated from the workbook's cardinality vocabulary via
     :data:`_CARDINALITY_TO_EXPECT`.
@@ -406,7 +415,9 @@ def _build_record_type_entry(
             sheet name.
 
     Returns:
-        The block-style dict for this record-type entry.
+        The block-style dict for this record-type entry. The ``rules``
+        key is present only when the workbook row carries a non-blank
+        ``rules_sheet`` cell; otherwise it is omitted.
     """
     entry: dict[str, Any] = {}
     if row.match_kind == "position_first":
@@ -416,7 +427,11 @@ def _build_record_type_entry(
     entry["mapping"] = (
         f"config/mappings/{source_code}_{file_type}_{layout_tag}_mapping.json"
     )
-    entry["rules"] = ""  # EC-S5 will populate when a rules_sheet is present.
+    rules_path = derive_rules_artefact_path(
+        source_code, file_type, row.rules_sheet
+    )
+    if rules_path is not None:
+        entry["rules"] = rules_path
     entry["expect"] = _CARDINALITY_TO_EXPECT[row.cardinality]
     return entry
 

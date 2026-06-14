@@ -43,6 +43,8 @@ import yaml
 from openpyxl import Workbook
 
 from src.pipeline.etl_config import SourceConfig
+from src.onboarding.emitters import derive_rules_artefact_path
+from src.onboarding.emitters.mapping_emitter import emit_mapping_artefacts
 from src.onboarding.emitters.rules_emitter import (
     EmittedRulesArtefact,
     RulesEmitter,
@@ -594,6 +596,74 @@ def test_emit_all_returns_no_disk_writes():
     )
     # Sanity: we actually emitted something (otherwise the test is vacuous).
     assert artefacts, "Expected non-empty artefact list."
+
+
+# ---------------------------------------------------------------------------
+# 9. EC-S7: RulesEmitter and MappingEmitter agree on canonical rules paths.
+# ---------------------------------------------------------------------------
+
+
+def test_rules_emitter_path_matches_umbrella_helper():
+    """For SHAW, every per-record-type rules JSON path produced by
+    EC-S5 also appears as an umbrella ``record_types.<name>.rules``
+    path produced by EC-S4 -- by construction, because both emitters
+    derive the path from the same shared helper
+    :func:`src.onboarding.emitters.derive_rules_artefact_path`.
+
+    This is the regression guard for EC-S7's headline contract: the
+    two emitters cannot drift on the rules-artefact filename. If
+    EC-S4 ever stops calling the helper (or EC-S5 stops calling it),
+    this test will fail with a concrete mismatch.
+    """
+    workbook = read_workbook(SHAW_WORKBOOK)
+    mapping_artefacts = emit_mapping_artefacts(workbook)
+    rules_artefacts = emit_rules_artefacts(workbook)
+
+    # Collect the canonical rules paths the rules emitter wrote.
+    emitted_rules_paths = {a.path for a in rules_artefacts}
+
+    # Collect every rules path referenced by every umbrella YAML.
+    umbrella_rules_refs: set[str] = set()
+    for art in mapping_artefacts:
+        if art.kind != "umbrella_yaml":
+            continue
+        data = yaml.safe_load(art.content)
+        for entry in data["record_types"].values():
+            rules_ref = entry.get("rules")
+            if rules_ref:
+                umbrella_rules_refs.add(rules_ref)
+
+    # Sanity: SHAW workbook has populated rules for every record type, so
+    # the umbrella refs set is non-empty (otherwise the test is vacuous).
+    assert umbrella_rules_refs, (
+        "SHAW umbrella YAMLs reference no rules paths -- test fixture "
+        "has drifted (EC-S7 contract not exercised)."
+    )
+
+    # Every umbrella reference resolves to an emitted rules artefact.
+    missing = umbrella_rules_refs - emitted_rules_paths
+    assert not missing, (
+        f"Umbrella YAML references {len(missing)} rules paths that "
+        f"EC-S5 did NOT emit: {sorted(missing)}.\n"
+        f"Emitted paths: {sorted(emitted_rules_paths)}"
+    )
+
+    # Also verify the shared helper produces the same paths the rules
+    # emitter actually wrote (direct contract check).
+    source_code = workbook.source.source_code
+    for mr_sheet in workbook.multi_record_sheets.values():
+        for row in mr_sheet.rows:
+            expected = derive_rules_artefact_path(
+                source_code, mr_sheet.file_type, row.rules_sheet
+            )
+            if expected is None:
+                continue  # this record type has no rules; nothing to check
+            assert expected in emitted_rules_paths, (
+                f"Helper says rules path is {expected!r} for "
+                f"mr_sheet={mr_sheet.file_type!r} "
+                f"record_type={row.record_type_name!r}, but EC-S5 did not "
+                f"emit a rules artefact at that path."
+            )
 
 
 # ---------------------------------------------------------------------------
