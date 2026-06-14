@@ -24,6 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reintroduction. All subprocess calls use explicit arg-arrays.
 
 ### Added
+- EF-S1: MCP Streamable HTTP server scaffold mounted at `/mcp` on the FastAPI
+  process. `initialize` handshake advertises tools/resources/prompts capabilities
+  (registries empty in this scaffold). Dev-mode auth via `VALDO_MCP_AUTH=dev`;
+  unset env returns 401. Tool/resource/prompt implementations land in EF-S2 /
+  EF-S3 / EF-S6. Real LDAPS + X-API-Key bridge lands in EF-S7. Python 3.10+
+  required (MCP SDK constraint).
 - EA-S1: `SourceConfig`, `OutputFileConfig`, `InputFileConfig`,
   `ToleranceConfig`, `ThresholdsConfig` Pydantic models in
   `src/pipeline/etl_config.py` with implicit defaults for

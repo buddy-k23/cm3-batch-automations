@@ -95,6 +95,7 @@ data/samples/*.csv
 *.bak
 output/
 
+.venv311/
 .venv312/
 .worktrees/
 

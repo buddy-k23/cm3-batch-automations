@@ -27,6 +27,7 @@ from src.api.routers import rules as rules_router_mod
 from src.api.routers.api_tester import router as api_tester_router
 from src.api.routers.webhook import router as webhook_router
 from src.api.routers.multi_record import router as multi_record_router
+from src.mcp.server import build_mcp_server
 from src.utils.cleanup import cleanup_old_files
 
 logger = logging.getLogger(__name__)
@@ -42,10 +43,23 @@ if _UI_CONFIG_PATH.exists():
     import yaml as _yaml_early
     _ui_cfg_early = _yaml_early.safe_load(_UI_CONFIG_PATH.read_text()) or {}
 
+# Build the MCP (Model Context Protocol) sub-app once at module import time
+# so the lifespan handler below can nest its session manager. EF-S1 scaffold
+# only — tools / resources / prompts land in EF-S2 / EF-S3 / EF-S6, and the
+# real LDAPS + X-API-Key auth bridge lands in EF-S7.
+_mcp_server, _mcp_sub_app = build_mcp_server()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan handler: runs startup cleanup, then yields."""
+    """Application lifespan handler: runs startup cleanup, then yields.
+
+    Composes the MCP Streamable HTTP session manager around the existing
+    Valdo startup body so the MCP transport is live for the whole window
+    in which the FastAPI app accepts requests. The MCP session manager
+    MUST be entered before any ``/mcp/*`` request is served and exited on
+    shutdown — see ``src/mcp/server.py`` for the rationale.
+    """
     # Startup: remove stale uploaded files
     result = cleanup_old_files(_UPLOADS_DIR, FILE_RETENTION_HOURS)
     if result["deleted_count"] > 0:
@@ -68,8 +82,12 @@ async def lifespan(app: FastAPI):
         (app.state.ui_config or {}).get("downloader", {}).get("enabled", False),
     )
 
-    yield
-    # Shutdown: nothing needed
+    # Nest the MCP session manager so it bookends the yield. On shutdown,
+    # the async context manager will be cleanly exited before this function
+    # returns, ensuring the MCP transport releases its resources.
+    async with _mcp_server.session_manager.run():
+        yield
+    # Shutdown: nothing else needed
 
 
 # Create FastAPI application
@@ -221,6 +239,12 @@ app.include_router(
 if _ui_cfg_early.get("downloader", {}).get("enabled", False):
     from src.api.routers import downloader as _dl_mod
     app.include_router(_dl_mod.router, prefix="/api/v1/downloader", tags=["downloader"])
+
+# Mount the MCP Streamable HTTP sub-app at /mcp. The sub-app carries its
+# own Starlette auth middleware (VALDO_MCP_AUTH=dev gate); mount-time
+# ordering matters here because the lifespan above already references
+# `_mcp_server.session_manager`.
+app.mount("/mcp", _mcp_sub_app, name="mcp")
 
 # Serve generated reports
 _UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
