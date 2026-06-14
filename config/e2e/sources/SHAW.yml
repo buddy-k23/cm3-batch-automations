@@ -101,18 +101,22 @@ input_files:
 # regex in paths.yml is not relied on for outputs; each entry's `glob`
 # matches directly under `output_root`.
 #
-# Multi-record handling: discriminator strategy is field-name dispatch via
-# mapping JSON. Each multi-record file declares its own discriminator
-# field name (set per the source spec workbook), defined at a file-specific
-# column position in the mapping JSON.
-#   - atoctran_shaw_*.txt  -> discriminator_field: "TRANSACTION-CODE"
-#     (values: 100, 200, 300, 605, 700, 900, 060)
-#   - contact_shaw_*.txt   -> discriminator_field: "RECORD_TYPE"
-#     (pending: confirm field name from contact spec)
-#   - tranert_shaw_*.txt   -> discriminator_field: "TRN-COD-ERT"
-#     (position 170, length 5; Batch Header matched by position: "first")
-#     codes: 32000/32001 (NEW1), 32005 (CUS), 32010 (ORI), 32025 (COD),
-#            32040 (CBRS), 32075 (REC); 32030 (VR) and 32070 (CON) pending
+# Multi-record handling (post EB-S1 / ADR 0005): dispatch is **inferred**
+# from the mapping file extension. Umbrella YAML mapping (`.yaml`) -> the
+# file is multi-record; flat JSON mapping (`.json`) -> single record. The
+# umbrella YAML itself declares the discriminator field name and per-record
+# layouts. The legacy `multi_record:` and `discriminator_field:` keys are
+# no longer accepted on output_files[] entries (rejected by
+# OutputFileConfig with an actionable ValidationError).
+#   - atoctran_shaw_*.txt  -> umbrella SHAW_ATOCTRAN.yaml
+#     (TRANSACTION-CODE; values 100, 200, 300, 605, 700, 900, 060)
+#   - tranert_shaw_*.txt   -> umbrella SHAW_TRANERT.yaml
+#     (TRN-COD-ERT; position 170, length 5; Batch Header matched
+#     by position: "first"; codes 32000/32001 (NEW1), 32005 (CUS),
+#     32010 (ORI), 32025 (COD), 32040 (CBRS), 32075 (REC);
+#     32030 (VR) and 32070 (CON) pending)
+#   - contact_shaw_*.txt   -> flat SHAW_CONTACT.json (umbrella deferred
+#     pending CONTACT spec workbook; flip to *.yaml when ready)
 #
 # Defaults applied to every entry:
 #   strict_fixed_width: true
@@ -132,8 +136,6 @@ output_files:
     # follow-up MR (generate_pipeline_yaml.py change).
     mapping: "config/mappings/SHAW_ATOCTRAN.yaml"
     rules:   ""
-    multi_record: true
-    discriminator_field: "TRANSACTION-CODE"
     strict_fixed_width: true
     strict_level: all
     tolerance:
@@ -145,7 +147,6 @@ output_files:
     glob: "cdstrans_eac_collateral_shaw_*.txt"
     mapping: "config/mappings/SHAW_CDSTRANS_EAC_COLLATERAL.json"  # TODO(mapping-pending)
     rules:   "config/rules/SHAW_CDSTRANS_EAC_COLLATERAL.json"     # TODO(rules-pending)
-    multi_record: false
     strict_fixed_width: true
     strict_level: all
     tolerance:
@@ -157,7 +158,6 @@ output_files:
     glob: "cdstrans_efb_*.txt"
     mapping: "config/mappings/SHAW_CDSTRANS_EFB.json"  # TODO(mapping-pending)
     rules:   "config/rules/SHAW_CDSTRANS_EFB.json"     # TODO(rules-pending)
-    multi_record: false
     strict_fixed_width: true
     strict_level: all
     tolerance:
@@ -169,7 +169,6 @@ output_files:
     glob: "cdstrans_efi_*.txt"
     mapping: "config/mappings/SHAW_CDSTRANS_EFI.json"  # TODO(mapping-pending)
     rules:   "config/rules/SHAW_CDSTRANS_EFI.json"     # TODO(rules-pending)
-    multi_record: false
     strict_fixed_width: true
     strict_level: all
     tolerance:
@@ -181,7 +180,6 @@ output_files:
     glob: "cdstrans_efw_fee_waivers_*.txt"
     mapping: "config/mappings/SHAW_CDSTRANS_EFW_FEE_WAIVERS.json"  # TODO(mapping-pending)
     rules:   "config/rules/SHAW_CDSTRANS_EFW_FEE_WAIVERS.json"     # TODO(rules-pending)
-    multi_record: false
     strict_fixed_width: true
     strict_level: all
     tolerance:
@@ -193,7 +191,6 @@ output_files:
     glob: "cdstrans_efx_*.txt"
     mapping: "config/mappings/SHAW_CDSTRANS_EFX.json"  # TODO(mapping-pending)
     rules:   "config/rules/SHAW_CDSTRANS_EFX.json"     # TODO(rules-pending)
-    multi_record: false
     strict_fixed_width: true
     strict_level: all
     tolerance:
@@ -205,7 +202,6 @@ output_files:
     glob: "cdstrans_esa_*.txt"
     mapping: "config/mappings/SHAW_CDSTRANS_ESA.json"  # TODO(mapping-pending)
     rules:   "config/rules/SHAW_CDSTRANS_ESA.json"     # TODO(rules-pending)
-    multi_record: false
     strict_fixed_width: true
     strict_level: all
     tolerance:
@@ -217,7 +213,6 @@ output_files:
     glob: "cdstrans_est_shaw_*.txt"
     mapping: "config/mappings/SHAW_CDSTRANS_EST.json"  # TODO(mapping-pending)
     rules:   "config/rules/SHAW_CDSTRANS_EST.json"     # TODO(rules-pending)
-    multi_record: false
     strict_fixed_width: true
     strict_level: all
     tolerance:
@@ -229,7 +224,6 @@ output_files:
     glob: "cdstrans_hss_*.txt"
     mapping: "config/mappings/SHAW_CDSTRANS_HSS.json"  # TODO(mapping-pending)
     rules:   "config/rules/SHAW_CDSTRANS_HSS.json"     # TODO(rules-pending)
-    multi_record: false
     strict_fixed_width: true
     strict_level: all
     tolerance:
@@ -241,7 +235,6 @@ output_files:
     glob: "cdstrans_rlt_*.txt"
     mapping: "config/mappings/SHAW_CDSTRANS_RLT.json"  # TODO(mapping-pending)
     rules:   "config/rules/SHAW_CDSTRANS_RLT.json"     # TODO(rules-pending)
-    multi_record: false
     strict_fixed_width: true
     strict_level: all
     tolerance:
@@ -253,7 +246,6 @@ output_files:
     glob: "cdstrans_sec_shaw_*.txt"
     mapping: "config/mappings/SHAW_CDSTRANS_SEC.json"  # TODO(mapping-pending)
     rules:   "config/rules/SHAW_CDSTRANS_SEC.json"     # TODO(rules-pending)
-    multi_record: false
     strict_fixed_width: true
     strict_level: all
     tolerance:
@@ -265,7 +257,6 @@ output_files:
     glob: "cdstrans_xpr_*.txt"
     mapping: "config/mappings/SHAW_CDSTRANS_XPR.json"  # TODO(mapping-pending)
     rules:   "config/rules/SHAW_CDSTRANS_XPR.json"     # TODO(rules-pending)
-    multi_record: false
     strict_fixed_width: true
     strict_level: all
     tolerance:
@@ -277,14 +268,15 @@ output_files:
     glob: "contact_shaw_*.txt"
     mapping: "config/mappings/SHAW_CONTACT.json"  # TODO(mapping-pending)
     rules:   "config/rules/SHAW_CONTACT.json"     # TODO(rules-pending)
-    # multi_record: false until the CONTACT spec workbook lands and a
-    # MultiRecordConfig umbrella YAML is produced (open follow-up #5 in
-    # docs/handover/SHAW_source_onboarding_session.md). Per ADR 0005 the
-    # flag must match the mapping format: flat .json → false; umbrella
-    # .yaml → true. Flip back to true and point mapping at .yaml when
-    # the umbrella exists. discriminator_field is informational metadata.
-    multi_record: false
-    discriminator_field: "RECORD_TYPE"  # TODO(multi-record-pending)
+    # Mapping currently flat .json -> is_multi_record inferred as false
+    # until the CONTACT spec workbook lands and a MultiRecordConfig
+    # umbrella YAML is produced (open follow-up #5 in
+    # docs/handover/SHAW_source_onboarding_session.md). Per ADR 0005 / EB-S1
+    # the dispatch flag is inferred from the mapping extension: flat .json
+    # -> single record; umbrella .yaml -> multi-record. Flip by pointing
+    # `mapping` at SHAW_CONTACT.yaml once the umbrella exists; no flag
+    # edits needed here. Discriminator field (RECORD_TYPE, TBC) will live
+    # inside the umbrella YAML.
     strict_fixed_width: true
     strict_level: all
     tolerance:
@@ -296,7 +288,6 @@ output_files:
     glob: "contact-account_shaw_*.txt"
     mapping: "config/mappings/SHAW_CONTACT_ACCOUNT.json"  # TODO(mapping-pending)
     rules:   "config/rules/SHAW_CONTACT_ACCOUNT.json"     # TODO(rules-pending)
-    multi_record: false
     strict_fixed_width: true
     strict_level: all
     tolerance:
@@ -308,7 +299,6 @@ output_files:
     glob: "p327_shaw_*.txt"
     mapping: "config/mappings/SHAW_P327.json"  # TODO(mapping-pending)
     rules:   "config/rules/SHAW_P327.json"     # TODO(rules-pending)
-    multi_record: false
     strict_fixed_width: true
     strict_level: all
     tolerance:
@@ -326,8 +316,6 @@ output_files:
     # Discriminator confirmed 2026-05-22 from TRANERT_SHAW_Mappings.xlsx.
     mapping: "config/mappings/SHAW_TRANERT.yaml"
     rules:   ""
-    multi_record: true
-    discriminator_field: "TRN-COD-ERT"
     strict_fixed_width: true
     strict_level: all
     tolerance:

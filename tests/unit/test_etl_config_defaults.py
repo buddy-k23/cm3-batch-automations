@@ -1,15 +1,23 @@
-"""Unit tests for EA-S1 implicit-defaults Pydantic models in
+"""Unit tests for the per-source YAML Pydantic models in
 :mod:`src.pipeline.etl_config`.
 
-Validates that:
+EA-S1 contract:
   * Boilerplate fields (``strict_fixed_width``, ``strict_level``,
     ``tolerance.*``, ``thresholds.max_errors``) carry sensible implicit
     defaults so source YAMLs can omit them.
   * Explicit values supplied in YAML survive validation unchanged.
-  * The existing committed SHAW.yml still loads through ``SourceConfig``
-    (regression guard for the planned EA-S3 boilerplate strip).
+  * The committed SHAW.yml still loads through ``SourceConfig`` after the
+    EB-S1 inline migration (regression guard for EA-S3 boilerplate strip).
   * A minimal BFIN-style YAML (single output entry, no boilerplate)
     validates without exception.
+
+EB-S1 contract (multi-record dispatch inference, ADR 0005):
+  * ``OutputFileConfig.is_multi_record`` is a computed property derived from
+    the ``mapping`` file extension: ``.yaml`` / ``.yml`` -> ``True``;
+    anything else (typically ``.json``) -> ``False``.
+  * Legacy ``multi_record`` and ``discriminator_field`` keys on
+    ``output_files[]`` entries are rejected with an actionable
+    ``ValidationError`` citing ADR 0005.
 
 The models under test are schema-only and not yet wired into
 ``PathResolver.source_config()``; these tests pin the contract.
@@ -21,6 +29,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from pydantic import ValidationError
 
 from src.pipeline.etl_config import (
     InputFileConfig,
@@ -50,15 +59,19 @@ SHAW_EXPECTED_INPUT_COUNT = 6
 
 
 def test_defaults_when_omitted() -> None:
-    """A bare ``OutputFileConfig`` validates with all implicit defaults."""
+    """A bare ``OutputFileConfig`` validates with all implicit defaults.
+
+    Also covers EB-S1: a ``.yaml`` mapping infers ``is_multi_record == True``
+    without any explicit flag.
+    """
     cfg = OutputFileConfig(
         file_type="ATOCTRAN",
         glob="atoctran_*.txt",
         mapping="config/mappings/SHAW_ATOCTRAN.yaml",
     )
     assert cfg.rules == ""
-    assert cfg.multi_record is False
-    assert cfg.discriminator_field == ""
+    # EB-S1: .yaml mapping -> multi-record inferred True.
+    assert cfg.is_multi_record is True
     assert cfg.strict_fixed_width is True
     assert cfg.strict_level == "all"
     assert isinstance(cfg.tolerance, ToleranceConfig)
@@ -68,9 +81,9 @@ def test_defaults_when_omitted() -> None:
 
 
 def test_defaults_match_legacy_explicit() -> None:
-    """The legacy explicit-boilerplate dict and a bare dict produce equal
-    models -- proving EA-S3 can safely strip the boilerplate from committed
-    YAMLs without changing behaviour.
+    """The legacy explicit-boilerplate dict (sans EB-S1 rejected keys) and
+    a bare dict produce equal models -- proving EA-S3 can safely strip the
+    boilerplate from committed YAMLs without changing behaviour.
     """
     explicit = OutputFileConfig.model_validate(
         {
@@ -78,7 +91,6 @@ def test_defaults_match_legacy_explicit() -> None:
             "glob": "cdstrans_efb_*.txt",
             "mapping": "config/mappings/SHAW_CDSTRANS_EFB.json",
             "rules": "config/rules/SHAW_CDSTRANS_EFB.json",
-            "multi_record": False,
             "strict_fixed_width": True,
             "strict_level": "all",
             "tolerance": {
@@ -97,6 +109,9 @@ def test_defaults_match_legacy_explicit() -> None:
         }
     )
     assert explicit == minimal
+    # EB-S1: .json mapping -> is_multi_record inferred False.
+    assert explicit.is_multi_record is False
+    assert minimal.is_multi_record is False
 
 
 def test_explicit_override_strict_level() -> None:
@@ -160,23 +175,48 @@ def test_input_file_explicit_threshold() -> None:
     assert cfg.thresholds.max_errors == 3
 
 
-def test_shaw_yaml_still_loads() -> None:
-    """The committed SHAW.yml passes through ``SourceConfig.model_validate``
-    unchanged. Regression guard for EA-S3 (boilerplate strip).
+def test_shaw_yaml_post_migration_loads() -> None:
+    """The committed SHAW.yml (post EB-S1 inline migration) passes through
+    ``SourceConfig.model_validate``. Spot-checks that ``is_multi_record`` is
+    inferred correctly from the mapping extension on every output entry.
+
+    Regression guard for both EA-S3 (boilerplate strip) and EB-S1 (multi-
+    record inference). The legacy ``multi_record:`` /
+    ``discriminator_field:`` keys must NOT appear in SHAW.yml -- the
+    OutputFileConfig validator would reject them.
     """
     raw = yaml.safe_load(SHAW_YAML_PATH.read_text(encoding="utf-8"))
     cfg = SourceConfig.model_validate(raw)
     assert cfg.source == "SHAW"
     assert len(cfg.output_files) == SHAW_EXPECTED_OUTPUT_COUNT
     assert len(cfg.input_files) == SHAW_EXPECTED_INPUT_COUNT
-    # Spot-check that explicit values from SHAW.yml are preserved.
+
+    # EB-S1: inferred multi-record dispatch by mapping extension.
+    multi_record_file_types = {
+        out.file_type
+        for out in cfg.output_files
+        if out.is_multi_record
+    }
+    # Only TRANERT and ATOCTRAN ship umbrella .yaml mappings today.
+    assert multi_record_file_types == {"ATOCTRAN", "TRANERT"}
+
+    # Spot-check explicit values + computed flags on a multi-record entry.
     atoctran = next(o for o in cfg.output_files if o.file_type == "ATOCTRAN")
-    assert atoctran.multi_record is True
-    assert atoctran.discriminator_field == "TRANSACTION-CODE"
+    assert atoctran.is_multi_record is True
+    assert atoctran.mapping.endswith(".yaml")
     assert atoctran.strict_level == "all"
-    # Spot-check that extra top-level keys survive under extra="allow"
-    # (e.g. SHAW.yml has 'gates', which is part of the model, but the
-    # invariant we care about is that validation didn't reject the YAML).
+
+    # Spot-check a flat-mapping entry is inferred single-record.
+    p327 = next(o for o in cfg.output_files if o.file_type == "P327")
+    assert p327.is_multi_record is False
+    assert p327.mapping.endswith(".json")
+
+    # CONTACT currently flat .json -> inferred single-record until the
+    # umbrella YAML lands (then mapping flips to *.yaml).
+    contact = next(o for o in cfg.output_files if o.file_type == "CONTACT")
+    assert contact.is_multi_record is False
+
+    # Source-level overrides survive validation.
     assert cfg.staging_schema == "APP_INT"
 
 
@@ -205,7 +245,81 @@ def test_bfin_minimal_loads() -> None:
     # All implicit defaults applied.
     assert out.strict_fixed_width is True
     assert out.strict_level == "all"
-    assert out.multi_record is False
+    # EB-S1: .json -> inferred single-record.
+    assert out.is_multi_record is False
     assert out.tolerance.max_errors == 0
     assert out.tolerance.max_error_pct == 0.0
     assert out.tolerance.ignore_fields == []
+
+
+# ---------------------------------------------------------------------------
+# EB-S1: multi-record dispatch inferred from mapping file extension.
+# ---------------------------------------------------------------------------
+
+
+def test_yaml_mapping_is_multi_record() -> None:
+    """``mapping: "*.yaml"`` -> ``is_multi_record == True`` (umbrella)."""
+    cfg = OutputFileConfig(
+        file_type="TRANERT",
+        glob="tranert_shaw_*.txt",
+        mapping="config/mappings/SHAW_TRANERT.yaml",
+    )
+    assert cfg.is_multi_record is True
+
+
+def test_yml_mapping_is_multi_record() -> None:
+    """``mapping: "*.yml"`` also counts as an umbrella (case-insensitive)."""
+    cfg = OutputFileConfig(
+        file_type="EXAMPLE",
+        glob="example_*.txt",
+        mapping="config/mappings/EXAMPLE.YML",
+    )
+    assert cfg.is_multi_record is True
+
+
+def test_json_mapping_is_flat() -> None:
+    """``mapping: "*.json"`` -> ``is_multi_record == False`` (flat)."""
+    cfg = OutputFileConfig(
+        file_type="P327",
+        glob="p327_*.txt",
+        mapping="config/mappings/SHAW_P327.json",
+    )
+    assert cfg.is_multi_record is False
+
+
+def test_legacy_multi_record_key_rejected() -> None:
+    """Declaring ``multi_record`` raises a ``ValidationError`` with a
+    message naming the deprecated key and citing ADR 0005.
+    """
+    with pytest.raises(ValidationError) as exc_info:
+        OutputFileConfig.model_validate(
+            {
+                "file_type": "ATOCTRAN",
+                "glob": "atoctran_*.txt",
+                "mapping": "config/mappings/SHAW_ATOCTRAN.yaml",
+                "multi_record": True,
+            }
+        )
+    message = str(exc_info.value)
+    assert "multi_record" in message
+    assert "ADR 0005" in message
+    assert "mapping file extension" in message
+
+
+def test_legacy_discriminator_field_key_rejected() -> None:
+    """Declaring ``discriminator_field`` raises a ``ValidationError`` with
+    a message naming the deprecated key and citing ADR 0005.
+    """
+    with pytest.raises(ValidationError) as exc_info:
+        OutputFileConfig.model_validate(
+            {
+                "file_type": "TRANERT",
+                "glob": "tranert_*.txt",
+                "mapping": "config/mappings/SHAW_TRANERT.yaml",
+                "discriminator_field": "TRN-COD-ERT",
+            }
+        )
+    message = str(exc_info.value)
+    assert "discriminator_field" in message
+    assert "ADR 0005" in message
+    assert "mapping file extension" in message

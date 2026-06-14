@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- EB-S1: `multi_record` / `discriminator_field` fields removed from
+  `OutputFileConfig`; multi-record dispatch is now inferred from the
+  mapping file extension (`.yaml` -> umbrella, `.json` -> flat) per ADR 0005.
+  Legacy keys in source YAML are rejected with a helpful error citing
+  the ADR. SHAW.yml migrated inline; EB-S2 will guardrail this in CI.
 - R-16 (#45): Flipped ADR 0008, 0009, 0010, 0014 status to Accepted.
   Fixed `run_source.py` lint (removed unused `shlex`/`shutil` imports and
   dead `f2s_blocking`/`f2s_policy` variables). Vestigial validator methods

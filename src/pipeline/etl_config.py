@@ -10,9 +10,9 @@ Defines the data structures loaded from a pipeline YAML file:
 
 from __future__ import annotations
 
-from typing import List, Literal
+from typing import Any, List, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field, model_validator
 
 
 class SourceDefinition(BaseModel):
@@ -192,19 +192,26 @@ class OutputFileConfig(BaseModel):
     (``strict_fixed_width``, ``strict_level``, ``tolerance``) carry
     implicit defaults so source YAMLs can omit them when the defaults apply.
 
+    Multi-record dispatch is **inferred** from the mapping file extension
+    per ADR 0005 (EB-S1):
+      * ``mapping: "*.yaml"`` (or ``"*.yml"``) -> umbrella, multi-record
+      * ``mapping: "*.json"`` -> flat, single-record
+
+    The umbrella YAML itself declares the discriminator field, so the legacy
+    ``multi_record:`` and ``discriminator_field:`` keys at the output-file
+    level are no longer accepted -- they are rejected with a helpful
+    ``ValidationError`` pointing at the umbrella YAML as the single source
+    of truth.
+
     Attributes:
         file_type: Short identifier (e.g. ``ATOCTRAN``) used for routing
             and report naming.
         glob: Filename glob (relative to the source's ``output_root``)
             matching the produced file(s).
-        mapping: Path to the mapping JSON or umbrella YAML.
+        mapping: Path to the mapping JSON or umbrella YAML. The extension
+            determines ``is_multi_record``.
         rules: Optional path to the rules JSON. Empty when rules live inside
             an umbrella mapping or no rules apply.
-        multi_record: Whether the file contains multiple record types
-            dispatched by ``discriminator_field``. Defaults to ``False``.
-        discriminator_field: Field name used to dispatch records when
-            ``multi_record`` is ``True``. Informational when ``multi_record``
-            is ``False``.
         strict_fixed_width: When ``True``, fixed-width fields are validated
             for exact length and format. Defaults to ``True``.
         strict_level: Strictness tier for fixed-width validation. One of
@@ -213,17 +220,74 @@ class OutputFileConfig(BaseModel):
             ``src/main.py`` and ``src/parsers/enhanced_validator.py``.)
         tolerance: Per-output-file tolerance block. Defaults to a zero-
             tolerance :class:`ToleranceConfig`.
+
+    Computed:
+        is_multi_record: ``True`` iff ``mapping`` ends with ``.yaml`` or
+            ``.yml`` (case-insensitive); ``False`` otherwise (including
+            ``.json``). Replaces the legacy explicit ``multi_record`` flag.
     """
 
     file_type: str
     glob: str
     mapping: str
     rules: str = ""
-    multi_record: bool = False
-    discriminator_field: str = ""
     strict_fixed_width: bool = True
     strict_level: Literal["basic", "format", "all"] = "all"
     tolerance: ToleranceConfig = Field(default_factory=ToleranceConfig)
+
+    # EB-S1: reject legacy explicit multi-record keys at the output-file level.
+    # Multi-record dispatch is inferred from the mapping extension; the
+    # umbrella YAML is the single source of truth for the discriminator.
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_legacy_multi_record_keys(cls, data: Any) -> Any:
+        """Reject legacy ``multi_record`` / ``discriminator_field`` keys.
+
+        Per EB-S1 / ADR 0005, multi-record dispatch is inferred from the
+        mapping file extension. Source YAMLs that still declare these keys
+        at the ``output_files[]`` level are rejected with an actionable
+        error pointing at the umbrella YAML as the source of truth.
+
+        Args:
+            data: Raw input passed to ``OutputFileConfig.model_validate``.
+                Typically a ``dict``; pass-through for other shapes.
+
+        Returns:
+            The input ``data`` unchanged when no legacy keys are present.
+
+        Raises:
+            ValueError: When ``multi_record`` or ``discriminator_field``
+                appears as a key in the input dict.
+        """
+        if isinstance(data, dict):
+            for legacy_key in ("multi_record", "discriminator_field"):
+                if legacy_key in data:
+                    raise ValueError(
+                        f"Field `{legacy_key}` is no longer declared on "
+                        "output_files[]; multi-record dispatch is inferred "
+                        "from the mapping file extension (`.yaml` -> umbrella, "
+                        "`.json` -> flat). The umbrella YAML itself declares "
+                        "the discriminator field. Remove this key from your "
+                        "source YAML. See ADR 0005 "
+                        "(docs/adr/0005-multi-record-pipeline-dispatch.md)."
+                    )
+        return data
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def is_multi_record(self) -> bool:
+        """Whether this output file is a multi-record umbrella.
+
+        Inferred from the mapping file extension per ADR 0005:
+        ``.yaml`` / ``.yml`` -> umbrella (multi-record); anything else
+        (typically ``.json``) -> flat. Comparison is case-insensitive.
+
+        Returns:
+            ``True`` if ``mapping`` ends with ``.yaml`` or ``.yml``;
+            ``False`` otherwise.
+        """
+        lowered = self.mapping.lower()
+        return lowered.endswith(".yaml") or lowered.endswith(".yml")
 
 
 class InputFileConfig(BaseModel):
