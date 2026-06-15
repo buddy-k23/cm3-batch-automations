@@ -26,15 +26,17 @@ prompts — ``tools/list`` returns the nine tools (three read-only + three
 action + three onboarding), ``resources/list`` returns the two taxonomy
 URIs, and ``prompts/list`` returns the three EF-S6 workflow prompts.
 
-Auth posture (dev-only, replaced in EF-S7):
-    The MCP sub-app is protected by a small Starlette ``BaseHTTPMiddleware``
-    that requires the env var ``VALDO_MCP_AUTH=dev``. With that flag set, the
-    middleware is a pass-through (no other check is performed). Without it,
-    every request to ``/mcp/*`` returns a ``401`` with a JSON body of
-    ``{"error": "MCP auth not configured"}``. This is deliberately blunt —
-    the real bridge into LDAPS + the existing X-API-Key flow is scheduled
-    for EF-S7. The middleware is mounted ONLY on the MCP sub-app so it
-    cannot accidentally alter the parent FastAPI auth behaviour.
+Auth posture (EF-S7 — production bridge):
+    The MCP sub-app is protected by :class:`src.mcp.auth.MCPAuthMiddleware`
+    which accepts (in this priority order): the LDAPS session cookie minted
+    by the existing ``/auth/login`` flow, an ``X-API-Key`` header validated
+    against the same ``API_KEYS`` env var the parent API uses, or an
+    ``Authorization: Bearer <token>`` HMAC-SHA256 signed token issued by
+    ``POST /api/v2/mcp/login`` and ``valdo mcp-login``. The dev-mode
+    bypass (``VALDO_MCP_AUTH=dev``) is preserved as a strict opt-in for
+    local testing; in any other mode the middleware fails closed with a
+    generic 401 JSON body. The middleware is mounted ONLY on the MCP
+    sub-app so it cannot alter the parent FastAPI auth behaviour.
 
 Transport security:
     When ``VALDO_MCP_AUTH=dev`` is set, DNS-rebinding protection is disabled
@@ -55,10 +57,12 @@ from typing import Any, Dict, List, Optional
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.applications import Starlette
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import JSONResponse
 
+from src.mcp.auth import (
+    DEV_AUTH_ENV_VAR as _DEV_AUTH_ENV_VAR,
+    DEV_AUTH_SENTINEL as _DEV_AUTH_SENTINEL,
+    MCPAuthMiddleware,
+)
 from src.mcp.action_tools import (
     GET_RUN_STATUS_DESCRIPTION,
     GET_VIOLATIONS_DESCRIPTION,
@@ -109,37 +113,11 @@ _JSON_MIME = "application/json"
 MCP_SERVER_NAME = "valdo"
 MCP_SERVER_VERSION = "1.0.0"
 
-# Sentinel value that unlocks the dev-mode auth pass-through.
-_DEV_AUTH_SENTINEL = "dev"
-_DEV_AUTH_ENV_VAR = "VALDO_MCP_AUTH"
-
-
-class MCPAuthMiddleware(BaseHTTPMiddleware):
-    """Dev-mode auth gate for the MCP sub-app.
-
-    The middleware is intentionally minimal: it inspects the
-    ``VALDO_MCP_AUTH`` environment variable on every request. When the value
-    is exactly ``"dev"`` the request is passed through to the MCP transport
-    untouched; otherwise the request is short-circuited with a ``401``.
-
-    This stand-in exists only so the EF-S1 scaffold can demonstrate the
-    handshake without leaking the MCP transport to anonymous traffic. EF-S7
-    replaces it with a real LDAPS + X-API-Key bridge that mirrors the parent
-    FastAPI ``require_api_key`` dependency.
-
-    The env var is intentionally read per-request (rather than captured at
-    middleware construction) so test cases can toggle it via
-    ``monkeypatch.setenv`` / ``monkeypatch.delenv`` without having to rebuild
-    the FastAPI app between assertions.
-    """
-
-    async def dispatch(self, request: Request, call_next):
-        if os.environ.get(_DEV_AUTH_ENV_VAR) == _DEV_AUTH_SENTINEL:
-            return await call_next(request)
-        return JSONResponse(
-            status_code=401,
-            content={"error": "MCP auth not configured"},
-        )
+# EF-S7 — the dev-mode sentinels and the production-grade
+# :class:`MCPAuthMiddleware` are imported from :mod:`src.mcp.auth` at the
+# top of this module. The auth module is the single source of truth so
+# the CLI subcommand (``valdo mcp-login``) and the FastAPI sub-app share
+# identical sentinel values without copy-pasting constants.
 
 
 def build_mcp_server() -> Tuple[FastMCP, Starlette]:
@@ -187,13 +165,25 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
         stale snapshots cannot accidentally mislead an agent.
     """
     # DNS-rebinding protection is disabled only when we are explicitly in
-    # dev mode (the same flag that opens the auth middleware). Production
-    # deployments fall through to the FastMCP default, which keeps
-    # rebinding protection ON.
+    # dev mode OR an explicit allow-list is configured via the env var
+    # ``VALDO_MCP_ALLOWED_HOSTS`` (comma-separated). Production
+    # deployments behind a reverse proxy should set the allow-list to
+    # the public hostnames the MCP transport is served at; dev mode is
+    # the only path that fully disables the check. Tests that exercise
+    # the production auth chain set the allow-list to ``testserver``.
     transport_security = None
     if os.environ.get(_DEV_AUTH_ENV_VAR) == _DEV_AUTH_SENTINEL:
         transport_security = TransportSecuritySettings(
             enable_dns_rebinding_protection=False,
+        )
+    elif os.environ.get("VALDO_MCP_ALLOWED_HOSTS"):
+        hosts = [
+            h.strip()
+            for h in os.environ["VALDO_MCP_ALLOWED_HOSTS"].split(",")
+            if h.strip()
+        ]
+        transport_security = TransportSecuritySettings(
+            allowed_hosts=hosts,
         )
 
     mcp_server = FastMCP(

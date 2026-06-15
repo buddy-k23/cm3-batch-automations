@@ -153,22 +153,28 @@ def test_mcp_initialize_handshake(monkeypatch):
 
 
 def test_mcp_without_dev_auth_returns_401(monkeypatch):
-    """Without dev-mode auth the MCP sub-app fails closed with 401.
+    """Without any auth credential the MCP sub-app fails closed with 401.
 
-    Removing ``VALDO_MCP_AUTH`` from the environment forces the auth
-    middleware (mounted on the MCP sub-app only) to short-circuit every
-    request with a deterministic 401 body. This guards against the
-    scaffold accidentally exposing the MCP transport in environments
-    that have not opted in to the dev-mode bypass.
+    With ``VALDO_MCP_AUTH`` unset AND no API key / session cookie /
+    bearer token on the request, the EF-S7 auth middleware
+    short-circuits with a generic 401 JSON body. This guards against
+    accidentally exposing the MCP transport in environments that have
+    not enabled any production auth mode.
+
+    The error string was tightened from the EF-S1 phrasing
+    ("MCP auth not configured") to the EF-S7 phrasing
+    ("MCP auth required") since the bridge is now wired — there is no
+    longer a "not configured" state distinct from "rejected".
     """
     monkeypatch.delenv("VALDO_MCP_AUTH", raising=False)
+    monkeypatch.delenv("API_KEYS", raising=False)
     app = _fresh_app()
 
     with TestClient(app) as client:
         response = client.post("/mcp/", json=_INIT_PAYLOAD, headers=_MCP_HEADERS)
 
     assert response.status_code == 401, response.text
-    assert response.json() == {"error": "MCP auth not configured"}
+    assert response.json() == {"error": "MCP auth required"}
 
 
 def test_mcp_capabilities_advertise_expected_registries(monkeypatch):

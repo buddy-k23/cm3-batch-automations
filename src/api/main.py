@@ -28,6 +28,7 @@ from src.api.routers.api_tester import router as api_tester_router
 from src.api.routers.webhook import router as webhook_router
 from src.api.routers.multi_record import router as multi_record_router
 from src.api.routers.onboarding import router as onboarding_router
+from src.api.routers.mcp_auth import router as mcp_auth_router
 from src.mcp.server import build_mcp_server
 from src.utils.cleanup import cleanup_old_files
 
@@ -246,6 +247,13 @@ app.include_router(
     tags=["Onboarding"],
     dependencies=[Depends(require_api_key)],
 )
+
+# EF-S7 — MCP login endpoint. Public (no Depends(require_api_key)) because
+# the caller is authenticating with LDAP credentials right now and has no
+# prior token. The endpoint validates LDAP via the same bridge the UI
+# /auth/login route uses, then returns a freshly-minted signed token the
+# CLI writes to ~/.valdo/mcp-token. See src/api/routers/mcp_auth.py.
+app.include_router(mcp_auth_router)
 
 # File Downloader — registered when downloader.enabled is true in config/ui.yml
 if _ui_cfg_early.get("downloader", {}).get("enabled", False):

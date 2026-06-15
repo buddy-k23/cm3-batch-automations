@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- EF-S7 (Sprint 5): MCP auth bridge replaces dev-mode placeholder.
+  HTTP transport accepts `X-API-Key` header OR session cookie (same
+  backends as the existing Valdo API). Stdio transport reads
+  `~/.valdo/mcp-token` (12-hour HMAC-SHA256 signed). New CLI
+  `valdo mcp-login [--server URL] [--ttl-hours N]` prompts for LDAPS
+  credentials and stores the token at 0600 perms. New endpoint
+  `POST /api/v2/mcp/login`. Dev mode (`VALDO_MCP_AUTH=dev`)
+  preserved for local testing.
 - EF-S6 (Sprint 5): three MCP prompts —
   `onboard_new_source(workbook_path, source_code)`,
   `diagnose_validation_failure(run_id)`,
