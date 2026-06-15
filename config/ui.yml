@@ -5,7 +5,7 @@ tabs:
   runs: true
   mapping: true
   tester: true
-  dbcompare: false
+  dbcompare: true
   downloader: true
 
 # File Downloader configuration — replaces the env var ENABLE_FILE_DOWNLOADER
