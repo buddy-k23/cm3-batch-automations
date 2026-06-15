@@ -125,5 +125,8 @@ def run_multi_record_command(
                 )
             )
 
-    if not result.get("valid"):
+    # Gate exit code on error_count (matches the header verb shown above).
+    # `result["valid"]` can be False even when error_count==0 because per-type
+    # structural flags aren't summed into the cross-type error_count.
+    if error_count > 0:
         sys.exit(1)
