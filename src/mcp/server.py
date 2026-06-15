@@ -1,22 +1,24 @@
-"""MCP (Model Context Protocol) server scaffold for Valdo (EF-S1 + EF-S2 + EF-S3).
+"""MCP (Model Context Protocol) server scaffold for Valdo (EF-S1 + EF-S2 + EF-S3 + EF-S4).
 
 This module wires a Streamable-HTTP MCP server (built on `mcp.server.fastmcp`)
 into the existing FastAPI process. The server registers the following
 capabilities:
 
-* Tools: three read-only tools (EF-S2) — ``list_sources``,
-  ``get_source_spec``, ``list_recent_runs``. All wrap the existing Valdo
-  service layer; implementations live in :mod:`src.mcp.tools` to keep
-  this module focused on FastMCP registration. EF-S4 will introduce the
-  first mutating tool surface (validate / submit_run).
+* Tools: six tools total. Three read-only (EF-S2) — ``list_sources``,
+  ``get_source_spec``, ``list_recent_runs``. Three action tools (EF-S4)
+  — ``validate_file``, ``get_run_status``, ``get_violations``. All wrap
+  the existing Valdo service layer; implementations live in
+  :mod:`src.mcp.tools` (read-only) and :mod:`src.mcp.action_tools`
+  (mutating) to keep this module focused on FastMCP registration.
 * Resources: ``taxonomy://violations`` and ``taxonomy://rules`` (EF-S3 —
   live introspection of the engine's violation kinds and rule check names;
   see :mod:`src.mcp.taxonomy`).
 * Prompts: empty (EF-S6 will introduce prompt templates).
 
 The MCP capability advertisement therefore exposes tools, resources, and
-prompts — ``tools/list`` returns the three EF-S2 tools, ``resources/list``
-returns the two taxonomy URIs, and ``prompts/list`` returns an empty array.
+prompts — ``tools/list`` returns the six tools (three read-only + three
+action), ``resources/list`` returns the two taxonomy URIs, and
+``prompts/list`` returns an empty array.
 
 Auth posture (dev-only, replaced in EF-S7):
     The MCP sub-app is protected by a small Starlette ``BaseHTTPMiddleware``
@@ -51,6 +53,14 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
+from src.mcp.action_tools import (
+    GET_RUN_STATUS_DESCRIPTION,
+    GET_VIOLATIONS_DESCRIPTION,
+    VALIDATE_FILE_DESCRIPTION,
+    get_run_status_payload,
+    get_violations_payload,
+    validate_file_payload,
+)
 from src.mcp.taxonomy import list_rule_taxonomy, list_violation_taxonomy
 from src.mcp.tools import (
     GET_SOURCE_SPEC_DESCRIPTION,
@@ -170,9 +180,10 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
         # the FastAPI app version. We pin them to the same string so MCP
         # clients see consistent server identity.
         instructions=(
-            "Valdo MCP server. Read-only tools (EF-S2) and taxonomy "
-            "resources (EF-S3) are registered. Mutating tools and prompt "
-            "templates land in EF-S4 and EF-S6 respectively."
+            "Valdo MCP server. Read-only tools (EF-S2), taxonomy "
+            "resources (EF-S3), and action tools (EF-S4: validate_file, "
+            "get_run_status, get_violations) are registered. Prompt "
+            "templates land in EF-S6."
         ),
         stateless_http=True,
         json_response=True,
@@ -282,6 +293,64 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
         limit: int = 20,
     ) -> List[Dict[str, Any]]:
         return list_recent_runs_payload(source=source, limit=limit)
+
+    # ------------------------------------------------------------------
+    # EF-S4 — action MCP tools.
+    #
+    # First mutating tool surface: ``validate_file`` kicks off a run and
+    # returns a freshly-minted run_id; ``get_run_status`` and
+    # ``get_violations`` page the result out. The validation itself
+    # executes synchronously inside the ``validate_file`` call today —
+    # see :mod:`src.mcp.action_tools` for the EF-S5 follow-up plan.
+    #
+    # All three are thin adapters around the existing service layer
+    # (`src.services.validate_service.run_validate_service` and
+    # `src.services.run_history_service.fetch_history_from_db`). No
+    # validation logic, run-history schema, or violation reporting code
+    # is duplicated.
+    # ------------------------------------------------------------------
+
+    @mcp_server.tool(
+        name="validate_file",
+        title="Start a Valdo validation run",
+        description=VALIDATE_FILE_DESCRIPTION,
+    )
+    def _validate_file_tool(
+        source: str,
+        file_path: str,
+        file_type: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        return validate_file_payload(
+            source=source,
+            file_path=file_path,
+            file_type=file_type,
+        )
+
+    @mcp_server.tool(
+        name="get_run_status",
+        title="Get Valdo run status",
+        description=GET_RUN_STATUS_DESCRIPTION,
+    )
+    def _get_run_status_tool(run_id: str) -> Dict[str, Any]:
+        return get_run_status_payload(run_id=run_id)
+
+    @mcp_server.tool(
+        name="get_violations",
+        title="Page Valdo run violations",
+        description=GET_VIOLATIONS_DESCRIPTION,
+    )
+    def _get_violations_tool(
+        run_id: str,
+        page: int = 1,
+        page_size: int = 50,
+        severity: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        return get_violations_payload(
+            run_id=run_id,
+            page=page,
+            page_size=page_size,
+            severity=severity,
+        )
 
     # Materialise the Streamable HTTP transport. This call is what creates
     # the session manager; accessing `mcp_server.session_manager` before

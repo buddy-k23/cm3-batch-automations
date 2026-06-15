@@ -8,8 +8,12 @@ application at ``/mcp``. See :mod:`src.mcp.server` for the builder and
 Stories landed:
 
 * EF-S1 — scaffold + Streamable HTTP handshake + dev-mode auth gate.
+* EF-S2 — read-only tools (``list_sources``, ``get_source_spec``,
+  ``list_recent_runs``); see :mod:`src.mcp.tools`.
 * EF-S3 — ``taxonomy://violations`` and ``taxonomy://rules`` resources.
+* EF-S4 — action tools (``validate_file``, ``get_run_status``,
+  ``get_violations``); see :mod:`src.mcp.action_tools`.
 
-Stories pending: EF-S2 (validation tool surface), EF-S6 (prompt templates),
-EF-S7 (real LDAPS + X-API-Key auth bridge).
+Stories pending: EF-S6 (prompt templates), EF-S7 (real LDAPS + X-API-Key
+auth bridge).
 """

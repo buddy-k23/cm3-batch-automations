@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- EF-S4 (Sprint 4): three MCP action tools — `validate_file`,
+  `get_run_status`, `get_violations`. All thin adapters over the
+  existing Valdo validation + run-history service layer.
+  `validate_file` returns immediately with a `run_id`; status/violations
+  poll-able via the other two. `get_violations` supports
+  `severity` filter and pagination (default 50, max 200).
+  Total MCP tool count: 6 (3 read-only from EF-S2 + 3 action from EF-S4).
 - ED-S4 (Sprint 4 / Move 4 closes): per-field `reconciliation` boolean
   column on `*_Mapping` sheets controls which mapping fields are
   included in the reconciliation YAML's `record_types.<name>.fields[]`

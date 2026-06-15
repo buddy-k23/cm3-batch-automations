@@ -176,12 +176,14 @@ def test_mcp_capabilities_advertise_expected_registries(monkeypatch):
 
     Baseline pinned after each MCP-track story lands:
 
-    * ``tools/list``     — exactly three entries added by EF-S2:
-      ``list_sources``, ``get_source_spec``, ``list_recent_runs``.
-      Stories EF-S4 and onwards will extend this set.
+    * ``tools/list``     — exactly six entries: three read-only added by
+      EF-S2 (``list_sources``, ``get_source_spec``, ``list_recent_runs``)
+      and three action tools added by EF-S4 (``validate_file``,
+      ``get_run_status``, ``get_violations``). Stories EF-S5 and onwards
+      will extend this set.
     * ``resources/list`` — exactly two entries, the
       ``taxonomy://violations`` and ``taxonomy://rules`` URIs added by
-      EF-S3. Stories EF-S4 and onwards will extend this; this test pins
+      EF-S3. Stories EF-S5 and onwards will extend this; this test pins
       the current expected set so accidental drift is caught.
     * ``prompts/list``   — empty array (EF-S6 will populate).
 
@@ -227,16 +229,21 @@ def test_mcp_capabilities_advertise_expected_registries(monkeypatch):
     # EF-S6 still pending — prompts stay empty.
     assert list_results["prompts/list"] == [], list_results["prompts/list"]
 
-    # EF-S2 — exactly the three read-only tools, no more, no less. The
-    # full input-schema shape of each tool is asserted in
-    # ``test_mcp_read_tools.py``; here we only pin the registry size and
-    # tool names so accidental drift is caught at the registry level.
+    # EF-S2 + EF-S4 — exactly six tools: three read-only plus three
+    # action tools, no more, no less. The full input-schema shape of
+    # each tool is asserted in ``test_mcp_read_tools.py`` (EF-S2) and
+    # ``test_mcp_action_tools.py`` (EF-S4); here we only pin the
+    # registry size and tool names so accidental drift is caught at
+    # the registry level.
     tool_names = sorted(t["name"] for t in list_results["tools/list"])
     assert tool_names == [
+        "get_run_status",
         "get_source_spec",
+        "get_violations",
         "list_recent_runs",
         "list_sources",
-    ], f"tools/list names drifted from EF-S2 baseline: {tool_names!r}"
+        "validate_file",
+    ], f"tools/list names drifted from EF-S2+EF-S4 baseline: {tool_names!r}"
 
     # EF-S3 — exactly the two taxonomy resources, no more, no less. The
     # shape of each entry is asserted in
