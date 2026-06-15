@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- EF-S8 (Sprint 5 — PROGRAM COMPLETION): End-to-end agentic walkthrough
+  test in `tests/integration/test_mcp_agentic_walkthrough.py`. Drives
+  the MCP server through a 10-step BA onboarding flow (auth → prompt
+  fetch → workbook upload → dry-run → diff inspection → validate →
+  status poll → diagnose → violations → clean disconnect) using a
+  mock MCP client. Mocks `run_validate_service` + `ldap_authenticate`
+  so no real services are touched. Closes the 5-sprint Valdo workbook-
+  driven onboarding + agentic MCP surface program (Sprint 1: Pydantic
+  defaults; Sprint 2: workbook + CLI; Sprint 3: drift fix + Move 4
+  starts; Sprint 4: Move 4 closes + MCP action/onboarding tools + UI
+  scaffold; Sprint 5: UI tree+drift+commit + MCP prompts + auth bridge
+  + this walkthrough).
 - EF-S7 (Sprint 5): MCP auth bridge replaces dev-mode placeholder.
   HTTP transport accepts `X-API-Key` header OR session cookie (same
   backends as the existing Valdo API). Stdio transport reads
