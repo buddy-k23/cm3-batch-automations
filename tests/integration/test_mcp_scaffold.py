@@ -188,7 +188,9 @@ def test_mcp_capabilities_advertise_expected_registries(monkeypatch):
       ``taxonomy://violations`` and ``taxonomy://rules`` URIs added by
       EF-S3. Stories EF-S5 and onwards will extend this; this test pins
       the current expected set so accidental drift is caught.
-    * ``prompts/list``   — empty array (EF-S6 will populate).
+    * ``prompts/list``   — exactly three entries, the workflow prompts
+      added by EF-S6 (``onboard_new_source``,
+      ``diagnose_validation_failure``, ``infer_field_map``).
 
     Each ``*/list`` call is sent as its own POST because the scaffold uses
     stateless HTTP (``stateless_http=True``); there is no session token
@@ -229,8 +231,16 @@ def test_mcp_capabilities_advertise_expected_registries(monkeypatch):
             assert "result" in body, f"{method} body missing 'result': {body!r}"
             list_results[method] = body["result"].get(result_key, [])
 
-    # EF-S6 still pending — prompts stay empty.
-    assert list_results["prompts/list"] == [], list_results["prompts/list"]
+    # EF-S6 — exactly three workflow prompts. Full message-body
+    # assertions live in ``test_mcp_prompts.py``; here we only pin the
+    # registry size and prompt names so accidental drift is caught at
+    # the registry level.
+    prompt_names = sorted(p["name"] for p in list_results["prompts/list"])
+    assert prompt_names == [
+        "diagnose_validation_failure",
+        "infer_field_map",
+        "onboard_new_source",
+    ], f"prompts/list names drifted from EF-S6 baseline: {prompt_names!r}"
 
     # EF-S2 + EF-S4 + EF-S5 — exactly nine tools: three read-only,
     # three action, three onboarding, no more, no less. The full

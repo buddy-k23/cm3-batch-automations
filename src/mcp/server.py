@@ -16,12 +16,15 @@ capabilities:
 * Resources: ``taxonomy://violations`` and ``taxonomy://rules`` (EF-S3 —
   live introspection of the engine's violation kinds and rule check names;
   see :mod:`src.mcp.taxonomy`).
-* Prompts: empty (EF-S6 will introduce prompt templates).
+* Prompts: three workflow prompts (EF-S6) — ``onboard_new_source``,
+  ``diagnose_validation_failure``, and ``infer_field_map``. Each is a
+  templated free-text instruction set that surfaces in MCP clients'
+  prompt pickers; implementations live in :mod:`src.mcp.prompts`.
 
 The MCP capability advertisement therefore exposes tools, resources, and
 prompts — ``tools/list`` returns the nine tools (three read-only + three
 action + three onboarding), ``resources/list`` returns the two taxonomy
-URIs, and ``prompts/list`` returns an empty array.
+URIs, and ``prompts/list`` returns the three EF-S6 workflow prompts.
 
 Auth posture (dev-only, replaced in EF-S7):
     The MCP sub-app is protected by a small Starlette ``BaseHTTPMiddleware``
@@ -71,6 +74,14 @@ from src.mcp.onboarding_tools import (
     infer_mapping_from_sample_payload,
     onboard_source_dry_run_payload,
     upload_workbook_as_spec_payload,
+)
+from src.mcp.prompts import (
+    DIAGNOSE_VALIDATION_FAILURE_DESCRIPTION,
+    INFER_FIELD_MAP_DESCRIPTION,
+    ONBOARD_NEW_SOURCE_DESCRIPTION,
+    build_diagnose_validation_failure_messages,
+    build_infer_field_map_messages,
+    build_onboard_new_source_messages,
 )
 from src.mcp.taxonomy import list_rule_taxonomy, list_violation_taxonomy
 from src.mcp.tools import (
@@ -193,10 +204,11 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
         instructions=(
             "Valdo MCP server. Read-only tools (EF-S2), taxonomy "
             "resources (EF-S3), action tools (EF-S4: validate_file, "
-            "get_run_status, get_violations), and onboarding tools "
+            "get_run_status, get_violations), onboarding tools "
             "(EF-S5: upload_workbook_as_spec, onboard_source_dry_run, "
-            "infer_mapping_from_sample) are registered. Prompt "
-            "templates land in EF-S6."
+            "infer_mapping_from_sample), and workflow prompts (EF-S6: "
+            "onboard_new_source, diagnose_validation_failure, "
+            "infer_field_map) are registered."
         ),
         stateless_http=True,
         json_response=True,
@@ -416,6 +428,56 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
             sample_file_path=sample_file_path,
             file_type=file_type,
             format_hint=format_hint,
+        )
+
+    # ------------------------------------------------------------------
+    # EF-S6 — workflow prompts.
+    #
+    # Three templated free-text prompts that surface in MCP clients'
+    # prompt pickers (Claude Desktop, mcp-cli, etc.) and guide an agent
+    # through the correct Valdo tool-call sequence. The prompt bodies
+    # are plain instructional text — agents read them and decide which
+    # already-registered tools to invoke — so this layer adds no new
+    # business logic and cannot diverge from the tool surface beyond
+    # the test-pinned name references in :mod:`src.mcp.prompts`.
+    #
+    # All three prompts return ``list[UserMessage]`` because prompt
+    # content is "context the LLM sees on the user's behalf", not a
+    # system directive. The host application's own system prompt
+    # continues to govern overall behaviour.
+    # ------------------------------------------------------------------
+
+    @mcp_server.prompt(
+        name="onboard_new_source",
+        title="Onboard a new Valdo source",
+        description=ONBOARD_NEW_SOURCE_DESCRIPTION,
+    )
+    def _onboard_new_source_prompt(
+        workbook_path: str,
+        source_code: Optional[str] = None,
+    ):
+        return build_onboard_new_source_messages(
+            workbook_path=workbook_path,
+            source_code=source_code,
+        )
+
+    @mcp_server.prompt(
+        name="diagnose_validation_failure",
+        title="Diagnose a failed Valdo validation run",
+        description=DIAGNOSE_VALIDATION_FAILURE_DESCRIPTION,
+    )
+    def _diagnose_validation_failure_prompt(run_id: str):
+        return build_diagnose_validation_failure_messages(run_id=run_id)
+
+    @mcp_server.prompt(
+        name="infer_field_map",
+        title="Infer a Valdo field mapping from a sample file",
+        description=INFER_FIELD_MAP_DESCRIPTION,
+    )
+    def _infer_field_map_prompt(sample_file_path: str, file_type: str):
+        return build_infer_field_map_messages(
+            sample_file_path=sample_file_path,
+            file_type=file_type,
         )
 
     # Materialise the Streamable HTTP transport. This call is what creates

@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- EF-S6 (Sprint 5): three MCP prompts —
+  `onboard_new_source(workbook_path, source_code)`,
+  `diagnose_validation_failure(run_id)`,
+  `infer_field_map(sample_file_path, file_type)`.
+  Each is a templated workflow that surfaces in MCP clients (Claude
+  Desktop, mcp-cli) and guides the agent through the correct tool-call
+  sequence. Total MCP surface: 9 tools + 4 resources + 3 prompts.
 - EE-S3 (Sprint 5): UI Source Editor tab now has commit buttons —
   "Download ZIP" streams all emitted artefacts to the BA's browser,
   and "Open MR" (gated by `VALDO_UI_ENABLE_OPEN_MR=1`) creates a branch,
