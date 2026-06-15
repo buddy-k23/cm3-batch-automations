@@ -1,56 +1,21 @@
 -- =============================================================================
--- shaw_setup.sql — SHAW manual-test schema bootstrap for Valdo Engine v3.
+-- shaw_setup.sql -- SHAW manual-test schema bootstrap for Valdo Engine v3.
+--
+-- GENERATED FILE. Source of truth: scripts/build_shaw_test_files.py.
+-- Edit the generator, re-run it, and commit both fixture + SQL together.
 --
 -- Purpose
--- -------
--- Stand up the Oracle objects the optional L2b reconciliation step (TEST_PLAN.md
--- §3 / Scenario 6) needs:
---   1. Six SHAW_* staging tables that mirror config/e2e/sources/SHAW.yml::
---      staging_tables. These are placeholders today: input-file mappings
---      (SHAW_COLLATERAL_MASTER.json etc.) are 1-field TODO stubs from EC-S9,
---      so each table carries a minimal but useful shape suitable for the
---      file_to_staging gate smoke check. Replace with real columns when the
---      BA workbook adds the missing input-file layouts and you re-run
---      `valdo onboard-source`.
---   2. Seven EXPECTED_*_TBL tables derived from the TRANERT umbrella's seven
---      per-record-type mapping JSONs (the curated EC-S4/S5 dedup; NEW1
---      covers both 32000 / 32001 from the umbrella). Column names use
---      mapping `target_name` per EC-S4 conventions. Types follow the spec
---      rules: string|char -> VARCHAR2(length), int|num|numeric|decimal ->
---      NUMBER(length) (precision capped at Oracle's 38-digit limit), date
---      -> DATE.
---   3. Sample INSERTs at the bottom populating the EXPECTED_*_TBL rows that
---      correspond to the deterministic content of
---      tests/manual/fixtures/tranert_shaw_test_valid.txt produced by
---      scripts/build_shaw_test_files.py.
+--   1. Six SHAW_* staging tables (placeholder shape) seeded with synthetic
+--      rows so file_to_staging gate smoke checks have data to read.
+--   2. Seven EXPECTED_*_TBL reconciliation tables (one per TRANERT record
+--      type plus BATCH_HEADER) seeded with one row per detail row of
+--      tests/manual/fixtures/tranert_shaw_test_valid.txt -- the L2b
+--      comparator should report ZERO violations against that fixture.
 --
--- Schema / tablespace
--- -------------------
--- Run as the user that should own the tables. Suggested patterns:
---
---   Oracle XE in Docker (default APP_INT user from the dev compose stack):
---     sqlplus app_int/<pwd>@localhost:1521/FREEPDB1 @tests/manual/sql/shaw_setup.sql
---
---   On a shared environment where APP_INT already exists (matches
---   config/e2e/sources/SHAW.yml::staging_schema):
---     sqlplus app_int/<pwd>@<host>:<port>/<service> @tests/manual/sql/shaw_setup.sql
---
--- If you need to create the schema first, uncomment one of these blocks:
---   -- CREATE USER app_int IDENTIFIED BY "<change-me>" QUOTA UNLIMITED ON USERS;
---   -- GRANT CONNECT, RESOURCE, CREATE SESSION, CREATE TABLE TO app_int;
---   -- ALTER SESSION SET CURRENT_SCHEMA = APP_INT;
---
--- The DROP block at the bottom of this file is commented out — uncomment
--- to tear down between iterations.
---
--- BA workbook note (EC-S9):
---   Input-file mappings (SHAW_COLLATERAL_MASTER.json, SHAW_FEE_MASTER.json,
---   SHAW_LOAN_MASTER.json, SHAW_LOANS_NAME.json, SHAW_POSTED_TRANS.json,
---   SHAW_TRANS_MASTER.json) are 1-field TODO stubs. The SHAW_* tables below
---   are intentionally minimal (BATCH_DATE / RECORD_KEY / LINE_NO / RAW_LINE
---   / LOAD_TS) so the file_to_staging gate has something to land into.
---   Fill in real columns when the BA workbook is updated and re-run
---   `valdo onboard-source`.
+-- Apply with:
+--   sqlplus app_int/<pwd>@localhost:1521/FREEPDB1 @tests/manual/sql/shaw_setup.sql
+-- ...or use the cross-backend runner:
+--   python tests/manual/seed_db.py --backend oracle
 -- =============================================================================
 
 SET ECHO ON
@@ -58,7 +23,7 @@ SET FEEDBACK ON
 WHENEVER SQLERROR CONTINUE
 
 -- -----------------------------------------------------------------------------
--- 1) SHAW_* staging tables (placeholder shape — see EC-S9 note above).
+-- 1) SHAW_* staging tables (placeholder shape -- see TEST_PLAN.md Section 0).
 -- -----------------------------------------------------------------------------
 
 CREATE TABLE SHAW_COLLATERAL (
@@ -111,15 +76,12 @@ CREATE TABLE SHAW_TRANS_MASTER (
 
 -- -----------------------------------------------------------------------------
 -- 2) EXPECTED_*_TBL reconciliation tables.
---
--- One table per TRANERT record type; columns derived from the matching
--- mapping JSON's `target_name` and `data_type` / `length`. Identifiers
--- that begin with a digit (e.g. 10_98_RPT_IND_COD, 24_CYC_DLQ_*_CBRS)
--- are wrapped in double quotes — required by Oracle for non-leading-letter
--- identifiers.
+-- One table per TRANERT record type; columns derived from each mapping
+-- JSON's `target_name` / `data_type` / `length`. Identifiers starting
+-- with a digit (e.g. 10_98_RPT_IND_COD, 24_CYC_DLQ_*_CBRS) are
+-- double-quoted -- required by Oracle.
 -- -----------------------------------------------------------------------------
 
--- BATCH_HEADER — umbrella position: "first"; 22 fields.
 CREATE TABLE EXPECTED_BATCH_HEADER_TBL (
     BK_NUM_BRT          NUMBER(5),
     APP_BRT             NUMBER(3),
@@ -145,7 +107,6 @@ CREATE TABLE EXPECTED_BATCH_HEADER_TBL (
     DR_CR_AMT_BRT       NUMBER(22)
 );
 
--- NEW1 — TRN-COD-ERT 32000 (NAS) / 32001 (EAS); 14 fields.
 CREATE TABLE EXPECTED_NEW1_TBL (
     BK_NUM_ERT          NUMBER(5),
     APP_ERT             NUMBER(3),
@@ -163,7 +124,6 @@ CREATE TABLE EXPECTED_NEW1_TBL (
     USR_ID_NEW1         VARCHAR2(8)
 );
 
--- CUS — TRN-COD-ERT 32005; 35 fields.
 CREATE TABLE EXPECTED_CUS_TBL (
     BK_NUM_ERT                    NUMBER(5),
     APP_ERT                       NUMBER(3),
@@ -202,7 +162,6 @@ CREATE TABLE EXPECTED_CUS_TBL (
     PREFERRED_CURRENCY            VARCHAR2(3)
 );
 
--- ORI — TRN-COD-ERT 32010; 48 fields.
 CREATE TABLE EXPECTED_ORI_TBL (
     BK_NUM_ERT             NUMBER(5),
     APP_ERT                NUMBER(3),
@@ -254,8 +213,6 @@ CREATE TABLE EXPECTED_ORI_TBL (
     DAT_ACT_CLS_TO_ATY_ORI DATE
 );
 
--- COD — TRN-COD-ERT 32025; 57 fields.
--- "10_98_RPT_IND_COD" is quoted because Oracle identifiers can't start with a digit.
 CREATE TABLE EXPECTED_COD_TBL (
     BK_NUM_ERT               NUMBER(5),
     APP_ERT                  NUMBER(3),
@@ -316,8 +273,6 @@ CREATE TABLE EXPECTED_COD_TBL (
     IRS_NUM_OF_MORT_COD      NUMBER(4)
 );
 
--- CBRS — TRN-COD-ERT 32040; 69 fields.
--- The 22 "24_CYC_DLQ_*" identifiers must be quoted (leading digit).
 CREATE TABLE EXPECTED_CBRS_TBL (
     BK_NUM_ERT             NUMBER(5),
     APP_ERT                NUMBER(3),
@@ -390,7 +345,6 @@ CREATE TABLE EXPECTED_CBRS_TBL (
     SEC_LAS_LN_BAL_CBRS    NUMBER(22)
 );
 
--- REC — TRN-COD-ERT 32075; 35 fields.
 CREATE TABLE EXPECTED_REC_TBL (
     BK_NUM_ERT          NUMBER(5),
     APP_ERT             NUMBER(3),
@@ -429,73 +383,72 @@ CREATE TABLE EXPECTED_REC_TBL (
     RCF_PD_LTD_REC      NUMBER(22)
 );
 
+
 -- -----------------------------------------------------------------------------
--- 3) Sample INSERTs — match tests/manual/fixtures/tranert_shaw_test_valid.txt.
---
--- The valid fixture has 1 BATCH_HEADER + 5 NEW1 + 4 CUS + 3 ORI + 2 COD +
--- 2 CBRS + 2 REC (= 18 detail rows, ITM-CNT-BRT=000000018). LN_NUM_ERT is
--- generated as 'LN' + 16-digit sequence ('LN0000000000000001'..). The
--- BATCH_HEADER's EFF_DAT_BRT and detail EFF_DAT_ERT are both 2026-06-01;
--- TRN_COD_BRT = 'BATCH', BK_NUM_ERT = 1, APP_ERT = 200 across the board.
--- Only one INSERT per table is emitted (enough for the L2b smoke test to
--- compare apples-to-apples). Add more rows when you extend the fixture.
+-- 3) Seed -- SHAW_* staging tables (5 synthetic rows each).
 -- -----------------------------------------------------------------------------
 
-INSERT INTO EXPECTED_BATCH_HEADER_TBL (
-    BK_NUM_BRT, APP_BRT, EFF_DAT_BRT, TRN_COD_BRT, BAT_NUM_BRT,
-    INP_SRC_COD_BRT, BAT_TYP_BRT, OPR_ID_BRT,
-    ORG_LVL_NUM_1_BRT, ORG_LVL_NUM_2_BRT, ORG_LVL_NUM_3_BRT,
-    ORG_LVL_NUM_4_BRT, ORG_LVL_NUM_5_BRT, ORG_LVL_NUM_6_BRT,
-    ORG_LVL_NUM_7_BRT, ORG_LVL_NUM_8_BRT, ORG_LVL_NUM_9_BRT,
-    ORG_LVL_NUM_10_BRT, ORG_LVL_NUM_11_BRT, ORG_LVL_NUM_12_BRT,
-    ITM_CNT_BRT, DR_CR_AMT_BRT
-) VALUES (
-    1, 200, DATE '2026-06-01', 'BATCH', 1,
-    1, 32, 'VALDOTST',
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    18, 0
-);
+INSERT INTO SHAW_COLLATERAL (BATCH_DATE, RECORD_KEY, LINE_NO, RAW_LINE) VALUES (DATE '2026-06-01', 'COLL-0001', 1, 'COLL-0001-VALDO-FIXTURE-2026-06-01-LN0000000000000001-PADDING                   ');
+INSERT INTO SHAW_COLLATERAL (BATCH_DATE, RECORD_KEY, LINE_NO, RAW_LINE) VALUES (DATE '2026-06-01', 'COLL-0002', 2, 'COLL-0002-VALDO-FIXTURE-2026-06-01-LN0000000000000002-PADDING                   ');
+INSERT INTO SHAW_COLLATERAL (BATCH_DATE, RECORD_KEY, LINE_NO, RAW_LINE) VALUES (DATE '2026-06-01', 'COLL-0003', 3, 'COLL-0003-VALDO-FIXTURE-2026-06-01-LN0000000000000003-PADDING                   ');
+INSERT INTO SHAW_COLLATERAL (BATCH_DATE, RECORD_KEY, LINE_NO, RAW_LINE) VALUES (DATE '2026-06-01', 'COLL-0004', 4, 'COLL-0004-VALDO-FIXTURE-2026-06-01-LN0000000000000004-PADDING                   ');
+INSERT INTO SHAW_COLLATERAL (BATCH_DATE, RECORD_KEY, LINE_NO, RAW_LINE) VALUES (DATE '2026-06-01', 'COLL-0005', 5, 'COLL-0005-VALDO-FIXTURE-2026-06-01-LN0000000000000005-PADDING                   ');
+INSERT INTO SHAW_FEE_MASTER (BATCH_DATE, RECORD_KEY, LINE_NO, RAW_LINE) VALUES (DATE '2026-06-01', 'FEE-0001', 1, 'FEE-0001-VALDO-FIXTURE-2026-06-01-LN0000000000000001-PADDING                    ');
+INSERT INTO SHAW_FEE_MASTER (BATCH_DATE, RECORD_KEY, LINE_NO, RAW_LINE) VALUES (DATE '2026-06-01', 'FEE-0002', 2, 'FEE-0002-VALDO-FIXTURE-2026-06-01-LN0000000000000002-PADDING                    ');
+INSERT INTO SHAW_FEE_MASTER (BATCH_DATE, RECORD_KEY, LINE_NO, RAW_LINE) VALUES (DATE '2026-06-01', 'FEE-0003', 3, 'FEE-0003-VALDO-FIXTURE-2026-06-01-LN0000000000000003-PADDING                    ');
+INSERT INTO SHAW_FEE_MASTER (BATCH_DATE, RECORD_KEY, LINE_NO, RAW_LINE) VALUES (DATE '2026-06-01', 'FEE-0004', 4, 'FEE-0004-VALDO-FIXTURE-2026-06-01-LN0000000000000004-PADDING                    ');
+INSERT INTO SHAW_FEE_MASTER (BATCH_DATE, RECORD_KEY, LINE_NO, RAW_LINE) VALUES (DATE '2026-06-01', 'FEE-0005', 5, 'FEE-0005-VALDO-FIXTURE-2026-06-01-LN0000000000000005-PADDING                    ');
+INSERT INTO SHAW_LOAN_MASTER (BATCH_DATE, RECORD_KEY, LINE_NO, RAW_LINE) VALUES (DATE '2026-06-01', 'LOAN-0001', 1, 'LOAN-0001-VALDO-FIXTURE-2026-06-01-LN0000000000000001-PADDING                   ');
+INSERT INTO SHAW_LOAN_MASTER (BATCH_DATE, RECORD_KEY, LINE_NO, RAW_LINE) VALUES (DATE '2026-06-01', 'LOAN-0002', 2, 'LOAN-0002-VALDO-FIXTURE-2026-06-01-LN0000000000000002-PADDING                   ');
+INSERT INTO SHAW_LOAN_MASTER (BATCH_DATE, RECORD_KEY, LINE_NO, RAW_LINE) VALUES (DATE '2026-06-01', 'LOAN-0003', 3, 'LOAN-0003-VALDO-FIXTURE-2026-06-01-LN0000000000000003-PADDING                   ');
+INSERT INTO SHAW_LOAN_MASTER (BATCH_DATE, RECORD_KEY, LINE_NO, RAW_LINE) VALUES (DATE '2026-06-01', 'LOAN-0004', 4, 'LOAN-0004-VALDO-FIXTURE-2026-06-01-LN0000000000000004-PADDING                   ');
+INSERT INTO SHAW_LOAN_MASTER (BATCH_DATE, RECORD_KEY, LINE_NO, RAW_LINE) VALUES (DATE '2026-06-01', 'LOAN-0005', 5, 'LOAN-0005-VALDO-FIXTURE-2026-06-01-LN0000000000000005-PADDING                   ');
+INSERT INTO SHAW_LOANS_NAME (BATCH_DATE, RECORD_KEY, LINE_NO, RAW_LINE) VALUES (DATE '2026-06-01', 'LNAM-0001', 1, 'LNAM-0001-VALDO-FIXTURE-2026-06-01-LN0000000000000001-PADDING                   ');
+INSERT INTO SHAW_LOANS_NAME (BATCH_DATE, RECORD_KEY, LINE_NO, RAW_LINE) VALUES (DATE '2026-06-01', 'LNAM-0002', 2, 'LNAM-0002-VALDO-FIXTURE-2026-06-01-LN0000000000000002-PADDING                   ');
+INSERT INTO SHAW_LOANS_NAME (BATCH_DATE, RECORD_KEY, LINE_NO, RAW_LINE) VALUES (DATE '2026-06-01', 'LNAM-0003', 3, 'LNAM-0003-VALDO-FIXTURE-2026-06-01-LN0000000000000003-PADDING                   ');
+INSERT INTO SHAW_LOANS_NAME (BATCH_DATE, RECORD_KEY, LINE_NO, RAW_LINE) VALUES (DATE '2026-06-01', 'LNAM-0004', 4, 'LNAM-0004-VALDO-FIXTURE-2026-06-01-LN0000000000000004-PADDING                   ');
+INSERT INTO SHAW_LOANS_NAME (BATCH_DATE, RECORD_KEY, LINE_NO, RAW_LINE) VALUES (DATE '2026-06-01', 'LNAM-0005', 5, 'LNAM-0005-VALDO-FIXTURE-2026-06-01-LN0000000000000005-PADDING                   ');
+INSERT INTO SHAW_TRANSACTIONS (BATCH_DATE, RECORD_KEY, LINE_NO, RAW_LINE) VALUES (DATE '2026-06-01', 'TRNS-0001', 1, 'TRNS-0001-VALDO-FIXTURE-2026-06-01-LN0000000000000001-PADDING                   ');
+INSERT INTO SHAW_TRANSACTIONS (BATCH_DATE, RECORD_KEY, LINE_NO, RAW_LINE) VALUES (DATE '2026-06-01', 'TRNS-0002', 2, 'TRNS-0002-VALDO-FIXTURE-2026-06-01-LN0000000000000002-PADDING                   ');
+INSERT INTO SHAW_TRANSACTIONS (BATCH_DATE, RECORD_KEY, LINE_NO, RAW_LINE) VALUES (DATE '2026-06-01', 'TRNS-0003', 3, 'TRNS-0003-VALDO-FIXTURE-2026-06-01-LN0000000000000003-PADDING                   ');
+INSERT INTO SHAW_TRANSACTIONS (BATCH_DATE, RECORD_KEY, LINE_NO, RAW_LINE) VALUES (DATE '2026-06-01', 'TRNS-0004', 4, 'TRNS-0004-VALDO-FIXTURE-2026-06-01-LN0000000000000004-PADDING                   ');
+INSERT INTO SHAW_TRANSACTIONS (BATCH_DATE, RECORD_KEY, LINE_NO, RAW_LINE) VALUES (DATE '2026-06-01', 'TRNS-0005', 5, 'TRNS-0005-VALDO-FIXTURE-2026-06-01-LN0000000000000005-PADDING                   ');
+INSERT INTO SHAW_TRANS_MASTER (BATCH_DATE, RECORD_KEY, LINE_NO, RAW_LINE) VALUES (DATE '2026-06-01', 'TRMS-0001', 1, 'TRMS-0001-VALDO-FIXTURE-2026-06-01-LN0000000000000001-PADDING                   ');
+INSERT INTO SHAW_TRANS_MASTER (BATCH_DATE, RECORD_KEY, LINE_NO, RAW_LINE) VALUES (DATE '2026-06-01', 'TRMS-0002', 2, 'TRMS-0002-VALDO-FIXTURE-2026-06-01-LN0000000000000002-PADDING                   ');
+INSERT INTO SHAW_TRANS_MASTER (BATCH_DATE, RECORD_KEY, LINE_NO, RAW_LINE) VALUES (DATE '2026-06-01', 'TRMS-0003', 3, 'TRMS-0003-VALDO-FIXTURE-2026-06-01-LN0000000000000003-PADDING                   ');
+INSERT INTO SHAW_TRANS_MASTER (BATCH_DATE, RECORD_KEY, LINE_NO, RAW_LINE) VALUES (DATE '2026-06-01', 'TRMS-0004', 4, 'TRMS-0004-VALDO-FIXTURE-2026-06-01-LN0000000000000004-PADDING                   ');
+INSERT INTO SHAW_TRANS_MASTER (BATCH_DATE, RECORD_KEY, LINE_NO, RAW_LINE) VALUES (DATE '2026-06-01', 'TRMS-0005', 5, 'TRMS-0005-VALDO-FIXTURE-2026-06-01-LN0000000000000005-PADDING                   ');
 
-INSERT INTO EXPECTED_NEW1_TBL (
-    BK_NUM_ERT, APP_ERT, LN_NUM_ERT, EFF_DAT_ERT, TRN_COD_ERT
-) VALUES (
-    1, 200, 'LN0000000000000001', DATE '2026-06-01', 32000
-);
+-- -----------------------------------------------------------------------------
+-- 4) Seed -- EXPECTED_*_TBL (one row per detail row in tranert_shaw_test_valid.txt).
+--    Counts: BATCH_HEADER=1, NEW1=5, CUS=4, ORI=3, COD=2, CBRS=2, REC=2.
+-- -----------------------------------------------------------------------------
 
-INSERT INTO EXPECTED_CUS_TBL (
-    BK_NUM_ERT, APP_ERT, LN_NUM_ERT, EFF_DAT_ERT, TRN_COD_ERT
-) VALUES (
-    1, 200, 'LN0000000000000001', DATE '2026-06-01', 32005
-);
-
-INSERT INTO EXPECTED_ORI_TBL (
-    BK_NUM_ERT, APP_ERT, LN_NUM_ERT, EFF_DAT_ERT, TRN_COD_ERT
-) VALUES (
-    1, 200, 'LN0000000000000001', DATE '2026-06-01', 32010
-);
-
-INSERT INTO EXPECTED_COD_TBL (
-    BK_NUM_ERT, APP_ERT, LN_NUM_ERT, EFF_DAT_ERT, TRN_COD_ERT
-) VALUES (
-    1, 200, 'LN0000000000000001', DATE '2026-06-01', 32025
-);
-
-INSERT INTO EXPECTED_CBRS_TBL (
-    BK_NUM_ERT, APP_ERT, LN_NUM_ERT, EFF_DAT_ERT, TRN_COD_ERT
-) VALUES (
-    1, 200, 'LN0000000000000001', DATE '2026-06-01', 32040
-);
-
-INSERT INTO EXPECTED_REC_TBL (
-    BK_NUM_ERT, APP_ERT, LN_NUM_ERT, EFF_DAT_ERT, TRN_COD_ERT
-) VALUES (
-    1, 200, 'LN0000000000000001', DATE '2026-06-01', 32075
-);
+INSERT INTO EXPECTED_BATCH_HEADER_TBL (BK_NUM_BRT, APP_BRT, EFF_DAT_BRT, TRN_COD_BRT, BAT_NUM_BRT, INP_SRC_COD_BRT, BAT_TYP_BRT, OPR_ID_BRT, ORG_LVL_NUM_1_BRT, ORG_LVL_NUM_2_BRT, ORG_LVL_NUM_3_BRT, ORG_LVL_NUM_4_BRT, ORG_LVL_NUM_5_BRT, ORG_LVL_NUM_6_BRT, ORG_LVL_NUM_7_BRT, ORG_LVL_NUM_8_BRT, ORG_LVL_NUM_9_BRT, ORG_LVL_NUM_10_BRT, ORG_LVL_NUM_11_BRT, ORG_LVL_NUM_12_BRT, ITM_CNT_BRT, DR_CR_AMT_BRT) VALUES (1, 200, DATE '2026-06-01', 'BATCH', 1, 1, 32, 'VALDOTST', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 0);
+INSERT INTO EXPECTED_NEW1_TBL (BK_NUM_ERT, APP_ERT, LN_NUM_ERT, EFF_DAT_ERT, TRN_COD_ERT) VALUES (1, 200, 'LN0000000000000001', DATE '2026-06-01', 32000);
+INSERT INTO EXPECTED_NEW1_TBL (BK_NUM_ERT, APP_ERT, LN_NUM_ERT, EFF_DAT_ERT, TRN_COD_ERT) VALUES (1, 200, 'LN0000000000000002', DATE '2026-06-01', 32000);
+INSERT INTO EXPECTED_NEW1_TBL (BK_NUM_ERT, APP_ERT, LN_NUM_ERT, EFF_DAT_ERT, TRN_COD_ERT) VALUES (1, 200, 'LN0000000000000003', DATE '2026-06-01', 32000);
+INSERT INTO EXPECTED_NEW1_TBL (BK_NUM_ERT, APP_ERT, LN_NUM_ERT, EFF_DAT_ERT, TRN_COD_ERT) VALUES (1, 200, 'LN0000000000000004', DATE '2026-06-01', 32000);
+INSERT INTO EXPECTED_NEW1_TBL (BK_NUM_ERT, APP_ERT, LN_NUM_ERT, EFF_DAT_ERT, TRN_COD_ERT) VALUES (1, 200, 'LN0000000000000005', DATE '2026-06-01', 32000);
+INSERT INTO EXPECTED_CUS_TBL (BK_NUM_ERT, APP_ERT, LN_NUM_ERT, EFF_DAT_ERT, TRN_COD_ERT) VALUES (1, 200, 'LN0000000000000001', DATE '2026-06-01', 32005);
+INSERT INTO EXPECTED_CUS_TBL (BK_NUM_ERT, APP_ERT, LN_NUM_ERT, EFF_DAT_ERT, TRN_COD_ERT) VALUES (1, 200, 'LN0000000000000002', DATE '2026-06-01', 32005);
+INSERT INTO EXPECTED_CUS_TBL (BK_NUM_ERT, APP_ERT, LN_NUM_ERT, EFF_DAT_ERT, TRN_COD_ERT) VALUES (1, 200, 'LN0000000000000003', DATE '2026-06-01', 32005);
+INSERT INTO EXPECTED_CUS_TBL (BK_NUM_ERT, APP_ERT, LN_NUM_ERT, EFF_DAT_ERT, TRN_COD_ERT) VALUES (1, 200, 'LN0000000000000004', DATE '2026-06-01', 32005);
+INSERT INTO EXPECTED_ORI_TBL (BK_NUM_ERT, APP_ERT, LN_NUM_ERT, EFF_DAT_ERT, TRN_COD_ERT) VALUES (1, 200, 'LN0000000000000001', DATE '2026-06-01', 32010);
+INSERT INTO EXPECTED_ORI_TBL (BK_NUM_ERT, APP_ERT, LN_NUM_ERT, EFF_DAT_ERT, TRN_COD_ERT) VALUES (1, 200, 'LN0000000000000002', DATE '2026-06-01', 32010);
+INSERT INTO EXPECTED_ORI_TBL (BK_NUM_ERT, APP_ERT, LN_NUM_ERT, EFF_DAT_ERT, TRN_COD_ERT) VALUES (1, 200, 'LN0000000000000003', DATE '2026-06-01', 32010);
+INSERT INTO EXPECTED_COD_TBL (BK_NUM_ERT, APP_ERT, LN_NUM_ERT, EFF_DAT_ERT, TRN_COD_ERT) VALUES (1, 200, 'LN0000000000000001', DATE '2026-06-01', 32025);
+INSERT INTO EXPECTED_COD_TBL (BK_NUM_ERT, APP_ERT, LN_NUM_ERT, EFF_DAT_ERT, TRN_COD_ERT) VALUES (1, 200, 'LN0000000000000002', DATE '2026-06-01', 32025);
+INSERT INTO EXPECTED_CBRS_TBL (BK_NUM_ERT, APP_ERT, LN_NUM_ERT, EFF_DAT_ERT, TRN_COD_ERT) VALUES (1, 200, 'LN0000000000000001', DATE '2026-06-01', 32040);
+INSERT INTO EXPECTED_CBRS_TBL (BK_NUM_ERT, APP_ERT, LN_NUM_ERT, EFF_DAT_ERT, TRN_COD_ERT) VALUES (1, 200, 'LN0000000000000002', DATE '2026-06-01', 32040);
+INSERT INTO EXPECTED_REC_TBL (BK_NUM_ERT, APP_ERT, LN_NUM_ERT, EFF_DAT_ERT, TRN_COD_ERT) VALUES (1, 200, 'LN0000000000000001', DATE '2026-06-01', 32075);
+INSERT INTO EXPECTED_REC_TBL (BK_NUM_ERT, APP_ERT, LN_NUM_ERT, EFF_DAT_ERT, TRN_COD_ERT) VALUES (1, 200, 'LN0000000000000002', DATE '2026-06-01', 32075);
 
 COMMIT;
 
+
 -- -----------------------------------------------------------------------------
--- Optional teardown — uncomment as a block when you want to reset between runs.
+-- Optional teardown -- uncomment as a block to reset between runs.
 -- -----------------------------------------------------------------------------
 -- DROP TABLE EXPECTED_REC_TBL PURGE;
 -- DROP TABLE EXPECTED_CBRS_TBL PURGE;
@@ -512,3 +465,4 @@ COMMIT;
 -- DROP TABLE SHAW_COLLATERAL PURGE;
 
 EXIT
+

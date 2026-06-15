@@ -16,6 +16,113 @@ re-run it after any TRANERT mapping change and the files will track.
 
 ---
 
+## Section 0 — Setup (seed the test database)
+
+The L2b reconciliation flow (Section 3 / Scenario 6) compares parsed
+fixture rows against materialized `EXPECTED_*_TBL` rows. Section 0
+walks you through seeding those tables — plus the SHAW_* staging
+tables — using the runner script
+`tests/manual/seed_db.py`.
+
+Two backends are supported:
+
+| Backend | When to pick it                                            | Setup required               |
+|---------|------------------------------------------------------------|------------------------------|
+| SQLite  | Local dev, BA review, anywhere Oracle isn't reachable      | None — stdlib only            |
+| Oracle  | Real reconciliation against Oracle XE / a shared environment | `oracledb` (already a dep) + `ORACLE_DSN` / `ORACLE_USER` / `ORACLE_PASSWORD` env vars |
+
+### 0.1 — Generate the SQL seed files (if missing)
+
+The two SQL artefacts (`shaw_setup.sql`, `shaw_setup_sqlite.sql`) are
+produced by the same generator that builds the fixture files:
+
+```bash
+.venv311/bin/python scripts/build_shaw_test_files.py
+```
+
+Expected output:
+
+```
+TRANERT global record width: 636
+  clean    -> 2 lines @ 636 chars each
+  valid    -> 19 lines @ 636 chars each
+  failures -> 5 lines (1 deliberately truncated)
+  sql      -> shaw_setup.sql (~468 lines), shaw_setup_sqlite.sql (~438 lines)
+  seed     -> EXPECTED INSERTs: BATCH_HEADER=1, NEW1=5, CUS=4, ORI=3, COD=2, CBRS=2, REC=2 (total 19)
+  seed     -> SHAW_* staging: 6 tables x 5 rows = 30 synthetic rows
+OK
+```
+
+### 0.2 — Apply the seed (SQLite — default, Oracle-free)
+
+```bash
+python tests/manual/seed_db.py --drop-first
+```
+
+This writes `tests/manual/valdo_test.db` (gitignored) and prints a
+summary. Expected outcome (abridged):
+
+```
+Backend: sqlite
+
+Seeded SQLite database: tests/manual/valdo_test.db
+Tables present (13): ...
+
+Row counts:
+  EXPECTED_BATCH_HEADER_TBL         1  (OK)
+  EXPECTED_NEW1_TBL                 5  (OK)
+  EXPECTED_CUS_TBL                  4  (OK)
+  EXPECTED_ORI_TBL                  3  (OK)
+  EXPECTED_COD_TBL                  2  (OK)
+  EXPECTED_CBRS_TBL                 2  (OK)
+  EXPECTED_REC_TBL                  2  (OK)
+  SHAW_COLLATERAL                   5  (OK)
+  ... etc
+```
+
+All 13 rows must say `(OK)`. The detail-row counts (5/4/3/2/2/2) line
+up exactly with the per-record-type row counts in
+`tests/manual/fixtures/tranert_shaw_test_valid.txt`, so the L2b
+comparator should report zero violations when fed the valid fixture.
+
+### 0.3 — Apply the seed (Oracle — for the real run)
+
+```bash
+ORACLE_DSN=localhost:1521/FREEPDB1 \
+ORACLE_USER=app_int \
+ORACLE_PASSWORD=<pwd> \
+    python tests/manual/seed_db.py --backend oracle --drop-first
+```
+
+`--drop-first` issues `DROP TABLE ... PURGE` for each SHAW_* /
+EXPECTED_*_TBL before re-creating, so you can re-run between
+iterations. If you prefer raw sqlplus:
+
+```bash
+sqlplus app_int/<pwd>@localhost:1521/FREEPDB1 \
+    @tests/manual/sql/shaw_setup.sql
+```
+
+### 0.4 — Verify the seed
+
+Spot-check tables / row counts directly:
+
+```bash
+# SQLite
+sqlite3 tests/manual/valdo_test.db ".tables"
+sqlite3 tests/manual/valdo_test.db "SELECT LN_NUM_ERT FROM EXPECTED_NEW1_TBL ORDER BY LN_NUM_ERT;"
+
+# Oracle
+sqlplus -S app_int/<pwd>@... \
+    <<<"SELECT table_name FROM user_tables WHERE table_name LIKE 'SHAW_%' OR table_name LIKE 'EXPECTED_%' ORDER BY table_name;"
+```
+
+The `EXPECTED_NEW1_TBL.LN_NUM_ERT` query should return
+`LN0000000000000001` .. `LN0000000000000005`, matching the NEW1 rows
+in the valid fixture.
+
+---
+
 ## Section 1 — Prerequisites
 
 | Component       | Expected state                                                    |
@@ -251,14 +358,21 @@ output-file rows against materialized `EXPECTED_*_TBL` rows.
 
 1. An Oracle XE instance reachable on the host (see
    `tests/manual/sql/shaw_setup.sql` header for connection options).
-2. The seven `EXPECTED_*_TBL` tables created and seeded with one row
-   each:
+2. The seven `EXPECTED_*_TBL` tables plus the six SHAW_* staging tables
+   created and seeded. Easiest path:
 
    ```bash
-   sqlplus app_int/<pwd>@localhost:1521/FREEPDB1 \
-     @tests/manual/sql/shaw_setup.sql
+   ORACLE_DSN=localhost:1521/FREEPDB1 ORACLE_USER=app_int ORACLE_PASSWORD=<pwd> \
+       python tests/manual/seed_db.py --backend oracle --drop-first
    ```
 
+   Or for a quick local smoke run without Oracle (SQLite alternative):
+
+   ```bash
+   python tests/manual/seed_db.py --drop-first
+   ```
+
+   See Section 0 for full setup details and the expected row counts.
 3. Valdo's `ORACLE_*` env vars pointing at the same instance.
 
 **How to run.**
@@ -274,20 +388,27 @@ output-file rows against materialized `EXPECTED_*_TBL` rows.
 (Or invoke the orchestrator's `db_truth_comparator` directly if
 that's the path your environment uses.)
 
-**Expected outcome.** Zero L2b violations — the single INSERT per
-`EXPECTED_*_TBL` matches the first row of each record type in
-`tranert_shaw_test_valid.txt` (BK_NUM_ERT=1, APP_ERT=200,
-LN_NUM_ERT='LN0000000000000001', EFF_DAT_ERT=2026-06-01, TRN_COD_ERT
-per the umbrella's discriminator codes).
+**Expected outcome.** Zero L2b violations — every detail row in
+`tranert_shaw_test_valid.txt` has a matching `EXPECTED_*_TBL` row
+seeded by `seed_db.py` (5 NEW1 + 4 CUS + 3 ORI + 2 COD + 2 CBRS + 2 REC
++ 1 BATCH_HEADER = 19 expected rows = 19 fixture rows). Each row's
+key columns are identical:
+
+* `BK_NUM_ERT = 1`
+* `APP_ERT = 200`
+* `LN_NUM_ERT = 'LN0000000000000001'` .. `'LN{seq:016d}'`
+* `EFF_DAT_ERT = 2026-06-01`
+* `TRN_COD_ERT = {32000, 32005, 32010, 32025, 32040, 32075}` per type
 
 Cardinality assertions
 (`one_per_driver_row` / `many_per_driver_row` /
 `zero_or_one_per_driver_row` from
-`config/e2e/sources/SHAW/reconciliation/tranert.yml`) will pass for
-the rows that exist in the EXPECTED tables and surface diff lines for
-rows present in the fixture but not in the EXPECTED tables. Extend
-the INSERTs in `shaw_setup.sql` to cover the full 18-row fixture if
-you want absolute parity.
+`config/e2e/sources/SHAW/reconciliation/tranert.yml`) pass cleanly for
+the full 18-row fixture. If you ever extend the fixture (e.g. add a
+sixth NEW1 row), re-run
+`.venv311/bin/python scripts/build_shaw_test_files.py` — the SQL seed
+files are regenerated atomically from the same row plan, so they stay
+in lock-step.
 
 ---
 
@@ -299,15 +420,25 @@ Stop the server (if it was started with `--pid-file`):
 kill $(cat /tmp/valdo-server.pid)
 ```
 
-Optionally drop the Oracle test tables — uncomment the `DROP TABLE`
-block at the bottom of `tests/manual/sql/shaw_setup.sql` and re-run
-the script:
+Optionally drop the Oracle test tables — easiest path is the runner's
+`--drop-first` flag, which fires `DROP TABLE ... PURGE` for each
+SHAW_* / EXPECTED_*_TBL before re-creating:
 
 ```bash
-sqlplus app_int/<pwd>@localhost:1521/FREEPDB1 \
-  @tests/manual/sql/shaw_setup.sql
+ORACLE_DSN=... ORACLE_USER=... ORACLE_PASSWORD=... \
+    python tests/manual/seed_db.py --backend oracle --drop-first
 ```
 
-The fixture files in `tests/manual/fixtures/` are regenerated on
-demand by `scripts/build_shaw_test_files.py`, so they can be removed
+Or, manually, uncomment the `DROP TABLE` block at the bottom of
+`tests/manual/sql/shaw_setup.sql` and re-run sqlplus.
+
+For SQLite, simply delete the DB file:
+
+```bash
+rm -f tests/manual/valdo_test.db
+```
+
+The fixture files in `tests/manual/fixtures/` and the SQL artefacts in
+`tests/manual/sql/` are regenerated on demand by
+`scripts/build_shaw_test_files.py`, so they can all be removed
 without ceremony.

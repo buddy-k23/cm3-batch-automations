@@ -14,6 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `TEST_PLAN.md` covering onboard-source drift, L1 multi-record dispatch,
   Source Editor UI flow, MCP 9-tool smoke test, and optional L2b
   reconciliation.
+- Comprehensive seed for the SHAW manual test harness: the fixture
+  generator now also emits matching SQL seed files for both Oracle
+  (`sql/shaw_setup.sql`) and SQLite (`sql/shaw_setup_sqlite.sql`) with
+  one EXPECTED_*_TBL row per detail row in the VALID fixture (5 NEW1 +
+  4 CUS + 3 ORI + 2 COD + 2 CBRS + 2 REC + 1 BATCH_HEADER) plus 5
+  synthetic rows per SHAW_* staging table. New cross-backend runner
+  `tests/manual/seed_db.py` (`--backend sqlite|oracle`, `--drop-first`)
+  applies the seed and prints a row-count summary; new TEST_PLAN.md
+  Section 0 walks through the setup.
 - EF-S8 (Sprint 5 — PROGRAM COMPLETION): End-to-end agentic walkthrough
   test in `tests/integration/test_mcp_agentic_walkthrough.py`. Drives
   the MCP server through a 10-step BA onboarding flow (auth → prompt

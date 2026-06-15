@@ -142,3 +142,8 @@ config/e2e/sources/SHAW/lookups/
 _*.txt
 _*_report_*/
 
+# SQLite seed DB produced by tests/manual/seed_db.py. Regenerable on demand
+# from tests/manual/sql/shaw_setup_sqlite.sql; never check it in.
+tests/manual/valdo_test.db
+tests/manual/*.db-journal
+
