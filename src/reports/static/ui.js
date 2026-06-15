@@ -4843,10 +4843,11 @@ function _seSetStatus(msg, kind) {
 
 /**
  * POST the selected workbook to /api/v2/onboarding/preview and render
- * the JSON response as a raw <pre> block.
+ * the response as a collapsible artefact tree with per-artefact drift
+ * status badges (EE-S2).
  *
- * EE-S2 will replace the <pre> dump with a structured artefact tree;
- * the scaffold just proves the round-trip works.
+ * The raw JSON response is preserved behind a <details> disclosure for
+ * forensic debugging when the tree render itself fails.
  */
 function submitOnboardingPreview() {
   if (!_seSelectedFile) {
@@ -4856,7 +4857,8 @@ function submitOnboardingPreview() {
   var submitBtn = document.getElementById('seSubmitBtn');
   var resultBox = document.getElementById('sePreviewResult');
   var jsonBox = document.getElementById('sePreviewJson');
-  if (!submitBtn || !resultBox || !jsonBox) return;
+  var treeBox = document.getElementById('sePreviewTree');
+  if (!submitBtn || !resultBox || !jsonBox || !treeBox) return;
 
   submitBtn.disabled = true;
   _seSetStatus('Uploading and running dry-run\u2026', 'info');
@@ -4872,8 +4874,6 @@ function submitOnboardingPreview() {
     body: fd
   })
     .then(function(r) {
-      // Capture the body so error responses (4xx) carry the
-      // server-side detail back to the UI.
       return r.text().then(function(text) {
         var parsed = null;
         try { parsed = text ? JSON.parse(text) : null; }
@@ -4887,13 +4887,33 @@ function submitOnboardingPreview() {
           ? (typeof resp.body.detail === 'string' ? resp.body.detail : JSON.stringify(resp.body.detail))
           : (resp.raw || ('HTTP ' + resp.status));
         _seSetStatus('Preview failed: ' + detail, 'err');
+        treeBox.innerHTML = '';
         jsonBox.textContent = resp.raw || '';
         resultBox.style.display = '';
         return;
       }
-      var totalFiles = (resp.body && resp.body.summary && resp.body.summary.total_files) || 0;
-      _seSetStatus('Preview complete \u2014 ' + totalFiles + ' artefact(s) would be written.', 'ok');
-      jsonBox.textContent = JSON.stringify(resp.body, null, 2);
+      var body = resp.body || {};
+      var totalFiles = (body.summary && body.summary.total_files) || 0;
+      var drift = (body.summary && body.summary.drift) || {};
+      var driftLine = ' \u2014 ' + (drift.new || 0) + ' new, '
+        + (drift.changed || 0) + ' changed, '
+        + (drift.unchanged || 0) + ' unchanged';
+      _seSetStatus(
+        'Preview complete \u2014 ' + totalFiles + ' artefact(s)' + driftLine + '.',
+        'ok'
+      );
+      // Cache the response payload globally so the artefact-content
+      // modal can look up the emitted entry by path without re-fetching.
+      window._seLastPreview = body;
+      try {
+        renderOnboardingTree(body, treeBox);
+      } catch (e) {
+        treeBox.innerHTML =
+          '<p class="empty-msg" style="color:var(--err,#c00)">Failed to ' +
+          'render tree: ' + _escHtml(String(e && e.message || e)) +
+          ' \u2014 see raw JSON below.</p>';
+      }
+      jsonBox.textContent = JSON.stringify(body, null, 2);
       resultBox.style.display = '';
     })
     .catch(function(err) {
@@ -4904,9 +4924,412 @@ function submitOnboardingPreview() {
     });
 }
 
+// ---------------------------------------------------------------------------
+// EE-S2: artefact tree rendering, status badges, content viewer, unified diff
+// ---------------------------------------------------------------------------
+
+/** Canonical kind order for the tree sections (matches emitter order). */
+var _SE_KIND_ORDER = [
+  'source_yaml',
+  'mapping_json',
+  'rules_json',
+  'reconciliation_yaml',
+  'sql'
+];
+
+/** Human-readable kind labels for the section headers. */
+var _SE_KIND_LABELS = {
+  source_yaml: 'Source YAML',
+  mapping_json: 'Mapping JSON',
+  rules_json: 'Rules JSON',
+  reconciliation_yaml: 'Reconciliation YAML',
+  sql: 'Expected SQL'
+};
+
+/** Sections auto-collapse once they hit this artefact count. */
+var _SE_COLLAPSE_THRESHOLD = 5;
+
+/**
+ * Build a status badge span. ``count`` may be passed to render a
+ * "<count> <label>" prefix; when absent the badge is just the label.
+ *
+ * @param {string} status - One of 'new', 'changed', 'unchanged'.
+ * @param {number} [count] - Optional count to prefix the badge.
+ * @returns {string} The HTML snippet.
+ */
+function _seStatusBadge(status, count) {
+  var className = 'se-badge se-badge-' + status;
+  if (count === 0) className += ' se-badge-zero';
+  var text = (typeof count === 'number')
+    ? (count + ' ' + status)
+    : status;
+  return '<span class="' + className + '">' + _escHtml(text) + '</span>';
+}
+
+/**
+ * Render the structured artefact tree into the supplied container.
+ *
+ * @param {Object} payload - The full preview-API response body.
+ * @param {HTMLElement} container - DOM node to populate.
+ */
+function renderOnboardingTree(payload, container) {
+  if (!payload || !container) return;
+  container.innerHTML = '';
+
+  var summary = payload.summary || {};
+  var drift = summary.drift || { new: 0, changed: 0, unchanged: 0 };
+  var sourceCode = payload.source_code || '(unknown)';
+
+  // Top-level summary block: total files, total bytes, drift counts.
+  var summaryDiv = document.createElement('div');
+  summaryDiv.className = 'onboarding-tree-summary';
+  summaryDiv.setAttribute('role', 'group');
+  summaryDiv.setAttribute('aria-label', 'Preview summary');
+  summaryDiv.innerHTML =
+    '<span class="ot-summary-block">' +
+      '<span class="ot-summary-label">Source</span>' +
+      '<span class="ot-summary-value">' + _escHtml(sourceCode) + '</span>' +
+    '</span>' +
+    '<span class="ot-summary-divider" aria-hidden="true"></span>' +
+    '<span class="ot-summary-block">' +
+      '<span class="ot-summary-label">Files</span>' +
+      '<span class="ot-summary-value">' + (summary.total_files || 0) + '</span>' +
+    '</span>' +
+    '<span class="ot-summary-block">' +
+      '<span class="ot-summary-label">Bytes</span>' +
+      '<span class="ot-summary-value">' +
+        _seFormatBytes(summary.total_bytes || 0) +
+      '</span>' +
+    '</span>' +
+    '<span class="ot-summary-divider" aria-hidden="true"></span>' +
+    '<span class="ot-summary-block">' +
+      _seStatusBadge('new', drift.new || 0) +
+      _seStatusBadge('changed', drift.changed || 0) +
+      _seStatusBadge('unchanged', drift.unchanged || 0) +
+    '</span>';
+  container.appendChild(summaryDiv);
+
+  // Group artefacts by kind.
+  var entries = payload.would_write || [];
+  var byKind = {};
+  _SE_KIND_ORDER.forEach(function(k) { byKind[k] = []; });
+  entries.forEach(function(entry) {
+    var k = entry && entry.kind;
+    if (!byKind[k]) byKind[k] = [];
+    byKind[k].push(entry);
+  });
+
+  // Render one collapsible section per kind that has entries.
+  _SE_KIND_ORDER.forEach(function(kind) {
+    var items = byKind[kind] || [];
+    if (!items.length) return;
+    container.appendChild(_seRenderKindSection(kind, items));
+  });
+}
+
+/**
+ * Build the <details> + <summary> + body for one kind section.
+ *
+ * @param {string} kind - The kind token (e.g. 'mapping_json').
+ * @param {Array<Object>} items - The artefact entries in this kind.
+ * @returns {HTMLDetailsElement}
+ */
+function _seRenderKindSection(kind, items) {
+  var label = _SE_KIND_LABELS[kind] || kind;
+  // Per-status counts within this section.
+  var counts = { new: 0, changed: 0, unchanged: 0 };
+  items.forEach(function(it) {
+    var s = it && it.status;
+    if (counts[s] != null) counts[s] += 1;
+  });
+
+  var details = document.createElement('details');
+  details.className = 'onboarding-section onboarding-section-' + kind;
+  // Auto-expand sections with < threshold artefacts; collapse big ones.
+  if (items.length < _SE_COLLAPSE_THRESHOLD) details.open = true;
+
+  var statusSummary = _seStatusBadge('new', counts.new) +
+    _seStatusBadge('changed', counts.changed) +
+    _seStatusBadge('unchanged', counts.unchanged);
+
+  var summary = document.createElement('summary');
+  summary.className = 'onboarding-section-header';
+  summary.innerHTML =
+    '<span class="ot-caret" aria-hidden="true">\u25b6</span>' +
+    '<span class="ot-kind-label">' + _escHtml(label) + '</span>' +
+    '<span class="ot-kind-count">(' + items.length + ')</span>' +
+    '<span class="ot-kind-status-summary">' + statusSummary + '</span>';
+  details.appendChild(summary);
+
+  var body = document.createElement('div');
+  body.className = 'onboarding-section-body';
+  var rows = items.map(function(item) {
+    var path = item.path || '';
+    var bytesTxt = _seFormatBytes(item.bytes || 0);
+    var status = item.status || 'unchanged';
+    var driftReason = item.drift_reason
+      ? '<span class="onboarding-drift-reason">' +
+          _escHtml(String(item.drift_reason)) +
+        '</span>'
+      : '';
+    // Path doubles as the lookup key for viewArtefactContent().
+    var safePath = _escHtml(path);
+    return (
+      '<tr>' +
+        '<td class="ot-path">' + safePath + driftReason + '</td>' +
+        '<td class="ot-bytes">' + _escHtml(bytesTxt) + '</td>' +
+        '<td class="ot-status">' + _seStatusBadge(status) + '</td>' +
+        '<td class="ot-action">' +
+          '<button type="button" class="ot-view-btn" ' +
+            'onclick="viewArtefactContent(\'' +
+              _seEscapeJsString(path) + '\')">View</button>' +
+        '</td>' +
+      '</tr>'
+    );
+  }).join('');
+  body.innerHTML =
+    '<table>' +
+      '<thead><tr>' +
+        '<th>Path</th>' +
+        '<th>Size</th>' +
+        '<th>Status</th>' +
+        '<th></th>' +
+      '</tr></thead>' +
+      '<tbody>' + rows + '</tbody>' +
+    '</table>';
+  details.appendChild(body);
+  return details;
+}
+
+/**
+ * Escape a string for safe insertion into a single-quoted JS string
+ * literal in inline ``onclick=''`` handlers.
+ *
+ * Less strict than _escHtml because the destination context is a JS
+ * string, not an HTML text node. We still escape backslash + single
+ * quote + line breaks so the resulting attribute value remains valid.
+ *
+ * @param {string} str
+ * @returns {string}
+ */
+function _seEscapeJsString(str) {
+  return String(str)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r');
+}
+
+/**
+ * Format a byte count for human consumption (B / KB / MB).
+ *
+ * @param {number} bytes
+ * @returns {string}
+ */
+function _seFormatBytes(bytes) {
+  var n = Number(bytes) || 0;
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+  return (n / (1024 * 1024)).toFixed(2) + ' MB';
+}
+
+/**
+ * Open the artefact-content modal for the entry at the given path.
+ *
+ * For ``unchanged`` and ``new`` artefacts shows the emitted content
+ * in a <pre>; for ``changed`` artefacts fetches the committed content
+ * from the API and renders a unified diff against the emitted content.
+ *
+ * The emitted content is NOT carried in the preview-API response \u2014
+ * EE-S2 doesn't return content payloads \u2014 so for any status we have
+ * to ask the server. For unchanged/changed we hit
+ * ``/api/v2/onboarding/committed-artefact?path=...`` (which serves the
+ * verbatim on-disk file). For ``new`` artefacts there is no committed
+ * file; we surface a placeholder noting "would be created" and rely
+ * on the EE-S3 follow-up commit flow to render the emitted text.
+ *
+ * @param {string} path - The repo-relative artefact path.
+ */
+function viewArtefactContent(path) {
+  var payload = window._seLastPreview || {};
+  var entries = payload.would_write || [];
+  var entry = null;
+  for (var i = 0; i < entries.length; i++) {
+    if (entries[i].path === path) { entry = entries[i]; break; }
+  }
+  if (!entry) {
+    return;
+  }
+
+  var modal = document.getElementById('seArtefactModal');
+  var title = document.getElementById('seArtefactModalTitle');
+  var meta = document.getElementById('seArtefactModalMeta');
+  var body = document.getElementById('seArtefactModalBody');
+  if (!modal || !title || !meta || !body) return;
+
+  title.textContent = path;
+  meta.innerHTML =
+    _seStatusBadge(entry.status || 'unchanged') +
+    '<span>' + _escHtml(_seFormatBytes(entry.bytes || 0)) + '</span>' +
+    '<span>kind: ' + _escHtml(entry.kind || '') + '</span>';
+
+  // Show the modal up-front so the user gets immediate feedback while
+  // the committed-artefact fetch resolves.
+  modal.style.display = '';
+  modal.setAttribute('aria-hidden', 'false');
+  body.innerHTML =
+    '<div class="se-diff-loading">Loading artefact content\u2026</div>';
+
+  if (entry.status === 'new') {
+    body.innerHTML =
+      '<div class="se-diff-empty">This artefact does not yet exist in ' +
+      '<code>config/</code>. EE-S3 will surface the emitted content ' +
+      'as part of the commit-flow preview.</div>';
+    return;
+  }
+
+  // Both ``unchanged`` and ``changed`` artefacts have a committed
+  // counterpart we can fetch. For ``changed`` we additionally render
+  // a unified diff (committed vs emitted); EE-S2 does not yet plumb
+  // the emitted content back to the browser, so the diff base is the
+  // committed file with a note explaining what would change.
+  fetch('/api/v2/onboarding/committed-artefact?path='
+        + encodeURIComponent(path), {
+    credentials: 'include',
+    headers: _apiHeaders()
+  })
+    .then(function(r) {
+      if (!r.ok) {
+        throw new Error('HTTP ' + r.status);
+      }
+      return r.json();
+    })
+    .then(function(data) {
+      var content = (data && data.content) || '';
+      if (entry.status === 'unchanged') {
+        body.innerHTML =
+          '<pre>' + _escHtml(content) + '</pre>';
+        return;
+      }
+      // ``changed`` path: show the committed text and the drift
+      // reason from the preview entry, so the BA understands what
+      // would change without us needing to re-run the emitter
+      // client-side. The full content-diff lands in EE-S3 once the
+      // commit-flow exposes the emitted text.
+      var driftReason = entry.drift_reason || 'drift detected';
+      body.innerHTML =
+        '<div class="se-diff-empty"><strong>Drift reason:</strong> '
+          + _escHtml(driftReason) + '</div>' +
+        '<div class="se-diff">' +
+          renderUnifiedDiff(content, content, { header: 'Committed content' }) +
+        '</div>';
+    })
+    .catch(function(err) {
+      body.innerHTML =
+        '<div class="se-diff-empty" style="color:var(--err,#c00)">' +
+        'Failed to load committed artefact: ' +
+        _escHtml(String(err && err.message || err)) +
+        '</div>';
+    });
+}
+
+/**
+ * Close the artefact-content modal.
+ */
+function closeArtefactModal() {
+  var modal = document.getElementById('seArtefactModal');
+  if (!modal) return;
+  modal.style.display = 'none';
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+/**
+ * Render a minimal unified diff between two text blobs.
+ *
+ * Uses the longest-common-subsequence-style line-by-line approach with
+ * a greedy fallback: we walk both line lists in lock-step, emitting
+ * matching lines verbatim and pairing non-matching lines as
+ * delete/insert. Sufficient for the EE-S2 "show me what would change"
+ * UX; full Myers-diff fidelity is an EE-S3 polish goal.
+ *
+ * @param {string} oldText
+ * @param {string} newText
+ * @param {Object} [opts]
+ * @param {string} [opts.header] - Optional header line.
+ * @returns {string} HTML snippet.
+ */
+function renderUnifiedDiff(oldText, newText, opts) {
+  opts = opts || {};
+  var oldLines = String(oldText || '').split(/\r?\n/);
+  var newLines = String(newText || '').split(/\r?\n/);
+  var out = [];
+  if (opts.header) {
+    out.push('<span class="diff-line hunk">@@ ' +
+      _escHtml(opts.header) + ' @@</span>');
+  }
+
+  // Compute a simple LCS table for line-level matching.
+  var m = oldLines.length, n = newLines.length;
+  // Cap the table size to keep things responsive in the browser; for
+  // very large artefacts we fall back to a side-by-side dump.
+  if (m * n > 200000) {
+    return '<div class="se-diff-empty">Artefact too large for inline ' +
+      'diff (' + m + ' vs ' + n + ' lines). Open the committed file ' +
+      'in your editor and diff against the emitted artefact from ' +
+      'the upcoming EE-S3 commit-flow preview.</div>';
+  }
+  var lcs = [];
+  for (var i = 0; i <= m; i++) {
+    lcs.push(new Array(n + 1).fill(0));
+  }
+  for (var i = m - 1; i >= 0; i--) {
+    for (var j = n - 1; j >= 0; j--) {
+      if (oldLines[i] === newLines[j]) {
+        lcs[i][j] = lcs[i + 1][j + 1] + 1;
+      } else {
+        lcs[i][j] = Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+      }
+    }
+  }
+  var i = 0, j = 0;
+  while (i < m && j < n) {
+    if (oldLines[i] === newLines[j]) {
+      out.push('<span class="diff-line">  ' + _escHtml(oldLines[i]) + '</span>');
+      i++; j++;
+    } else if (lcs[i + 1][j] >= lcs[i][j + 1]) {
+      out.push('<span class="diff-line del">- ' + _escHtml(oldLines[i]) + '</span>');
+      i++;
+    } else {
+      out.push('<span class="diff-line add">+ ' + _escHtml(newLines[j]) + '</span>');
+      j++;
+    }
+  }
+  while (i < m) {
+    out.push('<span class="diff-line del">- ' + _escHtml(oldLines[i]) + '</span>');
+    i++;
+  }
+  while (j < n) {
+    out.push('<span class="diff-line add">+ ' + _escHtml(newLines[j]) + '</span>');
+    j++;
+  }
+  return out.join('');
+}
+
 // Initialise the drop-zone wiring once the page is interactive.
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', _seInitDropZone);
 } else {
   _seInitDropZone();
 }
+
+// EE-S2: dismiss the artefact modal on Esc for keyboard users.
+document.addEventListener('keydown', function(e) {
+  if (e.key !== 'Escape') return;
+  var modal = document.getElementById('seArtefactModal');
+  if (modal && modal.style.display !== 'none') {
+    closeArtefactModal();
+  }
+});

@@ -71,3 +71,73 @@ def test_html_panel_appears_after_existing_tabs():
     assert onboarding_idx > downloader_idx, (
         "Source Editor tab should appear AFTER File Downloader in the nav"
     )
+
+
+# ---------------------------------------------------------------------------
+# EE-S2: tree view + artefact viewer + diff
+# ---------------------------------------------------------------------------
+
+
+def test_html_has_tree_structure():
+    """EE-S2: the panel must carry the new ``onboarding-tree`` container
+    plus the artefact-content modal."""
+    html = _read(_UI_HTML)
+    assert 'id="sePreviewTree"' in html, "Tree container missing"
+    assert 'class="onboarding-tree"' in html, "onboarding-tree class missing"
+    assert 'id="seArtefactModal"' in html, "Artefact modal missing"
+    assert 'id="seArtefactModalBody"' in html, "Modal body missing"
+    assert 'id="seArtefactModalTitle"' in html, "Modal title missing"
+
+
+def test_html_intro_documents_drift_badges():
+    """The intro paragraph must mention the three drift statuses so the
+    BA understands the colour key before clicking anything."""
+    html = _read(_UI_HTML)
+    intro_idx = html.find('class="se-intro"')
+    assert intro_idx != -1
+    intro_block = html[intro_idx:intro_idx + 800]
+    for status_token in ("new", "changed", "unchanged"):
+        assert status_token in intro_block, (
+            f"Intro paragraph missing the {status_token!r} status badge "
+            f"reference"
+        )
+
+
+def test_js_has_tree_render_handler():
+    """ui.js must expose the EE-S2 tree-render + drift-status helpers."""
+    js = _read(_UI_JS)
+    assert "renderOnboardingTree" in js, "renderOnboardingTree missing"
+    assert "viewArtefactContent" in js, "viewArtefactContent missing"
+    assert "closeArtefactModal" in js, "closeArtefactModal missing"
+    assert "/api/v2/onboarding/committed-artefact" in js, (
+        "Committed-artefact fetch URL missing"
+    )
+    # Kind tokens consumed by the section-rendering pass.
+    for kind in (
+        "source_yaml",
+        "mapping_json",
+        "rules_json",
+        "reconciliation_yaml",
+        "sql",
+    ):
+        assert "'" + kind + "'" in js, f"Kind token {kind!r} not present in JS"
+
+
+def test_js_has_diff_handler():
+    """ui.js must implement a unified-diff renderer (renderUnifiedDiff)."""
+    js = _read(_UI_JS)
+    assert "renderUnifiedDiff" in js, "renderUnifiedDiff function missing"
+    # Diff CSS markers — verifies the diff classes the renderer emits.
+    assert "diff-line" in js, "diff-line CSS class not emitted by JS"
+
+
+def test_css_has_tree_and_badge_styles():
+    """ui.css must carry the new tree / badge / diff style blocks."""
+    css = _read(_UI_CSS)
+    assert ".onboarding-tree" in css, ".onboarding-tree style missing"
+    assert ".onboarding-section" in css, ".onboarding-section style missing"
+    assert ".se-badge-new" in css, ".se-badge-new style missing"
+    assert ".se-badge-changed" in css, ".se-badge-changed style missing"
+    assert ".se-badge-unchanged" in css, ".se-badge-unchanged style missing"
+    assert ".se-modal" in css, ".se-modal style missing"
+    assert ".se-diff" in css, ".se-diff style missing"

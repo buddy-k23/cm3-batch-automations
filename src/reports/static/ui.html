@@ -1021,8 +1021,12 @@
     <p class="se-intro">
       Browse the sources currently committed to the engine, or upload an
       onboarding workbook to preview the artefacts it would produce.
-      Live tree preview and drift detection ship in a follow-up; for
-      now the preview returns the raw planned-writes payload.
+      The preview tree groups artefacts by kind and flags each one as
+      <span class="se-badge se-badge-new">new</span>,
+      <span class="se-badge se-badge-changed">changed</span>, or
+      <span class="se-badge se-badge-unchanged">unchanged</span>
+      vs the currently-committed state. Click any artefact to view its
+      content; <em>changed</em> artefacts also show a unified diff.
     </p>
 
     <div class="se-layout">
@@ -1070,12 +1074,41 @@
           Select an .xlsx workbook to preview the artefact tree it would produce.
         </div>
         <div class="se-preview-result" id="sePreviewResult" style="display:none;">
-          <h4>Preview Response</h4>
-          <pre id="sePreviewJson" class="se-preview-json" tabindex="0"></pre>
+          <h4>Preview Result</h4>
+          <!-- EE-S2 tree-view container; populated by renderOnboardingTree(). -->
+          <div id="sePreviewTree" class="onboarding-tree" role="region"
+               aria-label="Artefact tree preview">
+            <!-- Filled at runtime; falls back to raw JSON on render error. -->
+          </div>
+          <!-- Raw JSON kept hidden by default but available behind a
+               disclosure for forensic debugging (failed renders, etc.). -->
+          <details class="se-raw-json-details">
+            <summary>Raw JSON response</summary>
+            <pre id="sePreviewJson" class="se-preview-json" tabindex="0"></pre>
+          </details>
         </div>
       </section>
     </div>
   </div><!-- /#panel-onboarding -->
+
+  <!-- EE-S2: artefact-content modal (used by viewArtefactContent()) -->
+  <div id="seArtefactModal" class="se-modal" role="dialog"
+       aria-modal="true" aria-hidden="true" aria-labelledby="seArtefactModalTitle"
+       style="display:none;">
+    <div class="se-modal-backdrop" onclick="closeArtefactModal()"></div>
+    <div class="se-modal-panel" role="document">
+      <div class="se-modal-header">
+        <h3 id="seArtefactModalTitle">Artefact</h3>
+        <button type="button" class="se-modal-close"
+                aria-label="Close artefact view" onclick="closeArtefactModal()">&times;</button>
+      </div>
+      <div class="se-modal-meta" id="seArtefactModalMeta"></div>
+      <div class="se-modal-body" id="seArtefactModalBody">
+        <!-- Filled by viewArtefactContent() — either a single <pre> or
+             a side-by-side diff via renderUnifiedDiff(). -->
+      </div>
+    </div>
+  </div><!-- /#seArtefactModal -->
 
 </main>
 

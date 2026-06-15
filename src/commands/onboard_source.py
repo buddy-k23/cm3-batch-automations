@@ -57,6 +57,18 @@ from typing import Any, Iterable
 import click
 import yaml
 
+from src.onboarding.drift import (
+    ArtefactStatus,
+    compare_artefact_payload,
+    load_committed_artefact as _shared_load_committed_artefact,
+    normalise_metadata_for_compare as _shared_normalise_metadata_for_compare,
+    normalise_sql_for_compare as _shared_normalise_sql_for_compare,
+    parse_emitted_artefact as _shared_parse_emitted_artefact,
+    path_basename as _shared_path_basename,
+    strip_metadata as _shared_strip_metadata,
+    summarise_dict_drift as _shared_summarise_dict_drift,
+    extract_committed_timestamp as _shared_extract_committed_timestamp,
+)
 from src.onboarding.emitters import EmitterError
 from src.onboarding.emitters.mapping_emitter import (
     EmittedMappingArtefact,
@@ -336,223 +348,47 @@ def _plan_writes(
 
 
 def _strip_metadata(data: Any) -> Any:
-    """Return ``data`` with the converter-generated ``metadata`` block dropped.
+    """Deprecated alias — see :func:`src.onboarding.drift.strip_metadata`.
 
-    Pre-EC-S10 fallback used when ``--check`` cannot auto-extract
-    timestamps from the committed artefact (e.g. committed file missing
-    the ``metadata`` key entirely, or operator passed an explicit
-    ``--frozen-timestamp`` that happens to mismatch every committed
-    value). EC-S10 prefers :func:`_normalise_metadata_for_compare`
-    which preserves the metadata block while neutralising only the
-    irreducibly-variable fields.
-
-    Args:
-        data: A dict loaded from a converter-produced JSON/YAML
-            artefact, or any other value (passed through unchanged).
-
-    Returns:
-        ``data`` with the top-level ``metadata`` key removed when
-        ``data`` is a dict; otherwise returned as-is.
+    Kept for backwards compatibility with any external import of this
+    private helper. New code should call the shared helper directly.
     """
-    if isinstance(data, dict):
-        return {k: v for k, v in data.items() if k != "metadata"}
-    return data
+    return _shared_strip_metadata(data)
 
 
 def _normalise_metadata_for_compare(
     emitted: Any, committed: Any
 ) -> tuple[Any, Any]:
-    """Normalise both sides' ``metadata`` blocks so byte equality is meaningful (EC-S10).
+    """Deprecated alias — see :func:`src.onboarding.drift.normalise_metadata_for_compare`.
 
-    Two converter-embedded fields are irreducibly variable between the
-    emitter and the on-disk committed file:
-
-      * ``created_date`` / ``last_modified`` -- the converter calls
-        ``datetime.utcnow()`` on every run unless ``frozen_timestamp``
-        was set. The committed JSON carries whatever timestamp the
-        operator who first generated it had on their workstation; the
-        emitter (without a timestamp explicitly threaded) has the
-        current time. Both are equally "correct" -- semantically these
-        fields are just an audit hint, not part of the schema.
-
-      * ``source_template`` / ``template_path`` -- the committed JSONs
-        carry Windows-style absolute paths from the historical
-        CSV-driven authoring workflow (e.g.
-        ``mappings\\csv\\shaw_tranert\\SHAW_TRANERT_BATCH_HEADER_mapping.csv``).
-        The workbook-driven emitter passes a synthetic POSIX-style
-        basename (``SHAW_TRANERT_BATCH_HEADER_mapping.csv``). The two
-        paths point at the same logical template -- the comparison
-        should ignore the directory part and treat ``\\`` / ``/``
-        identically. We coerce both sides to the trailing component
-        only (``Path.name``).
-
-    The function returns two copies (emitted and committed) with both
-    fields rewritten so a deep dict equality check is meaningful for
-    every other field (i.e. real schema drift still surfaces as
-    drift).
-
-    Args:
-        emitted: The dict produced by the emitter (or ``None`` /
-            non-dict; passed through).
-        committed: The dict loaded from disk (or ``None`` / non-dict;
-            passed through).
-
-    Returns:
-        Tuple ``(emitted_normalised, committed_normalised)``. Both
-        sides are deep-copied (the metadata block is rewritten in
-        place on the copy) so callers can mutate without affecting
-        the originals.
+    Kept for backwards compatibility. EE-S2 promoted this helper into
+    :mod:`src.onboarding.drift` so both the CLI and the API layer can
+    share one equivalence contract; this thin wrapper preserves the
+    historical private import path.
     """
-    if not (isinstance(emitted, dict) and isinstance(committed, dict)):
-        return emitted, committed
-
-    emitted_copy = {**emitted}
-    committed_copy = {**committed}
-
-    emitted_meta = emitted_copy.get("metadata")
-    committed_meta = committed_copy.get("metadata")
-    if isinstance(emitted_meta, dict) and isinstance(committed_meta, dict):
-        emitted_meta = {**emitted_meta}
-        committed_meta = {**committed_meta}
-
-        # EC-S10: auto-extract -- substitute committed timestamps into
-        # the emitted block. If the committed block lacks a particular
-        # timestamp key, the emitted value is dropped too (symmetric).
-        for ts_key in ("created_date", "last_modified"):
-            if ts_key in committed_meta:
-                emitted_meta[ts_key] = committed_meta[ts_key]
-            elif ts_key in emitted_meta:
-                # Committed has none; drop the emitter-side so the
-                # comparison does not surface this as drift.
-                emitted_meta.pop(ts_key, None)
-
-        # Basename-only comparison for the two path fields. The
-        # converter stores ``source_template`` (mapping converter) and
-        # ``template_path`` (rules converter); both are file paths to
-        # the originating CSV/XLSX template.
-        for path_key in ("source_template", "template_path"):
-            if path_key in committed_meta:
-                committed_meta[path_key] = _path_basename(
-                    committed_meta[path_key]
-                )
-            if path_key in emitted_meta:
-                emitted_meta[path_key] = _path_basename(
-                    emitted_meta[path_key]
-                )
-
-        emitted_copy["metadata"] = emitted_meta
-        committed_copy["metadata"] = committed_meta
-
-    return emitted_copy, committed_copy
+    return _shared_normalise_metadata_for_compare(emitted, committed)
 
 
 def _normalise_sql_for_compare(text: str) -> str:
-    """Collapse SQL text for whitespace-tolerant structural comparison (ED-S2).
-
-    The committed ``expected_*.sql`` files use hand-curated multi-space
-    column alignment, leading comment blocks, and trailing-newline
-    quirks; the emitter produces a canonical single-space layout. ED-S2
-    targets structural equivalence (same columns, same FROM, same
-    WHERE) and defers byte-equality to ED-S4 (Sprint 4). The comparison
-    therefore:
-
-      * Strips ``-- ...`` line comments (committed files document the
-        record type; the emitter does not yet emit comments).
-      * Collapses every run of whitespace (including newlines) to a
-        single space.
-      * Strips leading/trailing whitespace from the final string.
-
-    Two SQL strings comparing equal after this transformation have
-    the same column count, same alias spellings, same FROM clause,
-    same WHERE clause -- the structural contract ED-S2 promises.
-
-    Args:
-        text: A SQL document (emitted or committed).
-
-    Returns:
-        The whitespace-collapsed, comment-stripped form.
-    """
-    import re as _re
-
-    no_comments = _re.sub(r"--[^\n]*", "", text)
-    return _re.sub(r"\s+", " ", no_comments).strip()
+    """Deprecated alias — see :func:`src.onboarding.drift.normalise_sql_for_compare`."""
+    return _shared_normalise_sql_for_compare(text)
 
 
 def _path_basename(value: Any) -> Any:
-    """Return ``value``'s trailing path component, treating ``\\`` like ``/``.
-
-    Used by :func:`_normalise_metadata_for_compare` so the Windows-style
-    historical paths in the committed JSONs compare equal to the
-    POSIX-style synthetic basenames the emitter produces. Non-string
-    inputs are passed through unchanged for safety.
-
-    Args:
-        value: A string filesystem path (Windows or POSIX) or any
-            other value.
-
-    Returns:
-        The trailing path component when ``value`` is a string, or
-        ``value`` unchanged otherwise.
-    """
-    if not isinstance(value, str):
-        return value
-    # Coerce Windows separators to POSIX so Path() behaves identically
-    # regardless of which OS authored the committed file.
-    return Path(value.replace("\\", "/")).name
+    """Deprecated alias — see :func:`src.onboarding.drift.path_basename`."""
+    return _shared_path_basename(value)
 
 
 def _extract_committed_timestamp(data: Any) -> str | None:
-    """Pull a deterministic timestamp out of a committed artefact's metadata.
-
-    Used by the ``--check`` mode to auto-derive a per-artefact
-    ``frozen_timestamp`` for the comparison. The returned string is
-    fed back into the emitter on the comparison path (or more
-    precisely, it's the value we substitute into the emitted artefact
-    via :func:`_normalise_metadata_for_compare`).
-
-    Args:
-        data: A dict loaded from a committed JSON / YAML artefact, or
-            any other value.
-
-    Returns:
-        The committed ``metadata.created_date`` string when present,
-        else ``None``.
-    """
-    if not isinstance(data, dict):
-        return None
-    metadata = data.get("metadata")
-    if not isinstance(metadata, dict):
-        return None
-    value = metadata.get("created_date")
-    if isinstance(value, str):
-        return value
-    return None
+    """Deprecated alias — see :func:`src.onboarding.drift.extract_committed_timestamp`."""
+    return _shared_extract_committed_timestamp(data)
 
 
 def _load_committed_artefact(
     path: Path, category: str
 ) -> tuple[Any, bool]:
-    """Load a committed artefact for ``--check`` comparison.
-
-    Args:
-        path: On-disk path of the committed artefact.
-        category: The artefact category (``"source_yaml"`` /
-            ``"mapping"`` / ``"rules"``).
-
-    Returns:
-        A tuple ``(parsed_data, exists)``. When the file is absent
-        ``exists=False`` and ``parsed_data`` is ``None``. When parse
-        fails the exception propagates -- the CLI surfaces it as a
-        drift entry rather than crashing the whole run.
-    """
-    if not path.exists():
-        return None, False
-    text = path.read_text(encoding="utf-8")
-    if category == "source_yaml":
-        return yaml.safe_load(text), True
-    if path.suffix == ".yaml" or path.suffix == ".yml":
-        return yaml.safe_load(text), True
-    return json.loads(text), True
+    """Deprecated alias — see :func:`src.onboarding.drift.load_committed_artefact`."""
+    return _shared_load_committed_artefact(path, category)
 
 
 def _parse_emitted_artefact(plan: _PlannedWrite) -> Any:
@@ -565,11 +401,7 @@ def _parse_emitted_artefact(plan: _PlannedWrite) -> Any:
         The parsed data (YAML for ``.yml``/``.yaml`` artefacts and the
         source YAML; JSON for everything else).
     """
-    if plan.category == "source_yaml":
-        return yaml.safe_load(plan.content)
-    if plan.path.suffix in {".yaml", ".yml"}:
-        return yaml.safe_load(plan.content)
-    return json.loads(plan.content)
+    return _shared_parse_emitted_artefact(plan.content, plan.category, plan.path)
 
 
 def _compare_artefact(
@@ -577,21 +409,10 @@ def _compare_artefact(
 ) -> tuple[bool, str | None]:
     """Compare one emitted artefact against its committed counterpart.
 
-    Uses the equivalence contract appropriate for the category:
-
-        * ``source_yaml`` -- semantic YAML equality (no metadata
-          normalisation; YAML config has no converter-embedded
-          timestamps).
-        * ``mapping`` / ``rules`` -- post-EC-S10 normalisation: the
-          emitted and committed ``metadata.created_date`` /
-          ``metadata.last_modified`` timestamps are unified
-          (committed wins) and the ``source_template`` /
-          ``template_path`` fields are coerced to basename-only
-          (Windows ``\\`` / POSIX ``/`` separators are normalised
-          first). Every other field including the rest of the
-          ``metadata`` block (``created_by``, ``name``, ``description``,
-          ``template_type``) is compared verbatim, so real schema
-          drift still surfaces as drift.
+    Thin wrapper over :func:`src.onboarding.drift.compare_artefact_payload`
+    that adapts the EE-S2 three-state status enum back to the historical
+    ``(matches, drift_message)`` tuple shape the CLI's drift report
+    consumes.
 
     Args:
         plan: The planned write to compare.
@@ -601,76 +422,19 @@ def _compare_artefact(
         message is ``None``. Otherwise the message is a single-line
         explanation suitable for inclusion in the CLI drift report.
     """
-    # ED-S2: expected SQL artefacts are compared whitespace-normalised
-    # because the committed files use hand-curated column alignment
-    # (multi-space padding for readability) while the emitter produces
-    # canonical single-space spacing. Byte-equivalence is an explicit
-    # ED-S4 polish goal; ED-S2 ships structural equivalence only.
-    if plan.category == "sql":
-        if not plan.path.exists():
-            return False, "committed file does not exist (would be created)"
-        committed_sql = plan.path.read_text(encoding="utf-8")
-        if _normalise_sql_for_compare(plan.content) == _normalise_sql_for_compare(
-            committed_sql
-        ):
-            return True, None
-        return False, "SQL structural drift (whitespace-normalised diff)"
-
-    emitted_data = _parse_emitted_artefact(plan)
-    committed_data, exists = _load_committed_artefact(plan.path, plan.category)
-
-    if not exists:
-        return False, f"committed file does not exist (would be created)"
-
-    if plan.category in {"source_yaml", "reconciliation"}:
-        # Source YAML and reconciliation YAML carry no converter-embedded
-        # timestamps — direct semantic equality via ``yaml.safe_load`` is
-        # the correct equivalence contract.
-        if emitted_data == committed_data:
-            return True, None
-        return False, _summarise_dict_drift(emitted_data, committed_data)
-
-    # mapping / rules -- EC-S10 metadata normalisation:
-    #   * substitute committed timestamps into the emitted block;
-    #   * coerce path-style metadata fields to basenames.
-    emitted_norm, committed_norm = _normalise_metadata_for_compare(
-        emitted_data, committed_data
+    status, drift_msg = compare_artefact_payload(
+        plan.path, plan.content, plan.category
     )
-    if emitted_norm == committed_norm:
+    if status == ArtefactStatus.UNCHANGED:
         return True, None
-    return False, _summarise_dict_drift(emitted_norm, committed_norm)
+    if status == ArtefactStatus.NEW:
+        return False, "committed file does not exist (would be created)"
+    return False, drift_msg or "drift detected"
 
 
 def _summarise_dict_drift(emitted: Any, committed: Any) -> str:
-    """Produce a short human-readable summary of structural drift.
-
-    Best-effort: surfaces the first divergent top-level key when both
-    sides are dicts, else falls back to a generic "values differ"
-    message. Detailed diffs are out of scope -- operators can re-run
-    the emitter and diff the artefact against the committed file by
-    hand for forensic investigation.
-
-    Args:
-        emitted: The emitted (in-memory) artefact structure.
-        committed: The committed (on-disk) artefact structure.
-
-    Returns:
-        A one-line drift summary suitable for the CLI report.
-    """
-    if isinstance(emitted, dict) and isinstance(committed, dict):
-        emitted_keys = set(emitted.keys())
-        committed_keys = set(committed.keys())
-        only_emitted = sorted(emitted_keys - committed_keys)
-        only_committed = sorted(committed_keys - emitted_keys)
-        if only_emitted:
-            return f"emitted has extra key(s): {only_emitted}"
-        if only_committed:
-            return f"committed has extra key(s): {only_committed}"
-        # Same keys -- find the first one whose value differs.
-        for key in emitted_keys:
-            if emitted[key] != committed[key]:
-                return f"value for key '{key}' differs"
-    return "structural values differ"
+    """Deprecated alias — see :func:`src.onboarding.drift.summarise_dict_drift`."""
+    return _shared_summarise_dict_drift(emitted, committed)
 
 
 # ---------------------------------------------------------------------------

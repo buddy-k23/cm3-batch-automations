@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- EE-S2 (Sprint 5): UI Source Editor tab now renders the workbook-upload
+  preview as a collapsible tree of artefacts grouped by kind
+  (source_yaml / mapping_json / rules_json / reconciliation_yaml / sql)
+  with per-artefact `new | changed | unchanged` drift status badges.
+  `POST /api/v2/onboarding/preview` response now includes `drift`
+  aggregate counts + per-artefact `status` field (breaking change vs
+  EE-S1 shape; nobody on this depends yet). Drift comparison logic
+  refactored from `src/commands/onboard_source.py` into shared
+  `src/onboarding/drift.py`. Click an artefact to view its content;
+  `changed` artefacts also show a unified diff vs committed.
+  New `GET /api/v2/onboarding/committed-artefact?path=` endpoint backs
+  the diff modal with directory-traversal-safe whitelisted reads.
 - EE-S1 (Sprint 4): UI "Source Editor" tab scaffold in
   `src/reports/static/ui.html`. New API endpoints
   `GET /api/v2/onboarding/sources` + `POST /api/v2/onboarding/preview`

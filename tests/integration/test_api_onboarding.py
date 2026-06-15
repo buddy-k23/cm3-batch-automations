@@ -251,6 +251,248 @@ def test_post_preview_rejects_non_xlsx_extension(client: TestClient):
 # ---------------------------------------------------------------------------
 
 
+def test_preview_response_includes_drift_status(client: TestClient):
+    """EE-S2: preview response carries per-artefact ``status`` + aggregate drift.
+
+    Uploads the canonical SHAW workbook and asserts the EE-S2 shape:
+
+      * Every ``would_write`` entry has a ``status`` of ``"new"`` /
+        ``"changed"`` / ``"unchanged"``.
+      * The ``summary`` carries a ``drift`` block with the three
+        counts; the sum equals ``total_files``.
+    """
+    assert _SHAW_WORKBOOK.is_file()
+    with _SHAW_WORKBOOK.open("rb") as fh:
+        resp = client.post(
+            "/api/v2/onboarding/preview",
+            files={
+                "file": (
+                    "SHAW_onboarding.xlsx",
+                    fh,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ),
+            },
+            headers=_AUTH_HEADERS,
+        )
+    assert resp.status_code == 200, resp.text
+    payload = resp.json()
+
+    would_write = payload.get("would_write") or []
+    assert would_write, payload
+    valid_statuses = {"new", "changed", "unchanged"}
+    for entry in would_write:
+        assert entry.get("status") in valid_statuses, entry
+
+    summary = payload.get("summary") or {}
+    drift = summary.get("drift")
+    assert isinstance(drift, dict), summary
+    for token in ("new", "changed", "unchanged"):
+        assert token in drift, drift
+        assert isinstance(drift[token], int), drift
+        assert drift[token] >= 0, drift
+
+    # Aggregate sanity check: per-status counts equal the artefact count.
+    assert drift["new"] + drift["changed"] + drift["unchanged"] == len(
+        would_write
+    ), (drift, len(would_write))
+    assert summary.get("total_files") == len(would_write), summary
+
+
+def test_preview_response_distinguishes_new_changed_unchanged(
+    client: TestClient, tmp_path: Path, monkeypatch
+):
+    """EE-S2: artefacts comparing against different committed states get
+    different statuses.
+
+    We build a synthetic 3-source layout the planner will write under:
+
+      * One artefact path that has NO committed file → ``new``.
+      * One artefact path that has a byte-identical committed file →
+        ``unchanged``.
+      * One artefact path that has a deliberately-mutated committed
+        file → ``changed``.
+
+    We achieve this by redirecting ``Path.cwd()`` to a tmp directory
+    seeded with a tweaked copy of the real ``config/`` tree.
+
+    The test relies on the canonical SHAW workbook producing a deep
+    tree that, when run against an empty cwd, generates all-``new``
+    artefacts. We then seed a SUBSET of those paths under the tmp cwd
+    — verbatim for one, mutated for another — and assert the three
+    statuses all show up.
+    """
+    # Stage a tmp "repo root" the planner will resolve paths against.
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    monkeypatch.chdir(repo_dir)
+
+    # First pass: run the preview with no committed state — every
+    # entry should land as ``new``.
+    with _SHAW_WORKBOOK.open("rb") as fh:
+        resp = client.post(
+            "/api/v2/onboarding/preview",
+            files={
+                "file": (
+                    "SHAW_onboarding.xlsx",
+                    fh,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ),
+            },
+            headers=_AUTH_HEADERS,
+        )
+    assert resp.status_code == 200, resp.text
+    payload = resp.json()
+    would_write = payload.get("would_write") or []
+    assert would_write, payload
+    statuses = {e["status"] for e in would_write}
+    assert statuses == {"new"}, statuses
+    assert payload["summary"]["drift"]["new"] == len(would_write)
+    assert payload["summary"]["drift"]["changed"] == 0
+    assert payload["summary"]["drift"]["unchanged"] == 0
+
+    # Stash the source YAML (a mapping JSON content for second source)
+    # so we can write committed copies of two artefacts before pass 2.
+    mapping_entries = [
+        e for e in would_write if e["kind"] == "mapping_json"
+    ]
+    assert mapping_entries, would_write
+    unchanged_entry = mapping_entries[0]
+    changed_entry = mapping_entries[1] if len(mapping_entries) > 1 else None
+    assert changed_entry is not None, mapping_entries
+
+    # Re-run the planner ourselves to grab the byte-identical content
+    # the next API call will emit (so we can pre-seed it as committed).
+    from src.commands.onboard_source import _plan_writes
+    from src.onboarding.workbook_reader import read_workbook
+
+    workbook = read_workbook(_SHAW_WORKBOOK)
+    plans = _plan_writes(
+        workbook,
+        output_root=repo_dir,
+        source_dir=None,
+        mapping_dir=None,
+        rules_dir=None,
+        reconciliation_dir=None,
+        sql_dir=None,
+        frozen_timestamp=None,
+    )
+
+    by_display = {}
+    for plan in plans:
+        try:
+            display = plan.path.resolve().relative_to(repo_dir).as_posix()
+        except ValueError:
+            display = plan.path.as_posix()
+        by_display[display] = plan
+
+    # Seed ``unchanged_entry`` verbatim — the EC-S10 normalisation in the
+    # drift helper auto-extracts timestamps, so byte-equal is the right
+    # bar here.
+    unchanged_plan = by_display[unchanged_entry["path"]]
+    unchanged_plan.path.parent.mkdir(parents=True, exist_ok=True)
+    unchanged_plan.path.write_text(unchanged_plan.content, encoding="utf-8")
+
+    # Seed ``changed_entry`` with mutated content — flip an obvious
+    # field so the JSON parses but the deep-equality check rejects.
+    changed_plan = by_display[changed_entry["path"]]
+    mutated = changed_plan.content.replace(
+        '"file_type":', '"file_type_renamed":', 1
+    )
+    if mutated == changed_plan.content:
+        # Fall back to a guaranteed-divergent payload.
+        mutated = '{"unrelated": "payload"}'
+    changed_plan.path.parent.mkdir(parents=True, exist_ok=True)
+    changed_plan.path.write_text(mutated, encoding="utf-8")
+
+    # Second pass: the preview should now show one ``unchanged`` +
+    # one ``changed`` + remaining ``new``.
+    with _SHAW_WORKBOOK.open("rb") as fh:
+        resp2 = client.post(
+            "/api/v2/onboarding/preview",
+            files={
+                "file": (
+                    "SHAW_onboarding.xlsx",
+                    fh,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ),
+            },
+            headers=_AUTH_HEADERS,
+        )
+    assert resp2.status_code == 200, resp2.text
+    payload2 = resp2.json()
+
+    by_path = {e["path"]: e for e in payload2["would_write"]}
+    assert by_path[unchanged_entry["path"]]["status"] == "unchanged", (
+        by_path[unchanged_entry["path"]]
+    )
+    changed_resp = by_path[changed_entry["path"]]
+    assert changed_resp["status"] == "changed", changed_resp
+    assert "drift_reason" in changed_resp, changed_resp
+
+    drift = payload2["summary"]["drift"]
+    assert drift["unchanged"] >= 1
+    assert drift["changed"] >= 1
+    assert drift["new"] >= 1
+
+
+def test_get_committed_artefact_returns_content_for_whitelisted_path(
+    client: TestClient, tmp_path: Path, monkeypatch
+):
+    """EE-S2: the diff-backing endpoint returns the file content for an
+    artefact under a whitelisted directory."""
+    repo_dir = tmp_path / "repo"
+    target = repo_dir / "config" / "mappings" / "SAMPLE.json"
+    target.parent.mkdir(parents=True)
+    target.write_text('{"hello": "world"}', encoding="utf-8")
+    monkeypatch.chdir(repo_dir)
+
+    resp = client.get(
+        "/api/v2/onboarding/committed-artefact",
+        params={"path": "config/mappings/SAMPLE.json"},
+        headers=_AUTH_HEADERS,
+    )
+    assert resp.status_code == 200, resp.text
+    payload = resp.json()
+    assert payload["path"] == "config/mappings/SAMPLE.json"
+    assert payload["content"] == '{"hello": "world"}'
+    assert payload["bytes"] == len('{"hello": "world"}')
+
+
+def test_get_committed_artefact_rejects_directory_traversal(client: TestClient):
+    """EE-S2: traversal payloads (``../../etc/passwd``) get 400, not 200."""
+    resp = client.get(
+        "/api/v2/onboarding/committed-artefact",
+        params={"path": "../../etc/passwd"},
+        headers=_AUTH_HEADERS,
+    )
+    assert resp.status_code == 400, resp.text
+
+
+def test_get_committed_artefact_rejects_off_whitelist_prefix(client: TestClient):
+    """EE-S2: paths outside the artefact directories return 400."""
+    resp = client.get(
+        "/api/v2/onboarding/committed-artefact",
+        params={"path": "src/api/main.py"},
+        headers=_AUTH_HEADERS,
+    )
+    assert resp.status_code == 400, resp.text
+
+
+def test_get_committed_artefact_returns_404_for_missing_file(
+    client: TestClient, tmp_path: Path, monkeypatch
+):
+    """EE-S2: a whitelisted path that doesn't exist returns 404."""
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    monkeypatch.chdir(repo_dir)
+    resp = client.get(
+        "/api/v2/onboarding/committed-artefact",
+        params={"path": "config/mappings/NOPE.json"},
+        headers=_AUTH_HEADERS,
+    )
+    assert resp.status_code == 404, resp.text
+
+
 def test_post_preview_does_not_touch_disk(client: TestClient):
     """Preview must not create any new files under the repo's config/ tree.
 

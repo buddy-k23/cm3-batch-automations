@@ -2126,3 +2126,366 @@
   outline: 2px solid var(--accent, #4a9eff);
   outline-offset: 2px;
 }
+
+/* ===========================================================================
+ * EE-S2: artefact tree, drift badges, content viewer modal
+ * ---------------------------------------------------------------------------
+ * The tree groups artefacts by kind (source_yaml / mapping_json /
+ * rules_json / reconciliation_yaml / sql) with a per-kind collapsible
+ * section. Status badges use the project's three-status colour idiom
+ * (green=unchanged, amber=changed, blue=new) consistent with the Quick
+ * Test result tiles.
+ * =========================================================================== */
+.onboarding-tree { margin-top: 4px; }
+
+.onboarding-tree-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-secondary, var(--surface));
+}
+
+.onboarding-tree-summary .ot-summary-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.onboarding-tree-summary .ot-summary-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.onboarding-tree-summary .ot-summary-block {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.onboarding-tree-summary .ot-summary-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--border);
+}
+
+.onboarding-section {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 10px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+/* <details>/<summary> are the semantically-correct collapsible primitive;
+   we restyle them so they match the rest of the design. */
+.onboarding-section[open] > .onboarding-section-header {
+  border-bottom: 1px solid var(--border);
+}
+
+.onboarding-section-header {
+  list-style: none;
+  cursor: pointer;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  user-select: none;
+}
+
+.onboarding-section-header::-webkit-details-marker { display: none; }
+.onboarding-section-header::marker { content: ''; }
+
+.onboarding-section-header .ot-caret {
+  display: inline-block;
+  width: 10px;
+  font-size: 10px;
+  color: var(--text-secondary);
+  transition: transform 0.15s ease;
+}
+.onboarding-section[open] > .onboarding-section-header .ot-caret {
+  transform: rotate(90deg);
+}
+
+.onboarding-section-header .ot-kind-label {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text-primary);
+}
+
+.onboarding-section-header .ot-kind-count {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+
+.onboarding-section-header .ot-kind-status-summary {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.onboarding-section-body {
+  padding: 0;
+}
+
+.onboarding-section-body table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.onboarding-section-body th,
+.onboarding-section-body td {
+  text-align: left;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.onboarding-section-body tr:last-child td { border-bottom: none; }
+
+.onboarding-section-body th {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  background: var(--bg-secondary, transparent);
+}
+
+.onboarding-section-body td.ot-path {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+.onboarding-section-body td.ot-bytes {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.onboarding-section-body td.ot-status { white-space: nowrap; }
+
+.onboarding-section-body td.ot-action { text-align: right; white-space: nowrap; }
+
+.onboarding-section-body button.ot-view-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  color: var(--text-primary);
+}
+.onboarding-section-body button.ot-view-btn:hover {
+  border-color: var(--accent, #4a9eff);
+}
+.onboarding-section-body button.ot-view-btn:focus {
+  outline: 2px solid var(--accent, #4a9eff);
+  outline-offset: 1px;
+}
+
+/* Status badges — three colours per the EE-S2 spec. Each token has an
+   accessible name (the text content) and a colour cue. */
+.se-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.se-badge-new {
+  color: #1d4ed8;
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.35);
+}
+
+.se-badge-changed {
+  color: #92400e;
+  background: rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.se-badge-unchanged {
+  color: #14532d;
+  background: rgba(34, 197, 94, 0.15);
+  border-color: rgba(34, 197, 94, 0.4);
+}
+
+.se-badge-zero {
+  color: var(--text-secondary);
+  background: transparent;
+  border-color: var(--border);
+}
+
+.onboarding-drift-reason {
+  display: block;
+  font-size: 10px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+  font-style: italic;
+}
+
+.se-raw-json-details {
+  margin-top: 14px;
+  font-size: 12px;
+}
+
+.se-raw-json-details > summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+  padding: 4px 0;
+}
+
+.se-raw-json-details .se-preview-json { margin-top: 8px; }
+
+/* ---------------------------------------------------------------------------
+ * Artefact-content modal
+ * ------------------------------------------------------------------------- */
+.se-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+}
+
+.se-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.se-modal-panel {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(960px, 92vw);
+  max-height: 86vh;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.se-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  gap: 12px;
+}
+
+.se-modal-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text-primary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  overflow-wrap: anywhere;
+}
+
+.se-modal-close {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 22px;
+  cursor: pointer;
+  padding: 0 6px;
+  line-height: 1;
+}
+.se-modal-close:hover { color: var(--text-primary); }
+.se-modal-close:focus {
+  outline: 2px solid var(--accent, #4a9eff);
+  outline-offset: 2px;
+}
+
+.se-modal-meta {
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-secondary);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.se-modal-body {
+  flex: 1;
+  overflow: auto;
+  padding: 14px 18px;
+  background: var(--bg-secondary, var(--surface));
+}
+
+.se-modal-body pre {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  white-space: pre;
+  overflow: auto;
+}
+
+/* Unified diff colour palette — same hues as the badges so the visual
+   correspondence is obvious. */
+.se-diff {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+
+.se-diff .diff-line {
+  display: block;
+  white-space: pre;
+  padding: 0 6px;
+}
+
+.se-diff .diff-line.add {
+  background: rgba(34, 197, 94, 0.15);
+  color: #14532d;
+}
+
+.se-diff .diff-line.del {
+  background: rgba(248, 113, 113, 0.18);
+  color: #7f1d1d;
+}
+
+.se-diff .diff-line.hunk {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.se-diff-empty {
+  color: var(--text-secondary);
+  font-style: italic;
+  padding: 12px;
+}
+
+.se-diff-loading {
+  color: var(--text-secondary);
+  padding: 12px;
+}

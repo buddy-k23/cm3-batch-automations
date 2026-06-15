@@ -43,7 +43,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import yaml
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
 
 logger = logging.getLogger(__name__)
 
@@ -206,14 +206,131 @@ async def list_sources() -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# POST /api/v2/onboarding/preview
+# POST /api/v2/onboarding/preview — EE-S2 drift enrichment
 # ---------------------------------------------------------------------------
+
+# Kind tokens surfaced in the preview's ``would_write`` entries. Mirrors
+# the constant the EF-S5 MCP helper uses (``src.mcp.onboarding_tools._KIND_BY_CATEGORY``)
+# so the agent surface and the browser surface always speak the same
+# vocabulary; tests pin this exact set in
+# ``tests/integration/test_api_onboarding.py``.
+_KIND_BY_CATEGORY: Dict[str, str] = {
+    "source_yaml": "source_yaml",
+    "mapping": "mapping_json",
+    "rules": "rules_json",
+    "reconciliation": "reconciliation_yaml",
+    "sql": "sql",
+}
 
 
 # Limit the upload size so a malicious / fat-finger upload cannot fill
 # the FastAPI process's tmpfs. 25 MB is generous for an .xlsx — the
 # SHAW workbook in this repo is under 200 KB.
 _MAX_UPLOAD_BYTES = 25 * 1024 * 1024
+
+
+def _build_preview_payload(workbook_path: Path) -> Dict[str, Any]:
+    """Drive the EC-S6 planner and assemble the EE-S2 preview response.
+
+    This replaces the EE-S1 thin delegation to the MCP helper because
+    EE-S2 needs the *raw* :class:`_PlannedWrite` objects (path,
+    content, category) to call into :func:`src.onboarding.drift.compare_artefact_payload`
+    per artefact. The MCP helper drops ``content`` and ``path`` before
+    returning, so reusing it would force a second emitter pass.
+
+    The flow:
+
+    1. Read the workbook via the EC-S2 reader.
+    2. Run :func:`src.commands.onboard_source._plan_writes` for the
+       full artefact list (source YAML + mappings + rules +
+       reconciliation YAML + expected SQL).
+    3. For each plan, compare against the committed counterpart using
+       the shared drift helper and build a ``would_write`` entry with
+       ``path``, ``bytes``, ``kind``, and ``status``.
+    4. Aggregate the per-status counts into ``summary.drift``.
+
+    Args:
+        workbook_path: Filesystem path to the uploaded ``.xlsx``.
+
+    Returns:
+        The full preview payload (``source_code``, ``would_write``,
+        ``summary``) including EE-S2's per-artefact ``status`` and
+        aggregate ``drift`` block.
+
+    Raises:
+        WorkbookReadError / WorkbookSchemaError / EmitterError:
+            Propagated to the caller, which maps them to a 422.
+    """
+    # Lazy import: the EC-S6 module pulls openpyxl + every emitter and
+    # we don't want to pay that cost on a plain ``GET /sources`` request.
+    from src.commands.onboard_source import _plan_writes
+    from src.onboarding.drift import compare_artefact_payload
+    from src.onboarding.workbook_reader import read_workbook
+
+    workbook = read_workbook(workbook_path)
+    # Drive every emitter in-memory. Output root stays as Path.cwd() so
+    # the surfaced + compared paths mirror what the CLI would write
+    # (repo-relative by the time they're reported back to the UI).
+    plans = _plan_writes(
+        workbook,
+        output_root=Path.cwd(),
+        source_dir=None,
+        mapping_dir=None,
+        rules_dir=None,
+        reconciliation_dir=None,
+        sql_dir=None,
+        frozen_timestamp=None,
+    )
+
+    cwd = Path.cwd()
+    would_write: List[Dict[str, Any]] = []
+    total_bytes = 0
+    drift_counts: Dict[str, int] = {"new": 0, "changed": 0, "unchanged": 0}
+
+    for plan in plans:
+        size_bytes = len(plan.content.encode("utf-8"))
+        total_bytes += size_bytes
+
+        # Drift comparison BEFORE display-path coercion: the compare
+        # helper expects the absolute on-disk path so it can probe for
+        # the committed file. ``plan.path`` is already absolute (the
+        # planner resolved it under ``output_root``).
+        status_token, drift_msg = compare_artefact_payload(
+            plan.path, plan.content, plan.category
+        )
+        drift_counts[status_token] = drift_counts.get(status_token, 0) + 1
+
+        # Repo-relative display path when possible — agents and UI
+        # both quote these back to the BA. Falls back to absolute if
+        # the path escapes the cwd (defensive; not used by the preview
+        # endpoint today).
+        try:
+            display_path = plan.path.resolve().relative_to(cwd).as_posix()
+        except ValueError:
+            display_path = plan.path.as_posix()
+
+        entry: Dict[str, Any] = {
+            "path": display_path,
+            "bytes": size_bytes,
+            "kind": _KIND_BY_CATEGORY.get(plan.category, plan.category),
+            "status": status_token,
+        }
+        # Surface the one-line drift hint only when the artefact would
+        # change. ``new`` and ``unchanged`` entries do not carry a
+        # ``drift_reason`` so the UI doesn't have to filter for empties.
+        if status_token == "changed" and drift_msg:
+            entry["drift_reason"] = drift_msg
+        would_write.append(entry)
+
+    return {
+        "source_code": workbook.source.source_code,
+        "would_write": would_write,
+        "summary": {
+            "total_files": len(would_write),
+            "total_bytes": total_bytes,
+            "drift": drift_counts,
+        },
+    }
 
 
 @router.post("/preview")
@@ -300,19 +417,27 @@ async def preview_workbook(
                 detail="Uploaded workbook is empty",
             )
 
-        # Reuse the EF-S5 service layer verbatim. The helper raises
-        # ``ToolError`` for any schema / emitter failure; we surface
-        # that as 422 (unprocessable entity).
-        from mcp.server.fastmcp.exceptions import ToolError
-
-        from src.mcp.onboarding_tools import onboard_source_dry_run_payload
+        # EE-S2: we drive the EC-S6 planner directly (rather than the
+        # MCP helper) because the per-artefact drift comparison needs
+        # the raw planned-write objects (path + content). The EE-S1
+        # response shape is a superset of the MCP helper's, so agents
+        # consuming this surface get the EF-S5 fields they already
+        # know plus the new ``status`` / ``drift`` enrichment.
+        from src.onboarding.emitters import EmitterError
+        from src.onboarding.models import WorkbookReadError
+        from src.onboarding.workbook_schema import WorkbookSchemaError
 
         try:
-            payload = onboard_source_dry_run_payload(str(tmp_path))
-        except ToolError as exc:
+            payload = _build_preview_payload(tmp_path)
+        except (WorkbookReadError, WorkbookSchemaError) as exc:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=str(exc),
+            ) from exc
+        except EmitterError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Emitter error: {exc}",
             ) from exc
 
         return payload
@@ -328,6 +453,134 @@ async def preview_workbook(
                 tmp_path,
                 exc,
             )
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v2/onboarding/committed-artefact — EE-S2 diff backing store
+# ---------------------------------------------------------------------------
+
+
+# Repo-relative path prefixes that the committed-artefact endpoint will
+# serve. We deliberately whitelist the exact subtrees the onboarding
+# emitters write under so a malicious / fat-finger ``path`` query arg
+# can't be coerced into reading ``/etc/passwd``-style targets via
+# directory-traversal payloads. Mirrors the EC-S6 layout convention.
+_ALLOWED_COMMITTED_PREFIXES = (
+    "config/e2e/sources/",
+    "config/mappings/",
+    "config/rules/",
+)
+
+
+def _resolve_committed_path(rel_path: str) -> Path:
+    """Resolve a UI-supplied repo-relative path to an on-disk absolute path.
+
+    Defends against directory traversal in two layers:
+
+    1. Prefix whitelist — the resolved path must sit under one of the
+       three onboarding artefact directories.
+    2. Containment check — after resolving ``..`` segments the absolute
+       path must still be a descendant of the cwd / repo root.
+
+    Args:
+        rel_path: The ``path`` query argument supplied by the UI.
+
+    Returns:
+        Absolute :class:`pathlib.Path` to the committed file.
+
+    Raises:
+        HTTPException: 400 when the path is empty, contains traversal
+            payloads, or escapes the whitelist; 404 when the resolved
+            path does not point at a regular file.
+    """
+    if not rel_path or not isinstance(rel_path, str):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="path is required",
+        )
+
+    # Normalise leading slash + Windows separators. We deliberately
+    # do this BEFORE the whitelist check so the prefix match is
+    # unambiguous regardless of how the UI formats the path.
+    normalised = rel_path.replace("\\", "/").lstrip("/")
+    if not any(
+        normalised.startswith(prefix) for prefix in _ALLOWED_COMMITTED_PREFIXES
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "path must reference an onboarding artefact under "
+                f"one of {list(_ALLOWED_COMMITTED_PREFIXES)}"
+            ),
+        )
+
+    cwd = Path.cwd().resolve()
+    candidate = (cwd / normalised).resolve()
+    # Containment check — refuses ``../../etc/passwd``-style payloads
+    # even if the leading prefix happened to start with a whitelisted
+    # token. ``relative_to`` raises ``ValueError`` when the candidate
+    # escapes the cwd, which we map back to a 400.
+    try:
+        candidate.relative_to(cwd)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="path escapes the repository root",
+        ) from exc
+
+    if not candidate.is_file():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No committed artefact at {normalised!r}",
+        )
+    return candidate
+
+
+@router.get("/committed-artefact")
+async def get_committed_artefact(
+    path: str = Query(..., description="Repo-relative path of the committed artefact"),
+) -> Dict[str, Any]:
+    """Return the on-disk content of a committed onboarding artefact.
+
+    Backs the EE-S2 "view diff" modal: when the BA clicks a ``changed``
+    artefact in the preview tree the UI fetches both the emitted
+    content (already in memory client-side from the upload response)
+    and the committed content (via this endpoint) and renders a
+    line-level diff.
+
+    The endpoint is read-only: no writes, no shell-outs, no DB calls.
+    The :func:`_resolve_committed_path` helper validates the supplied
+    path against a whitelist of the three onboarding directories and a
+    cwd containment check.
+
+    Args:
+        path: Repo-relative path of the artefact, e.g.
+            ``config/mappings/SHAW_TRANERT.yaml``.
+
+    Returns:
+        ``{"path": <repo-relative path>, "bytes": <int>, "content":
+        <UTF-8 text>}``. The ``content`` is the file's verbatim text
+        (no parsing / no normalisation) so the UI can render an
+        exact line-level diff against the emitted content.
+
+    Raises:
+        HTTPException: 400 on a missing / off-whitelist / traversal
+            path. 404 when the resolved path is not a file. 500 only
+            on unexpected I/O failure.
+    """
+    resolved = _resolve_committed_path(path)
+    try:
+        content = resolved.read_text(encoding="utf-8")
+    except OSError as exc:  # pragma: no cover — defensive
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to read committed artefact: {exc}",
+        ) from exc
+    return {
+        "path": path.replace("\\", "/").lstrip("/"),
+        "bytes": len(content.encode("utf-8")),
+        "content": content,
+    }
 
 
 __all__ = ["router"]
