@@ -20,7 +20,7 @@ var _trendSuite = '';
  * @param {string} name - Tab identifier: 'quick', 'runs', 'mapping', 'tester', 'dbcompare', or 'downloader'.
  */
 function switchTab(name) {
-  ['quick', 'runs', 'mapping', 'tester', 'dbcompare', 'downloader'].forEach(function(t) {
+  ['quick', 'runs', 'mapping', 'tester', 'dbcompare', 'downloader', 'onboarding'].forEach(function(t) {
     var panel = document.getElementById('panel-' + t);
     var btn   = document.getElementById('tab-' + t);
     if (!panel || !btn) return;
@@ -46,6 +46,8 @@ function switchTab(name) {
   if (name === 'dbcompare') { loadDbConnections(); }
   // Load downloader paths when Downloader tab is activated
   if (name === 'downloader') { loadDownloaderPaths(); }
+  // EE-S1: refresh committed sources whenever Source Editor tab is activated
+  if (name === 'onboarding') { loadOnboardingSources(); }
 }
 
 // ---------------------------------------------------------------------------
@@ -4699,4 +4701,212 @@ if (_dbcDlBtn) {
       }
     }, 0);
   });
+}
+
+// ===========================================================================
+// Source Editor tab (EE-S1 scaffold)
+//
+// Two operations:
+//   1. loadOnboardingSources() \u2014 GET /api/v2/onboarding/sources and render
+//      the committed source list as a table.
+//   2. submitOnboardingPreview() \u2014 POST the selected .xlsx to
+//      /api/v2/onboarding/preview and dump the JSON response as a <pre>.
+//
+// Live tree rendering + drift detection is EE-S2. The current scaffold is
+// intentionally minimal: prove the round-trip works.
+// ===========================================================================
+
+/** Currently selected workbook File object for the preview form. */
+var _seSelectedFile = null;
+
+/**
+ * Fetch the committed source list and render it into #seSourcesContent.
+ *
+ * Called whenever the Source Editor tab is activated, plus manually via
+ * the Refresh button. Failures are surfaced as an error message in the
+ * panel rather than throwing \u2014 the UI must stay usable when the server
+ * is briefly unavailable.
+ */
+function loadOnboardingSources() {
+  var box = document.getElementById('seSourcesContent');
+  if (!box) return;
+  box.innerHTML = '<p class="empty-msg">Loading sources&hellip;</p>';
+
+  fetch('/api/v2/onboarding/sources', {
+    credentials: 'include',
+    headers: _apiHeaders()
+  })
+    .then(function(r) {
+      if (!r.ok) {
+        throw new Error('HTTP ' + r.status + ' ' + r.statusText);
+      }
+      return r.json();
+    })
+    .then(function(data) {
+      var sources = (data && data.sources) || [];
+      if (!sources.length) {
+        box.innerHTML =
+          '<p class="empty-msg">No committed sources found under ' +
+          '<code>config/e2e/sources/</code>.</p>';
+        return;
+      }
+      var rows = sources.map(function(s) {
+        var mtime = s.last_modified
+          ? _escHtml(String(s.last_modified).slice(0, 19).replace('T', ' '))
+          : '\u2014';
+        return (
+          '<tr>' +
+            '<td class="se-sources-name">' + _escHtml(s.name) + '</td>' +
+            '<td class="se-sources-count">' +
+              _escHtml(String(s.input_files_count != null ? s.input_files_count : 0)) +
+            '</td>' +
+            '<td class="se-sources-count">' +
+              _escHtml(String(s.output_files_count != null ? s.output_files_count : 0)) +
+            '</td>' +
+            '<td class="se-sources-mtime">' + mtime + '</td>' +
+          '</tr>'
+        );
+      }).join('');
+      box.innerHTML =
+        '<table class="se-sources-table">' +
+          '<thead><tr>' +
+            '<th>Source</th>' +
+            '<th>Inputs</th>' +
+            '<th>Outputs</th>' +
+            '<th>Last Modified (UTC)</th>' +
+          '</tr></thead>' +
+          '<tbody>' + rows + '</tbody>' +
+        '</table>';
+    })
+    .catch(function(err) {
+      box.innerHTML =
+        '<p class="empty-msg" style="color:var(--err,#c00)">Failed to load sources: ' +
+        _escHtml(err && err.message ? err.message : String(err)) + '</p>';
+    });
+}
+
+/**
+ * Wire up drag-and-drop + file-picker selection for the Source Editor
+ * upload zone. Mirrors the Quick Test drop-zone wiring so the BA gets a
+ * consistent UX.
+ */
+function _seInitDropZone() {
+  var dz = document.getElementById('seDropZone');
+  var input = document.getElementById('seFileInput');
+  var submitBtn = document.getElementById('seSubmitBtn');
+  var fileNameSpan = document.getElementById('seFileName');
+  if (!dz || !input || !submitBtn) return;
+
+  function _seAccept(file) {
+    if (!file) return;
+    if (!/\.xlsx$/i.test(file.name)) {
+      _seSetStatus('Workbook must be an .xlsx file.', 'err');
+      return;
+    }
+    _seSelectedFile = file;
+    if (fileNameSpan) fileNameSpan.textContent = file.name;
+    submitBtn.disabled = false;
+    _seSetStatus('Ready to preview: ' + file.name, 'info');
+  }
+
+  dz.addEventListener('click', function() { input.click(); });
+  dz.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); }
+  });
+  input.addEventListener('change', function(e) {
+    if (e.target.files && e.target.files[0]) _seAccept(e.target.files[0]);
+  });
+  dz.addEventListener('dragover', function(e) {
+    e.preventDefault(); dz.classList.add('dragover');
+  });
+  dz.addEventListener('dragleave', function() { dz.classList.remove('dragover'); });
+  dz.addEventListener('drop', function(e) {
+    e.preventDefault(); dz.classList.remove('dragover');
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
+      _seAccept(e.dataTransfer.files[0]);
+    }
+  });
+}
+
+/**
+ * Update the Source Editor status message line.
+ *
+ * @param {string} msg - Text to display.
+ * @param {string} kind - One of 'info', 'err', or 'ok' (drives CSS class).
+ */
+function _seSetStatus(msg, kind) {
+  var el = document.getElementById('seStatusMsg');
+  if (!el) return;
+  el.textContent = msg;
+  el.className = 'status-msg ' + (kind === 'err' ? 'err' : kind === 'ok' ? 'ok' : 'info');
+}
+
+/**
+ * POST the selected workbook to /api/v2/onboarding/preview and render
+ * the JSON response as a raw <pre> block.
+ *
+ * EE-S2 will replace the <pre> dump with a structured artefact tree;
+ * the scaffold just proves the round-trip works.
+ */
+function submitOnboardingPreview() {
+  if (!_seSelectedFile) {
+    _seSetStatus('Select a workbook first.', 'err');
+    return;
+  }
+  var submitBtn = document.getElementById('seSubmitBtn');
+  var resultBox = document.getElementById('sePreviewResult');
+  var jsonBox = document.getElementById('sePreviewJson');
+  if (!submitBtn || !resultBox || !jsonBox) return;
+
+  submitBtn.disabled = true;
+  _seSetStatus('Uploading and running dry-run\u2026', 'info');
+  resultBox.style.display = 'none';
+
+  var fd = new FormData();
+  fd.append('file', _seSelectedFile, _seSelectedFile.name);
+
+  fetch('/api/v2/onboarding/preview', {
+    method: 'POST',
+    credentials: 'include',
+    headers: _apiHeaders(),
+    body: fd
+  })
+    .then(function(r) {
+      // Capture the body so error responses (4xx) carry the
+      // server-side detail back to the UI.
+      return r.text().then(function(text) {
+        var parsed = null;
+        try { parsed = text ? JSON.parse(text) : null; }
+        catch (e) { parsed = null; }
+        return { ok: r.ok, status: r.status, body: parsed, raw: text };
+      });
+    })
+    .then(function(resp) {
+      if (!resp.ok) {
+        var detail = resp.body && resp.body.detail
+          ? (typeof resp.body.detail === 'string' ? resp.body.detail : JSON.stringify(resp.body.detail))
+          : (resp.raw || ('HTTP ' + resp.status));
+        _seSetStatus('Preview failed: ' + detail, 'err');
+        jsonBox.textContent = resp.raw || '';
+        resultBox.style.display = '';
+        return;
+      }
+      var totalFiles = (resp.body && resp.body.summary && resp.body.summary.total_files) || 0;
+      _seSetStatus('Preview complete \u2014 ' + totalFiles + ' artefact(s) would be written.', 'ok');
+      jsonBox.textContent = JSON.stringify(resp.body, null, 2);
+      resultBox.style.display = '';
+    })
+    .catch(function(err) {
+      _seSetStatus('Network error: ' + (err && err.message ? err.message : String(err)), 'err');
+    })
+    .finally(function() {
+      submitBtn.disabled = false;
+    });
+}
+
+// Initialise the drop-zone wiring once the page is interactive.
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', _seInitDropZone);
+} else {
+  _seInitDropZone();
 }

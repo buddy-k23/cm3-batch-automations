@@ -27,6 +27,7 @@ from src.api.routers import rules as rules_router_mod
 from src.api.routers.api_tester import router as api_tester_router
 from src.api.routers.webhook import router as webhook_router
 from src.api.routers.multi_record import router as multi_record_router
+from src.api.routers.onboarding import router as onboarding_router
 from src.mcp.server import build_mcp_server
 from src.utils.cleanup import cleanup_old_files
 
@@ -232,6 +233,17 @@ app.include_router(
     multi_record_router,
     prefix="/api/v1/multi-record",
     tags=["Multi-Record"],
+    dependencies=[Depends(require_api_key)],
+)
+
+# EE-S1: Source Editor / Onboarding router. Lives under /api/v2 because the
+# endpoints surface the EC-S6 + EF-S5 workbook-driven onboarding flow, which
+# is conceptually disjoint from the v1 mapping/files/rules surface. Same
+# auth posture as the v1 routers (session cookie or X-API-Key).
+app.include_router(
+    onboarding_router,
+    prefix="/api/v2/onboarding",
+    tags=["Onboarding"],
     dependencies=[Depends(require_api_key)],
 )
 

@@ -1997,3 +1997,132 @@
 .btn-fd-link:hover {
   background: var(--hover-bg, #e9ecef);
 }
+
+/* ===========================================================================
+ * Source Editor tab (EE-S1 scaffold)
+ *
+ * Two-panel layout: committed sources list on the left, workbook-upload
+ * + raw-JSON preview on the right. Reuses the existing .drop-zone /
+ * .btn / .panel idiom so the styles stay consistent with the rest of
+ * the app.
+ * =========================================================================== */
+.se-intro {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0 0 16px;
+  line-height: 1.5;
+}
+
+.se-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 20px;
+}
+
+@media (max-width: 900px) {
+  .se-layout { grid-template-columns: minmax(0, 1fr); }
+}
+
+.se-panel {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.se-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.se-panel-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+
+.se-refresh-btn { font-size: 12px; padding: 6px 14px; }
+
+.se-sources-content { min-height: 80px; }
+
+.se-sources-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.se-sources-table th,
+.se-sources-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.se-sources-table th {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  background: var(--bg-secondary, transparent);
+}
+
+.se-sources-table tr:last-child td { border-bottom: none; }
+
+.se-sources-name { font-weight: 600; color: var(--text-primary); }
+
+.se-sources-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+.se-sources-mtime {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.se-drop-zone { margin-bottom: 12px; }
+
+.se-preview-result {
+  margin-top: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.se-preview-result h4 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.se-preview-json {
+  background: var(--bg-secondary, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  max-height: 420px;
+  overflow: auto;
+  white-space: pre;
+  color: var(--text-primary);
+}
+
+.se-preview-json:focus {
+  outline: 2px solid var(--accent, #4a9eff);
+  outline-offset: 2px;
+}

@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- EE-S1 (Sprint 4): UI "Source Editor" tab scaffold in
+  `src/reports/static/ui.html`. New API endpoints
+  `GET /api/v2/onboarding/sources` + `POST /api/v2/onboarding/preview`
+  (multipart workbook upload) thin-wrap the EC-S6 dry-run service layer.
+  Tab displays committed source list + workbook-upload form; preview
+  response rendered as raw JSON (live tree + drift detection ship in
+  EE-S2). Auth posture matches the existing UI.
 - EF-S5 (Sprint 4): three MCP onboarding tools —
   `upload_workbook_as_spec`, `onboard_source_dry_run`,
   `infer_mapping_from_sample`. Thin adapters over the existing

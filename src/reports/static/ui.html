@@ -96,6 +96,8 @@
             aria-controls="panel-dbcompare" onclick="switchTab('dbcompare')">DB Compare</button>
     <button id="tab-downloader" role="tab" aria-selected="false"
             aria-controls="panel-downloader" onclick="switchTab('downloader')">File Downloader</button>
+    <button id="tab-onboarding" role="tab" aria-selected="false"
+            aria-controls="panel-onboarding" onclick="switchTab('onboarding')">Source Editor</button>
   </div>
 </nav>
 
@@ -1011,6 +1013,69 @@
     </div>
 
   </div><!-- /#panel-downloader -->
+
+  <!-- SOURCE EDITOR PANEL (EE-S1 scaffold) -->
+  <div id="panel-onboarding" class="panel panel-hidden" role="tabpanel"
+       aria-labelledby="tab-onboarding" tabindex="-1">
+    <h2>Source Editor</h2>
+    <p class="se-intro">
+      Browse the sources currently committed to the engine, or upload an
+      onboarding workbook to preview the artefacts it would produce.
+      Live tree preview and drift detection ship in a follow-up; for
+      now the preview returns the raw planned-writes payload.
+    </p>
+
+    <div class="se-layout">
+      <!-- Left panel: committed sources list -->
+      <section class="se-panel se-panel-sources" aria-labelledby="seSourcesHeading">
+        <div class="se-panel-header">
+          <h3 id="seSourcesHeading">Committed Sources</h3>
+          <button type="button" class="btn btn-secondary se-refresh-btn"
+                  id="seRefreshBtn" onclick="loadOnboardingSources()"
+                  data-tooltip="Reload the committed source list">Refresh</button>
+        </div>
+        <div id="seSourcesContent" class="se-sources-content" aria-live="polite">
+          <p class="empty-msg" id="seSourcesLoading">Loading sources&hellip;</p>
+        </div>
+      </section>
+
+      <!-- Right panel: workbook upload + raw preview -->
+      <section class="se-panel se-panel-preview" aria-labelledby="seUploadHeading">
+        <div class="se-panel-header">
+          <h3 id="seUploadHeading">Preview Workbook</h3>
+        </div>
+        <div class="drop-zone se-drop-zone" id="seDropZone" tabindex="0"
+             role="button" aria-label="Click or drag an onboarding workbook here"
+             data-tooltip="Upload an onboarding .xlsx workbook to preview the artefacts it would write">
+          <svg class="dz-icon" aria-hidden="true" focusable="false" width="34" height="34"
+               fill="none" stroke="currentColor" stroke-width="1.4" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+          </svg>
+          <span class="dz-label">Drop onboarding workbook here or click to browse</span>
+          <span class="dz-sub">.xlsx only</span>
+          <span class="dz-filename" id="seFileName"></span>
+        </div>
+        <input type="file" id="seFileInput" accept=".xlsx"
+               aria-label="Upload onboarding workbook">
+        <div class="btn-row">
+          <button type="button" class="btn btn-primary" id="seSubmitBtn" disabled
+                  onclick="submitOnboardingPreview()"
+                  data-tooltip="Run the workbook through the dry-run planner">
+            Preview Artefacts
+          </button>
+        </div>
+        <div class="status-msg info" id="seStatusMsg"
+             role="status" aria-live="polite" aria-atomic="true">
+          Select an .xlsx workbook to preview the artefact tree it would produce.
+        </div>
+        <div class="se-preview-result" id="sePreviewResult" style="display:none;">
+          <h4>Preview Response</h4>
+          <pre id="sePreviewJson" class="se-preview-json" tabindex="0"></pre>
+        </div>
+      </section>
+    </div>
+  </div><!-- /#panel-onboarding -->
 
 </main>
 
