@@ -128,6 +128,13 @@ SOURCE_COLUMNS = [
     "gate_l2b_blocking",
     "gate_l3_blocking",
     "gate_mr_report_blocking",
+    # ED-S3: optional CTAS-vs-view strategy flag (view | ctas | ctas_with_drop).
+    # Blank cell defaults to "view" (ED-S2 behaviour) at the reader; the SHAW
+    # row carries "ctas" because the committed
+    # config/e2e/sources/SHAW/sql/tranert/00_bootstrap/030_expected_tables.sql
+    # uses the idempotent ORA-955 trap CREATE TABLE pattern (no DROP), so the
+    # emitter's "ctas" strategy is the structural match.
+    "expected_table_strategy",
 ]
 
 INPUT_FILES_COLUMNS = [
@@ -911,6 +918,12 @@ def _shaw_source_row(src: dict[str, Any]) -> dict[str, Any]:
         "gate_l2b_blocking": gates.get("L2b_sql_truth", {}).get("blocking", True),
         "gate_l3_blocking": gates.get("L3_baseline_diff", {}).get("blocking", True),
         "gate_mr_report_blocking": gates.get("multi_record_report", {}).get("blocking", False),
+        # ED-S3: the committed SHAW bootstrap at
+        # config/e2e/sources/SHAW/sql/tranert/00_bootstrap/030_expected_tables.sql
+        # materialises the L2b helper rowsets as CTAS-built TABLES (the app_int
+        # account lacks CREATE VIEW). The idempotent ORA-955 trap CREATE TABLE
+        # pattern matches the emitter's "ctas" strategy (no DROP preamble).
+        "expected_table_strategy": "ctas",
     }
 
 
@@ -935,6 +948,10 @@ def _blank_source_row() -> dict[str, Any]:
         "gate_l2b_blocking": True,
         "gate_l3_blocking": True,
         "gate_mr_report_blocking": False,
+        # ED-S3: blank template defaults to "view" so a new BA-onboarded source
+        # preserves the ED-S2 SELECT-only behaviour until they explicitly opt
+        # into CTAS by editing this cell. Allowed: view | ctas | ctas_with_drop.
+        "expected_table_strategy": "view",
     }
 
 

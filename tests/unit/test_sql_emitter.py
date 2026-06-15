@@ -1,6 +1,6 @@
-"""Unit tests for the Oracle-dialect expected_*.sql emitter (ED-S2).
+"""Unit tests for the Oracle-dialect expected_*.sql emitter (ED-S2 + ED-S3).
 
-Covers (per the Sprint 3 / Move 4 story):
+Covers:
 
   1. test_shaw_workbook_emits_expected_sql_artefacts
        -- SHAW workbook with overrides CLEARED produces one SQL
@@ -28,6 +28,23 @@ Covers (per the Sprint 3 / Move 4 story):
        (regression guard for the ED-S1/S2 hand-off contract).
   9. test_emitter_rejects_empty_source_code
        -- safety guard on the constructor.
+
+ED-S3 (Sprint 4 / Move 4) -- ``expected_table_strategy`` fallback:
+
+  10. test_view_strategy_emits_bare_select
+        -- default strategy produces a pure SELECT, no CREATE TABLE.
+  11. test_ctas_strategy_emits_create_table_wrapper
+        -- ``ctas`` wraps the SELECT in ``CREATE TABLE app_int.EXPECTED_<TOKEN>_TBL
+        AS …`` inside the idempotent ORA-955 trap PL/SQL block.
+  12. test_ctas_with_drop_strategy_emits_drop_preamble
+        -- ``ctas_with_drop`` prepends a ``DROP TABLE … PURGE`` block
+        (ORA-942 trap) before the CREATE.
+  13. test_unknown_strategy_raises_workbook_read_error
+        -- a synthetic workbook with ``expected_table_strategy = "lol"``
+        raises ``WorkbookReadError`` at read time.
+  14. test_token_derivation_matches_committed_for_shaw_tranert
+        -- the ``EXPECTED_<TOKEN>_TBL`` token matches the committed
+        ``EXPECTED_BATCH_HEADER_TBL`` / ``EXPECTED_32000_TBL`` convention.
 """
 
 from __future__ import annotations
@@ -54,8 +71,10 @@ from src.onboarding.models import (
     ReconciliationRow,
     ReconciliationSheet,
     SourceInfo,
+    WorkbookReadError,
 )
 from src.onboarding.workbook_reader import read_workbook
+from src.onboarding.workbook_schema import SOURCE_SHEET_REQUIRED_COLUMNS
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 SHAW_WORKBOOK = REPO_ROOT / "templates" / "SHAW_onboarding.xlsx"
@@ -166,11 +185,16 @@ def _make_workbook(
     predicate: str = "",
     staging_table: str = "",
     key_columns: list[str] | None = None,
+    expected_table_strategy: str = "view",
 ) -> OnboardingWorkbook:
     """Assemble a one-record reconciliation workbook for targeted tests."""
     mapping_sheet_name = f"{file_type}_LAYOUT_Mapping"
+    source = dataclasses.replace(
+        _make_source_info(source_code),
+        expected_table_strategy=expected_table_strategy,  # type: ignore[arg-type]
+    )
     return OnboardingWorkbook(
-        source=_make_source_info(source_code),
+        source=source,
         input_files=[],
         output_files=[
             OutputFileSpec(
@@ -208,7 +232,9 @@ def _make_workbook(
     )
 
 
-def _shaw_workbook_with_cleared_overrides() -> OnboardingWorkbook:
+def _shaw_workbook_with_cleared_overrides(
+    *, expected_table_strategy: str = "view"
+) -> OnboardingWorkbook:
     """Load the real SHAW workbook and clear every TRANERT override.
 
     The committed SHAW workbook carries an ``expected_sql_override`` on
@@ -216,6 +242,14 @@ def _shaw_workbook_with_cleared_overrides() -> OnboardingWorkbook:
     exercise the SQL emitter against real SHAW field metadata we clear
     the override on a copy of the workbook -- the underlying mapping
     sheets and reconciliation rows are unchanged.
+
+    Args:
+        expected_table_strategy: ED-S3 fallback flag. Defaults to
+            ``"view"`` so the legacy ED-S2 structural-match tests
+            (which compare against the committed bare-SELECT
+            ``expected_batch_header.sql``) continue to assert the
+            SELECT shape rather than the CTAS-wrapped shape the SHAW
+            workbook now defaults to.
     """
     wb = read_workbook(str(SHAW_WORKBOOK))
     sheet = wb.reconciliation_sheets["TRANERT"]
@@ -227,8 +261,13 @@ def _shaw_workbook_with_cleared_overrides() -> OnboardingWorkbook:
         file_wide_assertions=sheet.file_wide_assertions,
         rows=cleared_rows,
     )
+    overridden_source = dataclasses.replace(
+        wb.source, expected_table_strategy=expected_table_strategy  # type: ignore[arg-type]
+    )
     return dataclasses.replace(
-        wb, reconciliation_sheets={"TRANERT": cleared_sheet}
+        wb,
+        source=overridden_source,
+        reconciliation_sheets={"TRANERT": cleared_sheet},
     )
 
 
@@ -514,3 +553,325 @@ def test_emitted_artefact_is_immutable_dataclass():
     assert isinstance(artefacts[0], EmittedSqlArtefact)
     with pytest.raises(dataclasses.FrozenInstanceError):
         artefacts[0].path = "/tmp/mutated.sql"  # type: ignore[misc]
+
+
+# ===========================================================================
+# ED-S3 (Sprint 4 / Move 4) -- expected_table_strategy fallback.
+# ===========================================================================
+
+
+# ---------------------------------------------------------------------------
+# 11. ``view`` strategy emits a bare SELECT, no CREATE TABLE.
+# ---------------------------------------------------------------------------
+
+
+def test_view_strategy_emits_bare_select():
+    """Default ``expected_table_strategy = view`` produces a thin
+    ``SELECT … FROM … [WHERE …]`` document with NO CTAS wrapping.
+
+    This is the ED-S2 baseline behaviour preserved verbatim so existing
+    deployments stay byte-equivalent after the ED-S3 cross-cut lands.
+    """
+    wb = _make_workbook("ACME", "MYFILE", expected_table_strategy="view")
+    mapping_artefacts = emit_mapping_artefacts(wb)
+    sql_artefacts = emit_sql_artefacts(wb, mapping_artefacts, source_code="ACME")
+
+    assert len(sql_artefacts) == 1
+    content = sql_artefacts[0].content
+
+    assert "CREATE TABLE" not in content, (
+        f"view strategy should NOT emit a CREATE TABLE wrapper:\n{content}"
+    )
+    assert "DROP TABLE" not in content, (
+        f"view strategy should NOT emit a DROP TABLE preamble:\n{content}"
+    )
+    assert "EXECUTE IMMEDIATE" not in content, (
+        f"view strategy should NOT emit a PL/SQL EXECUTE IMMEDIATE block:\n"
+        f"{content}"
+    )
+    # Document starts with the SELECT keyword (no leading BEGIN block).
+    assert content.lstrip().startswith("SELECT "), (
+        f"view strategy output should start with SELECT:\n{content}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 12. ``ctas`` strategy emits CREATE TABLE wrapper (ORA-955 idempotent).
+# ---------------------------------------------------------------------------
+
+
+def test_ctas_strategy_emits_create_table_wrapper():
+    """``expected_table_strategy = ctas`` wraps the SELECT in
+    ``CREATE TABLE app_int.EXPECTED_<TOKEN>_TBL AS …`` inside the
+    idempotent ORA-955 ("name already in use") trap PL/SQL block,
+    matching the committed ``030_expected_tables.sql`` pattern."""
+    wb = _make_workbook(
+        "ACME", "MYFILE", expected_table_strategy="ctas", key_columns=[]
+    )
+    mapping_artefacts = emit_mapping_artefacts(wb)
+    sql_artefacts = emit_sql_artefacts(wb, mapping_artefacts, source_code="ACME")
+
+    assert len(sql_artefacts) == 1
+    content = sql_artefacts[0].content
+
+    # Token derivation: record_type_name "rt_x" -> "X" (rt_ prefix stripped).
+    assert "CREATE TABLE app_int.EXPECTED_X_TBL AS" in content, (
+        f"Expected CTAS header missing:\n{content}"
+    )
+    # Wrapped in the idempotent PL/SQL ORA-955 trap block.
+    assert content.startswith("BEGIN\n"), (
+        f"CTAS strategy must open with BEGIN PL/SQL block:\n{content}"
+    )
+    assert "EXECUTE IMMEDIATE q'[" in content, (
+        f"CTAS body must use Oracle alternative quoting q'[ ]':\n{content}"
+    )
+    assert "IF SQLCODE != -955 THEN RAISE" in content, (
+        f"CTAS must trap ORA-955 'name already in use' for idempotency:\n"
+        f"{content}"
+    )
+    # No DROP preamble (that's ctas_with_drop's job).
+    assert "DROP TABLE" not in content, (
+        f"ctas strategy must NOT emit DROP TABLE:\n{content}"
+    )
+    # The inner SELECT body is still present (the FROM clause survives
+    # the wrap, just gets indented inside the q'[ ]' payload).
+    assert "FROM app_int.EXPECTED_X_TBL t" in content, (
+        f"Inner SELECT FROM clause missing:\n{content}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 13. ``ctas_with_drop`` strategy prepends DROP TABLE PURGE (ORA-942 trap).
+# ---------------------------------------------------------------------------
+
+
+def test_ctas_with_drop_strategy_emits_drop_preamble():
+    """``expected_table_strategy = ctas_with_drop`` prepends a separate
+    ``BEGIN EXECUTE IMMEDIATE 'DROP TABLE … PURGE' EXCEPTION WHEN OTHERS
+    THEN IF SQLCODE NOT IN (-942) THEN RAISE …`` PL/SQL block so the
+    CTAS replaces any prior copy. ORA-942 = table or view does not
+    exist, so the DROP is idempotent on first run."""
+    wb = _make_workbook(
+        "ACME",
+        "MYFILE",
+        expected_table_strategy="ctas_with_drop",
+        key_columns=[],
+    )
+    mapping_artefacts = emit_mapping_artefacts(wb)
+    sql_artefacts = emit_sql_artefacts(wb, mapping_artefacts, source_code="ACME")
+
+    assert len(sql_artefacts) == 1
+    content = sql_artefacts[0].content
+
+    # DROP block appears before CREATE block.
+    drop_pos = content.find("DROP TABLE app_int.EXPECTED_X_TBL PURGE")
+    create_pos = content.find("CREATE TABLE app_int.EXPECTED_X_TBL AS")
+    assert drop_pos != -1, (
+        f"Expected DROP TABLE preamble missing:\n{content}"
+    )
+    assert create_pos != -1, (
+        f"Expected CREATE TABLE block missing:\n{content}"
+    )
+    assert drop_pos < create_pos, (
+        f"DROP TABLE preamble must precede CREATE TABLE block:\n{content}"
+    )
+
+    # DROP block traps ORA-942 (table does not exist) for first-run idempotency.
+    assert "IF SQLCODE NOT IN (-942) THEN RAISE" in content, (
+        f"DROP block must trap ORA-942 for first-run idempotency:\n"
+        f"{content}"
+    )
+    # CREATE block still traps ORA-955 (defence in depth -- if another
+    # session re-creates between DROP and CREATE).
+    assert "IF SQLCODE != -955 THEN RAISE" in content, (
+        f"CREATE block must still trap ORA-955:\n{content}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 14. Unknown strategy raises WorkbookReadError at read time.
+# ---------------------------------------------------------------------------
+
+
+def _write_minimal_source_workbook(
+    tmp_path: Path,
+    *,
+    expected_table_strategy_value: str | None,
+    filename: str = "wb.xlsx",
+) -> Path:
+    """Synthesise a minimal valid-shape workbook on disk for ED-S3 testing.
+
+    Mirrors the helper pattern used by ``tests/unit/test_workbook_reader.py``
+    so the WorkbookReadError test can exercise the real reader's
+    validation path (rather than constructing a SourceInfo directly,
+    which would bypass the reader's allowed-value check).
+
+    Args:
+        tmp_path: pytest tmp_path fixture.
+        expected_table_strategy_value: Cell value to write. ``None``
+            omits the column entirely (tests the "missing column =
+            default to view" branch).
+        filename: Output filename in tmp_path.
+    """
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    wb.remove(wb.active)
+
+    ws = wb.create_sheet("Source")
+    if expected_table_strategy_value is None:
+        headers = list(SOURCE_SHEET_REQUIRED_COLUMNS)
+        values = _source_default_values(headers)
+    else:
+        headers = list(SOURCE_SHEET_REQUIRED_COLUMNS) + ["expected_table_strategy"]
+        values = _source_default_values(SOURCE_SHEET_REQUIRED_COLUMNS) + [
+            expected_table_strategy_value
+        ]
+    for col_idx, header in enumerate(headers, start=1):
+        ws.cell(row=1, column=col_idx, value=header)
+    for col_idx, value in enumerate(values, start=1):
+        ws.cell(row=2, column=col_idx, value=value)
+
+    # Stub InputFiles + OutputFiles so the EC-S1 validator passes.
+    ws2 = wb.create_sheet("InputFiles")
+    for col_idx, header in enumerate(
+        [
+            "file_type",
+            "glob",
+            "mapping_sheet",
+            "target_staging_table",
+            "thresholds_max_errors",
+        ],
+        start=1,
+    ):
+        ws2.cell(row=1, column=col_idx, value=header)
+    ws3 = wb.create_sheet("OutputFiles")
+    for col_idx, header in enumerate(
+        [
+            "file_type",
+            "glob",
+            "mapping_sheet",
+            "rules_sheet",
+            "tolerance_max_errors",
+            "tolerance_max_error_pct",
+            "tolerance_ignore_fields",
+        ],
+        start=1,
+    ):
+        ws3.cell(row=1, column=col_idx, value=header)
+
+    out_path = tmp_path / filename
+    wb.save(str(out_path))
+    return out_path
+
+
+def _source_default_values(columns):
+    """Default Source-row values matching the column list (test-only helper)."""
+    defaults = {
+        "source_code": "TEST",
+        "schema_version": 1,
+        "release_tag": "2026.M06",
+        "description": "Synthetic test workbook.",
+        "staging_schema": "APP_INT",
+        "output_root": "/tmp/test",
+        "java_load_script": "/tmp/load.sh",
+        "java_generate_script": "",
+        "gate_load_blocking": "true",
+        "gate_load_invoke_java": "false",
+        "gate_f2s_blocking": "true",
+        "gate_generate_blocking": "false",
+        "gate_generate_invoke_java": "false",
+        "gate_l1_blocking": "true",
+        "gate_l2b_blocking": "true",
+        "gate_l3_blocking": "false",
+        "gate_mr_report_blocking": "false",
+    }
+    return [defaults[c] for c in columns]
+
+
+def test_unknown_strategy_raises_workbook_read_error(tmp_path):
+    """A workbook with ``expected_table_strategy = "lol"`` raises
+    :class:`WorkbookReadError` at read time. The reader is the
+    enforcement point because a downstream emitter cannot tell a typo
+    from a custom override without it -- raising early gives the BA a
+    cell-addressable error."""
+    path = _write_minimal_source_workbook(
+        tmp_path, expected_table_strategy_value="lol"
+    )
+
+    with pytest.raises(WorkbookReadError) as exc_info:
+        read_workbook(path)
+
+    msg = str(exc_info.value)
+    assert "expected_table_strategy" in msg, (
+        f"WorkbookReadError must name the offending column:\n{msg}"
+    )
+    assert "lol" in msg, (
+        f"WorkbookReadError must echo the BA's bad value:\n{msg}"
+    )
+
+
+def test_blank_strategy_defaults_to_view(tmp_path):
+    """When the ``expected_table_strategy`` cell is BLANK the reader
+    defaults to ``view`` -- preserving ED-S2 behaviour for workbooks
+    that pre-date ED-S3."""
+    path = _write_minimal_source_workbook(
+        tmp_path, expected_table_strategy_value=""
+    )
+
+    wb = read_workbook(path)
+    assert wb.source.expected_table_strategy == "view"
+
+
+def test_missing_strategy_column_defaults_to_view(tmp_path):
+    """When the ``expected_table_strategy`` column is ABSENT from the
+    Source sheet entirely (pre-ED-S3 workbook) the reader defaults to
+    ``view``. This is the backward-compat guarantee."""
+    path = _write_minimal_source_workbook(
+        tmp_path, expected_table_strategy_value=None
+    )
+
+    wb = read_workbook(path)
+    assert wb.source.expected_table_strategy == "view"
+
+
+# ---------------------------------------------------------------------------
+# 15. Token derivation matches the committed SHAW convention.
+# ---------------------------------------------------------------------------
+
+
+def test_token_derivation_matches_committed_for_shaw_tranert():
+    """The ``EXPECTED_<TOKEN>_TBL`` table token follows the committed
+    SHAW convention exactly:
+
+        * ``batch_header`` -> ``BATCH_HEADER`` (verbatim upper-case,
+          matches the committed ``EXPECTED_BATCH_HEADER_TBL``).
+        * ``rt_32000`` -> ``32000`` (the ``rt_`` prefix is dropped to
+          match the committed ``EXPECTED_32000_TBL``).
+
+    This guards against future drift if someone "tidies" the token
+    derivation and accidentally produces ``EXPECTED_RT_32000_TBL``."""
+    wb = _shaw_workbook_with_cleared_overrides(expected_table_strategy="ctas")
+    mapping_artefacts = emit_mapping_artefacts(wb)
+    sql_artefacts = emit_sql_artefacts(wb, mapping_artefacts, source_code="SHAW")
+
+    # batch_header artefact -- token must be BATCH_HEADER, not RT_BATCH_HEADER.
+    batch_header = next(
+        a for a in sql_artefacts if a.path.endswith("/expected_batch_header.sql")
+    )
+    assert "CREATE TABLE app_int.EXPECTED_BATCH_HEADER_TBL AS" in batch_header.content, (
+        f"batch_header CTAS token must be BATCH_HEADER:\n{batch_header.content}"
+    )
+
+    # rt_32000 artefact -- token must be 32000, NOT RT_32000.
+    rt_32000 = next(
+        a for a in sql_artefacts if a.path.endswith("/expected_32000.sql")
+    )
+    assert "CREATE TABLE app_int.EXPECTED_32000_TBL AS" in rt_32000.content, (
+        f"rt_32000 CTAS token must strip rt_ prefix to 32000:\n"
+        f"{rt_32000.content}"
+    )
+    assert "EXPECTED_RT_32000_TBL" not in rt_32000.content, (
+        f"rt_ prefix must be stripped from the CTAS token:\n"
+        f"{rt_32000.content}"
+    )

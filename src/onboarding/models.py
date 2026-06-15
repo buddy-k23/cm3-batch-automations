@@ -83,6 +83,26 @@ class SourceInfo:
         gate_l2b_blocking: Whether L2b (reconciliation) failures block.
         gate_l3_blocking: Whether L3 (cross-file) failures block.
         gate_mr_report_blocking: Whether multi-record report failures block.
+        expected_table_strategy: How the ED-S3 SQL emitter wraps the
+            ``expected_*.sql`` body for restricted Oracle schemas.
+
+            * ``"view"`` (default) — emit the bare ``SELECT`` (engine
+              wraps it behind ``CREATE OR REPLACE VIEW`` at run time).
+              Preserves ED-S2 behaviour.
+            * ``"ctas"`` — wrap as ``CREATE TABLE app_int.EXPECTED_<TOKEN>_TBL
+              AS <SELECT> …``  inside an idempotent ``BEGIN EXECUTE
+              IMMEDIATE … EXCEPTION WHEN OTHERS THEN IF SQLCODE != -955
+              THEN RAISE …`` PL/SQL block (matches the committed
+              ``030_expected_tables.sql`` ORA-955 "name already in use"
+              trap so re-running the bootstrap is a no-op).
+            * ``"ctas_with_drop"`` — prepend a
+              ``BEGIN EXECUTE IMMEDIATE 'DROP TABLE app_int.EXPECTED_<TOKEN>_TBL
+              PURGE'; EXCEPTION WHEN OTHERS THEN IF SQLCODE NOT IN (-942)
+              THEN RAISE; END IF; END; /`` block so the CTAS replaces any
+              prior copy. ORA-942 = "table or view does not exist".
+
+            Used when the validation user lacks the ``CREATE VIEW``
+            system privilege (the cm3int/app_int lockdown case).
     """
 
     source_code: str
@@ -102,6 +122,7 @@ class SourceInfo:
     gate_l2b_blocking: bool
     gate_l3_blocking: bool
     gate_mr_report_blocking: bool
+    expected_table_strategy: Literal["view", "ctas", "ctas_with_drop"] = "view"
 
 
 # ---------------------------------------------------------------------------

@@ -92,6 +92,18 @@ SOURCE_SHEET_REQUIRED_COLUMNS: tuple[str, ...] = (
     "gate_mr_report_blocking",
 )
 
+SOURCE_SHEET_OPTIONAL_COLUMNS: tuple[str, ...] = (
+    "expected_table_strategy",
+)
+"""Optional Source sheet columns (ED-S3+).
+
+``expected_table_strategy`` is read by the EC-S2 workbook reader and
+populated on :class:`src.onboarding.models.SourceInfo` to drive ED-S3's
+CTAS-vs-view fallback for the SQL emitter. Missing column / blank cell
+defaults to ``"view"`` (the ED-S2 behaviour). Allowed values:
+``view`` | ``ctas`` | ``ctas_with_drop``.
+"""
+
 INPUT_FILES_REQUIRED_COLUMNS: tuple[str, ...] = (
     "file_type",
     "glob",
@@ -459,6 +471,7 @@ __all__ = [
     "DYNAMIC_SHEET_PREFIXES",
     "DYNAMIC_SHEET_SUFFIXES",
     "SOURCE_SHEET_REQUIRED_COLUMNS",
+    "SOURCE_SHEET_OPTIONAL_COLUMNS",
     "INPUT_FILES_REQUIRED_COLUMNS",
     "OUTPUT_FILES_REQUIRED_COLUMNS",
     "MULTI_RECORD_REQUIRED_COLUMNS",

@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- ED-S3 (Sprint 4 / Move 4): SQL emitter supports
+  `expected_table_strategy: {view, ctas, ctas_with_drop}` per source.
+  When `ctas_with_drop`, emitter wraps the SELECT in `DROP TABLE…PURGE`
+  + `CREATE TABLE…AS SELECT…` matching the committed
+  `app_int.EXPECTED_<TOKEN>_TBL` pattern for restricted Oracle schemas.
+  Default `view` preserves ED-S2 behaviour. SHAW workbook + reader +
+  SourceInfo extended.
 - ED-S2 (Sprint 3 / Move 4): `src/onboarding/emitters/sql_emitter.py`
   emits Oracle-dialect `expected_*.sql` files from mapping artefacts
   + workbook `Reconciliation_<FILETYPE>.staging_table`/`predicate`.

@@ -85,6 +85,12 @@ _VALID_MATCH_KINDS = frozenset(
 _VALID_CARDINALITIES = frozenset(
     {"one_per_driver_row", "many_per_driver_row", "zero_or_one_per_driver_row"}
 )
+_VALID_EXPECTED_TABLE_STRATEGIES = frozenset(
+    {"view", "ctas", "ctas_with_drop"}
+)
+"""ED-S3: allowed values for the Source sheet's optional
+``expected_table_strategy`` column. Blank cell / missing column defaults
+to ``view`` (the ED-S2 SELECT-only behaviour)."""
 
 
 # ---------------------------------------------------------------------------
@@ -394,6 +400,27 @@ def _parse_source_sheet(ws: Worksheet) -> SourceInfo:
             column=col,
         )
 
+    # ED-S3: optional ``expected_table_strategy`` column. Missing column
+    # OR blank cell -> default to "view" (backward-compatible with ED-S2
+    # workbooks that pre-date ED-S3). Non-blank cells are validated against
+    # the allowed set so a BA typo fails fast at read time rather than
+    # silently producing pure SELECT output when CTAS was intended.
+    strategy_raw = _str_or_empty("expected_table_strategy")
+    if strategy_raw:
+        strategy = strategy_raw.lower()
+        if strategy not in _VALID_EXPECTED_TABLE_STRATEGIES:
+            addr = _column_address(
+                headers, "expected_table_strategy", data_row_number
+            )
+            raise WorkbookReadError(
+                f"Source!{addr}: expected_table_strategy "
+                f"'{strategy_raw}' is not recognised. Expected one of: "
+                f"{', '.join(sorted(_VALID_EXPECTED_TABLE_STRATEGIES))} "
+                f"(case-insensitive)."
+            )
+    else:
+        strategy = "view"
+
     return SourceInfo(
         source_code=_str_required("source_code"),
         schema_version=_int_required("schema_version"),
@@ -412,6 +439,7 @@ def _parse_source_sheet(ws: Worksheet) -> SourceInfo:
         gate_l2b_blocking=_bool_col("gate_l2b_blocking"),
         gate_l3_blocking=_bool_col("gate_l3_blocking"),
         gate_mr_report_blocking=_bool_col("gate_mr_report_blocking"),
+        expected_table_strategy=strategy,  # type: ignore[arg-type]
     )
 
 

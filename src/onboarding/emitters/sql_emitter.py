@@ -64,10 +64,34 @@ attempt to replicate. The round-trip test compares
 whitespace-normalised structural equivalence only — column set, alias
 order, FROM clause, WHERE clause.
 
-CTAS-vs-view fallback (when ``cm3int``-style staging schemas cannot
-``CREATE VIEW`` and need ``CREATE TABLE AS SELECT``) is DEFERRED to
-ED-S3 (Sprint 4). The base emitter unconditionally produces a thin
-SELECT — the engine wraps it with a CTAS as needed at run-time.
+CTAS-vs-view fallback (ED-S3, Sprint 4)
+---------------------------------------
+The Source sheet's optional ``expected_table_strategy`` column selects
+the wrapper shape so the emitter works against restricted Oracle
+schemas (the historic ``cm3int``, now de-branded to ``app_int``) where
+the validation user lacks ``CREATE VIEW``:
+
+    * ``view`` (default) -- emit the bare ``SELECT`` (engine wraps it
+      behind ``CREATE OR REPLACE VIEW`` at run time). This is the
+      ED-S2 behaviour, preserved for backward compatibility.
+    * ``ctas`` -- wrap as ``CREATE TABLE <schema>.EXPECTED_<TOKEN>_TBL
+      AS <SELECT>`` inside an idempotent ``BEGIN EXECUTE IMMEDIATE …
+      EXCEPTION WHEN OTHERS THEN IF SQLCODE != -955 THEN RAISE`` PL/SQL
+      block. ORA-00955 = "name is already used by an existing object" so
+      re-running the bootstrap is a no-op (matches the committed
+      ``00_bootstrap/030_expected_tables.sql`` pattern verbatim).
+    * ``ctas_with_drop`` -- prepend a separate ``BEGIN EXECUTE IMMEDIATE
+      'DROP TABLE <schema>.EXPECTED_<TOKEN>_TBL PURGE'; EXCEPTION WHEN
+      OTHERS THEN IF SQLCODE NOT IN (-942) THEN RAISE`` block so the
+      CTAS replaces any prior copy. ORA-00942 = "table or view does
+      not exist" so the DROP is idempotent on first run.
+
+The ``<TOKEN>`` derives from the reconciliation row's record_type_name:
+``rt_`` prefix stripped + upper-cased. ``batch_header`` ->
+``BATCH_HEADER``; ``rt_32000`` -> ``32000``; ``(flat)`` -> ``<FT>``.
+This matches the committed convention (``EXPECTED_BATCH_HEADER_TBL``,
+``EXPECTED_32000_TBL``). When the workbook carries an explicit
+``staging_table`` cell, that name is used verbatim instead.
 
 Override semantics
 ------------------
@@ -549,6 +573,151 @@ def _derive_staging_table(
     return f"EXPECTED_{token}_TBL"
 
 
+def _ctas_token(recon_row: ReconciliationRow, file_type: str) -> str:
+    """Derive the ``EXPECTED_<TOKEN>_TBL`` suffix for the CTAS wrapper.
+
+    Matches the committed convention (``EXPECTED_BATCH_HEADER_TBL``,
+    ``EXPECTED_32000_TBL``):
+
+        * ``batch_header`` -> ``BATCH_HEADER``
+        * ``rt_32000`` -> ``32000`` (``rt_`` prefix stripped)
+        * ``(flat)`` -> ``<FT>`` (upper-cased file type)
+
+    Args:
+        recon_row: The reconciliation row being emitted.
+        file_type: The uppercase file type from the workbook.
+
+    Returns:
+        The token in upper-case.
+    """
+    rt_name = recon_row.record_type_name
+    if rt_name == _FLAT_RECORD_TYPE_TOKEN:
+        return file_type.upper()
+    if rt_name.startswith("rt_"):
+        return rt_name[3:].upper()
+    return rt_name.upper()
+
+
+def _ctas_table_qualified(
+    workbook: OnboardingWorkbook,
+    recon_row: ReconciliationRow,
+    file_type: str,
+) -> str:
+    """Compute the schema-qualified target table for the CTAS wrapper.
+
+    When the reconciliation row carries an explicit ``staging_table``
+    cell that name is used verbatim under the workbook's staging
+    schema; otherwise the committed ``EXPECTED_<TOKEN>_TBL`` convention
+    is used.
+
+    Args:
+        workbook: The parsed workbook (for ``source.staging_schema``).
+        recon_row: The reconciliation row being emitted.
+        file_type: The uppercase file type from the workbook.
+
+    Returns:
+        ``"<schema_lower>.<TABLE>"`` (e.g. ``"app_int.EXPECTED_BATCH_HEADER_TBL"``).
+    """
+    schema = (workbook.source.staging_schema or _DEFAULT_STAGING_SCHEMA).strip()
+    schema_lower = schema.lower()
+    if recon_row.staging_table:
+        table = recon_row.staging_table.strip()
+    else:
+        table = f"EXPECTED_{_ctas_token(recon_row, file_type)}_TBL"
+    return f"{schema_lower}.{table}"
+
+
+def _build_ctas_drop_block(qualified_table: str) -> str:
+    """Render the idempotent ``DROP TABLE … PURGE`` PL/SQL block.
+
+    Matches the committed ``00_bootstrap/030_expected_tables.sql``
+    exception-trap convention but swaps the ORA-00955 trap (name
+    already in use) for ORA-00942 (table or view does not exist) so
+    the DROP becomes idempotent on first-run before any CTAS has
+    populated the schema.
+
+    Args:
+        qualified_table: The schema-qualified target table name
+            (e.g. ``"app_int.EXPECTED_BATCH_HEADER_TBL"``).
+
+    Returns:
+        The PL/SQL block text terminated with a trailing ``/`` line
+        (the Oracle anonymous-PL/SQL statement separator) and a blank
+        line so the subsequent CTAS block stands alone.
+    """
+    return (
+        "BEGIN\n"
+        f"  EXECUTE IMMEDIATE 'DROP TABLE {qualified_table} PURGE';\n"
+        "EXCEPTION\n"
+        "  WHEN OTHERS THEN\n"
+        "    IF SQLCODE NOT IN (-942) THEN RAISE; END IF;\n"
+        "END;\n"
+        "/\n"
+    )
+
+
+def _build_ctas_create_block(
+    qualified_table: str,
+    select_text: str,
+) -> str:
+    """Render the idempotent ``CREATE TABLE … AS SELECT`` PL/SQL block.
+
+    Wraps the SELECT inside ``BEGIN EXECUTE IMMEDIATE q'[ … ]'; …
+    EXCEPTION WHEN OTHERS THEN IF SQLCODE != -955 THEN RAISE; END IF;
+    END; /`` matching the committed ``030_expected_tables.sql`` convention
+    verbatim. ORA-00955 = "name is already used by an existing object"
+    so re-running the bootstrap against an already-populated schema is
+    a no-op for that table.
+
+    Uses Oracle alternative quoting ``q'[ … ]'`` so the single quotes
+    inside the SELECT body (e.g. ``'MM/DD/YYYY'`` in ``TO_CHAR`` masks,
+    BA-authored predicate string literals) need no escaping.
+
+    Args:
+        qualified_table: The schema-qualified target table name.
+        select_text: The full inner ``SELECT`` statement (the ED-S2
+            body including columns, FROM, and optional WHERE).
+
+    Returns:
+        The PL/SQL block text terminated with a trailing ``/`` line.
+    """
+    return (
+        "BEGIN\n"
+        "  EXECUTE IMMEDIATE q'[\n"
+        f"    CREATE TABLE {qualified_table} AS\n"
+        f"{_indent_select_body(select_text)}\n"
+        "  ]';\n"
+        "EXCEPTION\n"
+        "  WHEN OTHERS THEN\n"
+        "    IF SQLCODE != -955 THEN RAISE; END IF;\n"
+        "END;\n"
+        "/\n"
+    )
+
+
+def _indent_select_body(select_text: str) -> str:
+    """Indent every line of the inner SELECT for the CTAS PL/SQL block.
+
+    The committed ``030_expected_tables.sql`` indents the CTAS body four
+    spaces inside the ``q'[ ]'`` payload for readability. We preserve
+    that convention so emitted CTAS blocks look like the committed
+    bootstrap.
+
+    Args:
+        select_text: The inner SELECT statement (no leading newline).
+
+    Returns:
+        The text with every non-empty line prefixed with four spaces.
+    """
+    indented_lines = []
+    for line in select_text.splitlines():
+        if line:
+            indented_lines.append(f"    {line}")
+        else:
+            indented_lines.append(line)
+    return "\n".join(indented_lines)
+
+
 def _build_sql_document(
     workbook: OnboardingWorkbook,
     recon_row: ReconciliationRow,
@@ -557,8 +726,17 @@ def _build_sql_document(
 ) -> str:
     """Assemble the full SQL document for one reconciliation row.
 
+    Honours :attr:`SourceInfo.expected_table_strategy` (ED-S3) to wrap
+    the inner SELECT in a CTAS / DROP+CTAS PL/SQL block when the
+    target schema cannot ``CREATE VIEW``. The wrapper is the only
+    difference between strategies; the SELECT body is identical
+    regardless of strategy so a workbook can be toggled
+    ``view`` <-> ``ctas`` <-> ``ctas_with_drop`` without losing the
+    column projection alignment.
+
     Args:
-        workbook: The parsed workbook (for ``source.staging_schema``).
+        workbook: The parsed workbook (for ``source.staging_schema``
+            and ``source.expected_table_strategy``).
         recon_row: The reconciliation row.
         mapping: The parsed mapping JSON dict for the row's record type.
         file_type: The uppercase file type.
@@ -588,7 +766,27 @@ def _build_sql_document(
     if recon_row.predicate:
         parts.append(f" WHERE {recon_row.predicate}")
 
-    return "\n".join(parts) + "\n"
+    select_text = "\n".join(parts)
+
+    strategy = workbook.source.expected_table_strategy
+    if strategy == "view":
+        return select_text + "\n"
+
+    qualified_table = _ctas_table_qualified(workbook, recon_row, file_type)
+    create_block = _build_ctas_create_block(qualified_table, select_text)
+    if strategy == "ctas":
+        return create_block
+    if strategy == "ctas_with_drop":
+        drop_block = _build_ctas_drop_block(qualified_table)
+        return drop_block + "\n" + create_block
+
+    # Defensive: the reader validates the cell value, but if a caller
+    # synthesises a SourceInfo with an unknown strategy we fail loudly
+    # rather than silently produce a malformed file.
+    raise EmitterError(
+        f"Unknown expected_table_strategy {strategy!r}. Expected one of: "
+        f"view, ctas, ctas_with_drop."
+    )
 
 
 # ---------------------------------------------------------------------------
