@@ -14,11 +14,13 @@ This script materializes the three fixed-width test files referenced by
     tests/manual/sql/shaw_setup_sqlite.sql  (SQLite — local/Oracle-free)
 
 Each EXPECTED_*_TBL gets exactly as many rows as the matching record
-type contributes to ``tranert_shaw_test_valid.txt`` (5 NEW1, 4 CUS,
-3 ORI, 2 COD, 2 CBRS, 2 REC, 1 BATCH_HEADER), with field values copied
+type contributes to ``tranert_shaw_test_valid.txt`` (3 NEW1, 4 CUS,
+2 ORI, 2 COD, 2 CBRS, 2 REC, 1 BATCH_HEADER), with field values copied
 verbatim from the same ``detail_overrides()`` / ``header_overrides()``
-that build the fixture rows. That guarantees the L2b comparator sees
-zero violations when run against the VALID fixture.
+that build the fixture rows. The VALID fixture spans 3 accounts at 2
+banks per the BA-authored TRANERT spec
+(mappings/excel/TRANERT_SHAW_Mappings.xlsx). That guarantees the L2b
+comparator sees zero violations when run against the VALID fixture.
 
 All three fixture files share the TRANERT umbrella's GLOBAL record
 width — the maximum ``position + length - 1`` across every record-type
@@ -42,9 +44,10 @@ from __future__ import annotations
 
 import json
 import sys
+from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -169,10 +172,16 @@ def build_record(
 
 
 def header_overrides(item_count: int) -> Dict[str, str]:
-    """BATCH_HEADER overrides anchoring the ITM-CNT-BRT assertion."""
+    """BATCH_HEADER overrides anchoring the ITM-CNT-BRT assertion.
+
+    Values cross-checked against mappings/excel/TRANERT_SHAW_Mappings.xlsx::Batch
+    Header sheet: BK-NUM-BRT references the Bank Control Table (canonical 00040,
+    not 304 which the BA spec flags as "will be rejected"), APP-BRT references
+    the Application Control Table (canonical 001).
+    """
     return {
-        "BK-NUM-BRT": "00001",
-        "APP-BRT": "200",
+        "BK-NUM-BRT": "00040",              # was '00001' — Bank Control Table per BA spec
+        "APP-BRT": "001",                   # was '200' — Application Control Table per BA spec
         "EFF-DAT-BRT": "06/01/2026",        # MM/DD/CCYY (length 10)
         "TRN-COD-BRT": "BATCH",
         "BAT-NUM-BRT": "0000001",
@@ -184,15 +193,194 @@ def header_overrides(item_count: int) -> Dict[str, str]:
     }
 
 
-def detail_overrides(record_type: str, seq: int) -> Dict[str, str]:
-    """Shared key columns for detail records so reconciliation has stable keys."""
-    return {
-        "BK-NUM-ERT": "00001",
-        "APP-ERT": "200",
-        "LN-NUM-ERT": f"LN{seq:016d}",
-        "EFF-DAT-ERT": "06012026",                # MMDDYYYY (length 8/10)
+# Per-record-type field constants derived from the BA-authored TRANERT spec
+# (mappings/excel/TRANERT_SHAW_Mappings.xlsx) — fields with a single canonical
+# value or a clear single-default in the JSON mapping's valid_values.
+_PER_TYPE_OVERRIDES: Dict[str, Dict[str, str]] = {
+    "new1": {
+        "LCT-COD-NEW1": "100030",           # APPS Location Table canonical
+    },
+    "cus": {
+        # Relationship codes set per-row in build_valid_file (P/A vs B/B).
+        "CIF-CBR-RPT-IND-CUS": "Y",         # Report to credit bureau (Y/N)
+        "LAST-REPORTED-SEG-TYPE-CUS": "BA", # Base Segment (BA/J1)
+        "LAST-ECOA-CODE-CUS": "1",          # ECOA code 1 = Individual
+        "FINAL-REPORT-INDICATOR-CUS": "Y",
+        "LEAD-CONTACT-IND": "0",
+        "RESPONSIBLE-PARTY": "0",
+    },
+    "ori": {
+        "OGL-PORTFOLIO-TYP-ORI": "I",       # Installment (valid: 7/8/C/I)
+        "ST-COD-ORI": "NC",                 # NC state code
+        "ACT-STA-ORI": "0",                 # Open account
+        "COF-CDN-IND-ORI": "1",             # Full Charge Off No Partials
+    },
+    "cod": {
+        "STM-FRQ-COD": "M",                 # Monthly statements
+        "NAS-SRC-COD-COD": "130",
+        "LN-PUR-COD-COD": "3",
+        "LGL-STA-COD-COD": "R",
+        "RPO-COD-COD": "0",                 # Not in Repo/Voluntary Surrender
+    },
+    "cbrs": {
+        "M2F-CMT-COD-CBRS": "AW",           # Refer to Metro2 docs
+        "LAS-CMT-COD-CBRS": "AU",
+        "LAS-ACT-STA-CBRS": "05",           # Account transferred to another office
+    },
+    "rec": {
+        "RCF-REF-NUM-REC": "GNR",
+        "RCF-ASE-COD-REC": "0",             # Do Not Assess
+        "RCF-INT-IND-REC": "0",             # N/A
+        "RCF-DES-COD-REC": "003",           # Repossession-related
+        "EXP-PYF-IND-REC": "Y",             # Include in payoff
+        "RCF-ICR-COD-REC": "0",             # Do not capitalize
+    },
+}
+
+
+# ---------------------------------------------------------------------------
+# Account model (BA-spec compliant)
+#
+# Per mappings/excel/TRANERT_SHAW_Mappings.xlsx:
+#   * BK-NUM-ERT is per-account (Bank Control Table); multiple accounts may
+#     reside at different banks within a single batch.
+#   * LN-NUM-ERT is an 18-char composite: a leading blank at position 1
+#     followed by BK(3) + BR(3) + CUS(7) + LN(4) = 17 chars (total 18).
+#   * CIF-REF-NUM-CUS counts down from 999 for the first customer on an
+#     account, 998 for the second, etc.
+#   * CIF-ACT-COD-CUS / NAME-RELATIONSHIP are paired relationship codes
+#     (Primary = P/A, Secondary = B/B).
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class CustomerOnAccount:
+    """One customer on an account; primary or secondary."""
+
+    cif_ref_num: str    # '999' for first customer, '998' for second, ...
+    cif_act_cod: str    # 'P' primary, 'B' secondary
+    name_rel: str       # 'A' primary, 'B' secondary
+
+
+@dataclass
+class TestAccount:
+    """One account in the VALID fixture.
+
+    Carries the bank, branch, customer prefix, and loan number that
+    together form the 18-char composite LN-NUM-ERT. ``record_types``
+    lists the non-CUS detail records emitted for this account (NEW1 /
+    ORI / COD / CBRS / REC); ``customers`` carries the per-account CUS
+    rows in primary-first order so CIF-REF-NUM-CUS naturally descends
+    999 -> 998 -> 997.
+    """
+
+    bk: str             # '040', '041', ...
+    br: str             # '001'
+    cus: str            # '0000001', '0000002', ...
+    ln: str             # '0001'
+    record_types: List[str] = field(default_factory=list)
+    customers: List[CustomerOnAccount] = field(default_factory=list)
+
+    def ln_num_ert(self) -> str:
+        """Return the 18-char composite LN-NUM-ERT.
+
+        Layout: blank(1) + BK(3) + BR(3) + CUS(7) + LN(4) = 18 chars.
+        """
+        composite = " " + self.bk + self.br + self.cus + self.ln
+        assert len(composite) == 18, (
+            f"LN-NUM-ERT must be 18 chars, got {len(composite)}: {composite!r}"
+        )
+        return composite
+
+    def bk_num_ert(self) -> str:
+        """Return the 5-char zero-padded BK-NUM-ERT (matches NUMBER(5) DDL)."""
+        return self.bk.zfill(5)
+
+
+# Three-account VALID fixture per the BA-approved restructure:
+#   * Account 1 at bank 040: full lifecycle + secondary customer
+#       NEW1, CUS(999=P/A), CUS(998=B/B), ORI, COD, CBRS, REC -> 7 rows
+#   * Account 2 at bank 040: minimal active loan, single primary
+#       NEW1, CUS(999=P/A), ORI                              -> 3 rows
+#   * Account 3 at bank 041: different bank, no ORI yet, post-COF lifecycle
+#       NEW1, CUS(999=P/A), COD, CBRS, REC                   -> 5 rows
+# Total: 15 detail rows + 1 BATCH_HEADER = 16 lines in the fixture.
+VALID_ACCOUNTS: List[TestAccount] = [
+    TestAccount(
+        bk="040", br="001", cus="0000001", ln="0001",
+        record_types=["new1", "ori", "cod", "cbrs", "rec"],
+        customers=[
+            CustomerOnAccount(cif_ref_num="999", cif_act_cod="P", name_rel="A"),
+            CustomerOnAccount(cif_ref_num="998", cif_act_cod="B", name_rel="B"),
+        ],
+    ),
+    TestAccount(
+        bk="040", br="001", cus="0000002", ln="0001",
+        record_types=["new1", "ori"],
+        customers=[
+            CustomerOnAccount(cif_ref_num="999", cif_act_cod="P", name_rel="A"),
+        ],
+    ),
+    TestAccount(
+        bk="041", br="001", cus="0000003", ln="0001",
+        record_types=["new1", "cod", "cbrs", "rec"],
+        customers=[
+            CustomerOnAccount(cif_ref_num="999", cif_act_cod="P", name_rel="A"),
+        ],
+    ),
+]
+
+
+def _count_details(accounts: List[TestAccount]) -> Dict[str, int]:
+    """Tally detail-row counts per record type across all accounts.
+
+    Account 1 contributes new1(1) + cus(2) + ori(1) + cod(1) + cbrs(1) + rec(1) = 7
+    Account 2 contributes new1(1) + cus(1) + ori(1)                              = 3
+    Account 3 contributes new1(1) + cus(1) + cod(1) + cbrs(1) + rec(1)           = 5
+                                                                          total = 15
+    """
+    counts: Dict[str, int] = {"new1": 0, "cus": 0, "ori": 0, "cod": 0, "cbrs": 0, "rec": 0}
+    for acct in accounts:
+        for rt in acct.record_types:
+            counts[rt] = counts.get(rt, 0) + 1
+        counts["cus"] = counts.get("cus", 0) + len(acct.customers)
+    return counts
+
+
+def detail_overrides(
+    record_type: str,
+    *,
+    account: Optional[TestAccount] = None,
+    customer: Optional[CustomerOnAccount] = None,
+) -> Dict[str, str]:
+    """Per-row overrides anchoring reconciliation keys + BA-spec field values.
+
+    Key columns (BK-NUM-ERT, APP-ERT, LN-NUM-ERT, EFF-DAT-ERT, TRN-COD-ERT)
+    are derived from ``account`` so multi-bank fixtures honour the BA spec:
+    BK-NUM-ERT matches the account's bank, LN-NUM-ERT is the 18-char
+    composite (blank + BK + BR + CUS + LN). Per-record-type fields with
+    single-value valid_values per the BA Excel spec
+    (`mappings/excel/TRANERT_SHAW_Mappings.xlsx`) are merged in from
+    `_PER_TYPE_OVERRIDES`. For CUS rows the caller passes ``customer``
+    so CIF-REF-NUM-CUS (999/998/...), CIF-ACT-COD-CUS (P/B), and
+    NAME-RELATIONSHIP (A/B) are set from the customer record.
+    """
+    if account is None:
+        # Backward-compat default — single account at bank 040.
+        account = VALID_ACCOUNTS[0]
+    overrides = {
+        "BK-NUM-ERT": account.bk_num_ert(),  # per-account; varies bank-to-bank
+        "APP-ERT": "001",                    # Application Control Table canonical
+        "LN-NUM-ERT": account.ln_num_ert(),  # 18-char composite per BA spec
+        "EFF-DAT-ERT": "06012026",           # MMDDYYYY (length 8/10)
         "TRN-COD-ERT": TRN_COD_BY_TYPE[record_type],
     }
+    overrides.update(_PER_TYPE_OVERRIDES.get(record_type, {}))
+    if record_type == "cus" and customer is not None:
+        overrides["CIF-REF-NUM-CUS"] = customer.cif_ref_num
+        overrides["CIF-ACT-COD-CUS"] = customer.cif_act_cod
+        overrides["NAME-RELATIONSHIP"] = customer.name_rel
+    return overrides
 
 
 # ---------------------------------------------------------------------------
@@ -200,45 +388,125 @@ def detail_overrides(record_type: str, seq: int) -> Dict[str, str]:
 # ---------------------------------------------------------------------------
 
 
-def build_valid_file(width: int) -> List[str]:
-    """Build the ~30-line VALID file: 1 BATCH_HEADER + 18 detail rows."""
-    rows: List[str] = []
-    rows.append(build_record("batch_header", width, overrides=header_overrides(18)))
+def _emit_account_rows(account: TestAccount, width: int, seq_start: int) -> Tuple[List[str], int]:
+    """Emit the per-account detail rows in canonical TRANERT order.
 
-    counts = [("new1", 5), ("cus", 4), ("ori", 3), ("cod", 2), ("cbrs", 2), ("rec", 2)]
-    for rtype, n in counts:
-        for i in range(1, n + 1):
-            rows.append(build_record(rtype, width, overrides=detail_overrides(rtype, i), seq=i))
+    Order within an account is by ascending TRN-COD-ERT (32000 NEW1,
+    32005 CUS x N, 32010 ORI, 32025 COD, 32040 CBRS, 32075 REC) — the
+    typical TRANERT batch layout. ``seq`` is the file-global counter
+    used only for ``field_value()``'s numeric-default fallback; key
+    columns are now supplied by the account, so ``seq`` no longer
+    influences BK/LN values.
+
+    Returns:
+        (rows, next_seq) where ``next_seq`` is ``seq_start + len(rows)``
+        so the caller can continue numbering rows of the next account.
+    """
+    rows: List[str] = []
+    seq = seq_start
+    # NEW1 (32000) — exactly one per account if present.
+    if "new1" in account.record_types:
+        rows.append(build_record(
+            "new1", width,
+            overrides=detail_overrides("new1", account=account),
+            seq=seq,
+        ))
+        seq += 1
+    # CUS (32005) — one row per customer; CIF-REF-NUM-CUS descends 999, 998, ...
+    for customer in account.customers:
+        rows.append(build_record(
+            "cus", width,
+            overrides=detail_overrides("cus", account=account, customer=customer),
+            seq=seq,
+        ))
+        seq += 1
+    # ORI (32010), COD (32025), CBRS (32040), REC (32075) — at most one each.
+    for rtype in ("ori", "cod", "cbrs", "rec"):
+        if rtype in account.record_types:
+            rows.append(build_record(
+                rtype, width,
+                overrides=detail_overrides(rtype, account=account),
+                seq=seq,
+            ))
+            seq += 1
+    return rows, seq
+
+
+def build_valid_file(width: int) -> List[str]:
+    """Build the VALID file: 1 BATCH_HEADER + 15 detail rows (multi-account).
+
+    Honours the BA-authored TRANERT spec
+    (mappings/excel/TRANERT_SHAW_Mappings.xlsx):
+
+      * ``BK-NUM-ERT`` is per-account; account 3 lives at bank 041 while
+        accounts 1-2 live at bank 040.
+      * ``LN-NUM-ERT`` is the 18-char composite ``blank + BK + BR + CUS + LN``.
+      * ``CIF-REF-NUM-CUS`` counts down from 999 for the first customer on
+        an account, 998 for the second. Account 1 carries both a primary
+        (P/A, ref 999) and a secondary (B/B, ref 998); accounts 2 and 3
+        carry only a primary (P/A, ref 999).
+
+    Per-account row counts:
+        Account 1 (040/001/0000001/0001): NEW1, CUS(999), CUS(998), ORI, COD, CBRS, REC = 7
+        Account 2 (040/001/0000002/0001): NEW1, CUS(999), ORI                          = 3
+        Account 3 (041/001/0000003/0001): NEW1, CUS(999), COD, CBRS, REC               = 5
+        TOTAL DETAIL ROWS                                                              = 15
+        ITM-CNT-BRT (BATCH_HEADER)                                                     = 15
+    """
+    counts = _count_details(VALID_ACCOUNTS)
+    item_count = sum(counts.values())  # 15
+
+    rows: List[str] = []
+    rows.append(build_record("batch_header", width, overrides=header_overrides(item_count)))
+    seq = 1
+    for acct in VALID_ACCOUNTS:
+        acct_rows, seq = _emit_account_rows(acct, width, seq)
+        rows.extend(acct_rows)
     return rows
+
+
+# Clean baseline: a single account that touches every record type the
+# umbrella declares ``expect: at_least_one`` for, so cross-type
+# cardinality enforcement passes without violations.
+_CLEAN_ACCOUNT = TestAccount(
+    bk="040", br="001", cus="0000099", ln="0001",
+    record_types=["new1", "ori", "cod", "cbrs", "rec"],
+    customers=[CustomerOnAccount(cif_ref_num="999", cif_act_cod="P", name_rel="A")],
+)
 
 
 def build_clean_file(width: int) -> List[str]:
     """Minimal clean baseline — 1 row of every record type the umbrella declares.
 
-    The SHAW TRANERT umbrella declares ``expect: at_least_one`` for batch_header
-    and for rt_32000 (NEW1), rt_32005 (CUS), rt_32010 (ORI), rt_32025 (COD),
-    rt_32040 (CBRS), and rt_32075 (REC). A "clean" fixture must therefore include
-    one detail row of each of those six discriminator-keyed types in addition to
-    the position-keyed batch_header — otherwise the cross-type ``expect``
-    enforcement always emits ≥1 cardinality violation.
+    The SHAW TRANERT umbrella declares ``expect: at_least_one`` for
+    batch_header and for rt_32000 (NEW1), rt_32005 (CUS), rt_32010 (ORI),
+    rt_32025 (COD), rt_32040 (CBRS), and rt_32075 (REC). A "clean"
+    fixture must therefore include one detail row of each of those six
+    discriminator-keyed types in addition to the position-keyed
+    batch_header — otherwise cross-type ``expect`` enforcement always
+    emits >=1 cardinality violation.
 
-    Layout: 1 BATCH_HEADER + 1 NEW1 + 1 CUS + 1 ORI + 1 COD + 1 CBRS + 1 REC = 7
-    rows total, with ``ITM-CNT-BRT = 6`` to match the detail row count so the
-    ``header_trailer_count`` cross-type assertion passes.
+    Layout: 1 BATCH_HEADER + 1 NEW1 + 1 CUS + 1 ORI + 1 COD + 1 CBRS +
+    1 REC = 7 rows total, with ``ITM-CNT-BRT = 6`` to match the detail
+    row count so the ``header_trailer_count`` cross-type assertion
+    passes.
     """
-    detail_plan: List[Tuple[str, int]] = [
-        ("new1", 1),
-        ("cus", 2),
-        ("ori", 3),
-        ("cod", 4),
-        ("cbrs", 5),
-        ("rec", 6),
-    ]
+    counts = _count_details([_CLEAN_ACCOUNT])
+    item_count = sum(counts.values())  # 6
+
     rows: List[str] = []
-    rows.append(build_record("batch_header", width, overrides=header_overrides(len(detail_plan))))
-    for rtype, seq in detail_plan:
-        rows.append(build_record(rtype, width, overrides=detail_overrides(rtype, seq), seq=seq))
+    rows.append(build_record("batch_header", width, overrides=header_overrides(item_count)))
+    acct_rows, _ = _emit_account_rows(_CLEAN_ACCOUNT, width, seq_start=1)
+    rows.extend(acct_rows)
     return rows
+
+
+# Failure-file account: irrelevant — every row is deliberately corrupted.
+_FAIL_ACCOUNT = TestAccount(
+    bk="040", br="001", cus="0000077", ln="0001",
+    record_types=["new1"],
+    customers=[],
+)
 
 
 def build_failure_file(width: int) -> List[str]:
@@ -249,38 +517,54 @@ def build_failure_file(width: int) -> List[str]:
                (header_trailer_count assertion fires).
       Line 2 — NEW1 line truncated to width-50 chars (length mismatch).
       Line 3 — NEW1 with non-numeric in BK-NUM-ERT (numeric-type violation).
-      Line 4 — Detail line with unknown TRN-COD-ERT=99999 (unknown record type;
-               default_action: error fires).
+      Line 4 — Detail line with unknown TRN-COD-ERT=99999 (unknown record
+               type; default_action: error fires).
       Line 5 — Clean NEW1 row so the file isn't trivially malformed.
     """
     rows: List[str] = []
-    rows.append(build_record("batch_header", width, overrides={**header_overrides(0), "ITM-CNT-BRT": "000000099"}))
+    rows.append(build_record(
+        "batch_header", width,
+        overrides={**header_overrides(0), "ITM-CNT-BRT": "000000099"},
+    ))
 
     # Truncated NEW1 — chop off the last 50 chars after building it correctly.
-    truncated = build_record("new1", width, overrides=detail_overrides("new1", 1), seq=1)
+    truncated = build_record(
+        "new1", width,
+        overrides=detail_overrides("new1", account=_FAIL_ACCOUNT),
+        seq=1,
+    )
     rows.append(truncated[: width - 50])
 
-    # Numeric type violation: BK-NUM-ERT (decimal, len 5) → "ABCDE".
+    # Numeric type violation: BK-NUM-ERT (decimal, len 5) -> "ABCDE".
     bad_numeric = build_record(
-        "new1",
-        width,
-        overrides={**detail_overrides("new1", 2), "BK-NUM-ERT": "ABCDE"},
+        "new1", width,
+        overrides={
+            **detail_overrides("new1", account=_FAIL_ACCOUNT),
+            "BK-NUM-ERT": "ABCDE",
+        },
         seq=2,
     )
     rows.append(bad_numeric)
 
-    # Unknown discriminator: build a NEW1 shape (so widths line up) but force
-    # TRN-COD-ERT to 99999. The multi-record dispatcher should reject this row.
+    # Unknown discriminator: build a NEW1 shape (so widths line up) but
+    # force TRN-COD-ERT to 99999. The multi-record dispatcher should
+    # reject this row.
     unknown_disc = build_record(
-        "new1",
-        width,
-        overrides={**detail_overrides("new1", 3), "TRN-COD-ERT": "99999"},
+        "new1", width,
+        overrides={
+            **detail_overrides("new1", account=_FAIL_ACCOUNT),
+            "TRN-COD-ERT": "99999",
+        },
         seq=3,
     )
     rows.append(unknown_disc)
 
     # One clean NEW1 row so the file has at least one valid detail row.
-    rows.append(build_record("new1", width, overrides=detail_overrides("new1", 4), seq=4))
+    rows.append(build_record(
+        "new1", width,
+        overrides=detail_overrides("new1", account=_FAIL_ACCOUNT),
+        seq=4,
+    ))
     return rows
 
 
@@ -296,15 +580,15 @@ def build_failure_file(width: int) -> List[str]:
 # ---------------------------------------------------------------------------
 
 
-# Row plan: identical to build_valid_file. (record_type, total_seq).
-VALID_ROW_PLAN: List[Tuple[str, int]] = [
-    ("new1", 5),
-    ("cus", 4),
-    ("ori", 3),
-    ("cod", 2),
-    ("cbrs", 2),
-    ("rec", 2),
-]
+# Row plan: derived from VALID_ACCOUNTS so the sanity-check in main()
+# is automatically in sync with the fixture builder. Order matches the
+# canonical TRANERT layout (ascending TRN-COD-ERT).
+def _valid_row_plan() -> List[Tuple[str, int]]:
+    counts = _count_details(VALID_ACCOUNTS)
+    return [(rt, counts[rt]) for rt in ("new1", "cus", "ori", "cod", "cbrs", "rec")]
+
+
+VALID_ROW_PLAN: List[Tuple[str, int]] = _valid_row_plan()
 
 # EXPECTED_*_TBL key columns shared by every detail record-type row.
 # Values are written into the matching SQL INSERT verbatim so they line
@@ -319,28 +603,72 @@ RECORD_TYPE_TO_TABLE: Dict[str, str] = {
 }
 
 
-def _detail_insert_oracle(record_type: str, seq: int) -> str:
-    """Emit one Oracle INSERT for the given detail record-type/seq.
+def _ln_num_sql_literal(account: TestAccount) -> str:
+    """Return the LN-NUM-ERT composite as a SQL string literal.
+
+    Leading blank is preserved so the L2b comparator sees the same
+    18-char value the file carries.
+    """
+    return "'" + account.ln_num_ert() + "'"
+
+
+def _detail_insert_oracle(
+    record_type: str,
+    account: TestAccount,
+    customer: Optional[CustomerOnAccount] = None,
+) -> str:
+    """Emit one Oracle INSERT for the given detail record-type / account.
 
     Mirrors :func:`detail_overrides` exactly:
-      BK_NUM_ERT = 1, APP_ERT = 200, LN_NUM_ERT = 'LN{seq:016d}',
-      EFF_DAT_ERT = DATE '2026-06-01', TRN_COD_ERT = per-record-type code.
+      BK_NUM_ERT = account.bk (e.g. 40 or 41),
+      APP_ERT = 1,
+      LN_NUM_ERT = ' 040001000000010001' (18 chars, blank + BK+BR+CUS+LN),
+      EFF_DAT_ERT = DATE '2026-06-01',
+      TRN_COD_ERT = per-record-type code.
+
+    For CUS rows the customer's CIF_REF_NUM_CUS (999/998/...),
+    CIF_ACT_COD_CUS (P/B), and NAME_RELATIONSHIP (A/B) are written so
+    the L2b comparator finds zero violations against the VALID fixture.
     """
     table = RECORD_TYPE_TO_TABLE[record_type]
     trn_cod = TRN_COD_BY_TYPE[record_type]
+    bk_int = int(account.bk_num_ert())  # NUMBER(5)
+    ln_lit = _ln_num_sql_literal(account)
+    if record_type == "cus" and customer is not None:
+        return (
+            f"INSERT INTO {table} ("
+            "BK_NUM_ERT, APP_ERT, LN_NUM_ERT, EFF_DAT_ERT, TRN_COD_ERT, "
+            "CIF_REF_NUM_CUS, CIF_ACT_COD_CUS, NAME_RELATIONSHIP"
+            f") VALUES ({bk_int}, 1, {ln_lit}, DATE '2026-06-01', {trn_cod}, "
+            f"'{customer.cif_ref_num}', '{customer.cif_act_cod}', '{customer.name_rel}');"
+        )
     return (
         f"INSERT INTO {table} (BK_NUM_ERT, APP_ERT, LN_NUM_ERT, EFF_DAT_ERT, TRN_COD_ERT) "
-        f"VALUES (1, 200, 'LN{seq:016d}', DATE '2026-06-01', {trn_cod});"
+        f"VALUES ({bk_int}, 1, {ln_lit}, DATE '2026-06-01', {trn_cod});"
     )
 
 
-def _detail_insert_sqlite(record_type: str, seq: int) -> str:
+def _detail_insert_sqlite(
+    record_type: str,
+    account: TestAccount,
+    customer: Optional[CustomerOnAccount] = None,
+) -> str:
     """SQLite variant — DATE literal becomes an ISO-8601 text value."""
     table = RECORD_TYPE_TO_TABLE[record_type]
     trn_cod = TRN_COD_BY_TYPE[record_type]
+    bk_int = int(account.bk_num_ert())
+    ln_lit = _ln_num_sql_literal(account)
+    if record_type == "cus" and customer is not None:
+        return (
+            f"INSERT INTO {table} ("
+            "BK_NUM_ERT, APP_ERT, LN_NUM_ERT, EFF_DAT_ERT, TRN_COD_ERT, "
+            "CIF_REF_NUM_CUS, CIF_ACT_COD_CUS, NAME_RELATIONSHIP"
+            f") VALUES ({bk_int}, 1, {ln_lit}, '2026-06-01', {trn_cod}, "
+            f"'{customer.cif_ref_num}', '{customer.cif_act_cod}', '{customer.name_rel}');"
+        )
     return (
         f"INSERT INTO {table} (BK_NUM_ERT, APP_ERT, LN_NUM_ERT, EFF_DAT_ERT, TRN_COD_ERT) "
-        f"VALUES (1, 200, 'LN{seq:016d}', '2026-06-01', {trn_cod});"
+        f"VALUES ({bk_int}, 1, {ln_lit}, '2026-06-01', {trn_cod});"
     )
 
 
@@ -1178,20 +1506,30 @@ def _staging_inserts(dialect: str) -> List[str]:
 def _expected_inserts(dialect: str) -> List[str]:
     """Emit one INSERT per detail row in the VALID fixture, plus BATCH_HEADER.
 
+    Walks ``VALID_ACCOUNTS`` in the same per-account-then-by-record-type
+    order ``build_valid_file()`` uses, so the seed mirrors the fixture
+    row-for-row -- a precondition for L2b reconciliation reporting zero
+    violations.
+
     Insert counts (must match build_valid_file):
       EXPECTED_BATCH_HEADER_TBL: 1
-      EXPECTED_NEW1_TBL:         5
-      EXPECTED_CUS_TBL:          4
-      EXPECTED_ORI_TBL:          3
-      EXPECTED_COD_TBL:          2
-      EXPECTED_CBRS_TBL:         2
-      EXPECTED_REC_TBL:          2
+      EXPECTED_NEW1_TBL:         3   (one per account)
+      EXPECTED_CUS_TBL:          4   (account 1: 999 + 998; accounts 2 & 3: 999)
+      EXPECTED_ORI_TBL:          2   (accounts 1, 2)
+      EXPECTED_COD_TBL:          2   (accounts 1, 3)
+      EXPECTED_CBRS_TBL:         2   (accounts 1, 3)
+      EXPECTED_REC_TBL:          2   (accounts 1, 3)
     """
     rows: List[str] = []
     date_literal = "DATE '2026-06-01'" if dialect == "oracle" else "'2026-06-01'"
     detail_emit = _detail_insert_oracle if dialect == "oracle" else _detail_insert_sqlite
 
-    # BATCH_HEADER (1 row) -- mirrors header_overrides(18).
+    counts = _count_details(VALID_ACCOUNTS)
+    item_count = sum(counts.values())  # 15
+
+    # BATCH_HEADER (1 row) -- mirrors header_overrides(item_count).
+    # BK_NUM_BRT=40 (most common bank in the batch); APP_BRT=1
+    # (Application Control Table canonical per BA spec).
     rows.append(
         "INSERT INTO EXPECTED_BATCH_HEADER_TBL ("
         "BK_NUM_BRT, APP_BRT, EFF_DAT_BRT, TRN_COD_BRT, BAT_NUM_BRT, "
@@ -1201,16 +1539,21 @@ def _expected_inserts(dialect: str) -> List[str]:
         "ORG_LVL_NUM_7_BRT, ORG_LVL_NUM_8_BRT, ORG_LVL_NUM_9_BRT, "
         "ORG_LVL_NUM_10_BRT, ORG_LVL_NUM_11_BRT, ORG_LVL_NUM_12_BRT, "
         "ITM_CNT_BRT, DR_CR_AMT_BRT"
-        f") VALUES (1, 200, {date_literal}, 'BATCH', 1, "
+        f") VALUES (40, 1, {date_literal}, 'BATCH', 1, "
         "1, 32, 'VALDOTST', "
         "0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, "
-        "18, 0);"
+        f"{item_count}, 0);"
     )
 
-    # Detail rows (5/4/3/2/2/2).
-    for record_type, n in VALID_ROW_PLAN:
-        for seq in range(1, n + 1):
-            rows.append(detail_emit(record_type, seq))
+    # Detail rows -- walk the accounts in the same order build_valid_file does.
+    for account in VALID_ACCOUNTS:
+        if "new1" in account.record_types:
+            rows.append(detail_emit("new1", account))
+        for customer in account.customers:
+            rows.append(detail_emit("cus", account, customer))
+        for rtype in ("ori", "cod", "cbrs", "rec"):
+            if rtype in account.record_types:
+                rows.append(detail_emit(rtype, account))
     return rows
 
 
@@ -1224,9 +1567,12 @@ def build_sql_seed(dialect: str) -> str:
                  "-- 3) Seed -- SHAW_* staging tables (5 synthetic rows each).\n"
                  "-- -----------------------------------------------------------------------------\n")
     parts.extend(_staging_inserts(dialect))
+    counts = _count_details(VALID_ACCOUNTS)
     parts.append("\n-- -----------------------------------------------------------------------------\n"
                  "-- 4) Seed -- EXPECTED_*_TBL (one row per detail row in tranert_shaw_test_valid.txt).\n"
-                 "--    Counts: BATCH_HEADER=1, NEW1=5, CUS=4, ORI=3, COD=2, CBRS=2, REC=2.\n"
+                 f"--    Counts: BATCH_HEADER=1, NEW1={counts['new1']}, CUS={counts['cus']}, "
+                 f"ORI={counts['ori']}, COD={counts['cod']}, CBRS={counts['cbrs']}, REC={counts['rec']}.\n"
+                 "--    Multi-account fixture: 3 accounts at 2 banks (BK 040 x2 + BK 041 x1).\n"
                  "-- -----------------------------------------------------------------------------\n")
     parts.extend(_expected_inserts(dialect))
     if dialect == "oracle":

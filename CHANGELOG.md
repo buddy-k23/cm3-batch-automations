@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Manual TRANERT VALID fixture restructured for BA-spec compliance: now
+  spans 3 accounts at 2 different banks (BK 040 x2 + BK 041 x1), with
+  composite 18-char LN-NUM-ERT (blank + BK + BR + CUS + LN), per-account
+  BK-NUM-ERT, and CIF-REF-NUM-CUS countdown (999 -> 998) for account 1's
+  primary + secondary customers. Detail row count: 15 (NEW1=3, CUS=4,
+  ORI=2, COD=2, CBRS=2, REC=2). EXPECTED_*_TBL seed updated to match.
+
 ### Added
 - Manual test harness under `tests/manual/` for SHAW end-to-end validation:
   Oracle DDL (`sql/shaw_setup.sql`), three TRANERT fixed-width fixtures

@@ -71,11 +71,16 @@ EXPECTED_TABLES: List[str] = [
 ]
 
 # Required row counts per table (matches the VALID fixture row plan).
+# The fixture spans 3 accounts at 2 banks per the BA-authored TRANERT spec:
+#   Account 1 (BK 040): NEW1, CUS(999=P/A), CUS(998=B/B), ORI, COD, CBRS, REC
+#   Account 2 (BK 040): NEW1, CUS(999=P/A), ORI
+#   Account 3 (BK 041): NEW1, CUS(999=P/A), COD, CBRS, REC
+# Totals: NEW1=3, CUS=4, ORI=2, COD=2, CBRS=2, REC=2  (15 detail + 1 header).
 EXPECTED_ROW_COUNTS = {
     "EXPECTED_BATCH_HEADER_TBL": 1,
-    "EXPECTED_NEW1_TBL": 5,
+    "EXPECTED_NEW1_TBL": 3,
     "EXPECTED_CUS_TBL": 4,
-    "EXPECTED_ORI_TBL": 3,
+    "EXPECTED_ORI_TBL": 2,
     "EXPECTED_COD_TBL": 2,
     "EXPECTED_CBRS_TBL": 2,
     "EXPECTED_REC_TBL": 2,
