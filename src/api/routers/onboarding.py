@@ -35,15 +35,20 @@ Auth posture:
 
 from __future__ import annotations
 
+import io
 import logging
 import os
+import re
+import subprocess  # nosec B404 -- arg-array invocation only (shell disabled)
 import tempfile
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, Iterator, List, Tuple
 
 import yaml
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, status
+from fastapi.responses import StreamingResponse
 
 logger = logging.getLogger(__name__)
 
@@ -229,7 +234,64 @@ _KIND_BY_CATEGORY: Dict[str, str] = {
 _MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 
 
-def _build_preview_payload(workbook_path: Path) -> Dict[str, Any]:
+def _plan_workbook_artefacts(workbook_path: Path) -> Tuple[Any, List[Any]]:
+    """Run the EC-S6 planner over the staged workbook.
+
+    Shared first-leg for the preview / download-zip / open-mr endpoints
+    so the workbook-reader + emitter set runs exactly once per request.
+
+    Args:
+        workbook_path: Filesystem path to the staged ``.xlsx``.
+
+    Returns:
+        Tuple ``(workbook, plans)`` where ``workbook`` is the parsed
+        :class:`OnboardingWorkbook` (caller reads ``source.source_code``
+        off it for the response envelope) and ``plans`` is the ordered
+        list of ``_PlannedWrite`` objects from the planner.
+
+    Raises:
+        WorkbookReadError / WorkbookSchemaError / EmitterError:
+            Propagated to the caller, which maps them to a 4xx.
+    """
+    # Lazy import: the EC-S6 module pulls openpyxl + every emitter and
+    # we don't want to pay that cost on a plain ``GET /sources`` request.
+    from src.commands.onboard_source import _plan_writes
+    from src.onboarding.workbook_reader import read_workbook
+
+    workbook = read_workbook(workbook_path)
+    plans = _plan_writes(
+        workbook,
+        output_root=Path.cwd(),
+        source_dir=None,
+        mapping_dir=None,
+        rules_dir=None,
+        reconciliation_dir=None,
+        sql_dir=None,
+        frozen_timestamp=None,
+    )
+    return workbook, plans
+
+
+def _display_path(plan_path: Path, cwd: Path) -> str:
+    """Coerce a planner-absolute path to the canonical repo-relative form.
+
+    Args:
+        plan_path: The absolute on-disk path produced by the planner.
+        cwd: The current working directory (output root).
+
+    Returns:
+        A POSIX-style relative path when the plan path sits under the
+        cwd, else the absolute path string as a defensive fallback.
+    """
+    try:
+        return plan_path.resolve().relative_to(cwd).as_posix()
+    except ValueError:
+        return plan_path.as_posix()
+
+
+def _build_preview_payload(
+    workbook_path: Path, workbook_hash: str | None = None
+) -> Dict[str, Any]:
     """Drive the EC-S6 planner and assemble the EE-S2 preview response.
 
     This replaces the EE-S1 thin delegation to the MCP helper because
@@ -248,44 +310,42 @@ def _build_preview_payload(workbook_path: Path) -> Dict[str, Any]:
        the shared drift helper and build a ``would_write`` entry with
        ``path``, ``bytes``, ``kind``, and ``status``.
     4. Aggregate the per-status counts into ``summary.drift``.
+    5. EE-S3: when ``workbook_hash`` is supplied, seed the process-wide
+       artefact-content cache so the follow-up ``/artefact-content``
+       endpoint can serve emitted text without re-running the planner.
+       The cache key is the SHA-256 hex digest of the workbook bytes.
 
     Args:
         workbook_path: Filesystem path to the uploaded ``.xlsx``.
+        workbook_hash: Optional SHA-256 hex digest of the workbook
+            bytes. When provided, the planner's emitted-content map is
+            written into the artefact-content cache so subsequent
+            ``/artefact-content`` requests can resolve it. When
+            ``None`` (legacy callers / tests that don't need the
+            cache), the cache is left untouched.
 
     Returns:
         The full preview payload (``source_code``, ``would_write``,
         ``summary``) including EE-S2's per-artefact ``status`` and
-        aggregate ``drift`` block.
+        aggregate ``drift`` block. EE-S3 also includes a top-level
+        ``workbook_hash`` field when one was supplied.
 
     Raises:
         WorkbookReadError / WorkbookSchemaError / EmitterError:
             Propagated to the caller, which maps them to a 422.
     """
-    # Lazy import: the EC-S6 module pulls openpyxl + every emitter and
-    # we don't want to pay that cost on a plain ``GET /sources`` request.
-    from src.commands.onboard_source import _plan_writes
-    from src.onboarding.drift import compare_artefact_payload
-    from src.onboarding.workbook_reader import read_workbook
-
-    workbook = read_workbook(workbook_path)
-    # Drive every emitter in-memory. Output root stays as Path.cwd() so
-    # the surfaced + compared paths mirror what the CLI would write
-    # (repo-relative by the time they're reported back to the UI).
-    plans = _plan_writes(
-        workbook,
-        output_root=Path.cwd(),
-        source_dir=None,
-        mapping_dir=None,
-        rules_dir=None,
-        reconciliation_dir=None,
-        sql_dir=None,
-        frozen_timestamp=None,
+    from src.onboarding.drift import (
+        compare_artefact_payload,
+        get_artefact_content_cache,
     )
+
+    workbook, plans = _plan_workbook_artefacts(workbook_path)
 
     cwd = Path.cwd()
     would_write: List[Dict[str, Any]] = []
     total_bytes = 0
     drift_counts: Dict[str, int] = {"new": 0, "changed": 0, "unchanged": 0}
+    artefact_content_map: Dict[str, str] = {}
 
     for plan in plans:
         size_bytes = len(plan.content.encode("utf-8"))
@@ -300,14 +360,8 @@ def _build_preview_payload(workbook_path: Path) -> Dict[str, Any]:
         )
         drift_counts[status_token] = drift_counts.get(status_token, 0) + 1
 
-        # Repo-relative display path when possible — agents and UI
-        # both quote these back to the BA. Falls back to absolute if
-        # the path escapes the cwd (defensive; not used by the preview
-        # endpoint today).
-        try:
-            display_path = plan.path.resolve().relative_to(cwd).as_posix()
-        except ValueError:
-            display_path = plan.path.as_posix()
+        display_path = _display_path(plan.path, cwd)
+        artefact_content_map[display_path] = plan.content
 
         entry: Dict[str, Any] = {
             "path": display_path,
@@ -322,7 +376,14 @@ def _build_preview_payload(workbook_path: Path) -> Dict[str, Any]:
             entry["drift_reason"] = drift_msg
         would_write.append(entry)
 
-    return {
+    if workbook_hash is not None:
+        # Seed the EE-S3 artefact-content cache so the follow-up
+        # ``/artefact-content`` endpoint can serve emitted text without
+        # re-running the planner. The cache is bounded by both size +
+        # TTL so a long-running uvicorn never accumulates state.
+        get_artefact_content_cache().put(workbook_hash, artefact_content_map)
+
+    payload: Dict[str, Any] = {
         "source_code": workbook.source.source_code,
         "would_write": would_write,
         "summary": {
@@ -331,6 +392,94 @@ def _build_preview_payload(workbook_path: Path) -> Dict[str, Any]:
             "drift": drift_counts,
         },
     }
+    if workbook_hash is not None:
+        payload["workbook_hash"] = workbook_hash
+    return payload
+
+
+async def _stage_workbook_upload(
+    file: UploadFile, *, prefix: str
+) -> Tuple[Path, str]:
+    """Stream a multipart workbook upload to a tempfile, returning path + hash.
+
+    Shared by ``/preview``, ``/download-zip``, and ``/open-mr`` so the
+    streaming + size-limit + hash-compute logic only lives in one place.
+    The caller is responsible for ``unlink``-ing the returned path in a
+    ``finally`` block.
+
+    Args:
+        file: The FastAPI ``UploadFile`` to stage.
+        prefix: Filename prefix for the tempfile (eases triage when
+            an operator finds an orphaned tmpfile under ``/tmp``).
+
+    Returns:
+        Tuple ``(staged_path, workbook_hash)`` where
+        ``workbook_hash`` is the SHA-256 hex digest of the workbook
+        bytes (the cache key for the EE-S3 artefact-content cache).
+
+    Raises:
+        HTTPException: 400 when the upload is missing the ``.xlsx``
+            extension, is empty, or exceeds the size limit.
+    """
+    from src.onboarding.drift import compute_workbook_hash
+
+    if file.filename is None or not file.filename.lower().endswith(".xlsx"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Workbook must be an .xlsx file",
+        )
+
+    tmp = tempfile.NamedTemporaryFile(
+        suffix=".xlsx", delete=False, prefix=prefix
+    )
+    tmp_path = Path(tmp.name)
+    hasher_chunks: List[bytes] = []
+    total = 0
+    try:
+        while True:
+            chunk = await file.read(64 * 1024)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > _MAX_UPLOAD_BYTES:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        f"Workbook exceeds {_MAX_UPLOAD_BYTES // (1024 * 1024)} "
+                        "MB upload limit"
+                    ),
+                )
+            tmp.write(chunk)
+            hasher_chunks.append(chunk)
+        tmp.close()
+    except HTTPException:
+        # Best-effort cleanup on the error path before re-raising — the
+        # caller's ``finally`` block won't see the path if we raise
+        # before returning.
+        try:
+            tmp.close()
+        except Exception:  # pragma: no cover - defensive
+            pass
+        try:
+            if tmp_path.exists():
+                tmp_path.unlink()
+        except OSError:  # pragma: no cover - defensive
+            pass
+        raise
+
+    if total == 0:
+        try:
+            if tmp_path.exists():
+                tmp_path.unlink()
+        except OSError:  # pragma: no cover - defensive
+            pass
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded workbook is empty",
+        )
+
+    workbook_hash = compute_workbook_hash(b"".join(hasher_chunks))
+    return tmp_path, workbook_hash
 
 
 @router.post("/preview")
@@ -378,57 +527,26 @@ async def preview_workbook(
             global exception handler will then surface an opaque
             error_id).
     """
-    if file.filename is None or not file.filename.lower().endswith(".xlsx"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Workbook must be an .xlsx file",
-        )
-
-    # Stream into a NamedTemporaryFile so the workbook-reader can mmap
-    # it without buffering the whole thing in RAM. The
-    # ``delete=False`` is paired with the ``finally`` cleanup below so
-    # we still get the os-managed tmpdir, just with explicit removal.
-    tmp = tempfile.NamedTemporaryFile(
-        suffix=".xlsx", delete=False, prefix="valdo_onboarding_preview_"
+    tmp_path, workbook_hash = await _stage_workbook_upload(
+        file, prefix="valdo_onboarding_preview_"
     )
-    tmp_path = Path(tmp.name)
     try:
-        total = 0
-        # Read in chunks so a malicious upload does not blow up RSS.
-        while True:
-            chunk = await file.read(64 * 1024)
-            if not chunk:
-                break
-            total += len(chunk)
-            if total > _MAX_UPLOAD_BYTES:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=(
-                        f"Workbook exceeds {_MAX_UPLOAD_BYTES // (1024 * 1024)} "
-                        "MB upload limit"
-                    ),
-                )
-            tmp.write(chunk)
-        tmp.close()
-
-        if total == 0:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Uploaded workbook is empty",
-            )
-
         # EE-S2: we drive the EC-S6 planner directly (rather than the
         # MCP helper) because the per-artefact drift comparison needs
         # the raw planned-write objects (path + content). The EE-S1
         # response shape is a superset of the MCP helper's, so agents
         # consuming this surface get the EF-S5 fields they already
-        # know plus the new ``status`` / ``drift`` enrichment.
+        # know plus the new ``status`` / ``drift`` enrichment. EE-S3
+        # threads the workbook hash through so the artefact-content
+        # cache gets seeded for the ``/artefact-content`` lookup.
         from src.onboarding.emitters import EmitterError
         from src.onboarding.models import WorkbookReadError
         from src.onboarding.workbook_schema import WorkbookSchemaError
 
         try:
-            payload = _build_preview_payload(tmp_path)
+            payload = _build_preview_payload(
+                tmp_path, workbook_hash=workbook_hash
+            )
         except (WorkbookReadError, WorkbookSchemaError) as exc:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -581,6 +699,566 @@ async def get_committed_artefact(
         "bytes": len(content.encode("utf-8")),
         "content": content,
     }
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v2/onboarding/download-zip — EE-S3 ZIP commit path
+# ---------------------------------------------------------------------------
+
+
+def _zip_stream_generator(
+    plans: List[Any], cwd: Path
+) -> Iterator[bytes]:
+    """Yield a ZIP archive byte-stream from the planner output.
+
+    Uses an in-memory :class:`io.BytesIO` buffer wrapped in a
+    :class:`zipfile.ZipFile`; each artefact is written at its canonical
+    repo-relative path. The buffer is drained to the caller in 64 KB
+    chunks so very large archives don't fully materialise in RAM at the
+    HTTP layer.
+
+    Args:
+        plans: Ordered list of ``_PlannedWrite`` objects from the
+            planner. Each plan's content is encoded as UTF-8 and
+            written under :func:`_display_path`.
+        cwd: The current working directory used to coerce planner
+            paths to repo-relative form. Mirrors the ``/preview``
+            display-path logic so the ZIP and the preview tree agree
+            on filenames.
+
+    Yields:
+        UTF-8 byte chunks of the ZIP archive, suitable for piping
+        through a FastAPI :class:`StreamingResponse`.
+    """
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for plan in plans:
+            display_path = _display_path(plan.path, cwd)
+            zf.writestr(display_path, plan.content.encode("utf-8"))
+    # ZipFile.close() (triggered on context exit) finalises the
+    # central directory; only after that does the BytesIO contain a
+    # valid archive. Drain in chunks so the StreamingResponse can
+    # pipeline the bytes to the client.
+    buf.seek(0)
+    while True:
+        chunk = buf.read(64 * 1024)
+        if not chunk:
+            break
+        yield chunk
+
+
+@router.post("/download-zip")
+async def download_workbook_zip(
+    file: UploadFile = File(..., description="Onboarding workbook (.xlsx)"),
+) -> StreamingResponse:
+    """Stream a ZIP of every emitted artefact for offline review.
+
+    The flow mirrors ``/preview``: stage the upload, run the EC-S6
+    planner in memory, then materialise every planned artefact at its
+    canonical repo-relative path inside a ZIP. The ZIP is streamed back
+    via :class:`StreamingResponse` so very large archives (deep mapping
+    trees with dozens of SQL artefacts) don't have to fully materialise
+    in the API process's RSS before the first byte hits the wire.
+
+    No disk side effects on the engine's ``config/`` tree — the planner
+    runs in memory, the ZIP is built in a :class:`io.BytesIO`, and the
+    staged workbook tempfile is unlinked in the ``finally`` block.
+
+    Args:
+        file: A multipart-uploaded ``.xlsx`` file.
+
+    Returns:
+        A :class:`StreamingResponse` with ``Content-Type:
+        application/zip`` and a ``Content-Disposition: attachment;
+        filename="<SOURCE_CODE>-onboarding-artefacts.zip"`` header.
+
+    Raises:
+        HTTPException: 400 on a non-``.xlsx`` upload / oversize /
+            empty body; 422 on a schema-invalid workbook; 500 on
+            unexpected emitter failure.
+    """
+    tmp_path, _workbook_hash = await _stage_workbook_upload(
+        file, prefix="valdo_onboarding_download_"
+    )
+    try:
+        from src.onboarding.emitters import EmitterError
+        from src.onboarding.models import WorkbookReadError
+        from src.onboarding.workbook_schema import WorkbookSchemaError
+
+        try:
+            workbook, plans = _plan_workbook_artefacts(tmp_path)
+        except (WorkbookReadError, WorkbookSchemaError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=str(exc),
+            ) from exc
+        except EmitterError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Emitter error: {exc}",
+            ) from exc
+
+        cwd = Path.cwd()
+        # Build the archive into a freshly-allocated BytesIO inside the
+        # generator. We capture both the source code and the plans now
+        # so the generator closure has everything it needs after the
+        # request body has been consumed.
+        source_code = workbook.source.source_code
+        # Sanitise the source code for use in a Content-Disposition
+        # filename: only [A-Za-z0-9_-] survive. Defends against an
+        # attacker-controlled workbook source name attempting header
+        # injection via the filename parameter.
+        safe_source = re.sub(r"[^A-Za-z0-9_-]", "_", source_code) or "source"
+        filename = f"{safe_source}-onboarding-artefacts.zip"
+        headers = {
+            "Content-Disposition": f'attachment; filename="{filename}"'
+        }
+        return StreamingResponse(
+            _zip_stream_generator(plans, cwd),
+            media_type="application/zip",
+            headers=headers,
+        )
+    finally:
+        try:
+            if tmp_path.exists():
+                tmp_path.unlink()
+        except OSError as exc:  # pragma: no cover — defensive
+            logger.warning(
+                "onboarding.download_zip tmpfile_cleanup_failed path=%s err=%s",
+                tmp_path,
+                exc,
+            )
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v2/onboarding/open-mr — EE-S3 GitHub PR commit path
+# ---------------------------------------------------------------------------
+
+# Hard cap on the title and description form fields so an upstream
+# malicious agent cannot stuff a multi-megabyte description into the
+# commit message body (which would in turn balloon the git object
+# database). The numbers mirror GitHub's own PR limits.
+_MR_TITLE_MAX_LEN = 256
+_MR_DESCRIPTION_MAX_LEN = 65_536
+_MR_BRANCH_NAME_MAX_LEN = 200
+
+# Branch names get validated against a permissive but bounded character
+# set. We deliberately match the subset of Git's `ref-format(7)` rules
+# that round-trip safely through `gh pr create` and a shell-less
+# subprocess argv. Anything else gets a 400.
+_MR_BRANCH_NAME_RE = re.compile(r"^[A-Za-z0-9._/-]+$")
+
+
+def _open_mr_disabled_response() -> HTTPException:
+    """Build the 501 raised when the open-MR feature flag is unset.
+
+    Factored out so the test surface can pin the exact message string.
+
+    Returns:
+        A 501 :class:`HTTPException` with an actionable hint pointing
+        the BA at Download ZIP / the CLI.
+    """
+    return HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail=(
+            "MR-opening from the UI is disabled in this environment. "
+            "Use Download ZIP and commit manually, or run "
+            "`valdo onboard-source` from the CLI."
+        ),
+    )
+
+
+def _default_branch_name(source_code: str) -> str:
+    """Synthesize a branch name when the request didn't supply one.
+
+    Uses a UTC timestamp so back-to-back invocations don't collide on
+    a single source.
+
+    Args:
+        source_code: The workbook's source code (e.g. ``"SHAW"``).
+
+    Returns:
+        A branch name of the form
+        ``valdo-onboarding/<source>-<YYYYMMDD-HHMMSS>``.
+    """
+    safe_source = re.sub(r"[^A-Za-z0-9_-]", "_", source_code) or "source"
+    stamp = datetime.now(tz=timezone.utc).strftime("%Y%m%d-%H%M%S")
+    return f"valdo-onboarding/{safe_source}-{stamp}"
+
+
+def _run_git_or_gh(
+    cmd: List[str], *, cwd: Path
+) -> "subprocess.CompletedProcess[str]":
+    """Invoke a ``git`` or ``gh`` command and return the completed process.
+
+    Centralises the ``shell=False`` / arg-array invocation so the
+    EC-S11 ``test_no_shell_true`` guardrail stays satisfied. Caller
+    inspects the returncode + stdout + stderr.
+
+    Args:
+        cmd: The full argv array. The first element is the binary
+            (``"git"`` / ``"gh"``).
+        cwd: Working directory for the subprocess.
+
+    Returns:
+        The :class:`subprocess.CompletedProcess` from
+        :func:`subprocess.run`.
+    """
+    return subprocess.run(  # nosec B603 -- arg-array, no shell
+        cmd,
+        cwd=str(cwd),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def _open_mr_pipeline(
+    plans: List[Any],
+    *,
+    source_code: str,
+    mr_title: str,
+    mr_description: str,
+    branch_name: str,
+    repo_root: Path,
+) -> Dict[str, Any]:
+    """Run the branch / commit / push / PR pipeline against the local repo.
+
+    Side-effects, in order:
+
+    1. ``git checkout -b <branch_name>`` from the current HEAD.
+    2. Materialise every planned artefact at its canonical
+       repo-relative path under ``repo_root``.
+    3. ``git add`` the materialised paths.
+    4. ``git commit`` with the conventional message.
+    5. ``git push -u origin <branch_name>``.
+    6. ``gh pr create --title ... --body ... --head <branch_name>``.
+
+    Each step's stdout + stderr is captured and surfaced in the
+    returned dict on failure so the UI can render a clear error.
+
+    Args:
+        plans: Ordered list of planner ``_PlannedWrite`` objects.
+        source_code: The workbook's source code (for the default
+            branch name).
+        mr_title: The PR title from the form.
+        mr_description: The PR description from the form.
+        branch_name: The resolved branch name (caller-provided or
+            synthesised).
+        repo_root: The working tree to operate on. In production this
+            is :func:`Path.cwd`; tests redirect this via
+            ``monkeypatch.chdir`` so the real repo is never touched.
+
+    Returns:
+        ``{"pr_url": ..., "branch_name": ..., "commit_sha": ...}``
+        on success.
+
+    Raises:
+        HTTPException: 500 on any subprocess failure, with the failing
+            step + captured output surfaced in ``detail``.
+    """
+    # 1. Branch from the current HEAD.
+    create_branch = _run_git_or_gh(
+        ["git", "checkout", "-b", branch_name], cwd=repo_root
+    )
+    if create_branch.returncode != 0:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=(
+                f"git checkout -b {branch_name} failed: "
+                f"{create_branch.stderr.strip() or create_branch.stdout.strip()}"
+            ),
+        )
+
+    # 2. Materialise every planned artefact on the new branch.
+    written_paths: List[str] = []
+    cwd = Path.cwd()
+    for plan in plans:
+        rel_path = _display_path(plan.path, cwd)
+        on_disk = repo_root / rel_path
+        on_disk.parent.mkdir(parents=True, exist_ok=True)
+        on_disk.write_text(plan.content, encoding="utf-8")
+        written_paths.append(rel_path)
+
+    # 3. Stage only the paths we wrote — we never want a stray
+    # ``git add -A`` to pick up an unrelated working-tree change.
+    add = _run_git_or_gh(
+        ["git", "add", "--"] + written_paths, cwd=repo_root
+    )
+    if add.returncode != 0:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=(
+                f"git add failed: {add.stderr.strip() or add.stdout.strip()}"
+            ),
+        )
+
+    # 4. Commit. The conventional message keeps the changelog parser
+    # happy and signals the commit's provenance.
+    commit_message = (
+        f"feat(onboarding): {mr_title} via Source Editor UI\n\n"
+        f"{mr_description}"
+    )
+    commit = _run_git_or_gh(
+        ["git", "commit", "-m", commit_message], cwd=repo_root
+    )
+    if commit.returncode != 0:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=(
+                f"git commit failed: "
+                f"{commit.stderr.strip() or commit.stdout.strip()}"
+            ),
+        )
+
+    # 5. Resolve the new commit SHA so we can surface it to the UI.
+    rev_parse = _run_git_or_gh(
+        ["git", "rev-parse", "HEAD"], cwd=repo_root
+    )
+    if rev_parse.returncode != 0:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=(
+                f"git rev-parse HEAD failed: "
+                f"{rev_parse.stderr.strip() or rev_parse.stdout.strip()}"
+            ),
+        )
+    commit_sha = rev_parse.stdout.strip()
+
+    # 6. Push the branch upstream.
+    push = _run_git_or_gh(
+        ["git", "push", "-u", "origin", branch_name], cwd=repo_root
+    )
+    if push.returncode != 0:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=(
+                f"git push failed: "
+                f"{push.stderr.strip() or push.stdout.strip()}"
+            ),
+        )
+
+    # 7. Open the PR via the gh CLI. The body is fed via stdin (--body-file -)
+    # so a multi-line description doesn't get mangled by argv quoting on
+    # any future shell-wrapped invocation.
+    gh_create = _run_git_or_gh(
+        [
+            "gh",
+            "pr",
+            "create",
+            "--title",
+            mr_title,
+            "--body",
+            mr_description,
+            "--head",
+            branch_name,
+        ],
+        cwd=repo_root,
+    )
+    if gh_create.returncode != 0:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=(
+                f"gh pr create failed: "
+                f"{gh_create.stderr.strip() or gh_create.stdout.strip()}"
+            ),
+        )
+
+    pr_url = gh_create.stdout.strip().splitlines()[-1] if gh_create.stdout else ""
+    return {
+        "pr_url": pr_url,
+        "branch_name": branch_name,
+        "commit_sha": commit_sha,
+    }
+
+
+@router.post("/open-mr")
+async def open_merge_request(
+    file: UploadFile = File(..., description="Onboarding workbook (.xlsx)"),
+    mr_title: str = Form(..., description="Pull request title"),
+    mr_description: str = Form("", description="Pull request body"),
+    branch_name: str = Form(
+        "",
+        description=(
+            "Optional branch name. Defaults to "
+            "valdo-onboarding/<source>-<timestamp>."
+        ),
+    ),
+) -> Dict[str, Any]:
+    """Branch + commit + push + open a PR via the ``gh`` CLI.
+
+    Gated behind the ``VALDO_UI_ENABLE_OPEN_MR`` environment variable
+    so production-by-default has no surprise side-effects on the git
+    working tree. When unset the endpoint returns a 501 with an
+    actionable hint pointing the BA at Download ZIP or the CLI.
+
+    On success the response carries the PR URL, the new branch name,
+    and the commit SHA so the UI can render a "click here to review"
+    link.
+
+    Args:
+        file: Multipart-uploaded onboarding workbook.
+        mr_title: Title for the PR (also the second segment of the
+            commit subject line).
+        mr_description: PR description / commit body. Plain text;
+            no markdown sanitisation applied — GitHub renders it.
+        branch_name: Optional branch override. When empty (the
+            default), a deterministic
+            ``valdo-onboarding/<source>-<timestamp>`` branch name is
+            synthesised.
+
+    Returns:
+        ``{"pr_url": ..., "branch_name": ..., "commit_sha": ...}``.
+
+    Raises:
+        HTTPException: 400 on input validation errors; 501 when the
+            feature flag is unset; 422 on a schema-invalid workbook;
+            500 on any subprocess failure inside the pipeline.
+    """
+    # Feature-flag gate FIRST so we don't even bother staging the
+    # workbook when the endpoint is disabled.
+    if os.environ.get("VALDO_UI_ENABLE_OPEN_MR") != "1":
+        raise _open_mr_disabled_response()
+
+    # Defensive input validation BEFORE doing any I/O. These bounds
+    # mirror GitHub's own limits and keep an upstream malicious agent
+    # from ballooning the git object database.
+    if not mr_title or not mr_title.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="mr_title is required",
+        )
+    if len(mr_title) > _MR_TITLE_MAX_LEN:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"mr_title exceeds {_MR_TITLE_MAX_LEN} characters",
+        )
+    if len(mr_description) > _MR_DESCRIPTION_MAX_LEN:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"mr_description exceeds {_MR_DESCRIPTION_MAX_LEN} characters"
+            ),
+        )
+    if branch_name:
+        if len(branch_name) > _MR_BRANCH_NAME_MAX_LEN:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"branch_name exceeds {_MR_BRANCH_NAME_MAX_LEN} characters"
+                ),
+            )
+        if not _MR_BRANCH_NAME_RE.match(branch_name):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "branch_name may only contain letters, digits, "
+                    "'.', '_', '/', and '-'"
+                ),
+            )
+
+    tmp_path, _workbook_hash = await _stage_workbook_upload(
+        file, prefix="valdo_onboarding_mr_"
+    )
+    try:
+        from src.onboarding.emitters import EmitterError
+        from src.onboarding.models import WorkbookReadError
+        from src.onboarding.workbook_schema import WorkbookSchemaError
+
+        try:
+            workbook, plans = _plan_workbook_artefacts(tmp_path)
+        except (WorkbookReadError, WorkbookSchemaError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=str(exc),
+            ) from exc
+        except EmitterError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Emitter error: {exc}",
+            ) from exc
+
+        source_code = workbook.source.source_code
+        resolved_branch = branch_name or _default_branch_name(source_code)
+        repo_root = Path.cwd()
+        return _open_mr_pipeline(
+            plans,
+            source_code=source_code,
+            mr_title=mr_title,
+            mr_description=mr_description,
+            branch_name=resolved_branch,
+            repo_root=repo_root,
+        )
+    finally:
+        try:
+            if tmp_path.exists():
+                tmp_path.unlink()
+        except OSError as exc:  # pragma: no cover — defensive
+            logger.warning(
+                "onboarding.open_mr tmpfile_cleanup_failed path=%s err=%s",
+                tmp_path,
+                exc,
+            )
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v2/onboarding/artefact-content — EE-S3 diff backing store
+# ---------------------------------------------------------------------------
+
+
+@router.get("/artefact-content")
+async def get_artefact_content(
+    workbook_hash: str = Query(
+        ...,
+        min_length=8,
+        max_length=128,
+        description="SHA-256 hex digest of the previously-uploaded workbook",
+    ),
+    path: str = Query(
+        ..., description="Repo-relative path of the artefact"
+    ),
+) -> Dict[str, Any]:
+    """Return the emitted text for a (workbook, path) tuple.
+
+    Backs the EE-S3 unified-diff renderer: the UI receives a
+    ``workbook_hash`` in the ``/preview`` response, then queries this
+    endpoint per artefact when the View modal opens. The endpoint reads
+    from the in-process LRU cache seeded by ``/preview`` — no planner
+    re-run, no workbook re-upload.
+
+    Args:
+        workbook_hash: SHA-256 hex digest from ``/preview``'s response.
+        path: Repo-relative artefact path (e.g.
+            ``config/mappings/SHAW_TRANERT.json``).
+
+    Returns:
+        ``{"path": ..., "content": ...}`` where ``content`` is the
+        emitted UTF-8 text.
+
+    Raises:
+        HTTPException: 404 when the cache entry is missing / expired
+            or the path is unknown for that workbook.
+    """
+    from src.onboarding.drift import get_artefact_content_cache
+
+    cache = get_artefact_content_cache()
+    content = cache.get_content(workbook_hash, path)
+    if content is None:
+        # Distinguish missing-workbook from missing-path to make UI
+        # error messages more actionable.
+        if cache.get(workbook_hash) is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=(
+                    "Workbook hash not found in cache. Re-upload the "
+                    "workbook via /api/v2/onboarding/preview."
+                ),
+            )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No artefact at {path!r} for the supplied workbook hash.",
+        )
+    return {"path": path, "content": content}
 
 
 __all__ = ["router"]

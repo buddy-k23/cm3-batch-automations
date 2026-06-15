@@ -141,3 +141,61 @@ def test_css_has_tree_and_badge_styles():
     assert ".se-badge-unchanged" in css, ".se-badge-unchanged style missing"
     assert ".se-modal" in css, ".se-modal style missing"
     assert ".se-diff" in css, ".se-diff style missing"
+
+
+# ---------------------------------------------------------------------------
+# EE-S3: Commit via ZIP / Open MR
+# ---------------------------------------------------------------------------
+
+
+def test_html_has_download_zip_button():
+    """EE-S3: ui.html must carry the Download ZIP button id + onclick."""
+    html = _read(_UI_HTML)
+    assert 'id="seDownloadZipBtn"' in html, "Download ZIP button id missing"
+    assert "downloadOnboardingZip" in html, (
+        "downloadOnboardingZip onclick handler missing"
+    )
+
+
+def test_html_has_open_mr_button():
+    """EE-S3: ui.html must carry the Open MR button id + modal."""
+    html = _read(_UI_HTML)
+    assert 'id="seOpenMrBtn"' in html, "Open MR button id missing"
+    assert 'id="seOpenMrModal"' in html, "Open MR modal missing"
+    assert 'id="seMrTitle"' in html, "MR title input missing"
+    assert 'id="seMrDescription"' in html, "MR description input missing"
+    assert "openOnboardingMrModal" in html, "openOnboardingMrModal handler missing"
+
+
+def test_js_has_zip_and_mr_handlers():
+    """EE-S3: ui.js must export the ZIP + MR handler functions and POST URLs."""
+    js = _read(_UI_JS)
+    assert "downloadOnboardingZip" in js, "downloadOnboardingZip missing"
+    assert "openOnboardingMrModal" in js, "openOnboardingMrModal missing"
+    assert "submitOnboardingMr" in js, "submitOnboardingMr missing"
+    assert "/api/v2/onboarding/download-zip" in js, (
+        "Download ZIP POST URL missing"
+    )
+    assert "/api/v2/onboarding/open-mr" in js, "Open MR POST URL missing"
+    # The 501 disabled-feature branch must surface a friendly message.
+    assert "501" in js, "501 branch missing from MR submit handler"
+
+
+def test_js_calls_artefact_content_endpoint_in_diff_view():
+    """EE-S3: the View modal's diff renderer must hit /artefact-content."""
+    js = _read(_UI_JS)
+    assert "/api/v2/onboarding/artefact-content" in js, (
+        "Artefact content fetch URL missing"
+    )
+    assert "_seFetchEmittedContent" in js, (
+        "_seFetchEmittedContent helper missing"
+    )
+    assert "workbook_hash" in js, "workbook_hash query param missing"
+
+
+def test_css_has_commit_row_styles():
+    """EE-S3: ui.css must carry the new commit-row + MR form styles."""
+    css = _read(_UI_CSS)
+    assert ".se-commit-row" in css, ".se-commit-row style missing"
+    assert ".se-mr-form" in css, ".se-mr-form style missing"
+    assert ".se-mr-result" in css, ".se-mr-result style missing"

@@ -4905,6 +4905,10 @@ function submitOnboardingPreview() {
       // Cache the response payload globally so the artefact-content
       // modal can look up the emitted entry by path without re-fetching.
       window._seLastPreview = body;
+      // EE-S3: stash the workbook hash so /artefact-content lookups
+      // can resolve emitted text for the diff view without forcing a
+      // workbook re-upload.
+      window._seWorkbookHash = body.workbook_hash || null;
       try {
         renderOnboardingTree(body, treeBox);
       } catch (e) {
@@ -4915,6 +4919,12 @@ function submitOnboardingPreview() {
       }
       jsonBox.textContent = JSON.stringify(body, null, 2);
       resultBox.style.display = '';
+      // EE-S3: a successful preview unlocks the commit buttons.
+      _seEnableCommitButtons();
+      _seSetCommitStatus(
+        'Ready to commit \u2014 download the ZIP or open a pull request.',
+        'info'
+      );
     })
     .catch(function(err) {
       _seSetStatus('Network error: ' + (err && err.message ? err.message : String(err)), 'err');
@@ -5184,56 +5194,98 @@ function viewArtefactContent(path) {
     '<div class="se-diff-loading">Loading artefact content\u2026</div>';
 
   if (entry.status === 'new') {
-    body.innerHTML =
-      '<div class="se-diff-empty">This artefact does not yet exist in ' +
-      '<code>config/</code>. EE-S3 will surface the emitted content ' +
-      'as part of the commit-flow preview.</div>';
+    // EE-S3: surface the emitted content for ``new`` artefacts so the
+    // BA can review what would be written to disk before committing.
+    _seFetchEmittedContent(path).then(function(emitted) {
+      body.innerHTML =
+        '<div class="se-diff-empty"><em>This artefact does not yet ' +
+        'exist in <code>config/</code>. The text below is what ' +
+        'Valdo would write on commit.</em></div>' +
+        '<pre>' + _escHtml(emitted || '') + '</pre>';
+    }).catch(function(err) {
+      body.innerHTML =
+        '<div class="se-diff-empty" style="color:var(--err,#c00)">' +
+        'Failed to load emitted content: ' +
+        _escHtml(String(err && err.message || err)) + '</div>';
+    });
     return;
   }
 
   // Both ``unchanged`` and ``changed`` artefacts have a committed
-  // counterpart we can fetch. For ``changed`` we additionally render
-  // a unified diff (committed vs emitted); EE-S2 does not yet plumb
-  // the emitted content back to the browser, so the diff base is the
-  // committed file with a note explaining what would change.
-  fetch('/api/v2/onboarding/committed-artefact?path='
+  // counterpart. EE-S3 fetches BOTH the committed (on-disk) and the
+  // emitted (cached server-side via /artefact-content) content so the
+  // unified-diff renderer can show the real change set, not just the
+  // committed text twice.
+  var fetchCommitted = fetch('/api/v2/onboarding/committed-artefact?path='
         + encodeURIComponent(path), {
     credentials: 'include',
     headers: _apiHeaders()
-  })
-    .then(function(r) {
-      if (!r.ok) {
-        throw new Error('HTTP ' + r.status);
-      }
-      return r.json();
-    })
-    .then(function(data) {
-      var content = (data && data.content) || '';
+  }).then(function(r) {
+    if (!r.ok) throw new Error('committed: HTTP ' + r.status);
+    return r.json();
+  }).then(function(d) { return (d && d.content) || ''; });
+
+  var fetchEmitted = _seFetchEmittedContent(path);
+
+  Promise.all([fetchCommitted, fetchEmitted])
+    .then(function(parts) {
+      var committed = parts[0] || '';
+      var emitted = parts[1] || '';
       if (entry.status === 'unchanged') {
-        body.innerHTML =
-          '<pre>' + _escHtml(content) + '</pre>';
+        // For unchanged artefacts both sides are byte-equivalent under
+        // the EE-S2 normalisation contract — show the committed text.
+        body.innerHTML = '<pre>' + _escHtml(committed) + '</pre>';
         return;
       }
-      // ``changed`` path: show the committed text and the drift
-      // reason from the preview entry, so the BA understands what
-      // would change without us needing to re-run the emitter
-      // client-side. The full content-diff lands in EE-S3 once the
-      // commit-flow exposes the emitted text.
+      // ``changed`` path: real unified diff (committed vs emitted),
+      // closing the EE-S2 carve-out where the diff fed both sides the
+      // committed file.
       var driftReason = entry.drift_reason || 'drift detected';
       body.innerHTML =
         '<div class="se-diff-empty"><strong>Drift reason:</strong> '
           + _escHtml(driftReason) + '</div>' +
         '<div class="se-diff">' +
-          renderUnifiedDiff(content, content, { header: 'Committed content' }) +
+          renderUnifiedDiff(committed, emitted,
+            { header: 'Committed (-) vs emitted (+)' }) +
         '</div>';
     })
     .catch(function(err) {
       body.innerHTML =
         '<div class="se-diff-empty" style="color:var(--err,#c00)">' +
-        'Failed to load committed artefact: ' +
+        'Failed to load artefact content: ' +
         _escHtml(String(err && err.message || err)) +
         '</div>';
     });
+}
+
+/**
+ * Fetch the emitted text for an artefact path from the EE-S3
+ * /artefact-content cache.
+ *
+ * Resolves to '' (and logs a warning to the console) when the
+ * workbook hash is unknown — the View modal degrades gracefully to
+ * showing only the committed side rather than failing the modal.
+ *
+ * @param {string} path - Repo-relative artefact path.
+ * @returns {Promise<string>} The emitted UTF-8 text.
+ */
+function _seFetchEmittedContent(path) {
+  var hash = window._seWorkbookHash;
+  if (!hash) {
+    return Promise.resolve('');
+  }
+  var url = '/api/v2/onboarding/artefact-content?workbook_hash='
+    + encodeURIComponent(hash)
+    + '&path=' + encodeURIComponent(path);
+  return fetch(url, {
+    credentials: 'include',
+    headers: _apiHeaders()
+  }).then(function(r) {
+    if (!r.ok) throw new Error('emitted: HTTP ' + r.status);
+    return r.json();
+  }).then(function(d) {
+    return (d && d.content) || '';
+  });
 }
 
 /**
@@ -5332,4 +5384,258 @@ document.addEventListener('keydown', function(e) {
   if (modal && modal.style.display !== 'none') {
     closeArtefactModal();
   }
+  var mrModal = document.getElementById('seOpenMrModal');
+  if (mrModal && mrModal.style.display !== 'none') {
+    closeOnboardingMrModal();
+  }
 });
+
+// ===========================================================================
+// EE-S3: Commit via ZIP / Open MR
+//
+// After the BA has previewed a workbook (renderOnboardingTree() has run),
+// two buttons appear below the tree:
+//
+//   * Download ZIP — streams every emitted artefact back to the browser
+//     as a zip attachment. Pure offline-review path, no server-side
+//     git operations.
+//   * Open MR — opens a modal collecting an MR title + description, then
+//     hits /api/v2/onboarding/open-mr which branches + commits + pushes +
+//     opens a PR via `gh pr create`. Gated by VALDO_UI_ENABLE_OPEN_MR
+//     on the server side; when disabled the server returns 501 and the
+//     UI surfaces an actionable hint.
+// ===========================================================================
+
+/**
+ * Enable the EE-S3 commit buttons after a successful preview. Idempotent.
+ */
+function _seEnableCommitButtons() {
+  var zipBtn = document.getElementById('seDownloadZipBtn');
+  var mrBtn = document.getElementById('seOpenMrBtn');
+  if (zipBtn) zipBtn.disabled = false;
+  if (mrBtn) mrBtn.disabled = false;
+}
+
+/**
+ * Update the EE-S3 commit-row status message.
+ *
+ * @param {string} msg
+ * @param {string} kind - 'info' | 'ok' | 'err'
+ */
+function _seSetCommitStatus(msg, kind) {
+  var el = document.getElementById('seCommitStatus');
+  if (!el) return;
+  el.textContent = msg;
+  el.className = 'status-msg ' + (kind === 'err' ? 'err' : kind === 'ok' ? 'ok' : 'info');
+}
+
+/**
+ * POST the selected workbook to /api/v2/onboarding/download-zip and
+ * trigger a browser download of the resulting ZIP attachment.
+ */
+function downloadOnboardingZip() {
+  if (!_seSelectedFile) {
+    _seSetCommitStatus('Select and preview a workbook first.', 'err');
+    return;
+  }
+  var btn = document.getElementById('seDownloadZipBtn');
+  if (btn) btn.disabled = true;
+  _seSetCommitStatus('Building ZIP…', 'info');
+
+  var fd = new FormData();
+  fd.append('file', _seSelectedFile, _seSelectedFile.name);
+
+  fetch('/api/v2/onboarding/download-zip', {
+    method: 'POST',
+    credentials: 'include',
+    headers: _apiHeaders(),
+    body: fd
+  })
+    .then(function(r) {
+      if (!r.ok) {
+        return r.text().then(function(text) {
+          var detail = text;
+          try {
+            var parsed = JSON.parse(text);
+            if (parsed && parsed.detail) detail = parsed.detail;
+          } catch (e) { /* fall through with raw text */ }
+          throw new Error('HTTP ' + r.status + ': ' + detail);
+        });
+      }
+      // Pull the filename out of the Content-Disposition header when
+      // present so the saved file matches the server's view of it.
+      var disposition = r.headers.get('Content-Disposition') || '';
+      var match = disposition.match(/filename="([^"]+)"/);
+      var filename = match ? match[1] : 'onboarding-artefacts.zip';
+      return r.blob().then(function(blob) {
+        return { blob: blob, filename: filename };
+      });
+    })
+    .then(function(payload) {
+      // Trigger the browser download via an anchor + Blob URL. We use
+      // URL.createObjectURL so the ZIP stays in-memory; revoking the
+      // URL on click avoids leaking the blob reference.
+      var url = URL.createObjectURL(payload.blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = payload.filename;
+      document.body.appendChild(a);
+      a.click();
+      a.parentNode.removeChild(a);
+      setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+      _seSetCommitStatus('Downloaded: ' + payload.filename, 'ok');
+    })
+    .catch(function(err) {
+      _seSetCommitStatus(
+        'Download failed: ' + (err && err.message ? err.message : String(err)),
+        'err'
+      );
+    })
+    .finally(function() {
+      if (btn) btn.disabled = false;
+    });
+}
+
+/**
+ * Open the EE-S3 Open MR modal. Clears any stale form state.
+ */
+function openOnboardingMrModal() {
+  if (!_seSelectedFile) {
+    _seSetCommitStatus('Select and preview a workbook first.', 'err');
+    return;
+  }
+  var modal = document.getElementById('seOpenMrModal');
+  if (!modal) return;
+  // Pre-fill the title with a sensible default the BA can edit.
+  var titleInput = document.getElementById('seMrTitle');
+  var payload = window._seLastPreview || {};
+  var sourceCode = payload.source_code || 'source';
+  if (titleInput && !titleInput.value) {
+    titleInput.value = 'feat(onboarding): add ' + sourceCode + ' source';
+  }
+  var resultBox = document.getElementById('seMrResult');
+  if (resultBox) { resultBox.style.display = 'none'; resultBox.innerHTML = ''; }
+  var statusEl = document.getElementById('seMrStatusMsg');
+  if (statusEl) { statusEl.textContent = ''; statusEl.className = 'status-msg info'; }
+  modal.style.display = '';
+  modal.setAttribute('aria-hidden', 'false');
+  if (titleInput) titleInput.focus();
+}
+
+/**
+ * Close the Open MR modal.
+ */
+function closeOnboardingMrModal() {
+  var modal = document.getElementById('seOpenMrModal');
+  if (!modal) return;
+  modal.style.display = 'none';
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+/**
+ * POST the workbook + MR form to /api/v2/onboarding/open-mr.
+ *
+ * When the server returns 501 (feature-flag disabled) we surface a
+ * friendly message and disable the Open MR button so the BA isn't
+ * tempted to retry. When the server returns 200 we render the PR URL.
+ */
+function submitOnboardingMr() {
+  if (!_seSelectedFile) {
+    _seSetMrStatus('Select and preview a workbook first.', 'err');
+    return;
+  }
+  var titleInput = document.getElementById('seMrTitle');
+  var descInput = document.getElementById('seMrDescription');
+  var branchInput = document.getElementById('seMrBranch');
+  var submitBtn = document.getElementById('seMrSubmitBtn');
+  if (!titleInput || !titleInput.value.trim()) {
+    _seSetMrStatus('Title is required.', 'err');
+    if (titleInput) titleInput.focus();
+    return;
+  }
+  if (submitBtn) submitBtn.disabled = true;
+  _seSetMrStatus('Creating branch, committing, pushing…', 'info');
+
+  var fd = new FormData();
+  fd.append('file', _seSelectedFile, _seSelectedFile.name);
+  fd.append('mr_title', titleInput.value);
+  fd.append('mr_description', descInput ? descInput.value : '');
+  if (branchInput && branchInput.value) {
+    fd.append('branch_name', branchInput.value);
+  }
+
+  fetch('/api/v2/onboarding/open-mr', {
+    method: 'POST',
+    credentials: 'include',
+    headers: _apiHeaders(),
+    body: fd
+  })
+    .then(function(r) {
+      return r.text().then(function(text) {
+        var parsed = null;
+        try { parsed = text ? JSON.parse(text) : null; }
+        catch (e) { parsed = null; }
+        return { ok: r.ok, status: r.status, body: parsed, raw: text };
+      });
+    })
+    .then(function(resp) {
+      if (resp.status === 501) {
+        // Feature-flag disabled — surface the helpful hint AND grey
+        // out the button so the BA defaults to Download ZIP.
+        var msg = (resp.body && resp.body.detail) ||
+          'MR opening is disabled in this environment — use Download ZIP.';
+        _seSetMrStatus(msg, 'err');
+        var mrBtn = document.getElementById('seOpenMrBtn');
+        if (mrBtn) {
+          mrBtn.disabled = true;
+          mrBtn.setAttribute('aria-disabled', 'true');
+        }
+        return;
+      }
+      if (!resp.ok) {
+        var detail = (resp.body && resp.body.detail)
+          ? (typeof resp.body.detail === 'string' ? resp.body.detail : JSON.stringify(resp.body.detail))
+          : (resp.raw || ('HTTP ' + resp.status));
+        _seSetMrStatus('Failed: ' + detail, 'err');
+        return;
+      }
+      var data = resp.body || {};
+      _seSetMrStatus('Pull request created.', 'ok');
+      var resultBox = document.getElementById('seMrResult');
+      if (resultBox) {
+        var prUrl = data.pr_url || '';
+        var branch = data.branch_name || '';
+        var sha = data.commit_sha || '';
+        resultBox.innerHTML =
+          '<p><strong>Branch:</strong> <code>' + _escHtml(branch) + '</code></p>' +
+          '<p><strong>Commit:</strong> <code>' + _escHtml(sha) + '</code></p>' +
+          (prUrl
+            ? '<p><strong>Pull request:</strong> <a href="' + _escHtml(prUrl) +
+              '" target="_blank" rel="noopener noreferrer">' + _escHtml(prUrl) + '</a></p>'
+            : '');
+        resultBox.style.display = '';
+      }
+    })
+    .catch(function(err) {
+      _seSetMrStatus(
+        'Network error: ' + (err && err.message ? err.message : String(err)),
+        'err'
+      );
+    })
+    .finally(function() {
+      if (submitBtn) submitBtn.disabled = false;
+    });
+}
+
+/**
+ * Update the Open MR modal status line.
+ *
+ * @param {string} msg
+ * @param {string} kind - 'info' | 'ok' | 'err'
+ */
+function _seSetMrStatus(msg, kind) {
+  var el = document.getElementById('seMrStatusMsg');
+  if (!el) return;
+  el.textContent = msg;
+  el.className = 'status-msg ' + (kind === 'err' ? 'err' : kind === 'ok' ? 'ok' : 'info');
+}

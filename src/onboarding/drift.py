@@ -40,21 +40,28 @@ Determinism (EC-S10):
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
+import threading
+import time
+from collections import OrderedDict
 from pathlib import Path
-from typing import Any, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import yaml
 
 __all__ = [
     "ArtefactStatus",
+    "ArtefactContentCache",
     "compare_artefact_payload",
+    "compute_workbook_hash",
     "load_committed_artefact",
     "parse_emitted_artefact",
     "normalise_metadata_for_compare",
     "normalise_sql_for_compare",
     "extract_committed_timestamp",
+    "get_artefact_content_cache",
     "path_basename",
     "strip_metadata",
     "summarise_dict_drift",
@@ -405,3 +412,197 @@ def compare_artefact_payload(
     return ArtefactStatus.CHANGED, summarise_dict_drift(
         emitted_norm, committed_norm
     )
+
+
+# ---------------------------------------------------------------------------
+# Artefact-content cache (EE-S3)
+# ---------------------------------------------------------------------------
+#
+# EE-S2 closed with the constraint that the ``/preview`` response does not
+# carry the emitted content payloads (intentionally — keeps the JSON body
+# small enough to render in the browser). EE-S3 needs that content twice:
+#
+#   * The "View" modal's unified-diff renderer now wants the emitted text
+#     for ``changed`` and ``new`` artefacts so it can render a real
+#     committed-vs-emitted diff (not just the committed file alone).
+#   * The "Download ZIP" / "Open MR" buttons need the full artefact set
+#     server-side after the user has already uploaded the workbook once.
+#
+# Rather than make the BA re-upload the workbook for each subsequent
+# action, we cache the emitted artefact map keyed by the SHA-256 of the
+# uploaded workbook bytes. The cache is:
+#
+#   * Process-local (no Redis / no SQLite — the BA workflow is a single
+#     session, and a 5-entry LRU caps the worst-case footprint at a few
+#     MB).
+#   * Bounded by both size (5 entries) and time (15 minute TTL) so a
+#     long-running uvicorn never accumulates stale entries.
+#   * Thread-safe via a coarse-grained lock — the FastAPI threadpool
+#     can hit ``put`` / ``get`` concurrently and we don't want a torn
+#     OrderedDict.
+
+
+_DEFAULT_CACHE_TTL_SECONDS = 15 * 60
+_DEFAULT_CACHE_MAX_ENTRIES = 5
+
+
+def compute_workbook_hash(content: bytes) -> str:
+    """Return the SHA-256 hex digest of the supplied workbook bytes.
+
+    Used as the cache key for :class:`ArtefactContentCache`. The hex
+    digest is stable across processes so a re-uploaded workbook always
+    hits the same cache slot.
+
+    Args:
+        content: The raw workbook bytes (e.g. the body of an
+            ``UploadFile``).
+
+    Returns:
+        The SHA-256 hex digest, 64 lowercase hex characters.
+    """
+    return hashlib.sha256(content).hexdigest()
+
+
+class ArtefactContentCache:
+    """LRU + TTL cache for emitted artefact content keyed by workbook hash.
+
+    Each entry is a mapping of ``{repo-relative path: emitted UTF-8
+    text}`` produced by the EC-S6 planner. The cache is bounded by both
+    size (``max_entries``) and age (``ttl_seconds``) so the per-process
+    memory footprint stays predictable.
+
+    Thread-safety:
+        All public methods acquire a coarse-grained lock. Read paths
+        (``get``) are cheap; write paths (``put``) trigger an eviction
+        sweep which is O(n) over the current entries.
+
+    Args:
+        max_entries: Maximum number of workbook entries to retain.
+            Older entries are evicted LRU-style on insert.
+        ttl_seconds: Maximum age (in seconds) of any entry. Expired
+            entries are dropped on access.
+        time_fn: Time source for tests. Defaults to ``time.monotonic``
+            so the clock cannot regress under wall-clock NTP skew.
+    """
+
+    def __init__(
+        self,
+        max_entries: int = _DEFAULT_CACHE_MAX_ENTRIES,
+        ttl_seconds: float = _DEFAULT_CACHE_TTL_SECONDS,
+        time_fn=time.monotonic,
+    ) -> None:
+        if max_entries <= 0:
+            raise ValueError("max_entries must be positive")
+        if ttl_seconds <= 0:
+            raise ValueError("ttl_seconds must be positive")
+        self._max_entries = max_entries
+        self._ttl_seconds = ttl_seconds
+        self._time_fn = time_fn
+        self._entries: "OrderedDict[str, Tuple[float, Dict[str, str]]]" = (
+            OrderedDict()
+        )
+        self._lock = threading.Lock()
+
+    def put(self, workbook_hash: str, artefacts: Dict[str, str]) -> None:
+        """Insert (or replace) the artefact map for *workbook_hash*.
+
+        Triggers a TTL sweep + LRU eviction so the cache never exceeds
+        the configured bounds.
+
+        Args:
+            workbook_hash: SHA-256 hex digest of the workbook bytes.
+            artefacts: Mapping of repo-relative path to emitted text.
+        """
+        now = self._time_fn()
+        with self._lock:
+            self._evict_expired_locked(now)
+            self._entries[workbook_hash] = (now, dict(artefacts))
+            # Move to MRU position on replacement.
+            self._entries.move_to_end(workbook_hash)
+            while len(self._entries) > self._max_entries:
+                self._entries.popitem(last=False)
+
+    def get(self, workbook_hash: str) -> Optional[Dict[str, str]]:
+        """Return the cached artefact map for *workbook_hash*, or ``None``.
+
+        Args:
+            workbook_hash: SHA-256 hex digest to look up.
+
+        Returns:
+            The cached ``{path: content}`` dict (a shallow copy so the
+            caller cannot mutate the live entry), or ``None`` when the
+            entry is missing or expired.
+        """
+        now = self._time_fn()
+        with self._lock:
+            self._evict_expired_locked(now)
+            entry = self._entries.get(workbook_hash)
+            if entry is None:
+                return None
+            # LRU bump: a successful read counts as recent activity.
+            self._entries.move_to_end(workbook_hash)
+            _ts, artefacts = entry
+            return dict(artefacts)
+
+    def get_content(
+        self, workbook_hash: str, path: str
+    ) -> Optional[str]:
+        """Return the emitted text for one (*workbook_hash*, *path*) tuple.
+
+        Convenience wrapper over :meth:`get` for the
+        ``/artefact-content`` endpoint.
+
+        Args:
+            workbook_hash: SHA-256 hex digest to look up.
+            path: Repo-relative path of the artefact.
+
+        Returns:
+            The emitted UTF-8 text, or ``None`` when either the
+            workbook entry is missing/expired or the path is unknown.
+        """
+        artefacts = self.get(workbook_hash)
+        if artefacts is None:
+            return None
+        return artefacts.get(path)
+
+    def clear(self) -> None:
+        """Drop every cached entry. Used by tests to reset state."""
+        with self._lock:
+            self._entries.clear()
+
+    def __len__(self) -> int:
+        """Return the current cached-entry count (post-expiration sweep)."""
+        with self._lock:
+            self._evict_expired_locked(self._time_fn())
+            return len(self._entries)
+
+    def _evict_expired_locked(self, now: float) -> None:
+        """Drop entries older than the TTL. Must be called with the lock held."""
+        expired: list[str] = []
+        for key, (ts, _payload) in self._entries.items():
+            if now - ts > self._ttl_seconds:
+                expired.append(key)
+        for key in expired:
+            self._entries.pop(key, None)
+
+
+# Module-level singleton — the FastAPI router holds a reference to this
+# instance so every request shares the same cache. Tests reach into the
+# singleton via :func:`get_artefact_content_cache` so they can call
+# ``clear()`` between cases.
+_ARTEFACT_CONTENT_CACHE: Optional[ArtefactContentCache] = None
+
+
+def get_artefact_content_cache() -> ArtefactContentCache:
+    """Return the process-wide artefact content cache singleton.
+
+    Lazy-initialised on first access so import-time has no side effects.
+    Tests can call ``.clear()`` on the returned object between cases.
+
+    Returns:
+        The shared :class:`ArtefactContentCache` instance.
+    """
+    global _ARTEFACT_CONTENT_CACHE
+    if _ARTEFACT_CONTENT_CACHE is None:
+        _ARTEFACT_CONTENT_CACHE = ArtefactContentCache()
+    return _ARTEFACT_CONTENT_CACHE

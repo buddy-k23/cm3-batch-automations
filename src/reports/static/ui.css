@@ -2489,3 +2489,98 @@
   color: var(--text-secondary);
   padding: 12px;
 }
+
+/* -------------------------------------------------------------------------
+ * EE-S3: Commit-via-ZIP / Open-MR row
+ *
+ * The button row sits between the artefact tree and the raw JSON
+ * disclosure so the BA reads top-to-bottom: tree -> commit options
+ * -> raw JSON for forensic debugging.
+ * ------------------------------------------------------------------------- */
+.se-commit-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 14px 0 6px 0;
+  padding: 12px;
+  background: var(--surface-alt, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.se-commit-row .status-msg {
+  flex: 1;
+  min-width: 220px;
+  margin: 0;
+}
+
+.se-commit-row button[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* -------------------------------------------------------------------------
+ * EE-S3: Open MR modal form
+ * ------------------------------------------------------------------------- */
+.se-mr-intro {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin: 0 0 12px 0;
+}
+
+.se-mr-form {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.se-mr-form label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
+  margin-top: 6px;
+}
+
+.se-mr-form input[type="text"],
+.se-mr-form textarea {
+  width: 100%;
+  padding: 8px 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-primary);
+  box-sizing: border-box;
+}
+
+.se-mr-form input[type="text"]:focus,
+.se-mr-form textarea:focus {
+  outline: 2px solid var(--accent, #4a9eff);
+  outline-offset: 1px;
+  border-color: transparent;
+}
+
+.se-mr-result {
+  margin-top: 14px;
+  padding: 12px;
+  background: var(--surface-alt, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.se-mr-result p { margin: 4px 0; }
+.se-mr-result code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  background: var(--bg-secondary, var(--surface));
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.se-mr-result a {
+  color: var(--accent, #4a9eff);
+  word-break: break-all;
+}

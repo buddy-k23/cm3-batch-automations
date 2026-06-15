@@ -531,3 +531,420 @@ def test_post_preview_does_not_touch_disk(client: TestClient):
         f"Preview wrote new files under config/: "
         f"{sorted(p.as_posix() for p in new_paths)!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# EE-S3: Download ZIP
+# ---------------------------------------------------------------------------
+
+
+def test_download_zip_returns_application_zip_content_type(client: TestClient):
+    """EE-S3: POST /download-zip returns application/zip + attachment header."""
+    assert _SHAW_WORKBOOK.is_file()
+    with _SHAW_WORKBOOK.open("rb") as fh:
+        resp = client.post(
+            "/api/v2/onboarding/download-zip",
+            files={
+                "file": (
+                    "SHAW_onboarding.xlsx",
+                    fh,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ),
+            },
+            headers=_AUTH_HEADERS,
+        )
+    assert resp.status_code == 200, resp.text
+    assert resp.headers["content-type"].startswith("application/zip"), (
+        resp.headers
+    )
+    disposition = resp.headers.get("content-disposition", "")
+    assert "attachment" in disposition.lower(), disposition
+    assert "SHAW-onboarding-artefacts.zip" in disposition, disposition
+
+
+def test_download_zip_contains_all_artefacts(client: TestClient):
+    """EE-S3: ZIP namelist matches the would_write list from preview."""
+    import zipfile
+
+    assert _SHAW_WORKBOOK.is_file()
+
+    # First call /preview to get the canonical would_write list.
+    with _SHAW_WORKBOOK.open("rb") as fh:
+        preview_resp = client.post(
+            "/api/v2/onboarding/preview",
+            files={
+                "file": (
+                    "SHAW_onboarding.xlsx",
+                    fh,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ),
+            },
+            headers=_AUTH_HEADERS,
+        )
+    assert preview_resp.status_code == 200, preview_resp.text
+    would_write_paths = {
+        e["path"] for e in preview_resp.json().get("would_write", [])
+    }
+    assert would_write_paths, preview_resp.text
+
+    # Now /download-zip and compare.
+    with _SHAW_WORKBOOK.open("rb") as fh:
+        zip_resp = client.post(
+            "/api/v2/onboarding/download-zip",
+            files={
+                "file": (
+                    "SHAW_onboarding.xlsx",
+                    fh,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ),
+            },
+            headers=_AUTH_HEADERS,
+        )
+    assert zip_resp.status_code == 200, zip_resp.text
+
+    archive = zipfile.ZipFile(io.BytesIO(zip_resp.content))
+    namelist = set(archive.namelist())
+    assert namelist == would_write_paths, (
+        f"ZIP contents diverge from /preview would_write. "
+        f"Only in ZIP: {namelist - would_write_paths}. "
+        f"Only in preview: {would_write_paths - namelist}."
+    )
+
+    # Each artefact in the ZIP carries non-empty content.
+    for name in namelist:
+        data = archive.read(name)
+        assert len(data) > 0, f"ZIP member {name!r} is empty"
+
+
+def test_download_zip_rejects_non_xlsx(client: TestClient):
+    """EE-S3: same .xlsx extension guard as /preview."""
+    resp = client.post(
+        "/api/v2/onboarding/download-zip",
+        files={
+            "file": ("not_a_workbook.txt", io.BytesIO(b"hello"), "text/plain"),
+        },
+        headers=_AUTH_HEADERS,
+    )
+    assert resp.status_code == 400, resp.text
+
+
+# ---------------------------------------------------------------------------
+# EE-S3: Open MR
+# ---------------------------------------------------------------------------
+
+
+def test_open_mr_disabled_returns_501(client: TestClient, monkeypatch):
+    """EE-S3: without VALDO_UI_ENABLE_OPEN_MR=1 the endpoint returns 501."""
+    monkeypatch.delenv("VALDO_UI_ENABLE_OPEN_MR", raising=False)
+
+    assert _SHAW_WORKBOOK.is_file()
+    with _SHAW_WORKBOOK.open("rb") as fh:
+        resp = client.post(
+            "/api/v2/onboarding/open-mr",
+            files={
+                "file": (
+                    "SHAW_onboarding.xlsx",
+                    fh,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ),
+            },
+            data={
+                "mr_title": "feat(onboarding): add SHAW",
+                "mr_description": "Body text.",
+            },
+            headers=_AUTH_HEADERS,
+        )
+    assert resp.status_code == 501, resp.text
+    detail = resp.json().get("detail", "")
+    # Actionable hint must point at the alternative paths.
+    assert "Download ZIP" in detail, detail
+    assert "valdo onboard-source" in detail, detail
+
+
+def test_open_mr_enabled_invokes_gh_pr_create(
+    client: TestClient, tmp_path, monkeypatch
+):
+    """EE-S3: with the env var set and gh mocked, the pipeline invokes
+    ``gh pr create`` with the right argv.
+
+    The pipeline runs `git checkout`, `git add`, `git commit`,
+    `git rev-parse`, `git push`, and `gh pr create`. We patch the
+    module-level ``subprocess.run`` so none of the steps actually
+    execute, then assert the gh pr create argv carries the title +
+    body + head branch.
+    """
+    import subprocess  # local — patched below
+
+    from src.api.routers import onboarding as onboarding_router_mod
+
+    monkeypatch.setenv("VALDO_UI_ENABLE_OPEN_MR", "1")
+    # Run in a fresh tmp dir so the planner writes artefacts under
+    # a sandbox, not the real repo tree.
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    monkeypatch.chdir(repo_dir)
+
+    invocations: list[list[str]] = []
+
+    def fake_run(cmd, *args, **kwargs):
+        invocations.append(list(cmd))
+        # Synthesize plausible output per step so the pipeline keeps moving.
+        binary = cmd[0]
+        sub = cmd[1] if len(cmd) > 1 else ""
+        stdout = ""
+        if binary == "git" and sub == "rev-parse":
+            stdout = "deadbeef0000000000000000000000000000abcd\n"
+        elif binary == "gh" and sub == "pr":
+            stdout = "https://github.com/example/repo/pull/42\n"
+        return subprocess.CompletedProcess(
+            args=cmd, returncode=0, stdout=stdout, stderr=""
+        )
+
+    monkeypatch.setattr(onboarding_router_mod.subprocess, "run", fake_run)
+
+    assert _SHAW_WORKBOOK.is_file()
+    with _SHAW_WORKBOOK.open("rb") as fh:
+        resp = client.post(
+            "/api/v2/onboarding/open-mr",
+            files={
+                "file": (
+                    "SHAW_onboarding.xlsx",
+                    fh,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ),
+            },
+            data={
+                "mr_title": "feat(onboarding): add SHAW source",
+                "mr_description": "Body text with two\nlines.",
+                "branch_name": "valdo-onboarding/SHAW-test",
+            },
+            headers=_AUTH_HEADERS,
+        )
+    assert resp.status_code == 200, resp.text
+    payload = resp.json()
+    assert payload["pr_url"] == "https://github.com/example/repo/pull/42"
+    assert payload["branch_name"] == "valdo-onboarding/SHAW-test"
+    assert payload["commit_sha"] == "deadbeef0000000000000000000000000000abcd"
+
+    # Verify the expected subprocess argv shape.
+    cmds = [tuple(c) for c in invocations]
+    assert ("git", "checkout", "-b", "valdo-onboarding/SHAW-test") in cmds
+    assert any(
+        c[0] == "git" and c[1] == "commit" and "-m" in c
+        for c in cmds
+    ), cmds
+    assert any(
+        c[0] == "git" and c[1] == "push" and c[-1] == "valdo-onboarding/SHAW-test"
+        for c in cmds
+    ), cmds
+    # gh pr create carries title + body + head; no shell escaping needed.
+    gh_calls = [c for c in cmds if c[0] == "gh" and c[1] == "pr"]
+    assert gh_calls, cmds
+    gh_cmd = gh_calls[0]
+    assert "--title" in gh_cmd
+    title_idx = gh_cmd.index("--title")
+    assert gh_cmd[title_idx + 1] == "feat(onboarding): add SHAW source"
+    assert "--body" in gh_cmd
+    body_idx = gh_cmd.index("--body")
+    assert gh_cmd[body_idx + 1] == "Body text with two\nlines."
+    assert "--head" in gh_cmd
+    head_idx = gh_cmd.index("--head")
+    assert gh_cmd[head_idx + 1] == "valdo-onboarding/SHAW-test"
+
+
+def test_open_mr_rejects_missing_title(client: TestClient, monkeypatch):
+    """EE-S3: an empty title returns 400 (before any subprocess fires)."""
+    monkeypatch.setenv("VALDO_UI_ENABLE_OPEN_MR", "1")
+    with _SHAW_WORKBOOK.open("rb") as fh:
+        resp = client.post(
+            "/api/v2/onboarding/open-mr",
+            files={
+                "file": (
+                    "SHAW_onboarding.xlsx",
+                    fh,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ),
+            },
+            data={"mr_title": "   ", "mr_description": ""},
+            headers=_AUTH_HEADERS,
+        )
+    assert resp.status_code == 400, resp.text
+
+
+def test_open_mr_rejects_invalid_branch_name(client: TestClient, monkeypatch):
+    """EE-S3: shell-metachar branch names get a 400 (no subprocess fires)."""
+    monkeypatch.setenv("VALDO_UI_ENABLE_OPEN_MR", "1")
+    with _SHAW_WORKBOOK.open("rb") as fh:
+        resp = client.post(
+            "/api/v2/onboarding/open-mr",
+            files={
+                "file": (
+                    "SHAW_onboarding.xlsx",
+                    fh,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ),
+            },
+            data={
+                "mr_title": "feat: x",
+                "mr_description": "",
+                "branch_name": "bad;name`with$evil",
+            },
+            headers=_AUTH_HEADERS,
+        )
+    assert resp.status_code == 400, resp.text
+
+
+# ---------------------------------------------------------------------------
+# EE-S3: Artefact content cache
+# ---------------------------------------------------------------------------
+
+
+def test_artefact_content_endpoint_returns_emitted_text(client: TestClient):
+    """EE-S3: /preview seeds the cache; /artefact-content returns emitted text."""
+    from src.onboarding.drift import get_artefact_content_cache
+
+    # Reset the cache so a stale entry from a previous test doesn't
+    # mask a regression.
+    get_artefact_content_cache().clear()
+
+    with _SHAW_WORKBOOK.open("rb") as fh:
+        preview_resp = client.post(
+            "/api/v2/onboarding/preview",
+            files={
+                "file": (
+                    "SHAW_onboarding.xlsx",
+                    fh,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ),
+            },
+            headers=_AUTH_HEADERS,
+        )
+    assert preview_resp.status_code == 200, preview_resp.text
+    payload = preview_resp.json()
+    workbook_hash = payload.get("workbook_hash")
+    assert workbook_hash and len(workbook_hash) == 64, payload
+    would_write = payload.get("would_write", [])
+    assert would_write
+
+    target_path = would_write[0]["path"]
+    target_bytes = would_write[0]["bytes"]
+
+    content_resp = client.get(
+        "/api/v2/onboarding/artefact-content",
+        params={"workbook_hash": workbook_hash, "path": target_path},
+        headers=_AUTH_HEADERS,
+    )
+    assert content_resp.status_code == 200, content_resp.text
+    content_body = content_resp.json()
+    assert content_body["path"] == target_path
+    assert isinstance(content_body["content"], str)
+    assert content_body["content"], content_body
+    # Emitted text byte-length must match the would_write entry's bytes
+    # field, confirming we get the actual planner output (not a stub).
+    assert len(content_body["content"].encode("utf-8")) == target_bytes
+
+
+def test_artefact_content_endpoint_404s_for_unknown_hash(client: TestClient):
+    """EE-S3: an unknown workbook hash returns 404 with an actionable hint."""
+    from src.onboarding.drift import get_artefact_content_cache
+
+    get_artefact_content_cache().clear()
+
+    resp = client.get(
+        "/api/v2/onboarding/artefact-content",
+        params={
+            "workbook_hash": "0" * 64,
+            "path": "config/e2e/sources/SHAW.yml",
+        },
+        headers=_AUTH_HEADERS,
+    )
+    assert resp.status_code == 404, resp.text
+    assert "preview" in resp.json().get("detail", "").lower()
+
+
+def test_artefact_content_endpoint_404s_for_unknown_path(client: TestClient):
+    """EE-S3: a known hash + unknown path returns 404 with path hint."""
+    from src.onboarding.drift import get_artefact_content_cache
+
+    get_artefact_content_cache().clear()
+
+    with _SHAW_WORKBOOK.open("rb") as fh:
+        preview_resp = client.post(
+            "/api/v2/onboarding/preview",
+            files={
+                "file": (
+                    "SHAW_onboarding.xlsx",
+                    fh,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ),
+            },
+            headers=_AUTH_HEADERS,
+        )
+    workbook_hash = preview_resp.json()["workbook_hash"]
+
+    resp = client.get(
+        "/api/v2/onboarding/artefact-content",
+        params={
+            "workbook_hash": workbook_hash,
+            "path": "config/mappings/DOES_NOT_EXIST.json",
+        },
+        headers=_AUTH_HEADERS,
+    )
+    assert resp.status_code == 404, resp.text
+
+
+def test_artefact_content_cache_expires():
+    """EE-S3: cache entries past the TTL are dropped on next access."""
+    from src.onboarding.drift import ArtefactContentCache
+
+    fake_clock = {"now": 1000.0}
+    cache = ArtefactContentCache(
+        max_entries=5,
+        ttl_seconds=60,
+        time_fn=lambda: fake_clock["now"],
+    )
+    cache.put("hash-a", {"config/foo.yml": "alpha"})
+    assert cache.get_content("hash-a", "config/foo.yml") == "alpha"
+
+    # Fast-forward past the TTL window.
+    fake_clock["now"] = 1000.0 + 60 + 1
+    assert cache.get_content("hash-a", "config/foo.yml") is None
+    assert cache.get("hash-a") is None
+    assert len(cache) == 0
+
+
+def test_artefact_content_cache_lru_eviction():
+    """EE-S3: inserting past ``max_entries`` evicts the LRU entry."""
+    from src.onboarding.drift import ArtefactContentCache
+
+    cache = ArtefactContentCache(max_entries=2, ttl_seconds=600)
+    cache.put("a", {"x": "1"})
+    cache.put("b", {"x": "2"})
+    # Touch ``a`` so ``b`` is the LRU.
+    assert cache.get("a") == {"x": "1"}
+    cache.put("c", {"x": "3"})
+    assert cache.get("b") is None
+    assert cache.get("a") == {"x": "1"}
+    assert cache.get("c") == {"x": "3"}
+
+
+def test_preview_response_includes_workbook_hash(client: TestClient):
+    """EE-S3: preview response includes a 64-char SHA-256 hex digest."""
+    with _SHAW_WORKBOOK.open("rb") as fh:
+        resp = client.post(
+            "/api/v2/onboarding/preview",
+            files={
+                "file": (
+                    "SHAW_onboarding.xlsx",
+                    fh,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ),
+            },
+            headers=_AUTH_HEADERS,
+        )
+    assert resp.status_code == 200, resp.text
+    workbook_hash = resp.json().get("workbook_hash")
+    assert isinstance(workbook_hash, str)
+    assert len(workbook_hash) == 64
+    # Hex-only characters — sanity check the digest is well-formed.
+    assert all(c in "0123456789abcdef" for c in workbook_hash), workbook_hash

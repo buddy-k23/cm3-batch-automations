@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- EE-S3 (Sprint 5): UI Source Editor tab now has commit buttons —
+  "Download ZIP" streams all emitted artefacts to the BA's browser,
+  and "Open MR" (gated by `VALDO_UI_ENABLE_OPEN_MR=1`) creates a branch,
+  commits artefacts, pushes, and opens a PR via the `gh` CLI. New
+  endpoints `POST /api/v2/onboarding/download-zip`,
+  `POST /api/v2/onboarding/open-mr`, and
+  `GET /api/v2/onboarding/artefact-content` (which feeds the EE-S2
+  unified-diff renderer). Closes the BA browser onboarding flow.
 - EE-S2 (Sprint 5): UI Source Editor tab now renders the workbook-upload
   preview as a collapsible tree of artefacts grouped by kind
   (source_yaml / mapping_json / rules_json / reconciliation_yaml / sql)

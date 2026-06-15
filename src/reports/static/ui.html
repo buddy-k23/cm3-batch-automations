@@ -1080,6 +1080,24 @@
                aria-label="Artefact tree preview">
             <!-- Filled at runtime; falls back to raw JSON on render error. -->
           </div>
+          <!-- EE-S3 commit buttons: Download ZIP + Open MR. Disabled
+               until the BA has previewed a workbook (we need the file
+               handle for the multipart upload). -->
+          <div class="se-commit-row" id="seCommitRow" role="group"
+               aria-label="Commit options">
+            <button type="button" class="btn btn-primary" id="seDownloadZipBtn"
+                    onclick="downloadOnboardingZip()" disabled
+                    data-tooltip="Download a ZIP of every emitted artefact for offline review or manual commit">
+              Download ZIP
+            </button>
+            <button type="button" class="btn btn-secondary" id="seOpenMrBtn"
+                    onclick="openOnboardingMrModal()" disabled
+                    data-tooltip="Create a branch, commit artefacts, push, and open a pull request via the gh CLI">
+              Open MR
+            </button>
+            <span class="status-msg info" id="seCommitStatus"
+                  role="status" aria-live="polite" aria-atomic="true"></span>
+          </div>
           <!-- Raw JSON kept hidden by default but available behind a
                disclosure for forensic debugging (failed renders, etc.). -->
           <details class="se-raw-json-details">
@@ -1109,6 +1127,51 @@
       </div>
     </div>
   </div><!-- /#seArtefactModal -->
+
+  <!-- EE-S3: Open MR modal (title + description form, gated by feature flag) -->
+  <div id="seOpenMrModal" class="se-modal" role="dialog"
+       aria-modal="true" aria-hidden="true" aria-labelledby="seOpenMrModalTitle"
+       style="display:none;">
+    <div class="se-modal-backdrop" onclick="closeOnboardingMrModal()"></div>
+    <div class="se-modal-panel" role="document">
+      <div class="se-modal-header">
+        <h3 id="seOpenMrModalTitle">Open Pull Request</h3>
+        <button type="button" class="se-modal-close"
+                aria-label="Close pull-request form"
+                onclick="closeOnboardingMrModal()">&times;</button>
+      </div>
+      <div class="se-modal-body">
+        <p class="se-mr-intro">
+          Provide a title and description; Valdo will create a branch,
+          commit every emitted artefact, push, and open the PR via the
+          <code>gh</code> CLI on your behalf.
+        </p>
+        <div class="se-mr-form">
+          <label for="seMrTitle">Title</label>
+          <input type="text" id="seMrTitle" maxlength="256"
+                 placeholder="feat(onboarding): add SHAW source"
+                 aria-required="true">
+
+          <label for="seMrDescription">Description</label>
+          <textarea id="seMrDescription" rows="6" maxlength="65536"
+                    placeholder="What this PR onboards, links to the spec, etc."></textarea>
+
+          <label for="seMrBranch">Branch name (optional)</label>
+          <input type="text" id="seMrBranch" maxlength="200"
+                 placeholder="valdo-onboarding/&lt;source&gt;-&lt;timestamp&gt;">
+        </div>
+        <div class="status-msg info" id="seMrStatusMsg"
+             role="status" aria-live="polite" aria-atomic="true"></div>
+        <div class="btn-row" style="margin-top:12px;">
+          <button type="button" class="btn btn-primary" id="seMrSubmitBtn"
+                  onclick="submitOnboardingMr()">Create Pull Request</button>
+          <button type="button" class="btn btn-secondary"
+                  onclick="closeOnboardingMrModal()">Cancel</button>
+        </div>
+        <div id="seMrResult" class="se-mr-result" style="display:none;"></div>
+      </div>
+    </div>
+  </div><!-- /#seOpenMrModal -->
 
 </main>
 
