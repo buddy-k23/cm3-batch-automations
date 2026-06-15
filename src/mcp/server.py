@@ -1,24 +1,27 @@
-"""MCP (Model Context Protocol) server scaffold for Valdo (EF-S1 + EF-S2 + EF-S3 + EF-S4).
+"""MCP (Model Context Protocol) server scaffold for Valdo (EF-S1 + EF-S2 + EF-S3 + EF-S4 + EF-S5).
 
 This module wires a Streamable-HTTP MCP server (built on `mcp.server.fastmcp`)
 into the existing FastAPI process. The server registers the following
 capabilities:
 
-* Tools: six tools total. Three read-only (EF-S2) — ``list_sources``,
+* Tools: nine tools total. Three read-only (EF-S2) — ``list_sources``,
   ``get_source_spec``, ``list_recent_runs``. Three action tools (EF-S4)
-  — ``validate_file``, ``get_run_status``, ``get_violations``. All wrap
+  — ``validate_file``, ``get_run_status``, ``get_violations``. Three
+  onboarding tools (EF-S5) — ``upload_workbook_as_spec``,
+  ``onboard_source_dry_run``, ``infer_mapping_from_sample``. All wrap
   the existing Valdo service layer; implementations live in
-  :mod:`src.mcp.tools` (read-only) and :mod:`src.mcp.action_tools`
-  (mutating) to keep this module focused on FastMCP registration.
+  :mod:`src.mcp.tools` (read-only), :mod:`src.mcp.action_tools`
+  (mutating), and :mod:`src.mcp.onboarding_tools` (onboarding) to keep
+  this module focused on FastMCP registration.
 * Resources: ``taxonomy://violations`` and ``taxonomy://rules`` (EF-S3 —
   live introspection of the engine's violation kinds and rule check names;
   see :mod:`src.mcp.taxonomy`).
 * Prompts: empty (EF-S6 will introduce prompt templates).
 
 The MCP capability advertisement therefore exposes tools, resources, and
-prompts — ``tools/list`` returns the six tools (three read-only + three
-action), ``resources/list`` returns the two taxonomy URIs, and
-``prompts/list`` returns an empty array.
+prompts — ``tools/list`` returns the nine tools (three read-only + three
+action + three onboarding), ``resources/list`` returns the two taxonomy
+URIs, and ``prompts/list`` returns an empty array.
 
 Auth posture (dev-only, replaced in EF-S7):
     The MCP sub-app is protected by a small Starlette ``BaseHTTPMiddleware``
@@ -60,6 +63,14 @@ from src.mcp.action_tools import (
     get_run_status_payload,
     get_violations_payload,
     validate_file_payload,
+)
+from src.mcp.onboarding_tools import (
+    INFER_MAPPING_FROM_SAMPLE_DESCRIPTION,
+    ONBOARD_SOURCE_DRY_RUN_DESCRIPTION,
+    UPLOAD_WORKBOOK_AS_SPEC_DESCRIPTION,
+    infer_mapping_from_sample_payload,
+    onboard_source_dry_run_payload,
+    upload_workbook_as_spec_payload,
 )
 from src.mcp.taxonomy import list_rule_taxonomy, list_violation_taxonomy
 from src.mcp.tools import (
@@ -181,8 +192,10 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
         # clients see consistent server identity.
         instructions=(
             "Valdo MCP server. Read-only tools (EF-S2), taxonomy "
-            "resources (EF-S3), and action tools (EF-S4: validate_file, "
-            "get_run_status, get_violations) are registered. Prompt "
+            "resources (EF-S3), action tools (EF-S4: validate_file, "
+            "get_run_status, get_violations), and onboarding tools "
+            "(EF-S5: upload_workbook_as_spec, onboard_source_dry_run, "
+            "infer_mapping_from_sample) are registered. Prompt "
             "templates land in EF-S6."
         ),
         stateless_http=True,
@@ -350,6 +363,59 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
             page=page,
             page_size=page_size,
             severity=severity,
+        )
+
+    # ------------------------------------------------------------------
+    # EF-S5 — onboarding MCP tools.
+    #
+    # Three "agent-driven onboarding" tools that wrap the existing
+    # EC-S6 onboard-source service layer plus the EC-track
+    # infer-mapping service. The split into a dedicated
+    # :mod:`src.mcp.onboarding_tools` module mirrors the EF-S2 / EF-S4
+    # pattern — this server file stays a registration sheet, business
+    # logic lives in the adapter module.
+    #
+    # Sandbox convention: ``upload_workbook_as_spec`` stages workbooks
+    # under ``~/.valdo/mcp_sandbox/<SOURCE>/onboarding.xlsx`` (overridable
+    # via ``VALDO_MCP_SANDBOX_ROOT`` for ops + tests).
+    # ------------------------------------------------------------------
+
+    @mcp_server.tool(
+        name="upload_workbook_as_spec",
+        title="Stage an onboarding workbook in the MCP sandbox",
+        description=UPLOAD_WORKBOOK_AS_SPEC_DESCRIPTION,
+    )
+    def _upload_workbook_as_spec_tool(
+        workbook_path: str,
+        source_code: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        return upload_workbook_as_spec_payload(
+            workbook_path=workbook_path,
+            source_code=source_code,
+        )
+
+    @mcp_server.tool(
+        name="onboard_source_dry_run",
+        title="Preview onboard-source artefact tree (dry-run)",
+        description=ONBOARD_SOURCE_DRY_RUN_DESCRIPTION,
+    )
+    def _onboard_source_dry_run_tool(workbook_path: str) -> Dict[str, Any]:
+        return onboard_source_dry_run_payload(workbook_path=workbook_path)
+
+    @mcp_server.tool(
+        name="infer_mapping_from_sample",
+        title="Infer a draft mapping from a sample file",
+        description=INFER_MAPPING_FROM_SAMPLE_DESCRIPTION,
+    )
+    def _infer_mapping_from_sample_tool(
+        sample_file_path: str,
+        file_type: str,
+        format_hint: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        return infer_mapping_from_sample_payload(
+            sample_file_path=sample_file_path,
+            file_type=file_type,
+            format_hint=format_hint,
         )
 
     # Materialise the Streamable HTTP transport. This call is what creates

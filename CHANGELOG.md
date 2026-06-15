@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- EF-S5 (Sprint 4): three MCP onboarding tools —
+  `upload_workbook_as_spec`, `onboard_source_dry_run`,
+  `infer_mapping_from_sample`. Thin adapters over the existing
+  `valdo onboard-source` and `valdo infer-mapping` service layers.
+  `upload_workbook_as_spec` copies a validated workbook to
+  `~/.valdo/mcp_sandbox/<source>/onboarding.xlsx`. `onboard_source_dry_run`
+  returns the planned write list as a structured dict (no disk side-effects).
+  `infer_mapping_from_sample` produces a draft field mapping from a CSV
+  or fixed-width sample. Total MCP tool count: 9 (3 read + 3 action + 3 onboard).
 - EF-S4 (Sprint 4): three MCP action tools — `validate_file`,
   `get_run_status`, `get_violations`. All thin adapters over the
   existing Valdo validation + run-history service layer.

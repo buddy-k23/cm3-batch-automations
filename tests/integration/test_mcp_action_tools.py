@@ -18,8 +18,9 @@ Nine acceptance scenarios mapped to the EF-S4 story:
    case-insensitive and only returns rows of the requested bucket.
 8. ``test_get_violations_unknown_run_id_raises`` — bogus id -> tool
    error.
-9. ``test_mcp_tools_list_has_six_entries`` — ``tools/list`` advertises
-   all six tools after EF-S4 lands.
+9. ``test_mcp_tools_list_has_nine_entries`` — ``tools/list`` advertises
+   all nine tools after EF-S5 lands (EF-S2 read-only + EF-S4 action +
+   EF-S5 onboarding).
 
 All tests stub out :func:`src.services.validate_service.run_validate_service`
 so the MCP adapter is exercised without standing up the Oracle backend
@@ -643,12 +644,12 @@ def test_get_violations_unknown_run_id_raises(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# 9. tools/list advertises all six tools
+# 9. tools/list advertises all nine tools (post-EF-S5)
 # ---------------------------------------------------------------------------
 
 
-def test_mcp_tools_list_has_six_entries(monkeypatch):
-    """``tools/list`` advertises the six tools landed across EF-S2+EF-S4."""
+def test_mcp_tools_list_has_nine_entries(monkeypatch):
+    """``tools/list`` advertises the nine tools landed across EF-S2+EF-S4+EF-S5."""
     monkeypatch.setenv("VALDO_MCP_AUTH", "dev")
     app = _fresh_app()
 
@@ -662,7 +663,10 @@ def test_mcp_tools_list_has_six_entries(monkeypatch):
         "get_run_status",
         "get_source_spec",
         "get_violations",
+        "infer_mapping_from_sample",
         "list_recent_runs",
         "list_sources",
+        "onboard_source_dry_run",
+        "upload_workbook_as_spec",
         "validate_file",
-    ], f"tools/list drifted from EF-S2+EF-S4 baseline: {names!r}"
+    ], f"tools/list drifted from EF-S2+EF-S4+EF-S5 baseline: {names!r}"
