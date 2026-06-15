@@ -213,10 +213,31 @@ def build_valid_file(width: int) -> List[str]:
 
 
 def build_clean_file(width: int) -> List[str]:
-    """Minimal clean baseline — 1 BATCH_HEADER + 1 NEW1 detail row."""
+    """Minimal clean baseline — 1 row of every record type the umbrella declares.
+
+    The SHAW TRANERT umbrella declares ``expect: at_least_one`` for batch_header
+    and for rt_32000 (NEW1), rt_32005 (CUS), rt_32010 (ORI), rt_32025 (COD),
+    rt_32040 (CBRS), and rt_32075 (REC). A "clean" fixture must therefore include
+    one detail row of each of those six discriminator-keyed types in addition to
+    the position-keyed batch_header — otherwise the cross-type ``expect``
+    enforcement always emits ≥1 cardinality violation.
+
+    Layout: 1 BATCH_HEADER + 1 NEW1 + 1 CUS + 1 ORI + 1 COD + 1 CBRS + 1 REC = 7
+    rows total, with ``ITM-CNT-BRT = 6`` to match the detail row count so the
+    ``header_trailer_count`` cross-type assertion passes.
+    """
+    detail_plan: List[Tuple[str, int]] = [
+        ("new1", 1),
+        ("cus", 2),
+        ("ori", 3),
+        ("cod", 4),
+        ("cbrs", 5),
+        ("rec", 6),
+    ]
     rows: List[str] = []
-    rows.append(build_record("batch_header", width, overrides=header_overrides(1)))
-    rows.append(build_record("new1", width, overrides=detail_overrides("new1", 1), seq=1))
+    rows.append(build_record("batch_header", width, overrides=header_overrides(len(detail_plan))))
+    for rtype, seq in detail_plan:
+        rows.append(build_record(rtype, width, overrides=detail_overrides(rtype, seq), seq=seq))
     return rows
 
 

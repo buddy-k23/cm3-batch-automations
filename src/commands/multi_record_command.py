@@ -62,7 +62,11 @@ def run_multi_record_command(
     error_count = sum(1 for v in cross_violations if v.get("severity") == "error")
     warning_count = sum(1 for v in cross_violations if v.get("severity") == "warning")
 
-    if result.get("valid"):
+    # Header verb is driven by error_count (the count we just reported below it),
+    # NOT by ``result["valid"]`` — the latter can be False even when error_count
+    # is zero (per-type structural pass/fail isn't summed into error_count by
+    # this command).
+    if error_count == 0:
         click.echo(click.style("✓ Multi-record validation passed", fg="green"))
     else:
         click.echo(click.style("✗ Multi-record validation failed", fg="red"))
@@ -71,13 +75,30 @@ def run_multi_record_command(
     click.echo(f"Error Count    : {error_count}")
     click.echo(f"Warning Count  : {warning_count}")
 
+    # Per-type rows: only flag ``✗`` when the type FAILED a cardinality check
+    # we can prove from ``cross_type_violations`` (issue_code ``CT_EXPECT_*``).
+    # Otherwise a neutral bullet is used: "this record type contributed N rows"
+    # is not a pass/fail signal on its own. ``result["valid"]`` per type can be
+    # False for benign reasons (e.g. per-type structural checks that don't
+    # roll up into the cross-type error count) — we deliberately don't use it
+    # for the per-type glyph to keep the symbol → outcome encoding honest.
+    cardinality_failed_types = {
+        v.get("field")
+        for v in cross_violations
+        if isinstance(v.get("issue_code"), str)
+        and v["issue_code"].startswith("CT_EXPECT_")
+    }
+
     type_results = result.get("record_type_results", {})
     if type_results:
         click.echo("\nRecord Type Summary:")
         for type_name, type_result in type_results.items():
             rows = type_result.get("total_rows", type_result.get("row_count", "?"))
-            valid = "✓" if type_result.get("valid", True) else "✗"
-            click.echo(f"  {valid} {type_name}: {rows} rows")
+            if type_name in cardinality_failed_types:
+                marker = "✗"
+            else:
+                marker = "•"
+            click.echo(f"  {marker} {type_name}: {rows} rows")
 
     if cross_violations:
         click.echo(click.style(f"\nCross-type violations ({len(cross_violations)}):", fg="yellow"))

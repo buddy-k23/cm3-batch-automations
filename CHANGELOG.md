@@ -148,6 +148,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `modulo timestamps` qualifier). EC-S4 / EC-S5 emitter tests no
   longer need the `_drop_metadata` strip-before-compare hack.
 
+### Fixed
+- `valdo validate --multi-record` summary glyphs: header verb now reflects
+  the reported `Error Count` (zero errors → `✓ passed`, non-zero → `✗ failed`)
+  instead of the misleading per-type `result["valid"]` aggregate; per-type
+  rows use a neutral `•` bullet by default and only render `✗` when an
+  `expect`-cardinality cross-type check fired for that type. The SHAW
+  `tranert_shaw_test_clean_no_violations.txt` fixture is also regenerated
+  to a 7-row "1 per declared record type" baseline so the umbrella's
+  `at_least_one` cardinality is satisfied and the file lives up to its name.
+
 ### Changed
 - EC-S9 (Sprint 3 drift-fix): `templates/SHAW_onboarding.xlsx`
   regenerated from committed state via `scripts/build_shaw_onboarding_workbook.py`,
