@@ -246,8 +246,8 @@ _PER_TYPE_OVERRIDES: Dict[str, Dict[str, str]] = {
 #     reside at different banks within a single batch.
 #   * LN-NUM-ERT is an 18-char composite: a leading blank at position 1
 #     followed by BK(3) + BR(3) + CUS(7) + LN(4) = 17 chars (total 18).
-#   * CIF-REF-NUM-CUS counts down from 999 for the first customer on an
-#     account, 998 for the second, etc.
+#   * CIF-REF-NUM-CUS counts down from 998 for the first customer on an
+#     account, 997 for the second, etc.
 #   * CIF-ACT-COD-CUS / NAME-RELATIONSHIP are paired relationship codes
 #     (Primary = P/A, Secondary = B/B).
 # ---------------------------------------------------------------------------
@@ -257,7 +257,7 @@ _PER_TYPE_OVERRIDES: Dict[str, Dict[str, str]] = {
 class CustomerOnAccount:
     """One customer on an account; primary or secondary."""
 
-    cif_ref_num: str    # '999' for first customer, '998' for second, ...
+    cif_ref_num: str    # ''998'' for first customer, ''997'' for second, ...
     cif_act_cod: str    # 'P' primary, 'B' secondary
     name_rel: str       # 'A' primary, 'B' secondary
 
@@ -271,7 +271,7 @@ class TestAccount:
     lists the non-CUS detail records emitted for this account (NEW1 /
     ORI / COD / CBRS / REC); ``customers`` carries the per-account CUS
     rows in primary-first order so CIF-REF-NUM-CUS naturally descends
-    999 -> 998 -> 997.
+    998 -> 997 -> 996.
     """
 
     bk: str             # '040', '041', ...
@@ -282,11 +282,16 @@ class TestAccount:
     customers: List[CustomerOnAccount] = field(default_factory=list)
 
     def ln_num_ert(self) -> str:
-        """Return the 18-char composite LN-NUM-ERT.
+        """Return the 18-char LN-NUM-ERT for SHAW.
 
-        Layout: blank(1) + BK(3) + BR(3) + CUS(7) + LN(4) = 18 chars.
+        Per BA confirmation (and verified against the production sample
+        record), SHAW's LN-NUM-ERT is the 14-char ``BR + CUS + LN``
+        composite (BA spec ``NEW1 - 32000`` row 6 — "LN-NUM-ERT = BR + CUS
+        + LN"), left-justified in the 18-char field with 4 trailing
+        spaces.  ``BK`` is NOT part of LN-NUM-ERT; it lives in BK-NUM-ERT
+        at positions 1-5.
         """
-        composite = " " + self.bk + self.br + self.cus + self.ln
+        composite = (self.br + self.cus + self.ln).ljust(18)
         assert len(composite) == 18, (
             f"LN-NUM-ERT must be 18 chars, got {len(composite)}: {composite!r}"
         )
@@ -299,33 +304,33 @@ class TestAccount:
 
 # Three-account VALID fixture per the BA-approved restructure:
 #   * Account 1 at bank 040: full lifecycle + secondary customer
-#       NEW1, CUS(999=P/A), CUS(998=B/B), ORI, COD, CBRS, REC -> 7 rows
+#       NEW1, CUS(998=P/A), CUS(997=B/B), ORI, COD, CBRS, REC -> 7 rows
 #   * Account 2 at bank 040: minimal active loan, single primary
-#       NEW1, CUS(999=P/A), ORI                              -> 3 rows
+#       NEW1, CUS(998=P/A), ORI                              -> 3 rows
 #   * Account 3 at bank 041: different bank, no ORI yet, post-COF lifecycle
-#       NEW1, CUS(999=P/A), COD, CBRS, REC                   -> 5 rows
+#       NEW1, CUS(998=P/A), COD, CBRS, REC                   -> 5 rows
 # Total: 15 detail rows + 1 BATCH_HEADER = 16 lines in the fixture.
 VALID_ACCOUNTS: List[TestAccount] = [
     TestAccount(
         bk="040", br="001", cus="0000001", ln="0001",
         record_types=["new1", "ori", "cod", "cbrs", "rec"],
         customers=[
-            CustomerOnAccount(cif_ref_num="999", cif_act_cod="P", name_rel="A"),
-            CustomerOnAccount(cif_ref_num="998", cif_act_cod="B", name_rel="B"),
+            CustomerOnAccount(cif_ref_num="998", cif_act_cod="P", name_rel="A"),
+            CustomerOnAccount(cif_ref_num="997", cif_act_cod="B", name_rel="B"),
         ],
     ),
     TestAccount(
         bk="040", br="001", cus="0000002", ln="0001",
         record_types=["new1", "ori"],
         customers=[
-            CustomerOnAccount(cif_ref_num="999", cif_act_cod="P", name_rel="A"),
+            CustomerOnAccount(cif_ref_num="998", cif_act_cod="P", name_rel="A"),
         ],
     ),
     TestAccount(
         bk="041", br="001", cus="0000003", ln="0001",
         record_types=["new1", "cod", "cbrs", "rec"],
         customers=[
-            CustomerOnAccount(cif_ref_num="999", cif_act_cod="P", name_rel="A"),
+            CustomerOnAccount(cif_ref_num="998", cif_act_cod="P", name_rel="A"),
         ],
     ),
 ]
@@ -352,6 +357,8 @@ def detail_overrides(
     *,
     account: Optional[TestAccount] = None,
     customer: Optional[CustomerOnAccount] = None,
+    account_seq: int = 1,
+    total_transactions: int = 15,
 ) -> Dict[str, str]:
     """Per-row overrides anchoring reconciliation keys + BA-spec field values.
 
@@ -362,8 +369,17 @@ def detail_overrides(
     single-value valid_values per the BA Excel spec
     (`mappings/excel/TRANERT_SHAW_Mappings.xlsx`) are merged in from
     `_PER_TYPE_OVERRIDES`. For CUS rows the caller passes ``customer``
-    so CIF-REF-NUM-CUS (999/998/...), CIF-ACT-COD-CUS (P/B), and
+    so CIF-REF-NUM-CUS (998/997/...), CIF-ACT-COD-CUS (P/B), and
     NAME-RELATIONSHIP (A/B) are set from the customer record.
+
+    ``account_seq`` is the 1-based account index within the batch — every
+    row for the same account shares the same BAT-ITM-NUM-ERT value per
+    the BA spec ("The sequential number for this item within the batch").
+    ``total_transactions`` is the file-wide detail count and lands in
+    TRN-CNT-ERT verbatim ("The total number of transactions in the
+    batch"). REF-NUM-ERT / INP-SRC-COD-ERT / TRN-MOR-DTA-FLG-ERT are
+    blank-padded per the BA spec's "Initialize to spaces" rule rather
+    than the generator's default numeric fill.
     """
     if account is None:
         # Backward-compat default — single account at bank 040.
@@ -372,8 +388,15 @@ def detail_overrides(
         "BK-NUM-ERT": account.bk_num_ert(),  # per-account; varies bank-to-bank
         "APP-ERT": "001",                    # Application Control Table canonical
         "LN-NUM-ERT": account.ln_num_ert(),  # 18-char composite per BA spec
-        "EFF-DAT-ERT": "06012026",           # MMDDYYYY (length 8/10)
+        "EFF-DAT-ERT": "06/01/2026",         # MM/DD/CCYY (length 10) — slashed per BA spec sample
         "TRN-COD-ERT": TRN_COD_BY_TYPE[record_type],
+        # Per-account / per-batch counters
+        "BAT-ITM-NUM-ERT": str(account_seq).zfill(9),  # SAME across all rows of one account
+        "TRN-CNT-ERT": str(total_transactions).zfill(3),  # SAME across every detail row
+        # "Initialize to spaces" per BA spec
+        "REF-NUM-ERT": "   ",                # 3 spaces (pos 27-29)
+        "INP-SRC-COD-ERT": "   ",            # 3 spaces (pos 184-186)
+        "TRN-MOR-DTA-FLG-ERT": " ",          # 1 space  (pos 190)
     }
     overrides.update(_PER_TYPE_OVERRIDES.get(record_type, {}))
     if record_type == "cus" and customer is not None:
@@ -388,7 +411,14 @@ def detail_overrides(
 # ---------------------------------------------------------------------------
 
 
-def _emit_account_rows(account: TestAccount, width: int, seq_start: int) -> Tuple[List[str], int]:
+def _emit_account_rows(
+    account: TestAccount,
+    width: int,
+    seq_start: int,
+    *,
+    account_seq: int = 1,
+    total_transactions: int = 15,
+) -> Tuple[List[str], int]:
     """Emit the per-account detail rows in canonical TRANERT order.
 
     Order within an account is by ascending TRN-COD-ERT (32000 NEW1,
@@ -404,19 +434,21 @@ def _emit_account_rows(account: TestAccount, width: int, seq_start: int) -> Tupl
     """
     rows: List[str] = []
     seq = seq_start
+    common = dict(account=account, account_seq=account_seq,
+                  total_transactions=total_transactions)
     # NEW1 (32000) — exactly one per account if present.
     if "new1" in account.record_types:
         rows.append(build_record(
             "new1", width,
-            overrides=detail_overrides("new1", account=account),
+            overrides=detail_overrides("new1", **common),
             seq=seq,
         ))
         seq += 1
-    # CUS (32005) — one row per customer; CIF-REF-NUM-CUS descends 999, 998, ...
+    # CUS (32005) — one row per customer; CIF-REF-NUM-CUS descends 998, 997, ...
     for customer in account.customers:
         rows.append(build_record(
             "cus", width,
-            overrides=detail_overrides("cus", account=account, customer=customer),
+            overrides=detail_overrides("cus", customer=customer, **common),
             seq=seq,
         ))
         seq += 1
@@ -425,7 +457,7 @@ def _emit_account_rows(account: TestAccount, width: int, seq_start: int) -> Tupl
         if rtype in account.record_types:
             rows.append(build_record(
                 rtype, width,
-                overrides=detail_overrides(rtype, account=account),
+                overrides=detail_overrides(rtype, **common),
                 seq=seq,
             ))
             seq += 1
@@ -441,8 +473,8 @@ def build_valid_file(width: int) -> List[str]:
       * ``BK-NUM-ERT`` is per-account; account 3 lives at bank 041 while
         accounts 1-2 live at bank 040.
       * ``LN-NUM-ERT`` is the 18-char composite ``blank + BK + BR + CUS + LN``.
-      * ``CIF-REF-NUM-CUS`` counts down from 999 for the first customer on
-        an account, 998 for the second. Account 1 carries both a primary
+      * ``CIF-REF-NUM-CUS`` counts down from 998 for the first customer on
+        an account, 997 for the second. Account 1 carries both a primary
         (P/A, ref 999) and a secondary (B/B, ref 998); accounts 2 and 3
         carry only a primary (P/A, ref 999).
 
@@ -459,8 +491,13 @@ def build_valid_file(width: int) -> List[str]:
     rows: List[str] = []
     rows.append(build_record("batch_header", width, overrides=header_overrides(item_count)))
     seq = 1
-    for acct in VALID_ACCOUNTS:
-        acct_rows, seq = _emit_account_rows(acct, width, seq)
+    for idx, acct in enumerate(VALID_ACCOUNTS, start=1):
+        # account_seq is the 1-based per-account counter populated into
+        # BAT-ITM-NUM-ERT on every detail row for this account.
+        acct_rows, seq = _emit_account_rows(
+            acct, width, seq,
+            account_seq=idx, total_transactions=item_count,
+        )
         rows.extend(acct_rows)
     return rows
 
@@ -471,7 +508,7 @@ def build_valid_file(width: int) -> List[str]:
 _CLEAN_ACCOUNT = TestAccount(
     bk="040", br="001", cus="0000099", ln="0001",
     record_types=["new1", "ori", "cod", "cbrs", "rec"],
-    customers=[CustomerOnAccount(cif_ref_num="999", cif_act_cod="P", name_rel="A")],
+    customers=[CustomerOnAccount(cif_ref_num="998", cif_act_cod="P", name_rel="A")],
 )
 
 
@@ -626,7 +663,7 @@ def _detail_insert_oracle(
       EFF_DAT_ERT = DATE '2026-06-01',
       TRN_COD_ERT = per-record-type code.
 
-    For CUS rows the customer's CIF_REF_NUM_CUS (999/998/...),
+    For CUS rows the customer's CIF_REF_NUM_CUS (998/997/...),
     CIF_ACT_COD_CUS (P/B), and NAME_RELATIONSHIP (A/B) are written so
     the L2b comparator finds zero violations against the VALID fixture.
     """
