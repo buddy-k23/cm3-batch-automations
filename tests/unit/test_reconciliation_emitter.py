@@ -476,3 +476,317 @@ def test_emitter_requires_non_empty_source_code():
         ReconciliationEmitter("")
     with pytest.raises(EmitterError):
         ReconciliationEmitter("   ")
+
+
+# ===========================================================================
+# ED-S4 (Sprint 4 / Move 4) -- per-field BA reconciliation curation tests.
+# ===========================================================================
+
+
+def _make_mapping_sheet_with_flags(
+    name: str,
+    flags: list[tuple[str, bool, int]],
+) -> MappingSheet:
+    """Build a mapping sheet with ``(field_name, reconciliation, order)`` rows.
+
+    Synthetic helper for ED-S4 curation tests so each test can express
+    its intent (which fields are flagged) without the noise of position
+    / length / format metadata.
+    """
+    rows: list[MappingFieldRow] = []
+    for field_name, reconciliation, order in flags:
+        rows.append(
+            MappingFieldRow(
+                field_name=field_name,
+                data_type="String",
+                position=1,
+                length=10,
+                target_name=field_name.lower().replace("-", "_"),
+                required="Yes",
+                format=None,
+                transformation=None,
+                valid_values=None,
+                description=None,
+                reconciliation=reconciliation,
+                reconciliation_order=order,
+            )
+        )
+    return MappingSheet(sheet_name=name, rows=rows)
+
+
+def _make_workbook_with_mapping_sheet(
+    source_code: str,
+    file_type: str,
+    mapping_sheet: MappingSheet,
+) -> OnboardingWorkbook:
+    """Assemble a one-record reconciliation workbook around a custom mapping sheet."""
+    return OnboardingWorkbook(
+        source=_make_source_info(source_code),
+        input_files=[],
+        output_files=[
+            OutputFileSpec(
+                file_type=file_type,
+                glob=f"{file_type.lower()}_*.txt",
+                mapping_sheet="(umbrella)",
+                rules_sheet="(umbrella)",
+                tolerance_max_errors=None,
+                tolerance_max_error_pct=None,
+                tolerance_ignore_fields=None,
+            )
+        ],
+        multi_record_sheets={
+            file_type: MultiRecordSheet(
+                file_type=file_type,
+                rows=[
+                    MultiRecordRow(
+                        record_type_name="rt_x",
+                        discriminator_field="TYP",
+                        discriminator_position=1,
+                        discriminator_length=3,
+                        match_kind="discriminator_equals",
+                        match_value="ABC",
+                        mapping_sheet=mapping_sheet.sheet_name,
+                        rules_sheet="",
+                        cardinality="one_per_driver_row",
+                    )
+                ],
+            )
+        },
+        reconciliation_sheets={
+            file_type: ReconciliationSheet(
+                file_type=file_type,
+                file_wide_assertions=[],
+                rows=[
+                    ReconciliationRow(
+                        record_type_name="rt_x",
+                        key_columns=[],
+                        staging_table="EXPECTED_X",
+                        predicate="",
+                        ignored_fields=[],
+                        expected_sql_override="",
+                    )
+                ],
+            )
+        },
+        cross_type_rules_sheets={},
+        mapping_sheets={mapping_sheet.sheet_name: mapping_sheet},
+        rules_sheets={},
+    )
+
+
+def test_reconciliation_fields_emitted_only_for_flagged_rows():
+    """ED-S4 curation: with 5 rows total and 2 flagged ``True``, the
+    emitted reconciliation YAML's ``fields[]`` array carries exactly
+    those 2 entries.
+
+    Pre-ED-S4 the emitter conservatively projected all 5 rows; ED-S4
+    introduces the opt-in curation contract where any sheet that flags
+    at least one row activates the subset.
+    """
+    sheet = _make_mapping_sheet_with_flags(
+        "DEMO_LAYOUT_Mapping",
+        flags=[
+            ("FIELD-A", True, 0),
+            ("FIELD-B", False, 0),
+            ("FIELD-C", True, 0),
+            ("FIELD-D", False, 0),
+            ("FIELD-E", False, 0),
+        ],
+    )
+    workbook = _make_workbook_with_mapping_sheet("ACME", "DEMO", sheet)
+    artefacts = emit_reconciliation_artefacts(workbook)
+    assert len(artefacts) == 1
+    data = yaml.safe_load(artefacts[0].content)
+    fields = data["record_types"]["rt_x"]["fields"]
+    assert len(fields) == 2, (
+        f"Expected 2 curated fields; got {len(fields)}: {fields}"
+    )
+    assert [f["file_field"] for f in fields] == ["FIELD-A", "FIELD-C"]
+
+
+def test_reconciliation_yaml_byte_matches_committed_for_shaw_tranert_batch_header():
+    """ED-S4 end-to-end: the SHAW workbook's reconciliation YAML emits
+    a byte-equivalent ``record_types.batch_header`` block compared to
+    the committed ``tranert.yml``.
+
+    The committed YAML's batch_header carries the 5 hand-curated
+    fields (``BK-NUM-BRT`` / ``APP-BRT`` / ``TRN-COD-BRT`` /
+    ``BAT-TYP-BRT`` / ``ITM-CNT-BRT``). After ED-S4 the workbook
+    flags these rows with the BA-curated emission order so the
+    emitted block matches the committed entry verbatim under
+    ``yaml.safe_load`` semantic equality.
+    """
+    workbook = read_workbook(str(SHAW_WORKBOOK))
+    artefacts = emit_reconciliation_artefacts(workbook)
+    tranert = next(
+        a for a in artefacts
+        if a.path.endswith("/SHAW/reconciliation/tranert.yml")
+    )
+    emitted = yaml.safe_load(tranert.content)
+    committed = yaml.safe_load(
+        COMMITTED_TRANERT_YML.read_text(encoding="utf-8")
+    )
+    assert emitted["record_types"]["batch_header"] == committed[
+        "record_types"
+    ]["batch_header"], (
+        "ED-S4 contract violation: batch_header reconciliation entry "
+        "diverged from committed.\n"
+        f"emitted: {emitted['record_types']['batch_header']}\n"
+        f"committed: {committed['record_types']['batch_header']}"
+    )
+
+
+def test_unflagged_rows_excluded_from_reconciliation_yaml():
+    """ED-S4 opt-out: when ANY row on a sheet is flagged the rest are
+    excluded. A sheet where NO row is flagged falls back to the
+    pre-ED-S4 "emit every row" behaviour so legacy workbooks remain
+    valid."""
+    # Case A: any row flagged -> curated subset emitted.
+    sheet = _make_mapping_sheet_with_flags(
+        "DEMO_LAYOUT_Mapping",
+        flags=[("FIELD-A", True, 0), ("FIELD-B", False, 0)],
+    )
+    workbook = _make_workbook_with_mapping_sheet("ACME", "DEMO", sheet)
+    artefacts = emit_reconciliation_artefacts(workbook)
+    fields = yaml.safe_load(artefacts[0].content)["record_types"]["rt_x"][
+        "fields"
+    ]
+    assert [f["file_field"] for f in fields] == ["FIELD-A"]
+
+    # Case B: no row flagged -> legacy emit-all behaviour preserved.
+    sheet = _make_mapping_sheet_with_flags(
+        "DEMO_LAYOUT_Mapping",
+        flags=[("FIELD-A", False, 0), ("FIELD-B", False, 0)],
+    )
+    workbook = _make_workbook_with_mapping_sheet("ACME", "DEMO", sheet)
+    artefacts = emit_reconciliation_artefacts(workbook)
+    fields = yaml.safe_load(artefacts[0].content)["record_types"]["rt_x"][
+        "fields"
+    ]
+    assert [f["file_field"] for f in fields] == ["FIELD-A", "FIELD-B"]
+
+
+def test_reconciliation_order_overrides_row_position():
+    """ED-S4 ``Reconciliation Order``: explicit positive orders sort
+    BEFORE row-order rows. With orders (3, 1, 2) on three flagged rows
+    the emitted order is FIELD-B (1), FIELD-C (2), FIELD-A (3)."""
+    sheet = _make_mapping_sheet_with_flags(
+        "DEMO_LAYOUT_Mapping",
+        flags=[
+            ("FIELD-A", True, 3),
+            ("FIELD-B", True, 1),
+            ("FIELD-C", True, 2),
+        ],
+    )
+    workbook = _make_workbook_with_mapping_sheet("ACME", "DEMO", sheet)
+    artefacts = emit_reconciliation_artefacts(workbook)
+    fields = yaml.safe_load(artefacts[0].content)["record_types"]["rt_x"][
+        "fields"
+    ]
+    assert [f["file_field"] for f in fields] == [
+        "FIELD-B",
+        "FIELD-C",
+        "FIELD-A",
+    ]
+
+
+def test_reconciliation_predicate_emitted_when_set():
+    """ED-S4 ``Reconciliation Predicate``: when the workbook row carries
+    a non-empty predicate string, the emitted ``fields[]`` entry
+    includes a ``predicate`` key with that text verbatim."""
+    row = MappingFieldRow(
+        field_name="FIELD-A",
+        data_type="String",
+        position=1,
+        length=10,
+        target_name="field_a",
+        required="Yes",
+        format=None,
+        transformation=None,
+        valid_values=None,
+        description=None,
+        reconciliation=True,
+        reconciliation_order=1,
+        reconciliation_predicate="CHG_OFF_CD = '1'",
+    )
+    sheet = MappingSheet(sheet_name="DEMO_LAYOUT_Mapping", rows=[row])
+    workbook = _make_workbook_with_mapping_sheet("ACME", "DEMO", sheet)
+    artefacts = emit_reconciliation_artefacts(workbook)
+    fields = yaml.safe_load(artefacts[0].content)["record_types"]["rt_x"][
+        "fields"
+    ]
+    assert fields[0].get("predicate") == "CHG_OFF_CD = '1'"
+
+
+def test_reconciliation_column_override_replaces_target_name():
+    """ED-S4 ``Reconciliation Column``: when set, the emitted
+    ``expected_column`` is the BA's verbatim override, not the
+    upper-cased ``target_name``."""
+    row = MappingFieldRow(
+        field_name="ORG-LVL-NUM-6-COD",
+        data_type="Decimal",
+        position=1,
+        length=7,
+        target_name="org_lvl_num_6_cod",
+        required="Yes",
+        format="9(7)",
+        transformation=None,
+        valid_values=None,
+        description=None,
+        reconciliation=True,
+        reconciliation_order=1,
+        reconciliation_column="ORG_LVL_NUM6_COD",
+    )
+    sheet = MappingSheet(sheet_name="DEMO_LAYOUT_Mapping", rows=[row])
+    workbook = _make_workbook_with_mapping_sheet("ACME", "DEMO", sheet)
+    artefacts = emit_reconciliation_artefacts(workbook)
+    fields = yaml.safe_load(artefacts[0].content)["record_types"]["rt_x"][
+        "fields"
+    ]
+    assert fields[0]["expected_column"] == "ORG_LVL_NUM6_COD", (
+        f"Expected verbatim BA override; got {fields[0]['expected_column']!r}"
+    )
+
+
+def test_reconciliation_cardinality_override_wins_over_multirecord():
+    """ED-S4 ``Reconciliation_<FT>.cardinality``: when set on the
+    reconciliation row, the override replaces the MultiRecord sheet's
+    value in the emitted YAML. This decouples the file-rowset
+    cardinality (MultiRecord) from the SQL-rowset cardinality
+    (reconciliation YAML)."""
+    sheet = _make_mapping_sheet_with_flags(
+        "DEMO_LAYOUT_Mapping",
+        flags=[("FIELD-A", True, 1)],
+    )
+    workbook = _make_workbook_with_mapping_sheet("ACME", "DEMO", sheet)
+    # Override the recon row to set cardinality = many_per_driver_row
+    # while the MultiRecord sheet still says one_per_driver_row.
+    workbook = OnboardingWorkbook(
+        source=workbook.source,
+        input_files=workbook.input_files,
+        output_files=workbook.output_files,
+        multi_record_sheets=workbook.multi_record_sheets,
+        reconciliation_sheets={
+            "DEMO": ReconciliationSheet(
+                file_type="DEMO",
+                file_wide_assertions=[],
+                rows=[
+                    ReconciliationRow(
+                        record_type_name="rt_x",
+                        key_columns=[],
+                        staging_table="EXPECTED_X",
+                        predicate="",
+                        ignored_fields=[],
+                        expected_sql_override="",
+                        cardinality_override="many_per_driver_row",
+                    )
+                ],
+            )
+        },
+        cross_type_rules_sheets={},
+        mapping_sheets=workbook.mapping_sheets,
+        rules_sheets={},
+    )
+    artefacts = emit_reconciliation_artefacts(workbook)
+    rt_block = yaml.safe_load(artefacts[0].content)["record_types"]["rt_x"]
+    assert rt_block["cardinality"] == "many_per_driver_row"

@@ -357,15 +357,41 @@ def _expected_column_for_field(row: MappingFieldRow) -> str:
     ``LN_NUM_ERT``). Matches the
     :mod:`src.config.template_converter` fallback.
 
+    ED-S4: the BA-curated ``Reconciliation Column`` cell takes
+    precedence over the mapping ``target_name`` so the committed
+    hand-curated column names (e.g. ``ORG_LVL_NUM6_COD`` in SHAW
+    TRANERT rt_32025) round-trip without a target_name change.
+
     Args:
         row: The mapping field row from the workbook.
 
     Returns:
         The ``expected_column`` SQL name in upper-case underscore form.
     """
+    if row.reconciliation_column and row.reconciliation_column.strip():
+        return row.reconciliation_column.strip()
     if row.target_name and row.target_name.strip():
         return row.target_name.strip().upper()
     return row.field_name.replace("-", "_").upper()
+
+
+def _sheet_has_curated_subset(mapping_sheet: MappingSheet) -> bool:
+    """Whether the sheet flags ANY field with ``reconciliation = True``.
+
+    ED-S4 opt-in convention: a sheet "opts into" curated mode when at
+    least one row carries ``reconciliation = True``. Sheets with no
+    flagged rows preserve the pre-ED-S4 "emit every field" shape
+    (the ED-S1 fallback) so legacy workbooks continue to round-trip
+    without modification.
+
+    Args:
+        mapping_sheet: The matching mapping sheet from the workbook.
+
+    Returns:
+        ``True`` when at least one row is reconciliation-flagged,
+        ``False`` otherwise.
+    """
+    return any(row.reconciliation for row in mapping_sheet.rows)
 
 
 def _build_fields_list(
@@ -379,26 +405,54 @@ def _build_fields_list(
     reconciliation spec loader rejects this on validation, surfacing
     the workbook gap to the BA.
 
+    ED-S4 (Sprint 4 / Move 4) — field curation:
+        * If ANY row on the sheet carries ``reconciliation = True``
+          (the BA-flagged subset), the emitter projects ONLY the
+          flagged rows.
+        * Otherwise the emitter falls back to projecting EVERY field
+          (the ED-S1 conservative default) so pre-ED-S4 workbooks
+          continue to emit the full set without modification.
+
     Args:
         mapping_sheet: The matching mapping sheet from the workbook,
             or ``None`` when the cross-reference cannot be resolved.
 
     Returns:
-        A list of :class:`_FlowDict` instances, one per mapping field.
+        A list of :class:`_FlowDict` instances, one per emitted field.
     """
     if mapping_sheet is None:
         return []
-    fields: list[_FlowDict] = []
-    for field_row in mapping_sheet.rows:
+    curated = _sheet_has_curated_subset(mapping_sheet)
+
+    # Walk the sheet rows once to collect ``(order_bucket, order, row_idx, row)``
+    # tuples; then sort. The order bucket is 0 when the row carries an
+    # explicit ``reconciliation_order`` and 1 otherwise so BA-curated
+    # explicit-order rows always emit BEFORE row-order rows. Within a
+    # bucket the secondary key is the explicit order (bucket 0) or the
+    # row position (bucket 1).
+    indexed: list[tuple[tuple[int, int, int], _FlowDict]] = []
+    for row_idx, field_row in enumerate(mapping_sheet.rows):
         if not field_row.field_name:
             continue
-        fields.append(
-            _FlowDict(
-                file_field=field_row.field_name,
-                expected_column=_expected_column_for_field(field_row),
-            )
+        if curated and not field_row.reconciliation:
+            continue
+        if field_row.reconciliation_order > 0:
+            sort_key = (0, field_row.reconciliation_order, row_idx)
+        else:
+            sort_key = (1, row_idx, row_idx)
+        entry = _FlowDict(
+            file_field=field_row.field_name,
+            expected_column=_expected_column_for_field(field_row),
         )
-    return fields
+        # ED-S4: optional per-field SQL predicate carried verbatim.
+        if (
+            field_row.reconciliation_predicate
+            and field_row.reconciliation_predicate.strip()
+        ):
+            entry["predicate"] = field_row.reconciliation_predicate.strip()
+        indexed.append((sort_key, entry))
+    indexed.sort(key=lambda pair: pair[0])
+    return [entry for _, entry in indexed]
 
 
 # ---------------------------------------------------------------------------
@@ -435,11 +489,18 @@ def _build_record_type_block(
         if recon_row.expected_sql_override
         else _EXPECTED_SQL_AUTO_MARKER
     )
-    cardinality = (
-        multi_record_row.cardinality
-        if multi_record_row is not None
-        else _DEFAULT_CARDINALITY
-    )
+    # ED-S4: reconciliation row's cardinality_override (when set) wins
+    # over the MultiRecord_<FT> sheet's cardinality. The file-side
+    # cardinality on MultiRecord is appropriate for the umbrella YAML's
+    # ``expect:`` while the reconciliation YAML's cardinality describes
+    # the SQL-rowset shape — for SHAW TRANERT these diverge on rt_32005
+    # (sql=many) and rt_32010 (sql=zero_or_one).
+    if recon_row.cardinality_override:
+        cardinality = recon_row.cardinality_override
+    elif multi_record_row is not None:
+        cardinality = multi_record_row.cardinality
+    else:
+        cardinality = _DEFAULT_CARDINALITY
 
     entry: dict[str, Any] = {
         "expected_sql": expected_sql,

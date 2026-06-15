@@ -83,6 +83,7 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -175,6 +176,14 @@ RECONCILIATION_COLUMNS = [
     "ignored_fields",
     "assertions",
     "expected_sql_override",
+    # ED-S4: optional SQL-rowset cardinality override. When the
+    # reconciliation YAML's cardinality diverges from the MultiRecord
+    # sheet's file-rowset cardinality (SHAW TRANERT rt_32005 sql=many
+    # vs file=one; rt_32010 sql=zero_or_one vs file=one). Blank ->
+    # defer to MultiRecord. Allowed values:
+    # one_per_driver_row / many_per_driver_row /
+    # zero_or_one_per_driver_row.
+    "cardinality",
 ]
 
 # CrossTypeRules_<FILETYPE> sheet column set (EC-S8). Mirrors
@@ -215,6 +224,40 @@ MAPPING_COLUMNS = [
     "Transformation",
     "Valid Values",
     "Description",
+    # ED-S4 (Sprint 4 / Move 4): optional BOOLEAN column flagging
+    # whether the field is included in the reconciliation YAML's
+    # ``record_types.<name>.fields[]`` array AND in the SQL emitter's
+    # SELECT column list. Blank / False -> excluded. The
+    # build_shaw_onboarding_workbook script flips this to ``True`` on
+    # rows whose DASH name appears in the committed tranert.yml
+    # ``fields:`` arrays so the workbook reverse-engineers the BA's
+    # historical curation.
+    "Reconciliation",
+    # ED-S4 emission-order hint paired with ``Reconciliation``. A
+    # positive integer N means "emit at position N in the curated
+    # subset"; blank / 0 means "use the workbook row order". The
+    # reverse-engineer script populates this from the committed
+    # tranert.yml ``fields:`` order so the round-trip reconciliation
+    # YAML byte-matches the committed file even when the BA-curated
+    # order differs from the file's physical fixed-width order.
+    "Reconciliation Order",
+    # ED-S4 optional override for the reconciliation YAML's
+    # ``expected_column`` cell when the BA's hand-curated column name
+    # differs from the mapping target_name (e.g. SHAW TRANERT rt_32025
+    # uses ``ORG_LVL_NUM6_COD`` rather than the mapping's
+    # ``org_lvl_num_6_cod``).
+    "Reconciliation Column",
+    # ED-S4 optional per-field SQL predicate carried verbatim into the
+    # reconciliation YAML's ``fields[]`` entry (e.g. SHAW TRANERT
+    # rt_32010 OGL-NTE-DAT-ORI: ``predicate: "CHG_OFF_CD = '1'"``).
+    "Reconciliation Predicate",
+    # ED-S4 optional override for the SQL emitter's column-projection
+    # expression (the LHS of ``AS``). Empty -> emitter derives from
+    # ``Data Type`` + ``Format``. Set this to the committed expression
+    # text when the BA hand-curated a divergent choice (e.g. SHAW
+    # TRANERT batch_header uses ``TRIM(t.BK_NUM_BRT)`` rather than the
+    # ED-S2 default ``LPAD(TO_CHAR(t.BK_NUM_BRT), 5, '0')``).
+    "Reconciliation SQL Expression",
 ]
 
 RULES_COLUMNS = [
@@ -404,6 +447,90 @@ def _reverse_data_type(data_type: str) -> str:
     return _REVERSE_DATA_TYPE.get((data_type or "").lower(), "String")
 
 
+def _build_reconciliation_dash_name_index(
+    umbrella: dict[str, Any] | None,
+    recon_spec: dict[str, Any] | None,
+) -> dict[str, dict[str, dict[str, Any]]]:
+    """Map mapping-sheet name -> {DASH field name -> {order, column, predicate}}.
+
+    ED-S4 reverse-engineer step: walk the committed reconciliation YAML
+    (``tranert.yml``) and the umbrella YAML to build a lookup keyed by
+    the workbook sheet name (``TRANERT_BATCH_HEADER_Mapping``,
+    ``TRANERT_NEW1_Mapping``, ...). The value is a dict mapping each
+    DASH field name to a metadata dict carrying:
+
+        * ``order`` — 1-based position in the committed YAML's
+          ``record_types.<name>.fields[]`` array (drives the
+          ``Reconciliation Order`` column).
+        * ``column`` — the committed ``expected_column`` SQL name
+          (drives the ``Reconciliation Column`` override column when
+          it differs from the mapping's upper-cased ``target_name``).
+        * ``predicate`` — the per-field ``predicate`` cell when set
+          on the committed entry (drives the ``Reconciliation
+          Predicate`` column).
+
+    When two reconciliation record_types share a mapping sheet (e.g.
+    SHAW TRANERT ``rt_32000`` and ``rt_32001`` both point at
+    ``TRANERT_NEW1_Mapping``), the order taken is the FIRST occurrence
+    across the union — matching the committed reference behaviour
+    where the first record_type's order wins.
+
+    Args:
+        umbrella: The committed umbrella YAML dict (or ``None`` if the
+            file is missing). Used to map record_type -> mapping path.
+        recon_spec: The committed reconciliation YAML dict (or ``None``
+            if the file is missing). Used to extract per-record-type
+            DASH-name sets and their order.
+
+    Returns:
+        A dict ``{mapping_sheet_name: {dash_field_name: metadata_dict}}``.
+        Empty when either input is missing.
+    """
+    if not umbrella or not recon_spec:
+        return {}
+    file_type = recon_spec.get("file_type") or ""
+    query_dir = REPO_ROOT / (recon_spec.get("query_dir") or "")
+    index: dict[str, dict[str, dict[str, Any]]] = {}
+    for rt_name, rt_cfg in recon_spec.get("record_types", {}).items():
+        ordered_entries: list[dict[str, Any]] = []
+        for entry in rt_cfg.get("fields", []) or []:
+            dash = entry.get("file_field", "")
+            if dash:
+                ordered_entries.append(entry)
+        if not ordered_entries:
+            continue
+        umbrella_rt = umbrella.get("record_types", {}).get(rt_name, {})
+        mapping_path = umbrella_rt.get("mapping", "")
+        if not mapping_path:
+            continue
+        sheet_name = _mapping_path_to_sheet_name(mapping_path, file_type, rt_name)
+        sheet_name_short = _shorten_sheet_name(sheet_name)
+        existing = index.setdefault(sheet_name_short, {})
+
+        # ED-S4: parse the committed expected_*.sql to pick up the BA's
+        # hand-curated per-column SQL expressions (e.g. ``TRIM(t.X)`` vs
+        # the format-derived default ``LPAD(...)``). Keyed by the
+        # committed expected_column alias so we can join on the
+        # reconciliation YAML's expected_column value.
+        sql_path = query_dir / (rt_cfg.get("expected_sql") or "")
+        sql_expressions_by_alias = _parse_committed_sql_expressions(sql_path)
+
+        for order_idx, entry in enumerate(ordered_entries, start=1):
+            dash = entry.get("file_field", "")
+            expected_column = entry.get("expected_column", "") or ""
+            sql_expr = sql_expressions_by_alias.get(expected_column, "")
+            existing.setdefault(
+                dash,
+                {
+                    "order": order_idx,
+                    "column": expected_column,
+                    "predicate": entry.get("predicate", "") or "",
+                    "sql_expression": sql_expr,
+                },
+            )
+    return index
+
+
 def _reverse_engineer_mapping_rows_from_json(
     json_path: Path,
 ) -> list[dict[str, Any]]:
@@ -458,9 +585,148 @@ def _reverse_engineer_mapping_rows_from_json(
                 "Transformation": "",
                 "Valid Values": "|".join(str(v) for v in valid_values) if valid_values else "",
                 "Description": field.get("description", "") or "",
+                # ED-S4: default ``False`` / ``0``; the caller patches
+                # both via ``_apply_reconciliation_flags`` once the row
+                # set is available.
+                "Reconciliation": False,
+                "Reconciliation Order": "",
+                "Reconciliation Column": "",
+                "Reconciliation Predicate": "",
+                "Reconciliation SQL Expression": "",
             }
         )
     return rows
+
+
+def _apply_reconciliation_flags(
+    rows: list[dict[str, Any]], dash_metadata: dict[str, dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Set the ED-S4 reconciliation columns on rows whose DASH name matches.
+
+    Mutates each row dict in-place; returns the same list for chaining.
+    Rows whose ``Field Name`` (DASH form) appears in ``dash_metadata``
+    get ``Reconciliation = True``, ``Reconciliation Order = <int>``,
+    and (when the committed entry's ``expected_column`` /
+    ``predicate`` differ from the derived defaults) the override cells
+    populated. Everything else stays ``False`` / blank.
+
+    Args:
+        rows: The workbook rows returned by
+            :func:`_reverse_engineer_mapping_rows_from_json`.
+        dash_metadata: ``{dash_field_name: {order, column, predicate}}``
+            derived from the committed reconciliation YAML via
+            :func:`_build_reconciliation_dash_name_index`. Blank /
+            empty -> no flags are set.
+
+    Returns:
+        The same ``rows`` list, with the flag patched in place.
+    """
+    if not dash_metadata:
+        return rows
+    for row in rows:
+        field_name = row.get("Field Name") or ""
+        meta = dash_metadata.get(field_name)
+        if not meta:
+            continue
+        row["Reconciliation"] = True
+        row["Reconciliation Order"] = meta.get("order", "")
+        # Reconciliation Column override -- only emit when the committed
+        # value differs from what the recon emitter would derive
+        # (upper-cased target_name). Otherwise leave blank so the
+        # workbook stays minimal and the BA sees only meaningful
+        # overrides.
+        committed_column = meta.get("column", "") or ""
+        derived_column = (row.get("Target Name") or "").upper()
+        if committed_column and committed_column != derived_column:
+            row["Reconciliation Column"] = committed_column
+        # Per-field predicate is always BA-authored when present.
+        predicate = meta.get("predicate", "") or ""
+        if predicate:
+            row["Reconciliation Predicate"] = predicate
+        # SQL expression override: only emit when the committed
+        # expression differs from the format-derived default the
+        # SQL emitter would produce. We compute the default by
+        # mirroring :func:`src.onboarding.emitters.sql_emitter._column_expression`
+        # logic — see :func:`_default_sql_expression`.
+        committed_expr = meta.get("sql_expression", "") or ""
+        if committed_expr:
+            default_expr = _default_sql_expression(
+                data_type=row.get("Data Type", ""),
+                fmt=row.get("Format", ""),
+                target_name=row.get("Target Name", ""),
+                field_name=row.get("Field Name", ""),
+                column_override=row.get("Reconciliation Column") or "",
+            )
+            if committed_expr != default_expr:
+                row["Reconciliation SQL Expression"] = committed_expr
+    return rows
+
+
+def _default_sql_expression(
+    *,
+    data_type: str,
+    fmt: str,
+    target_name: str,
+    field_name: str,
+    column_override: str,
+) -> str:
+    """Mirror the SQL emitter's :func:`_column_expression` default logic.
+
+    Used by :func:`_apply_reconciliation_flags` to decide whether the
+    committed SQL expression diverges from the emitter's
+    format-derived default and therefore needs the workbook override
+    cell populated.
+
+    Args:
+        data_type: BA-friendly type label (``String``, ``Numeric``,
+            ``Date``, ``Decimal``).
+        fmt: Format string (``9(N)``, ``-Z(N).9(M)``, ``MM/DD/CCYY``).
+        target_name: Mapping target_name (lowercase snake).
+        field_name: Mapping field name (DASH form). Fallback for col.
+        column_override: BA-curated ``Reconciliation Column`` cell
+            (passed in for the corner case where it sets a custom
+            alias that the emitter's default wouldn't produce).
+
+    Returns:
+        The expression text the SQL emitter would emit when no
+        override is set on the workbook row.
+    """
+    col = (target_name or "").strip()
+    if not col:
+        col = (field_name or "").replace("-", "_")
+    col_upper = col.upper()
+
+    # When the alias override is set the emitter uses it as the column
+    # name (LHS of t.<col>). Re-derive from the override too so the
+    # diff check is consistent.
+    if column_override:
+        col_upper = column_override
+
+    data_type_norm = (data_type or "").strip().lower()
+    fmt_norm = (fmt or "").strip()
+
+    if data_type_norm == "date":
+        oracle_mask = "MM/DD/YYYY" if fmt_norm in ("MM/DD/CCYY", "MM/DD/YYYY") else "MM/DD/YYYY"
+        return f"TO_CHAR(t.{col_upper}, '{oracle_mask}')"
+
+    if data_type_norm in ("decimal", "numeric", "integer"):
+        amt_match = re.match(r"^-?Z\((\d+)\)\.9\((\d+)\)$", fmt_norm) if fmt_norm else None
+        if amt_match is not None:
+            int_width = int(amt_match.group(1))
+            frac_width = int(amt_match.group(2))
+            mask_int = "9" * (int_width - 1) + "0" if int_width >= 1 else "0"
+            mask_frac = "0" * frac_width if frac_width >= 1 else ""
+            mask = f"FM{mask_int}.{mask_frac}" if mask_frac else f"FM{mask_int}"
+            return f"LTRIM(TO_CHAR(t.{col_upper}, '{mask}'), '0')"
+
+        fixed_match = re.match(r"^9\((\d+)\)$", fmt_norm) if fmt_norm else None
+        if fixed_match is not None:
+            width = int(fixed_match.group(1))
+            return f"LPAD(TO_CHAR(t.{col_upper}), {width}, '0')"
+
+        return f"TRIM(t.{col_upper})"
+
+    return f"TRIM(t.{col_upper})"
 
 
 def _reverse_engineer_rules_row_from_engine_rule(
@@ -582,7 +848,12 @@ def _reverse_engineer_rules_rows_from_json(
     return rows
 
 
-def _mapping_rows_for_path(mapping_repo_path: str, file_type: str) -> list[dict[str, Any]]:
+def _mapping_rows_for_path(
+    mapping_repo_path: str,
+    file_type: str,
+    *,
+    reconciliation_dash_metadata: dict[str, dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
     """Resolve a SHAW.yml mapping path to workbook rows.
 
     If the committed file exists on disk, reverse-engineer rows from it
@@ -593,6 +864,12 @@ def _mapping_rows_for_path(mapping_repo_path: str, file_type: str) -> list[dict[
         mapping_repo_path: The repo-relative ``mapping:`` cell from
             SHAW.yml (e.g. ``"config/mappings/SHAW_CDSTRANS_EFB.json"``).
         file_type: The output / input file type (drives the TODO message).
+        reconciliation_dash_metadata: ED-S4 — ``{dash_name: {order,
+            column, predicate}}`` mapping; flagged rows get
+            ``Reconciliation = True`` and the curated order /
+            optional column / predicate overrides set per the dict.
+            ``None`` / empty -> every row keeps the default ``False``
+            / blank.
 
     Returns:
         Workbook row dicts.
@@ -602,7 +879,10 @@ def _mapping_rows_for_path(mapping_repo_path: str, file_type: str) -> list[dict[
     abs_path = REPO_ROOT / mapping_repo_path
     if not abs_path.exists():
         return _todo_mapping_rows(file_type)
-    return _reverse_engineer_mapping_rows_from_json(abs_path)
+    rows = _reverse_engineer_mapping_rows_from_json(abs_path)
+    if reconciliation_dash_metadata:
+        _apply_reconciliation_flags(rows, reconciliation_dash_metadata)
+    return rows
 
 
 def _rules_rows_for_path(rules_repo_path: str, file_type: str) -> list[dict[str, Any]]:
@@ -654,6 +934,12 @@ def _todo_mapping_rows(file_type: str) -> list[dict[str, Any]]:
                 f"TODO(mapping-pending): {file_type} layout not yet authored. "
                 f"Replace this row with real fields before onboarding."
             ),
+            # ED-S4: TODO placeholder is not in scope for reconciliation.
+            "Reconciliation": False,
+            "Reconciliation Order": "",
+            "Reconciliation Column": "",
+            "Reconciliation Predicate": "",
+            "Reconciliation SQL Expression": "",
         }
     ]
 
@@ -721,6 +1007,199 @@ def _output_files_from_shaw_yml(src: dict[str, Any]) -> list[dict[str, Any]]:
             }
         )
     return rows
+
+
+def _parse_committed_sql_expressions(sql_path: Path) -> dict[str, str]:
+    """Extract per-column SQL expressions from a committed expected_*.sql file.
+
+    Walks the SELECT body and returns ``{underscore_alias: expression}``
+    where ``expression`` is the LHS of the ``AS`` keyword
+    (e.g. ``"TRIM(t.BK_NUM_BRT)"``). DASH-quoted alias duplicates
+    (e.g. ``AS "BK-NUM-BRT"``) are SKIPPED because the alias matches an
+    earlier underscore-aliased column with the same expression — the
+    ED-S4 emitter regenerates the DASH duplicate from the same source
+    column.
+
+    Used by :func:`_build_sql_expression_index` to round-trip the
+    committed SHAW SQL byte-for-byte even when the BA's expression
+    choice (``TRIM`` vs ``LPAD``) diverges from the format-derived
+    default.
+
+    Args:
+        sql_path: Path to a committed ``expected_*.sql`` file.
+
+    Returns:
+        ``{underscore_alias: expression_text}`` for every SELECT-list
+        column. Empty when the file doesn't exist.
+    """
+    if not sql_path.exists():
+        return {}
+    text = sql_path.read_text(encoding="utf-8")
+    expressions: dict[str, str] = {}
+    # Strip leading ``--`` comment lines and any blank lines.
+    body_lines: list[str] = []
+    for line in text.splitlines():
+        stripped = line.lstrip()
+        if stripped.startswith("--"):
+            continue
+        body_lines.append(line)
+    body = "\n".join(body_lines)
+    if "SELECT" not in body:
+        return {}
+    # Strip the SELECT keyword (only the first occurrence).
+    select_idx = body.index("SELECT")
+    body = body[select_idx + len("SELECT"):].lstrip()
+    # The body extends until the FROM clause. We split lazily because
+    # the FROM clause is always at the start of a line with at most 2
+    # leading spaces and "FROM " token.
+    from_match = re.search(r"\n\s*FROM\s+", body)
+    if from_match is None:
+        return {}
+    columns_text = body[: from_match.start()]
+    # Some entries span multiple lines (line continuation in
+    # expected_32010.sql). Re-glue them by collapsing whitespace within
+    # a logical column then splitting on top-level commas.
+    columns = _split_select_columns(columns_text)
+    for col in columns:
+        # Identify ``<expression> AS <alias>`` — case-sensitive ``AS``.
+        match = re.match(
+            r"^(?P<expr>.*?)\s+AS\s+(?P<alias>(?:\"[^\"]+\"|\S+))\s*,?\s*$",
+            col.strip(),
+            flags=re.DOTALL,
+        )
+        if match is None:
+            continue
+        alias = match.group("alias").strip()
+        # Skip DASH-quoted duplicate aliases.
+        if alias.startswith('"'):
+            continue
+        expression = re.sub(r"\s+", " ", match.group("expr")).strip()
+        # Skip if we've already captured this alias (defensive).
+        expressions.setdefault(alias, expression)
+    return expressions
+
+
+def _split_select_columns(columns_text: str) -> list[str]:
+    """Split a SELECT-list body into individual column projections.
+
+    Naive top-level-comma split that ignores commas inside parentheses
+    or quoted strings. Sufficient for the committed SHAW SQL family
+    where the expressions are simple ``FUNC(...)`` / ``FUNC(..., 'X')``
+    shapes.
+
+    Args:
+        columns_text: The text between ``SELECT`` and ``FROM``.
+
+    Returns:
+        A list of column-projection strings (whitespace preserved).
+    """
+    columns: list[str] = []
+    buf: list[str] = []
+    paren_depth = 0
+    in_quote = False
+    for ch in columns_text:
+        if ch == "'" and not in_quote:
+            in_quote = True
+            buf.append(ch)
+            continue
+        if ch == "'" and in_quote:
+            in_quote = False
+            buf.append(ch)
+            continue
+        if in_quote:
+            buf.append(ch)
+            continue
+        if ch == "(":
+            paren_depth += 1
+            buf.append(ch)
+            continue
+        if ch == ")":
+            paren_depth -= 1
+            buf.append(ch)
+            continue
+        if ch == "," and paren_depth == 0:
+            columns.append("".join(buf))
+            buf = []
+            continue
+        buf.append(ch)
+    if buf:
+        columns.append("".join(buf))
+    return columns
+
+
+def _build_sql_expression_index(
+    umbrella: dict[str, Any] | None,
+    recon_spec: dict[str, Any] | None,
+) -> dict[str, dict[str, str]]:
+    """Map mapping-sheet name -> {target_name_upper: committed SQL expression}.
+
+    ED-S4: walks every reconciliation record_type and pulls the
+    per-column expression from the committed ``expected_*.sql`` file
+    so the workbook captures the BA's hand-curated expression choice.
+
+    Args:
+        umbrella: The committed umbrella YAML dict.
+        recon_spec: The committed reconciliation YAML dict.
+
+    Returns:
+        ``{mapping_sheet_name: {alias_upper: expression}}``.
+    """
+    if not umbrella or not recon_spec:
+        return {}
+    file_type = recon_spec.get("file_type") or ""
+    query_dir = REPO_ROOT / (recon_spec.get("query_dir") or "")
+    index: dict[str, dict[str, str]] = {}
+    for rt_name, rt_cfg in recon_spec.get("record_types", {}).items():
+        expected_sql_name = rt_cfg.get("expected_sql") or ""
+        if not expected_sql_name:
+            continue
+        sql_path = query_dir / expected_sql_name
+        expressions = _parse_committed_sql_expressions(sql_path)
+        if not expressions:
+            continue
+        umbrella_rt = umbrella.get("record_types", {}).get(rt_name, {})
+        mapping_path = umbrella_rt.get("mapping", "")
+        if not mapping_path:
+            continue
+        sheet_name = _mapping_path_to_sheet_name(mapping_path, file_type, rt_name)
+        sheet_name_short = _shorten_sheet_name(sheet_name)
+        existing = index.setdefault(sheet_name_short, {})
+        for alias, expr in expressions.items():
+            existing.setdefault(alias, expr)
+    return index
+
+
+def _load_reconciliation_cardinality_index(
+    file_type: str,
+) -> dict[str, str]:
+    """Look up reconciliation YAML cardinalities for SHAW ``file_type``.
+
+    ED-S4: the MultiRecord_<FILETYPE>.cardinality cell drives the
+    reconciliation YAML's ``record_types.<name>.cardinality`` key.
+    Pre-ED-S4 the build script derived this from the umbrella's
+    ``expect:`` clause, which encodes FILE-side counts (one_per_driver
+    vs zero_per_driver). The reconciliation YAML on the other hand
+    encodes SQL-rowset counts (one row in the staging join vs many).
+    For SHAW TRANERT these diverge on rt_32005 (many) and rt_32010
+    (zero_or_one). We override the umbrella-derived value with the
+    reconciliation YAML's value when both files exist.
+
+    Args:
+        file_type: The output-file file type (e.g. ``"TRANERT"``).
+
+    Returns:
+        ``{record_type_name: cardinality}`` from the committed
+        reconciliation YAML. Empty when the file does not exist.
+    """
+    recon_path = SHAW_RECONCILIATION_DIR / f"{file_type.lower()}.yml"
+    if not recon_path.exists():
+        return {}
+    spec = _load_yaml(recon_path)
+    return {
+        rt_name: rt_cfg.get("cardinality", "")
+        for rt_name, rt_cfg in (spec.get("record_types") or {}).items()
+        if rt_cfg.get("cardinality")
+    }
 
 
 def _multi_record_rows_from_umbrella(
@@ -868,7 +1347,9 @@ def _materialise_cross_type_rule_row(
     return row
 
 
-def _reconciliation_rows_from_yaml(spec: dict[str, Any]) -> list[dict[str, Any]]:
+def _reconciliation_rows_from_yaml(
+    spec: dict[str, Any], umbrella: dict[str, Any] | None = None
+) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     assertions = spec.get("assertions") or []
     assertion_strs = [a.get("expr", "") for a in assertions if a.get("expr")]
@@ -876,9 +1357,31 @@ def _reconciliation_rows_from_yaml(spec: dict[str, Any]) -> list[dict[str, Any]]
     # first row so the BA can find them; subsequent rows leave assertions blank.
     assertion_pipe = "|".join(assertion_strs)
 
+    # ED-S4: compute the MultiRecord sheet's file-side cardinality for
+    # each record type so the workbook's Reconciliation cardinality cell
+    # can be left BLANK whenever the recon YAML matches MultiRecord
+    # (avoids gratuitous overrides). Populated only when the committed
+    # recon YAML's value diverges.
+    umbrella_cardinality_by_rt: dict[str, str] = {}
+    if umbrella:
+        for rt_name, rt_cfg in (umbrella.get("record_types") or {}).items():
+            if rt_cfg.get("position") == "first":
+                umbrella_cardinality_by_rt[rt_name] = "one_per_driver_row"
+            else:
+                umbrella_cardinality_by_rt[rt_name] = _expect_to_cardinality(
+                    rt_cfg.get("expect", "any")
+                )
+
     for idx, (rt_name, rt_cfg) in enumerate(spec.get("record_types", {}).items()):
         keys = rt_cfg.get("key", [])
         ignored = rt_cfg.get("ignored_fields", []) or []
+        recon_cardinality = rt_cfg.get("cardinality", "") or ""
+        # Only carry the cardinality cell when it diverges from the
+        # umbrella-derived value the MultiRecord sheet will hold.
+        if recon_cardinality and umbrella_cardinality_by_rt.get(rt_name) == recon_cardinality:
+            cardinality_cell = ""
+        else:
+            cardinality_cell = recon_cardinality
         rows.append(
             {
                 "record_type_name": rt_name,
@@ -888,6 +1391,7 @@ def _reconciliation_rows_from_yaml(spec: dict[str, Any]) -> list[dict[str, Any]]
                 "ignored_fields": "|".join(ignored),
                 "assertions": assertion_pipe if idx == 0 else "",
                 "expected_sql_override": rt_cfg.get("expected_sql", ""),
+                "cardinality": cardinality_cell,
             }
         )
     return rows
@@ -1146,12 +1650,28 @@ def build_shaw_workbook(out_path: Path) -> None:
             )
 
     # --- 3. Reconciliation sheets (anything under SHAW/reconciliation/). ---
+    # ED-S4: build a sheet-name -> DASH-name set index from every
+    # committed reconciliation YAML so per-mapping sheets in step 4
+    # can flag the ``Reconciliation`` column on the BA-curated subset.
+    reconciliation_dash_index: dict[str, dict[str, dict[str, Any]]] = {}
     if SHAW_RECONCILIATION_DIR.exists():
         for recon_yml in sorted(SHAW_RECONCILIATION_DIR.glob("*.yml")):
             spec = _load_yaml(recon_yml)
             file_type = spec.get("file_type") or recon_yml.stem.upper()
-            recon_rows = _reconciliation_rows_from_yaml(spec)
+            umbrella_for_cardinality = committed_umbrellas.get(file_type)
+            recon_rows = _reconciliation_rows_from_yaml(
+                spec, umbrella_for_cardinality
+            )
             _add_reconciliation_sheet(wb, f"Reconciliation_{file_type}", recon_rows)
+            # Pair this reconciliation spec with the matching umbrella
+            # (if one was loaded above) so we can resolve record_type
+            # name -> mapping sheet name -> {DASH-name: metadata} dict.
+            umbrella = committed_umbrellas.get(file_type)
+            sheet_index = _build_reconciliation_dash_name_index(umbrella, spec)
+            for sheet_name, dash_meta in sheet_index.items():
+                target = reconciliation_dash_index.setdefault(sheet_name, {})
+                for dash, meta in dash_meta.items():
+                    target.setdefault(dash, meta)
 
     # --- 4. Per-mapping + per-rules sheets (EC-S9 reverse-engineer flow). ---
     # 4a. Input-file mapping sheets — reverse-engineered if committed JSON
@@ -1182,10 +1702,21 @@ def build_shaw_workbook(out_path: Path) -> None:
                 rt_rules_sheet = _rules_path_to_sheet_name(rt_rules_path, ftype, rt_name)
                 # Skip if we already added it (e.g. rt_32000 + rt_32001 share NEW1).
                 if _shorten_sheet_name(rt_mapping_sheet) not in wb.sheetnames:
+                    # ED-S4: flag the per-row Reconciliation columns
+                    # (boolean + order + optional column / predicate
+                    # overrides) from the committed reconciliation
+                    # YAML's ``fields:`` array metadata.
+                    dash_meta = reconciliation_dash_index.get(
+                        _shorten_sheet_name(rt_mapping_sheet), {}
+                    )
                     _add_mapping_sheet(
                         wb,
                         rt_mapping_sheet,
-                        _mapping_rows_for_path(rt_mapping_path, f"{ftype}_{rt_name}"),
+                        _mapping_rows_for_path(
+                            rt_mapping_path,
+                            f"{ftype}_{rt_name}",
+                            reconciliation_dash_metadata=dash_meta,
+                        ),
                     )
                 if rt_rules_sheet and _shorten_sheet_name(rt_rules_sheet) not in wb.sheetnames:
                     rule_rows = _rules_rows_for_path(

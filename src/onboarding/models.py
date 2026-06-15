@@ -263,6 +263,20 @@ class ReconciliationRow:
             ``[]`` if blank.
         expected_sql_override: Filename of an override SQL file; ``""``
             means auto-derive from the record-type name.
+        cardinality_override: ED-S4 SQL-side cardinality override. The
+            reconciliation YAML's ``record_types.<name>.cardinality``
+            field describes the SQL-rowset shape (how many SQL rows
+            match the driver join), which can differ from the
+            ``MultiRecord_<FILETYPE>`` sheet's ``cardinality`` (which
+            describes the FILE rowset shape — how many physical rows
+            of this record type appear per driver record). When
+            non-empty this value overrides the
+            ``MultiRecordRow.cardinality`` lookup the emitter would
+            otherwise use. Allowed values match the
+            :class:`MultiRecordRow.cardinality` literal set
+            (``one_per_driver_row`` /  ``many_per_driver_row`` /
+            ``zero_or_one_per_driver_row``). ``""`` -> defer to the
+            MultiRecord sheet's value.
     """
 
     record_type_name: str
@@ -271,6 +285,7 @@ class ReconciliationRow:
     predicate: str
     ignored_fields: list[str]
     expected_sql_override: str
+    cardinality_override: str = ""
 
 
 @dataclass(frozen=True)
@@ -422,6 +437,56 @@ class MappingFieldRow:
             if blank. NOT parsed here — EC-S4 handles the descriptive-text
             filter via the existing converter's ``_is_descriptive_text``.
         description: Free-text description; ``None`` if blank.
+        reconciliation: ED-S4 BA-curation flag. When ``True`` the field
+            is included in the per-record-type ``Reconciliation_<FT>``
+            YAML's ``record_types.<name>.fields[]`` array AND in the
+            corresponding ``expected_*.sql`` SELECT column list. When
+            ``False`` (the default for blank cells) the field is
+            excluded from BOTH artefacts. Defaults to ``False`` so a
+            pre-ED-S4 workbook (no ``Reconciliation`` column) preserves
+            the legacy "emit all fields" behaviour via the emitter's
+            opt-in convention: if NO row on a sheet flags ``True``, the
+            emitter falls back to projecting every row (the ED-S1/ED-S2
+            shape). Once any row flips ``True`` the emitter switches to
+            curated-subset mode.
+        reconciliation_order: ED-S4 emission-order hint. ``0`` (default)
+            means "use the workbook row order" — pre-ED-S4 workbooks
+            and workbooks that flag rows with a plain ``True`` get
+            this. A positive integer N means "emit this field at
+            position N in the reconciliation YAML / SQL projection";
+            ties are broken by the row's position in the sheet.
+            Always paired with ``reconciliation = True`` — a non-zero
+            order on an unflagged row is ignored. The
+            ``build_shaw_onboarding_workbook`` reverse-engineer step
+            populates this from the committed ``tranert.yml`` field
+            order so the round-trip reconciliation YAML byte-matches.
+        reconciliation_column: Optional override for the
+            ``expected_column`` in the reconciliation YAML's
+            ``fields[]`` entry. Default empty -> the emitter derives
+            the SQL column name from ``target_name`` (upper-cased) per
+            the EC-S4 fallback. Set this when the BA has hand-curated
+            a column name that differs from the mapping's
+            ``target_name`` (e.g. SHAW TRANERT rt_32025 lists
+            ``expected_column: ORG_LVL_NUM6_COD`` while the mapping's
+            ``target_name`` is ``org_lvl_num_6_cod`` — the underscore
+            count differs).
+        reconciliation_predicate: Optional per-field SQL predicate
+            attached to this field's reconciliation YAML entry. Default
+            empty -> no per-field predicate. Used by SHAW TRANERT
+            rt_32010's ``OGL-NTE-DAT-ORI`` entry which carries
+            ``predicate: "CHG_OFF_CD = '1'"`` to filter only
+            charge-off rows.
+        reconciliation_sql_expression: Optional override for the
+            Oracle SELECT-list expression on this column (the LHS of
+            the ``AS`` keyword). Default empty -> the SQL emitter
+            derives the expression from ``data_type`` + ``format``
+            (TRIM for string, TO_CHAR for date, LPAD/LTRIM for
+            numerics). The BA sets this for hand-curated cases where
+            the default-derived expression diverges from the
+            committed SQL — e.g. SHAW TRANERT batch_header uses
+            ``TRIM(t.BK_NUM_BRT)`` for the bank number (decimal 9(5))
+            while the ED-S2 default would emit
+            ``LPAD(TO_CHAR(t.BK_NUM_BRT), 5, '0')``.
     """
 
     field_name: str
@@ -434,6 +499,11 @@ class MappingFieldRow:
     transformation: str | None
     valid_values: str | None
     description: str | None
+    reconciliation: bool = False
+    reconciliation_order: int = 0
+    reconciliation_column: str = ""
+    reconciliation_predicate: str = ""
+    reconciliation_sql_expression: str = ""
 
 
 @dataclass(frozen=True)

@@ -732,34 +732,30 @@ def test_check_mode_clean_against_committed_state():
         f"mismatch: {rules_drift_lines[0]!r}"
     )
 
-    # 3b. ED-S1 carve-out: the SOLE reconciliation drift line points at
-    # the committed ``SHAW/reconciliation/tranert.yml`` and cites
-    # ``record_types`` -- the committed YAML carries hand-CURATED
-    # ``fields:`` arrays (5-15 fields per record_type) while the ED-S1
-    # emitter conservatively projects the FULL mapping field set from
-    # each ``*_Mapping`` sheet (22+ fields). The curation gap is
-    # documented in the ED-S1 module docstring; ED-S2 will reconcile it
-    # alongside the SQL auto-derivation pass.
+    # 3b. ED-S4 closes the ED-S1 reconciliation field-curation carve-out:
+    # the workbook now carries a ``Reconciliation`` BOOLEAN + supporting
+    # override columns (``Reconciliation Order``, ``Reconciliation
+    # Column``, ``Reconciliation Predicate``, ``Reconciliation SQL
+    # Expression``) and a ``Reconciliation_<FILETYPE>.cardinality`` cell
+    # so the emitted ``tranert.yml`` byte-matches the committed file.
+    # NO reconciliation drift line should remain after ED-S4.
     reconciliation_drift_lines = [
         line
         for line in drift_lines
         if "/config/e2e/sources/SHAW/reconciliation/" in line
     ]
-    assert len(reconciliation_drift_lines) == 1, (
-        "ED-S1 contract violation: expected exactly 1 reconciliation "
-        "drift line (TRANERT field-curation carve-out); got "
+    assert not reconciliation_drift_lines, (
+        "ED-S4 contract violation: expected zero reconciliation drift "
+        "lines (field-curation carve-out closed); got "
         f"{len(reconciliation_drift_lines)}:\n"
         + "\n".join(reconciliation_drift_lines)
     )
-    assert "tranert.yml" in reconciliation_drift_lines[0]
-    assert "record_types" in reconciliation_drift_lines[0]
 
-    # 4. Match count is exactly 64 of 66 -- the original R028B carve-out
-    # plus the ED-S1 reconciliation field-curation carve-out documented
-    # above. ED-S2 reconciles the curation gap.
-    assert "64 of 66 artefacts match" in result.stderr, (
-        "Combined ED-S1 / EC-S9 contract violation: expected '64 of 66 "
-        f"artefacts match' summary line; got:\n{result.stderr}"
+    # 4. Match count is exactly 65 of 66 -- the R028B carve-out is the
+    # SOLE remaining drift after ED-S4 closes the field-curation gap.
+    assert "65 of 66 artefacts match" in result.stderr, (
+        "ED-S4 contract violation: expected '65 of 66 artefacts match' "
+        f"summary line; got:\n{result.stderr}"
     )
 
 

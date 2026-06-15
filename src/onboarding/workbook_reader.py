@@ -632,6 +632,9 @@ def _parse_reconciliation_sheet(
                 expected_sql_override=_cell_str_or_empty(
                     _column_value(row, headers, "expected_sql_override")
                 ),
+                cardinality_override=_cell_str_or_empty(
+                    _column_value(row, headers, "cardinality")
+                ),
             )
         )
     return ReconciliationSheet(
@@ -733,6 +736,13 @@ def _parse_mapping_sheet(ws: Worksheet) -> MappingSheet:
     EC-S4 emitter applies the type coercion / valid-values parsing in
     one centralised pass via the existing
     :class:`src.config.template_converter.TemplateConverter`.
+
+    ED-S4 (Sprint 4 / Move 4) — the optional ``Reconciliation`` BOOLEAN
+    column flags whether the field is in scope for the reconciliation
+    YAML's ``record_types.<name>.fields[]`` and the SQL emitter's
+    SELECT column list. Missing column OR blank cell -> ``False`` so
+    pre-ED-S4 workbooks preserve the legacy "emit all fields" behaviour
+    via the emitter's opt-in convention.
     """
     headers = _read_header_index(ws)
     rows: list[MappingFieldRow] = []
@@ -740,6 +750,33 @@ def _parse_mapping_sheet(ws: Worksheet) -> MappingSheet:
     for row_number, row in _iter_data_rows(ws):
         pos_addr = _column_address(headers, "position", row_number)
         len_addr = _column_address(headers, "length", row_number)
+        recon_addr = _column_address(headers, "reconciliation", row_number)
+        reconciliation = _cell_bool_or_default(
+            _column_value(row, headers, "reconciliation"),
+            default=False,
+            sheet=sheet_name,
+            cell=recon_addr,
+            column="Reconciliation",
+        )
+        recon_order_addr = _column_address(
+            headers, "reconciliation order", row_number
+        )
+        recon_order_value = _cell_int_or_none(
+            _column_value(row, headers, "reconciliation order"),
+            sheet=sheet_name,
+            cell=recon_order_addr,
+            column="Reconciliation Order",
+        )
+        reconciliation_order = recon_order_value if recon_order_value else 0
+        reconciliation_column = _cell_str_or_empty(
+            _column_value(row, headers, "reconciliation column")
+        )
+        reconciliation_predicate = _cell_str_or_empty(
+            _column_value(row, headers, "reconciliation predicate")
+        )
+        reconciliation_sql_expression = _cell_str_or_empty(
+            _column_value(row, headers, "reconciliation sql expression")
+        )
         rows.append(
             MappingFieldRow(
                 field_name=_cell_str_or_empty(
@@ -776,6 +813,11 @@ def _parse_mapping_sheet(ws: Worksheet) -> MappingSheet:
                 description=_cell_str_or_none(
                     _column_value(row, headers, "description")
                 ),
+                reconciliation=reconciliation,
+                reconciliation_order=reconciliation_order,
+                reconciliation_column=reconciliation_column,
+                reconciliation_predicate=reconciliation_predicate,
+                reconciliation_sql_expression=reconciliation_sql_expression,
             )
         )
     return MappingSheet(sheet_name=sheet_name, rows=rows)

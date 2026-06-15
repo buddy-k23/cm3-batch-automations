@@ -875,3 +875,303 @@ def test_token_derivation_matches_committed_for_shaw_tranert():
         f"rt_ prefix must be stripped from the CTAS token:\n"
         f"{rt_32000.content}"
     )
+
+
+# ===========================================================================
+# ED-S4 (Sprint 4 / Move 4) -- per-field BA reconciliation curation +
+# byte-equivalence polish.
+# ===========================================================================
+
+
+def _make_mapping_sheet_with_flags(
+    name: str,
+    flags: list[tuple[str, bool, int, str]],
+) -> MappingSheet:
+    """Build a mapping sheet with ``(field_name, recon, order, expr_override)`` rows.
+
+    Synthetic helper for ED-S4 SQL emitter tests so each test can
+    express the BA-flagged subset without the noise of position /
+    length / format metadata.
+    """
+    rows: list[MappingFieldRow] = []
+    for field_name, reconciliation, order, sql_expression in flags:
+        rows.append(
+            MappingFieldRow(
+                field_name=field_name,
+                data_type="String",
+                position=1,
+                length=10,
+                target_name=field_name.lower().replace("-", "_"),
+                required="Yes",
+                format=None,
+                transformation=None,
+                valid_values=None,
+                description=None,
+                reconciliation=reconciliation,
+                reconciliation_order=order,
+                reconciliation_sql_expression=sql_expression,
+            )
+        )
+    return MappingSheet(sheet_name=name, rows=rows)
+
+
+def test_sql_select_columns_match_flagged_subset():
+    """ED-S4 curation: only the flagged mapping rows appear in the
+    SELECT-list of the emitted SQL. With 5 rows and 2 flagged the
+    emitted SELECT projects exactly 2 columns (modulo the DASH-quoted
+    duplicate for a key column, which is unset in this fixture)."""
+    sheet = _make_mapping_sheet_with_flags(
+        "MYFILE_LAYOUT_Mapping",
+        flags=[
+            ("FIELD-A", True, 1, ""),
+            ("FIELD-B", False, 0, ""),
+            ("FIELD-C", True, 2, ""),
+            ("FIELD-D", False, 0, ""),
+            ("FIELD-E", False, 0, ""),
+        ],
+    )
+    wb = OnboardingWorkbook(
+        source=_make_source_info("ACME"),
+        input_files=[],
+        output_files=[
+            OutputFileSpec(
+                file_type="MYFILE",
+                glob="myfile_*.txt",
+                mapping_sheet="(umbrella)",
+                rules_sheet="(umbrella)",
+                tolerance_max_errors=None,
+                tolerance_max_error_pct=None,
+                tolerance_ignore_fields=None,
+            )
+        ],
+        multi_record_sheets={
+            "MYFILE": MultiRecordSheet(
+                file_type="MYFILE",
+                rows=[
+                    MultiRecordRow(
+                        record_type_name="rt_x",
+                        discriminator_field="TYP",
+                        discriminator_position=1,
+                        discriminator_length=3,
+                        match_kind="discriminator_equals",
+                        match_value="ABC",
+                        mapping_sheet="MYFILE_LAYOUT_Mapping",
+                        rules_sheet="",
+                        cardinality="one_per_driver_row",
+                    )
+                ],
+            )
+        },
+        reconciliation_sheets={
+            "MYFILE": ReconciliationSheet(
+                file_type="MYFILE",
+                file_wide_assertions=[],
+                rows=[
+                    ReconciliationRow(
+                        record_type_name="rt_x",
+                        key_columns=[],
+                        staging_table="EXPECTED_X",
+                        predicate="",
+                        ignored_fields=[],
+                        expected_sql_override="",
+                    )
+                ],
+            )
+        },
+        cross_type_rules_sheets={},
+        mapping_sheets={"MYFILE_LAYOUT_Mapping": sheet},
+        rules_sheets={},
+    )
+    mapping_artefacts = emit_mapping_artefacts(wb)
+    sql_artefacts = emit_sql_artefacts(wb, mapping_artefacts, source_code="ACME")
+    assert len(sql_artefacts) == 1
+    content = sql_artefacts[0].content
+    # Count the ``AS `` occurrences -- one per emitted column, no key
+    # duplications in this fixture so the count is the flagged count.
+    aliases = [line for line in content.splitlines() if " AS " in line]
+    assert len(aliases) == 2, (
+        f"Expected 2 SELECT columns; got {len(aliases)}:\n{content}"
+    )
+    assert "AS FIELD_A" in content
+    assert "AS FIELD_C" in content
+    assert "AS FIELD_B" not in content
+
+
+def test_sql_expression_override_replaces_default():
+    """ED-S4 ``Reconciliation SQL Expression``: when set on the
+    workbook row, the verbatim expression replaces the
+    format-derived default. Used to round-trip the SHAW committed SQL
+    where some 9(N) decimals carry ``TRIM(t.X)`` rather than the
+    ED-S2 default ``LPAD(TO_CHAR(t.X), N, '0')``.
+    """
+    sheet = _make_mapping_sheet_with_flags(
+        "MYFILE_LAYOUT_Mapping",
+        flags=[
+            ("FIELD-A", True, 1, "TRIM(t.FIELD_A)"),
+        ],
+    )
+    wb = OnboardingWorkbook(
+        source=_make_source_info("ACME"),
+        input_files=[],
+        output_files=[
+            OutputFileSpec(
+                file_type="MYFILE",
+                glob="myfile_*.txt",
+                mapping_sheet="(umbrella)",
+                rules_sheet="(umbrella)",
+                tolerance_max_errors=None,
+                tolerance_max_error_pct=None,
+                tolerance_ignore_fields=None,
+            )
+        ],
+        multi_record_sheets={
+            "MYFILE": MultiRecordSheet(
+                file_type="MYFILE",
+                rows=[
+                    MultiRecordRow(
+                        record_type_name="rt_x",
+                        discriminator_field="TYP",
+                        discriminator_position=1,
+                        discriminator_length=3,
+                        match_kind="discriminator_equals",
+                        match_value="ABC",
+                        mapping_sheet="MYFILE_LAYOUT_Mapping",
+                        rules_sheet="",
+                        cardinality="one_per_driver_row",
+                    )
+                ],
+            )
+        },
+        reconciliation_sheets={
+            "MYFILE": ReconciliationSheet(
+                file_type="MYFILE",
+                file_wide_assertions=[],
+                rows=[
+                    ReconciliationRow(
+                        record_type_name="rt_x",
+                        key_columns=[],
+                        staging_table="EXPECTED_X",
+                        predicate="",
+                        ignored_fields=[],
+                        expected_sql_override="",
+                    )
+                ],
+            )
+        },
+        cross_type_rules_sheets={},
+        mapping_sheets={"MYFILE_LAYOUT_Mapping": sheet},
+        rules_sheets={},
+    )
+    mapping_artefacts = emit_mapping_artefacts(wb)
+    sql_artefacts = emit_sql_artefacts(wb, mapping_artefacts, source_code="ACME")
+    content = sql_artefacts[0].content
+    assert "TRIM(t.FIELD_A)" in content, (
+        f"Expected verbatim BA expression override; got:\n{content}"
+    )
+
+
+def test_sql_byte_equivalence_shaw_tranert_batch_header():
+    """ED-S4 byte-equivalence: the emitted SHAW TRANERT
+    ``expected_batch_header.sql`` SELECT body matches the committed
+    file byte-for-byte (modulo the leading ``-- comment header``,
+    which the workbook does not carry — see the ED-S4 module docstring
+    for the deferred comment-header gap).
+    """
+    wb = _shaw_workbook_with_cleared_overrides()
+    mapping_artefacts = emit_mapping_artefacts(wb)
+    sql_artefacts = emit_sql_artefacts(wb, mapping_artefacts, source_code="SHAW")
+
+    batch_header = next(
+        a for a in sql_artefacts if a.path.endswith("/expected_batch_header.sql")
+    )
+    committed = COMMITTED_BATCH_HEADER_SQL.read_text(encoding="utf-8")
+
+    def strip_comment_header(text: str) -> str:
+        """Drop ``--`` comment lines preceding the first SQL statement."""
+        lines = text.splitlines()
+        first_stmt = next(
+            (i for i, line in enumerate(lines) if line.lstrip().startswith("SELECT")),
+            0,
+        )
+        return "\n".join(lines[first_stmt:]).rstrip("\n")
+
+    emitted_body = strip_comment_header(batch_header.content)
+    committed_body = strip_comment_header(committed)
+    assert emitted_body == committed_body, (
+        "ED-S4 byte-equivalence violation on SHAW TRANERT batch_header:\n"
+        f"emitted:\n{emitted_body}\n"
+        f"committed:\n{committed_body}"
+    )
+
+
+def test_unflagged_rows_excluded_from_sql_when_subset_is_curated():
+    """ED-S4 curation: when ANY row on the workbook mapping sheet flags
+    ``Reconciliation = True``, the SQL emitter projects ONLY the
+    flagged subset. Unflagged rows are NEVER projected once the sheet
+    is in curated mode. Sheets where NO row is flagged fall back to
+    projecting every row (pre-ED-S4 default).
+    """
+    # Case A: any row flagged -> curated subset emitted.
+    sheet = _make_mapping_sheet_with_flags(
+        "MYFILE_LAYOUT_Mapping",
+        flags=[("FIELD-A", True, 1, ""), ("FIELD-B", False, 0, "")],
+    )
+    wb = OnboardingWorkbook(
+        source=_make_source_info("ACME"),
+        input_files=[],
+        output_files=[
+            OutputFileSpec(
+                file_type="MYFILE",
+                glob="myfile_*.txt",
+                mapping_sheet="(umbrella)",
+                rules_sheet="(umbrella)",
+                tolerance_max_errors=None,
+                tolerance_max_error_pct=None,
+                tolerance_ignore_fields=None,
+            )
+        ],
+        multi_record_sheets={
+            "MYFILE": MultiRecordSheet(
+                file_type="MYFILE",
+                rows=[
+                    MultiRecordRow(
+                        record_type_name="rt_x",
+                        discriminator_field="TYP",
+                        discriminator_position=1,
+                        discriminator_length=3,
+                        match_kind="discriminator_equals",
+                        match_value="ABC",
+                        mapping_sheet="MYFILE_LAYOUT_Mapping",
+                        rules_sheet="",
+                        cardinality="one_per_driver_row",
+                    )
+                ],
+            )
+        },
+        reconciliation_sheets={
+            "MYFILE": ReconciliationSheet(
+                file_type="MYFILE",
+                file_wide_assertions=[],
+                rows=[
+                    ReconciliationRow(
+                        record_type_name="rt_x",
+                        key_columns=[],
+                        staging_table="EXPECTED_X",
+                        predicate="",
+                        ignored_fields=[],
+                        expected_sql_override="",
+                    )
+                ],
+            )
+        },
+        cross_type_rules_sheets={},
+        mapping_sheets={"MYFILE_LAYOUT_Mapping": sheet},
+        rules_sheets={},
+    )
+    mapping_artefacts = emit_mapping_artefacts(wb)
+    sql_artefacts = emit_sql_artefacts(wb, mapping_artefacts, source_code="ACME")
+    content = sql_artefacts[0].content
+    assert "AS FIELD_A" in content
+    assert "AS FIELD_B" not in content, (
+        f"Unflagged FIELD-B leaked into SELECT:\n{content}"
+    )

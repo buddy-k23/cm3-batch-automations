@@ -136,6 +136,7 @@ from typing import Any
 from src.onboarding.emitters import EmitterError, derive_layout_tag
 from src.onboarding.emitters.mapping_emitter import EmittedMappingArtefact
 from src.onboarding.models import (
+    MappingSheet,
     MultiRecordRow,
     OnboardingWorkbook,
     ReconciliationRow,
@@ -315,6 +316,36 @@ def _index_mapping_artefacts(
     return index
 
 
+def _resolve_workbook_mapping_sheet(
+    workbook: OnboardingWorkbook,
+    recon_row: ReconciliationRow,
+    multi_record_row: MultiRecordRow | None,
+) -> MappingSheet | None:
+    """Locate the workbook ``MappingSheet`` matching one reconciliation row.
+
+    ED-S4: the SQL emitter needs the WORKBOOK mapping sheet (not the
+    emitted JSON artefact) to read the per-row ``reconciliation`` flag.
+    The mapping JSON artefact intentionally does NOT carry the flag —
+    it is a workbook-only BA curation toggle that drives which
+    artefacts emit which subset, not a field-level engine attribute.
+
+    Args:
+        workbook: The parsed onboarding workbook.
+        recon_row: The reconciliation row being emitted.
+        multi_record_row: The matching ``MultiRecord_<FILETYPE>`` row,
+            or ``None`` for flat reconciliation entries.
+
+    Returns:
+        The matching :class:`MappingSheet`, or ``None`` when the
+        cross-reference cannot be resolved.
+    """
+    if recon_row.record_type_name == _FLAT_RECORD_TYPE_TOKEN:
+        return None
+    if multi_record_row is None:
+        return None
+    return workbook.mapping_sheets.get(multi_record_row.mapping_sheet)
+
+
 def _resolve_mapping_for_record_type(
     source_code: str,
     file_type: str,
@@ -380,6 +411,14 @@ def _column_expression(field: dict[str, Any]) -> str:
     back to ``TRIM(t.<COL>)`` for any combination not explicitly
     enumerated, matching the committed pattern's default-safe choice.
 
+    ED-S4: when the workbook carries a
+    ``__reconciliation_expression_override`` key on the field dict
+    (spliced in by :func:`_curate_fields`), that value is returned
+    verbatim — the BA owns the expression. This lets the committed
+    SHAW SQL files (which mix ``TRIM`` and ``LPAD`` per
+    hand-curation) round-trip without the emitter needing to predict
+    the BA's choice from ``format`` alone.
+
     Args:
         field: One element of the mapping JSON's ``fields[]`` array.
 
@@ -387,6 +426,9 @@ def _column_expression(field: dict[str, Any]) -> str:
         The expression text (e.g. ``"TRIM(t.BK_NUM_BRT)"`` or
         ``"TO_CHAR(t.EFF_DAT_ERT, 'MM/DD/YYYY')"``).
     """
+    override = field.get("__reconciliation_expression_override", "")
+    if override:
+        return override
     target_name = (field.get("target_name") or "").strip()
     if not target_name:
         # Fall back to upper-snake form of the DASH name.
@@ -429,12 +471,21 @@ def _column_expression(field: dict[str, Any]) -> str:
 def _column_alias(field: dict[str, Any]) -> str:
     """Compute the underscore-form SQL alias for a mapping field.
 
+    ED-S4: when the workbook carries a
+    ``__reconciliation_column_override`` key on the field dict
+    (spliced in by :func:`_curate_fields`), that value is returned
+    verbatim — the BA owns the alias, matching the reconciliation
+    YAML's ``expected_column`` cell.
+
     Args:
         field: One element of the mapping JSON's ``fields[]`` array.
 
     Returns:
         The upper-case underscore alias (e.g. ``"BK_NUM_BRT"``).
     """
+    override = field.get("__reconciliation_column_override", "")
+    if override:
+        return override
     target_name = (field.get("target_name") or "").strip()
     if target_name:
         return target_name.upper()
@@ -465,9 +516,22 @@ def _column_dash_alias(field: dict[str, Any]) -> str:
 
 
 def _build_column_line(
-    expression: str, alias: str, *, indent: int, is_last: bool
+    expression: str,
+    alias: str,
+    *,
+    indent: int,
+    alias_column: int,
+    is_last: bool,
 ) -> str:
     """Render one column projection line in the canonical alignment style.
+
+    ED-S4: ``alias_column`` controls the 1-indexed column where the
+    ``AS`` keyword starts. Padding is applied between the expression
+    and ``AS`` so that every projection's ``AS`` lines up vertically,
+    matching the hand-curated committed-SQL alignment. When the
+    expression is wider than the alignment column the function falls
+    back to a single space before ``AS`` (degenerate case, matches
+    the committed ``expected_32010.sql`` line-continuation shape).
 
     Args:
         expression: The right-hand side of the projection
@@ -475,6 +539,8 @@ def _build_column_line(
         alias: The alias text including any quoting
             (e.g. ``BK_NUM_BRT`` or ``"BK-NUM-BRT"``).
         indent: Leading spaces before the expression.
+        alias_column: 1-indexed column for the ``AS`` keyword
+            (computed from the widest expression on the SELECT body).
         is_last: When ``True`` the line gets no trailing comma (the
             final projection); otherwise it does.
 
@@ -482,7 +548,14 @@ def _build_column_line(
         A single line WITHOUT the trailing newline.
     """
     sep = "" if is_last else ","
-    return f"{' ' * indent}{expression} AS {alias}{sep}"
+    prefix = f"{' ' * indent}{expression}"
+    # ``alias_column`` is 1-indexed; convert to 0-indexed padded length.
+    target_len = alias_column - 1
+    if target_len > len(prefix):
+        padding = " " * (target_len - len(prefix))
+    else:
+        padding = " "
+    return f"{prefix}{padding}AS {alias}{sep}"
 
 
 def _build_select_body(
@@ -491,9 +564,16 @@ def _build_select_body(
 ) -> str:
     """Build the ``SELECT`` body (columns + key duplications) for one record type.
 
+    ED-S4 column-alignment polish: every ``AS`` keyword lines up
+    vertically at the column immediately after the widest projection
+    expression on the file (+1 space). Matches the hand-curated
+    committed-SQL convention across the SHAW TRANERT
+    ``expected_*.sql`` family.
+
     Args:
-        fields: The mapping JSON's ``fields[]`` array (full set; ED-S2
-            does not apply BA curation — that's the ED-S4 polish job).
+        fields: The mapping JSON's ``fields[]`` array (already
+            curated by the caller per the BA's ``reconciliation``
+            flags; ED-S4 takes the list verbatim).
         key_columns: The reconciliation row's ``key`` (DASH form).
 
     Returns:
@@ -522,19 +602,38 @@ def _build_select_body(
             "Cannot emit expected_*.sql: mapping artefact carries no fields."
         )
 
-    # Render with a leading ``SELECT `` on the first line.
+    # Compute the alignment column: max(expression length + ``SELECT ``
+    # prefix on first line / ``       `` indent on continuation lines)
+    # + 1 space + position of ``AS``. The ``SELECT `` prefix is 7 chars,
+    # matching the 7-space indent on continuation lines so the
+    # expression columns align across all rows.
+    indent = 7
+    max_expr_width = max(len(expr) for expr, _ in lines_data)
+    alias_column = indent + max_expr_width + 2  # 1-indexed, +1 space, +1 to 1-base
+
     rendered_lines: list[str] = []
     for idx, (expression, alias) in enumerate(lines_data):
         is_last = idx == len(lines_data) - 1
+        sep = "" if is_last else ","
         if idx == 0:
-            # ``SELECT `` prefix; indent on the alignment column matches
-            # ``SELECT `` width (7 chars) so continuation lines line up.
-            rendered_lines.append(
-                f"SELECT {expression} AS {alias}{'' if is_last else ','}"
+            # ``SELECT `` prefix; pad expression to alias_column - 1.
+            prefix = f"SELECT {expression}"
+            target_len = alias_column - 1
+            padding = (
+                " " * (target_len - len(prefix))
+                if target_len > len(prefix)
+                else " "
             )
+            rendered_lines.append(f"{prefix}{padding}AS {alias}{sep}")
         else:
             rendered_lines.append(
-                _build_column_line(expression, alias, indent=7, is_last=is_last)
+                _build_column_line(
+                    expression,
+                    alias,
+                    indent=indent,
+                    alias_column=alias_column,
+                    is_last=is_last,
+                )
             )
 
     return "\n".join(rendered_lines)
@@ -718,11 +817,93 @@ def _indent_select_body(select_text: str) -> str:
     return "\n".join(indented_lines)
 
 
+def _curate_fields(
+    fields: list[dict[str, Any]],
+    workbook_mapping_sheet: MappingSheet | None,
+) -> list[dict[str, Any]]:
+    """Filter + reorder ``fields`` to the BA-reconciliation subset (ED-S4).
+
+    Looks up each mapping-JSON field's DASH ``name`` in the workbook
+    mapping sheet; keeps it ONLY when the matching workbook row carries
+    ``reconciliation = True``. Sheets with NO reconciliation-flagged
+    rows fall back to projecting every field (the pre-ED-S4 default).
+
+    Emission order follows the same two-bucket sort as the
+    reconciliation YAML emitter: rows with an explicit
+    ``reconciliation_order > 0`` come first (in that order), then rows
+    without explicit order (in workbook row position). The two emitters
+    stay in lock-step so the BA can edit ONE column to control the
+    column order in both artefacts.
+
+    Args:
+        fields: The mapping JSON's ``fields[]`` array (full set).
+        workbook_mapping_sheet: The matching workbook mapping sheet,
+            or ``None`` when no cross-reference is available
+            (defensive: emitter then projects the full set).
+
+    Returns:
+        The curated subset (or the full set when no curation applies).
+    """
+    if workbook_mapping_sheet is None:
+        return fields
+    sheet_rows = workbook_mapping_sheet.rows
+    flagged_indexed: list[tuple[tuple[int, int, int], str]] = []
+    for row_idx, row in enumerate(sheet_rows):
+        if not row.reconciliation or not row.field_name:
+            continue
+        if row.reconciliation_order > 0:
+            sort_key = (0, row.reconciliation_order, row_idx)
+        else:
+            sort_key = (1, row_idx, row_idx)
+        flagged_indexed.append((sort_key, row.field_name))
+    if not flagged_indexed:
+        return fields
+    flagged_indexed.sort(key=lambda pair: pair[0])
+    name_order = [name for _, name in flagged_indexed]
+
+    by_name: dict[str, dict[str, Any]] = {}
+    for field in fields:
+        dash = (field.get("name") or "").strip()
+        if dash:
+            by_name[dash] = field
+    # Splice the BA-curated column-name + SQL-expression overrides onto
+    # the emitted-fields dict so the per-column rendering helpers see
+    # the BA values without changing their signatures. Copy first so the
+    # mapping JSON dicts retain their original shape (downstream code
+    # mutates them by-reference).
+    overrides_by_name: dict[str, dict[str, str]] = {}
+    for row in sheet_rows:
+        if row.reconciliation and row.field_name:
+            overrides_by_name[row.field_name] = {
+                "column": row.reconciliation_column.strip(),
+                "expression": row.reconciliation_sql_expression.strip(),
+            }
+    curated: list[dict[str, Any]] = []
+    for name in name_order:
+        field = by_name.get(name)
+        if field is None:
+            continue
+        overrides = overrides_by_name.get(name)
+        if overrides and (overrides["column"] or overrides["expression"]):
+            spliced = dict(field)
+            if overrides["column"]:
+                spliced["__reconciliation_column_override"] = overrides["column"]
+            if overrides["expression"]:
+                spliced["__reconciliation_expression_override"] = overrides[
+                    "expression"
+                ]
+            curated.append(spliced)
+        else:
+            curated.append(field)
+    return curated
+
+
 def _build_sql_document(
     workbook: OnboardingWorkbook,
     recon_row: ReconciliationRow,
     mapping: dict[str, Any],
     file_type: str,
+    workbook_mapping_sheet: MappingSheet | None = None,
 ) -> str:
     """Assemble the full SQL document for one reconciliation row.
 
@@ -734,18 +915,26 @@ def _build_sql_document(
     ``view`` <-> ``ctas`` <-> ``ctas_with_drop`` without losing the
     column projection alignment.
 
+    ED-S4: when ``workbook_mapping_sheet`` is supplied AND any row on
+    it carries ``reconciliation = True``, the SELECT projection is
+    curated to the flagged subset. Otherwise every field is projected
+    (the pre-ED-S4 default).
+
     Args:
         workbook: The parsed workbook (for ``source.staging_schema``
             and ``source.expected_table_strategy``).
         recon_row: The reconciliation row.
         mapping: The parsed mapping JSON dict for the row's record type.
         file_type: The uppercase file type.
+        workbook_mapping_sheet: The matching workbook mapping sheet
+            for ED-S4 curation (optional).
 
     Returns:
         The full SQL text, terminated with a single trailing newline.
 
     Raises:
-        EmitterError: When the mapping carries no ``fields`` array.
+        EmitterError: When the mapping carries no ``fields`` array or
+            curation yields an empty projection.
     """
     fields = mapping.get("fields") or []
     if not isinstance(fields, list) or not fields:
@@ -754,7 +943,15 @@ def _build_sql_document(
             "has no fields[]; cannot emit SQL."
         )
 
-    select_body = _build_select_body(fields, recon_row.key_columns)
+    curated_fields = _curate_fields(fields, workbook_mapping_sheet)
+    if not curated_fields:
+        raise EmitterError(
+            f"Mapping for record_type {recon_row.record_type_name!r} "
+            "yields zero fields after BA reconciliation curation; "
+            "cannot emit SQL."
+        )
+
+    select_body = _build_select_body(curated_fields, recon_row.key_columns)
 
     schema = (workbook.source.staging_schema or _DEFAULT_STAGING_SCHEMA).strip()
     # Match the committed convention's lower-case schema prefix.
@@ -908,8 +1105,15 @@ class SqlEmitter:
                     f"{sorted(mapping_index)}"
                 )
 
+            workbook_mapping_sheet = _resolve_workbook_mapping_sheet(
+                workbook, recon_row, multi_record_row
+            )
             content = _build_sql_document(
-                workbook, recon_row, mapping, file_type
+                workbook,
+                recon_row,
+                mapping,
+                file_type,
+                workbook_mapping_sheet=workbook_mapping_sheet,
             )
             artefacts.append(
                 EmittedSqlArtefact(

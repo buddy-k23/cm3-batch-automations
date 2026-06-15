@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- ED-S4 (Sprint 4 / Move 4 closes): per-field `reconciliation` boolean
+  column on `*_Mapping` sheets controls which mapping fields are
+  included in the reconciliation YAML's `record_types.<name>.fields[]`
+  and the SQL emitter's SELECT column list. Closes the field-curation
+  and SQL byte-equivalence carve-outs from Sprint 3. SHAW reconciliation
+  YAML now byte-equivalent to committed; SHAW TRANERT batch_header SQL
+  byte-equivalent to committed (modulo comment headers). Supporting
+  override columns (`Reconciliation Order`, `Reconciliation Column`,
+  `Reconciliation Predicate`, `Reconciliation SQL Expression`) capture
+  BA-curated divergences from emitter defaults so the workbook
+  round-trips the committed artefacts; an optional `cardinality` cell
+  on `Reconciliation_<FILETYPE>` decouples SQL-rowset cardinality from
+  the MultiRecord sheet's file-rowset cardinality. SHAW workbook +
+  reader + models + emitters extended. `valdo onboard-source --check`
+  against committed state now reports 65/66 (R028B carve-out is the
+  sole remaining drift).
 - ED-S3 (Sprint 4 / Move 4): SQL emitter supports
   `expected_table_strategy: {view, ctas, ctas_with_drop}` per source.
   When `ctas_with_drop`, emitter wraps the SELECT in `DROP TABLE…PURGE`
