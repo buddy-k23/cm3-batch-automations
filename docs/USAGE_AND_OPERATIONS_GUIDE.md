@@ -2938,6 +2938,10 @@ DB_ADAPTER=sqlite DB_NAME=test.db valdo extract \
 
 ## 9. ETL Pipeline Testing
 
+### For BAs
+
+- **CSV-to-CSV reconciliation** -- start from [`templates/etl/csv_file_comparison.yml`](../templates/etl/csv_file_comparison.yml) (worked sample + README under [`templates/etl/csv_file_comparison_sample/`](../templates/etl/csv_file_comparison_sample/) and [`templates/etl/csv_file_comparison_README.md`](../templates/etl/csv_file_comparison_README.md)); see [Choose Your Shape](etl/CHOOSE_YOUR_SHAPE.md) for the full template-by-shape decision tree.
+
 The `run-etl-pipeline` command executes multi-gate ETL validation pipelines
 defined in YAML. It is designed for CI/CD integration -- the command exits
 non-zero when any blocking gate fails, so pipelines can gate deployments on

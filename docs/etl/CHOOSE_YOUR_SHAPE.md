@@ -12,7 +12,7 @@ Read this before hand-authoring a mapping. Pick the shape that matches your data
 |---|-------|--------|---------------------------|----------|---------------|
 | 1 | Fixed-width single-record | Engine ready | `templates/etl/fixed_width_single_record.yml` (coming in Sprint 6 S6-3) | One record type per file (e.g., DDA accounts, customer master) | S |
 | 2 | Fixed-width multi-record | End-to-end | [`config/mappings/SHAW_TRANERT.yaml`](../../config/mappings/SHAW_TRANERT.yaml) (worked example) | Header + multiple detail types + trailer (e.g., TRANERT NEW1/CUS/ORI/COD/CBRS/REC) | L |
-| 3 | CSV / TSV | Engine ready | `templates/etl/csv_file_comparison.yml` (coming in Sprint 6 S6-2) | Comma- or tab-delimited files with a header row | S |
+| 3 | CSV / TSV | End-to-end | [`templates/etl/csv_file_comparison.yml`](../../templates/etl/csv_file_comparison.yml) + [worked sample](../../templates/etl/csv_file_comparison_sample/) ([README](../../templates/etl/csv_file_comparison_README.md)) | Comma- or tab-delimited files with a header row | S |
 | 4 | Pipe-delimited | Engine ready | No dedicated template — adapt the CSV template, set `delimiter: "\|"` | Pipe-separated extracts (common in mainframe → distributed handoffs) | S |
 | 5 | File → Database (staging load) | L1 + file_to_staging | [`config/e2e/sources/SHAW.yml`](../../config/e2e/sources/SHAW.yml) (`input_files` block) | Load file rows into a staging table, then validate inside the DB | M |
 | 6 | Database → File (reconciliation) | L2b SQL truth | `templates/etl/db_to_file_reconciliation.yml` (planned — Sprint 7) | Reconcile a generated output file against an expected SQL result set | M |

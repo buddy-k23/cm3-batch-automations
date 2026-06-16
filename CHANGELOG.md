@@ -24,6 +24,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ORI=2, COD=2, CBRS=2, REC=2). EXPECTED_*_TBL seed updated to match.
 
 ### Added
+- `templates/etl/csv_file_comparison.yml` — BA-facing CSV-to-CSV
+  reconciliation template, plus a worked sample under
+  `templates/etl/csv_file_comparison_sample/` (left.csv, right.csv,
+  mapping.json, expected_report.json) and a one-page
+  `templates/etl/csv_file_comparison_README.md`. The template validates
+  through `src.pipeline.etl_config.SourceConfig.model_validate` and the
+  sample exercises `src.comparators.file_comparator.FileComparator` to
+  produce the documented per-field diff. The S6-4 decision tree's CSV
+  row now links to the real template instead of a "coming soon"
+  placeholder. New regression test:
+  `tests/unit/test_etl_templates.py` (S6-2, #373).
 - `docs/etl/CHOOSE_YOUR_SHAPE.md` — BA/PO decision tree mapping data shape
   (fixed-width single, fixed-width multi-record, CSV, pipe, DB-to-file, plus
   planned JSON/XML/DB-to-DB) to the matching Valdo template or worked

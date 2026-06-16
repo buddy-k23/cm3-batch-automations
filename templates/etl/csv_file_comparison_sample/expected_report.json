@@ -1,0 +1,58 @@
+{
+  "only_in_file1": [
+    {
+      "CUSTOMER_ID": "CUST000005",
+      "NAME": "Eve Edwards",
+      "EMAIL": "eve@example.com",
+      "BALANCE": "540.10"
+    }
+  ],
+  "only_in_file2": [
+    {
+      "CUSTOMER_ID": "CUST000006",
+      "NAME": "Frank Foster",
+      "EMAIL": "frank@example.com",
+      "BALANCE": "210.00"
+    }
+  ],
+  "differences": [
+    {
+      "keys": {
+        "CUSTOMER_ID": "CUST000004"
+      },
+      "differences": {
+        "EMAIL": {
+          "file1": "dan.old@example.com",
+          "file2": "dan.new@example.com",
+          "type": "value_difference",
+          "string_analysis": {
+            "length_diff": 0,
+            "case_only": false,
+            "whitespace_diff": false,
+            "length_file1": 19,
+            "length_file2": 19
+          }
+        }
+      },
+      "difference_count": 1,
+      "source_row_file1": 4,
+      "source_row_file2": 4
+    }
+  ],
+  "total_rows_file1": 5,
+  "total_rows_file2": 5,
+  "matching_rows": 3,
+  "rows_with_differences": 1,
+  "field_statistics": {
+    "fields_with_differences": 1,
+    "field_difference_counts": {
+      "EMAIL": 1
+    },
+    "field_difference_types": {
+      "EMAIL": {
+        "value_difference": 1
+      }
+    },
+    "most_different_field": "EMAIL"
+  }
+}

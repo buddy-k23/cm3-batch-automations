@@ -1,0 +1,6 @@
+CUSTOMER_ID,NAME,EMAIL,BALANCE
+CUST000001,Alice Anderson,alice@example.com,1250.00
+CUST000002,Bob Brown,bob@example.com,3400.50
+CUST000003,Carol Chen,carol@example.com,75.25
+CUST000004,Dan Davis,dan.new@example.com,9800.00
+CUST000006,Frank Foster,frank@example.com,210.00

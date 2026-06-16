@@ -1,0 +1,76 @@
+# Valdo template -- CSV-to-CSV reconciliation
+#
+# Use this template when:
+#   - You have two CSV / TSV files with the same column shape
+#   - You want to compare them row-by-row by a known join key
+#   - You need a per-field diff for the rows that don't match
+#
+# How this template is wired:
+#   - Top-level required keys (source, schema_version) load through
+#     src.pipeline.etl_config.SourceConfig.model_validate(...) -- the
+#     same Pydantic contract used for per-source YAMLs in
+#     config/e2e/sources/. SourceConfig allows extra keys (extra="allow"),
+#     so the comparison-specific blocks below are first-class additive
+#     metadata for BAs and the CLI driver.
+#   - Filled-in example below references the sample under
+#     templates/etl/csv_file_comparison_sample/.
+#   - Replace every <FILL_IN_*> marker with your value, then run:
+#       valdo compare \
+#         --file1 <left.csv> \
+#         --file2 <right.csv> \
+#         --keys <comma-separated-key-cols> \
+#         --output reports/csv_compare.html
+#
+# Where does this template fit? See docs/etl/CHOOSE_YOUR_SHAPE.md
+# (Shape 3 -- CSV / TSV).
+
+# ---------------------------------------------------------------------------
+# Identity -- required by SourceConfig
+# ---------------------------------------------------------------------------
+source: <FILL_IN_SOURCE_NAME>                # e.g., "CUSTOMER_RECON"
+schema_version: 1                            # Per-source YAML schema version
+description: "Brief one-line description of the comparison"
+
+# ---------------------------------------------------------------------------
+# Input file pair -- the two CSVs you want to reconcile
+#
+# Both files must share the same column shape. Use the mapping JSON to
+# declare the expected column names, data types, and required flags. For
+# CSVs the mapping carries no fixed-width positions -- column names alone
+# are the contract.
+# ---------------------------------------------------------------------------
+input_files:
+  - file_type: LEFT                          # logical label for the "expected" side
+    glob: "<FILL_IN_LEFT_GLOB>"              # e.g., "*_legacy_*.csv"
+    mapping: "<FILL_IN_PATH_TO_MAPPING_JSON>"
+    target_staging_table: ""                 # leave empty -- not used for CSV-to-CSV
+  - file_type: RIGHT                         # logical label for the "actual" side
+    glob: "<FILL_IN_RIGHT_GLOB>"             # e.g., "*_new_*.csv"
+    mapping: "<FILL_IN_PATH_TO_MAPPING_JSON>"
+    target_staging_table: ""                 # leave empty -- not used for CSV-to-CSV
+
+# ---------------------------------------------------------------------------
+# Comparison settings -- how rows are matched and which fields are diffed
+#
+# key_columns:    column(s) used as the join key; must exist in BOTH files
+# ignored_columns: columns to skip during the diff (e.g., load timestamps,
+#                 run IDs that legitimately differ between the two files)
+# case_sensitive: when false, string values are compared after .casefold()
+# trim_whitespace: when true, leading/trailing whitespace is stripped before
+#                 comparison (recommended for fixed-width-exported CSVs)
+# ---------------------------------------------------------------------------
+comparison:
+  key_columns: [<FILL_IN_KEY_COLUMNS>]       # e.g., [CUSTOMER_ID]
+  ignored_columns: []                        # e.g., [LOAD_TIMESTAMP, RUN_ID]
+  case_sensitive: true
+  trim_whitespace: true
+
+# ---------------------------------------------------------------------------
+# Numeric tolerance -- optional per-column wiggle room
+#
+# Use when a column is a known floating-point or rounded amount that may
+# legitimately differ by sub-cent values between the two files. Omit the
+# block (or leave it empty) for strict exact-match comparison.
+# ---------------------------------------------------------------------------
+tolerance:
+  numeric_columns: {}                        # e.g., {AMOUNT: 0.01, RATE: 0.0001}

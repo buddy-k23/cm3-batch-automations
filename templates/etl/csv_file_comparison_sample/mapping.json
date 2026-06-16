@@ -1,0 +1,45 @@
+{
+  "mapping_name": "csv_file_comparison_sample",
+  "version": "1.0.0",
+  "description": "Sample column-name mapping for the CSV-to-CSV reconciliation template. No fixed-width positions -- CSV files use the header row to bind columns.",
+  "source": {
+    "type": "file",
+    "format": "csv",
+    "encoding": "UTF-8",
+    "delimiter": ","
+  },
+  "target": {
+    "type": "file"
+  },
+  "fields": [
+    {
+      "name": "CUSTOMER_ID",
+      "target_name": "CUSTOMER_ID",
+      "data_type": "string",
+      "required": true,
+      "description": "Customer identifier -- the join key for reconciliation"
+    },
+    {
+      "name": "NAME",
+      "target_name": "NAME",
+      "data_type": "string",
+      "required": true,
+      "description": "Customer full name"
+    },
+    {
+      "name": "EMAIL",
+      "target_name": "EMAIL",
+      "data_type": "string",
+      "required": false,
+      "description": "Customer email address"
+    },
+    {
+      "name": "BALANCE",
+      "target_name": "BALANCE",
+      "data_type": "number",
+      "required": true,
+      "description": "Account balance in account currency"
+    }
+  ],
+  "key_columns": ["CUSTOMER_ID"]
+}
