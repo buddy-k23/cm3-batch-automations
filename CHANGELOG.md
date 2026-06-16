@@ -24,6 +24,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ORI=2, COD=2, CBRS=2, REC=2). EXPECTED_*_TBL seed updated to match.
 
 ### Added
+- `docs/MCP_CLIENTS.md` plus per-client setup guides under
+  `docs/mcp-clients/vscode/` and `docs/mcp-clients/gitlab-duo/`. BAs can
+  now drop a version-control-friendly `.vscode/mcp.json` into any
+  workspace, mint a token with `valdo mcp-login`, and invoke the 9
+  Valdo MCP tools (`list_sources` etc.) directly from VSCode Copilot
+  Chat. The GitLab Duo guide documents both the emerging native MCP
+  registration path (Path A) and the reliable Custom-Tool fallback
+  (Path B) that proxies to Valdo's `/api/v2/onboarding/*` REST surface;
+  an optional response-shaping relay (`mcp_relay_for_duo.py`) renders
+  markdown tables for nicer Duo Chat output. Cross-linked from
+  `docs/MCP_SERVER.md` and the README. New TEST_PLAN.md Scenario 7
+  covers the VSCode end-to-end smoke test (S6-5, #385).
 - `templates/etl/fixed_width_single_record.yml` — BA-facing fixed-width
   single-record validation template, plus a worked sample under
   `templates/etl/fixed_width_single_record_sample/` (deterministic

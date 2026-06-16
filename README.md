@@ -73,6 +73,18 @@ Automated batch file validation, comparison, and ETL testing tool with multi-dat
 | [Splunk Setup](docs/splunk-setup.md) | Audit log integration |
 | [Installation](docs/INSTALL.md) | Windows, Linux, VSCode setup |
 
+### For agents / AI clients
+
+Wire Claude Desktop, VSCode Copilot Chat, or GitLab Duo to Valdo's
+9-tool MCP surface:
+
+| Guide | Description |
+|-------|-------------|
+| [MCP Server Reference](docs/MCP_SERVER.md) | Server-side: auth modes, run-state persistence, table shape |
+| [MCP Clients Overview](docs/MCP_CLIENTS.md) | Per-client capability matrix + setup links |
+| [VSCode + Copilot Chat](docs/mcp-clients/vscode/vscode-setup.md) | Drop-in `.vscode/mcp.json` + step-by-step BA walkthrough |
+| [GitLab Duo Chat](docs/mcp-clients/gitlab-duo/gitlab-duo-setup.md) | Native MCP path + Custom-Tool fallback for older Duo builds |
+
 ### For BAs / POs
 
 Start here if you're scoping a new source system or picking a template:

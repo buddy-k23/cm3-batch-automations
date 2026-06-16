@@ -5,8 +5,12 @@ AI agents (Claude Desktop, VSCode, GitLab Duo, etc.) drive Valdo's
 validation, comparison, and onboarding surface via JSON-RPC over HTTP
 Streamable or stdio transports.
 
-This document covers operational concerns. For the agent-facing tool
-catalogue see the `tools/list` response or
+This document covers **operational concerns** — auth, persistence, table
+shape, and dev-mode bypass. For the **client-side setup** (how to wire
+VSCode / GitLab Duo / Claude Desktop to a running server) see
+[`docs/MCP_CLIENTS.md`](MCP_CLIENTS.md) and the per-client guides under
+[`docs/mcp-clients/`](mcp-clients/). For the agent-facing tool catalogue
+see the `tools/list` response or
 [`docs/USAGE_AND_OPERATIONS_GUIDE.md`](USAGE_AND_OPERATIONS_GUIDE.md).
 
 ---

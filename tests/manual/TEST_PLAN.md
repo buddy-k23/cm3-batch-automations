@@ -347,6 +347,84 @@ positive integer; `result.isError == false`; the response includes a
 
 ---
 
+### Scenario 7 — MCP from VSCode (end-to-end client connection)
+
+**What it tests.** A BA-realistic round-trip: bring up VSCode + Copilot
+Chat with the shipped `.vscode/mcp.json` config, mint a token via
+`valdo mcp-login`, and confirm that Copilot Chat agent mode visibly
+invokes the `list_sources` MCP tool against the running Valdo and
+renders the result.
+
+This scenario validates the **client-facing** docs added in S6-5
+([`docs/MCP_CLIENTS.md`](../../docs/MCP_CLIENTS.md) and
+[`docs/mcp-clients/vscode/vscode-setup.md`](../../docs/mcp-clients/vscode/vscode-setup.md)).
+It exercises the same backend Scenario 5 hits via curl, but through a
+real MCP-aware editor — catching any client-side regressions (config
+schema drift, header rendering, token file resolution).
+
+**Prerequisites.**
+
+| Component                | Expected state                                                                         |
+|--------------------------|----------------------------------------------------------------------------------------|
+| Valdo server             | Running at `http://127.0.0.1:8001` (Section 1's setup is sufficient)                  |
+| `VALDO_MCP_AUTH`         | Either `dev` (skips token) or `prod`/`int` + a fresh token                            |
+| VSCode                   | 1.90+ installed                                                                        |
+| GitHub Copilot Chat      | 1.x installed and signed in                                                            |
+| Valdo CLI                | `valdo` on PATH; `valdo mcp-login --help` works                                       |
+| Demo workspace           | A scratch directory (anything works — the test doesn't depend on file contents)        |
+
+**How to run.**
+
+1. **Mint a token (skip if `VALDO_MCP_AUTH=dev`):**
+
+   ```bash
+   valdo mcp-login --server http://127.0.0.1:8001
+   # Enter LDAP credentials at the prompt.
+   # Expect: "MCP login successful." and a path printed for ~/.valdo/mcp-token
+   ```
+
+2. **Drop the config into a demo workspace:**
+
+   ```bash
+   mkdir -p /tmp/valdo-mcp-demo/.vscode
+   cp docs/mcp-clients/vscode/vscode-mcp-config.json /tmp/valdo-mcp-demo/.vscode/mcp.json
+   code /tmp/valdo-mcp-demo
+   ```
+
+3. **In VSCode:** open the Chat panel (`Cmd/Ctrl+Alt+I`). Switch the
+   mode picker at the top to **Agent**.
+
+4. **Ask the agent:**
+
+   > List the data sources configured in Valdo.
+
+**Expected outcome.**
+
+- Copilot Chat visibly invokes the `list_sources` MCP tool. The
+  invocation appears in the chat transcript as a collapsible JSON-RPC
+  block (request + response).
+- Expanding the tool-call block shows the request was a
+  `tools/call` for `list_sources` with empty arguments.
+- The response includes at least one entry for **SHAW** (matching
+  Scenario 5c).
+- The agent's natural-language reply summarises the source list.
+
+**Pass criteria.**
+
+- The chat transcript shows a tool call (not the agent fabricating an
+  answer without calling Valdo).
+- The tool response is structured (JSON) and contains `SHAW`.
+- No HTTP 401 errors surface in the VSCode Output panel → MCP channel.
+
+**If it fails.** Walk through
+[`docs/mcp-clients/vscode/vscode-setup.md`](../../docs/mcp-clients/vscode/vscode-setup.md)
+§ Troubleshooting. The two most common failure modes are an expired
+token (re-run `valdo mcp-login`) and the `${file:}` substitution not
+being supported by an older Copilot Chat build (fall back to the
+`VALDO_MCP_TOKEN` env-var pattern documented in §3b).
+
+---
+
 ## Section 3 — Oracle-dependent tests (optional)
 
 ### Scenario 6 — L2b SQL-truth reconciliation against `EXPECTED_*_TBL`

@@ -1,0 +1,42 @@
+{
+  "$schema": "https://modelcontextprotocol.io/schemas/vscode-mcp-config.json",
+  "_comment_top": [
+    "Valdo MCP server — VSCode client configuration.",
+    "Drop this file in as `.vscode/mcp.json` at the root of any workspace where",
+    "you want Copilot Chat (or another MCP-aware extension) to talk to Valdo.",
+    "",
+    "As of June 2026 the VSCode MCP config schema lives at",
+    "https://code.visualstudio.com/docs/copilot/copilot-customization#_model-context-protocol-mcp",
+    "and the same shape is consumed by GitHub Copilot Chat 1.0+.",
+    "",
+    "This file is SAFE to commit to version control — it contains no secrets.",
+    "The bearer token is read at session start from `~/.valdo/mcp-token` via the",
+    "`tokenFile` indirection (preferred), or via the `VALDO_MCP_TOKEN` env var",
+    "(documented as a fallback in vscode-setup.md)."
+  ],
+  "servers": {
+    "valdo": {
+      "_comment_transport": "Streamable HTTP transport — works against any reachable Valdo instance. Use `http://localhost:8001/mcp/` for local INT, or your prod URL once TLS is live. To target a different host, either edit the URL below directly or set VALDO_MCP_URL in your shell env and switch to `\"url\": \"${env:VALDO_MCP_URL}\"` (the env-var indirection is documented in vscode-setup.md §3a).",
+      "type": "http",
+      "url": "http://localhost:8001/mcp/",
+      "_comment_headers": "Authorization header is rendered at session start. `${file:...}` reads the token file once and substitutes its contents. If your VSCode/Copilot build doesn't support the `${file:}` substitution yet, switch to the `VALDO_MCP_TOKEN` env-var form documented in vscode-setup.md §3b.",
+      "headers": {
+        "Authorization": "Bearer ${file:~/.valdo/mcp-token#token.value}",
+        "Accept": "application/json,text/event-stream"
+      },
+      "_comment_dev_mode": "If the Valdo server is running with VALDO_MCP_AUTH=dev (local INT only) the Authorization header is ignored. Production deployments REQUIRE the bearer token.",
+      "_comment_init": "Optional: tighten the per-request timeout for the slow `validate_file` and `onboard_source_dry_run` tools. Default 30s is enough for read-only tools; bump to 120s if validating large files.",
+      "requestTimeoutMs": 30000
+    }
+  },
+  "_comment_bottom": [
+    "Capability matrix (which of Valdo's 9 MCP tools work from this config):",
+    "  list_sources, get_source_spec, list_recent_runs           — read-only, always work",
+    "  validate_file, get_run_status, get_violations             — action tools, work over HTTP transport",
+    "  infer_mapping_from_sample, upload_workbook_as_spec,",
+    "  onboard_source_dry_run                                    — onboarding tools, work over HTTP transport",
+    "",
+    "See docs/MCP_CLIENTS.md for the full per-client capability matrix and",
+    "docs/MCP_SERVER.md for the server-side reference."
+  ]
+}
