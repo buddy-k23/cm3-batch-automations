@@ -1,10 +1,120 @@
-"""Database data extraction utilities."""
+"""Database data extraction utilities.
 
+Security note (S13.5-4, #410)
+-----------------------------
+SQL identifiers (table and column names) cannot be supplied as driver bind
+parameters, so they are *allow-listed* with :func:`_validate_identifier`
+before being placed into the SQL text.  Every interpolated **value** (e.g. a
+row limit) is bound as a parameter rather than concatenated.  Raw, free-form
+``WHERE`` clauses are no longer accepted on the table-based public path —
+arbitrary SQL must go through :meth:`DataExtractor.extract_by_query` (or the
+``--query``/``--sql-file`` CLI modes), which are explicit "operator supplies
+the whole statement" entry points rather than a string-concatenation site.
+"""
+
+import re
 import pandas as pd
 from typing import Optional, List, Dict, Any
 import oracledb
 from .connection import OracleConnection
 from .query_executor import QueryExecutor
+
+
+class IdentifierValidationError(ValueError):
+    """Raised when a SQL identifier fails allow-list validation.
+
+    A subclass of :class:`ValueError` so existing ``except ValueError``
+    handlers keep working while callers that care can catch the precise type.
+    """
+
+
+# A SQL identifier is one or more dot-separated parts (``SCHEMA.TABLE``), each
+# starting with a letter or underscore and containing only letters, digits,
+# underscore, or ``$`` (Oracle/PostgreSQL legal identifier chars).  This
+# rejects quotes, semicolons, whitespace, parentheses, and comment markers
+# (``--`` / ``/*``) by construction.
+_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_$]*(?:\.[A-Za-z_][A-Za-z0-9_$]*)*$")
+
+
+def _validate_identifier(identifier: str) -> str:
+    """Validate a SQL identifier against a strict allow-list.
+
+    Identifiers (table / column names) cannot be passed as driver bind
+    parameters, so any operator-supplied identifier that is interpolated into
+    SQL text must be validated.  Accepts plain (``CUSTOMERS``) and
+    schema-qualified (``APP_INT.CUSTOMERS``) names composed only of letters,
+    digits, underscores, and ``$``.  Rejects anything containing quotes,
+    semicolons, whitespace, parentheses, or comment markers.
+
+    Args:
+        identifier: The candidate table or column name.
+
+    Returns:
+        The identifier unchanged when valid (so callers can inline the result).
+
+    Raises:
+        IdentifierValidationError: If *identifier* is not a string or does not
+            match the strict identifier pattern.
+    """
+    if not isinstance(identifier, str) or not _IDENTIFIER_RE.match(identifier):
+        raise IdentifierValidationError(
+            f"Invalid SQL identifier: {identifier!r}. "
+            "Identifiers must match [A-Za-z_][A-Za-z0-9_$]* (optionally "
+            "schema-qualified with a dot) and may not contain quotes, "
+            "semicolons, whitespace, parentheses, or comment markers."
+        )
+    return identifier
+
+
+def _validate_limit(limit: Any) -> int:
+    """Validate that *limit* is a positive integer suitable for binding.
+
+    Args:
+        limit: The candidate row limit (expected to be a positive ``int``;
+            booleans are rejected to avoid ``True``/``False`` surprises).
+
+    Returns:
+        The validated integer limit.
+
+    Raises:
+        ValueError: If *limit* is not a positive integer.
+    """
+    if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:
+        raise ValueError(
+            f"limit must be a positive integer, got {limit!r}"
+        )
+    return limit
+
+
+def _reject_raw_where(where_clause: Optional[str]) -> None:
+    """Reject any raw WHERE clause on the table-based extract path.
+
+    Free-form WHERE text cannot be safely parameterised or allow-listed
+    without a structured-filter model, and no current consumer passes one
+    (the CLI ``extract`` command exposes no ``--where`` flag and
+    ``db_file_compare_service`` calls :meth:`extract_table` with the table name
+    only).  Rather than carry an injection surface for an unused feature, the
+    table-based path refuses a raw WHERE and directs callers to the explicit
+    full-statement entry points.
+
+    Residual-risk note: callers needing a filter must use
+    :meth:`extract_by_query` / the ``--query``/``--sql-file`` CLI modes, which
+    are documented "operator supplies the whole SQL statement" surfaces and
+    are not reachable from untrusted end-user input in the current call graph.
+
+    Args:
+        where_clause: The candidate WHERE clause (must be ``None``).
+
+    Raises:
+        ValueError: If a non-empty *where_clause* is supplied.
+    """
+    if where_clause:
+        raise ValueError(
+            "Raw 'where_clause' is not supported on the table-based extract "
+            "path for SQL-injection safety (S13.5-4, #410). Use "
+            "extract_by_query() / the --query or --sql-file CLI modes to run a "
+            "full SQL statement, or pass a column/limit filter instead."
+        )
 
 
 class DataExtractor:
@@ -24,30 +134,42 @@ class DataExtractor:
         """Extract data from a table.
         
         Args:
-            table_name: Name of the table
-            columns: List of columns to extract (None = all)
-            where_clause: Optional WHERE clause (without 'WHERE' keyword)
-            limit: Optional row limit
-            
+            table_name: Name of the table (allow-list validated identifier).
+            columns: List of columns to extract (None = all). Each name is
+                allow-list validated.
+            where_clause: Not supported on this path — must be ``None``. Use
+                :meth:`extract_by_query` for arbitrary SQL.
+            limit: Optional positive-integer row limit (bound as a parameter).
+
         Returns:
             DataFrame with extracted data
+
+        Raises:
+            IdentifierValidationError: If the table name or any column name
+                fails identifier validation.
+            ValueError: If ``where_clause`` is supplied, or ``limit`` is not a
+                positive integer.
         """
-        # Build column list
+        # Validate identifiers (cannot be bind params) and reject raw WHERE.
+        safe_table = _validate_identifier(table_name)
+        _reject_raw_where(where_clause)
+
+        # Build column list from validated identifiers.
         if columns:
-            col_list = ', '.join(columns)
+            col_list = ', '.join(_validate_identifier(c) for c in columns)
         else:
             col_list = '*'
 
-        # Build query
-        query = f"SELECT {col_list} FROM {table_name}"
-        
-        if where_clause:
-            query += f" WHERE {where_clause}"
-        
-        if limit:
-            query += f" AND ROWNUM <= {limit}" if where_clause else f" WHERE ROWNUM <= {limit}"
+        # Build query; bind the limit value as a parameter (never interpolate).
+        query = f"SELECT {col_list} FROM {safe_table}"
+        params: Optional[Dict[str, Any]] = None
 
-        return self.executor.execute_query(query)
+        if limit is not None:
+            safe_limit = _validate_limit(limit)
+            query += " WHERE ROWNUM <= :row_limit"
+            params = {"row_limit": safe_limit}
+
+        return self.executor.execute_query(query, params)
 
     def extract_sample(self, table_name: str, sample_size: int = 1000,
                       columns: Optional[List[str]] = None) -> pd.DataFrame:
@@ -84,31 +206,42 @@ class DataExtractor:
         """Extract data to file in chunks.
         
         Args:
-            table_name: Name of the table (optional if query is provided)
+            table_name: Name of the table (optional if query is provided;
+                allow-list validated when used).
             output_file: Output file path
-            columns: List of columns to extract (ignored if query is provided)
-            where_clause: Optional WHERE clause (ignored if query is provided)
+            columns: List of columns to extract (ignored if query is provided;
+                each name allow-list validated when used).
+            where_clause: Not supported on the table-based path — must be
+                ``None`` (ignored entirely when ``query`` is provided). Use the
+                ``query`` argument for arbitrary SQL.
             delimiter: File delimiter
             chunk_size: Number of rows per chunk
-            query: Optional raw SQL query (overrides table_name/columns/where_clause)
-            
+            query: Optional raw SQL query (overrides table_name/columns).
+
         Returns:
             Dictionary with extraction statistics
+
+        Raises:
+            IdentifierValidationError: If the table name or any column name
+                fails identifier validation on the table-based path.
+            ValueError: If ``where_clause`` is supplied on the table-based
+                path, or neither ``table_name`` nor ``query`` is given.
         """
         # Build query
         if query:
-            # Use custom SQL query directly
+            # Use custom SQL query directly (explicit full-statement entry point).
             sql_query = query
         elif table_name:
-            # Build table-based query
+            # Build table-based query from allow-listed identifiers; raw WHERE
+            # is not supported on this path (S13.5-4, #410).
+            safe_table = _validate_identifier(table_name)
+            _reject_raw_where(where_clause)
             if columns:
-                col_list = ', '.join(columns)
+                col_list = ', '.join(_validate_identifier(c) for c in columns)
             else:
                 col_list = '*'
 
-            sql_query = f"SELECT {col_list} FROM {table_name}"
-            if where_clause:
-                sql_query += f" WHERE {where_clause}"
+            sql_query = f"SELECT {col_list} FROM {safe_table}"
         else:
             raise ValueError("Either 'table_name' or 'query' must be provided")
 
@@ -157,18 +290,25 @@ class DataExtractor:
         """Get statistics about a table.
         
         Args:
-            table_name: Name of the table
-            
+            table_name: Name of the table (allow-list validated identifier).
+
         Returns:
             Dictionary with table statistics
+
+        Raises:
+            IdentifierValidationError: If the table name fails identifier
+                validation.
         """
-        # Get row count
-        count_query = f"SELECT COUNT(*) as row_count FROM {table_name}"
+        # Validate the table identifier before any interpolation.
+        safe_table = _validate_identifier(table_name)
+
+        # Get row count (table name is allow-list validated above).
+        count_query = f"SELECT COUNT(*) as row_count FROM {safe_table}"
         count_df = self.executor.execute_query(count_query)
         row_count = count_df['ROW_COUNT'].iloc[0]
 
         # Get column info
-        columns = self.executor.fetch_table_columns(table_name)
+        columns = self.executor.fetch_table_columns(safe_table)
 
         # Get table size (approximate)
         size_query = """

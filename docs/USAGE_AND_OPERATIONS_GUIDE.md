@@ -2643,6 +2643,15 @@ valdo extract \
 
 You must provide exactly one of `--table`, `--query`, or `--sql-file`.
 
+**Security note (S13.5-4, #410):** In `--table` mode the table and any column
+names are *allow-list validated* (letters, digits, underscore, `$`, optionally
+dot-qualified) before being placed into the SQL, and `--limit` is sent as a
+**bound parameter**, never concatenated into the statement. A value containing
+quotes, semicolons, whitespace, or comment markers is rejected with a clear
+error rather than executed. The table path does **not** accept a raw `WHERE`
+clause — to apply a filter, use `--query`/`--sql-file` (the explicit
+full-statement modes), which assume the operator supplies trusted SQL.
+
 ---
 
 ### 8.4 Schema Reconciliation (`reconcile`)
