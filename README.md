@@ -118,7 +118,15 @@ source .venv/bin/activate        # .venv/Scripts/activate on Git Bash
 valdo serve                      # Web UI at http://localhost:8000/ui
 ```
 
-> **Environments:** `--env local` (default) is the only implemented target. `--env int` and `--env full-stack` are seams reserved for a future sprint — they exit cleanly with a "deferred" note. See `docs/sprints/SPRINT_10_KICKOFF.md`.
+**Full-stack (Postgres via docker-compose), one command** — preflights Docker, builds and starts the stack, waits for healthy, smoke-checks the health endpoint:
+
+```bash
+bash scripts/valdo-setup.sh --env full-stack    # Web UI at http://localhost:8000/ui
+bash scripts/valdo-setup.sh --env full-stack --down       # tear it down (keeps DB volume)
+bash scripts/valdo-setup.sh --env full-stack --down -v    # tear down + drop the DB volume
+```
+
+> **Environments:** `--env local` (default, SQLite) and `--env full-stack` (docker-compose: Valdo app + Postgres) are implemented. `--env int` (INT-region Oracle wiring) is a seam reserved for a future sprint — it exits cleanly with a "deferred" note. See `docs/sprints/SPRINT_11_KICKOFF.md`.
 
 > **Windows (no WSL):** use `scripts/setup_windows.ps1` (PowerShell) or `setup-windows.bat`. The per-OS scripts (`scripts/setup_mac.sh`, `scripts/setup_rhel.sh`, `setup-linux.sh`) remain available but `valdo-setup.sh` is the recommended local entry point.
 

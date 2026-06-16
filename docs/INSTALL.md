@@ -33,9 +33,10 @@ source .venv/bin/activate        # .venv/Scripts/activate on Git Bash
 valdo serve                      # Web UI at http://localhost:8000/ui
 ```
 
-- `--env local` (default) is the only implemented target.
-- `--env int` and `--env full-stack` are seams reserved for a future sprint and
-  exit cleanly with a "deferred" message (see `docs/sprints/SPRINT_10_KICKOFF.md`).
+- `--env local` (default, SQLite) and `--env full-stack` (docker-compose:
+  Valdo app + Postgres — see the [Full-stack section](#full-stack-docker-compose--valdo-app--postgres) below) are implemented.
+- `--env int` (INT-region Oracle wiring) is a seam reserved for a future sprint
+  and exits cleanly with a "deferred" message (see `docs/sprints/SPRINT_11_KICKOFF.md`).
 - Native Windows (no WSL): use `scripts/setup_windows.ps1` or `setup-windows.bat`.
 
 > **Local default = SQLite; INT/prod = Oracle.** `valdo-setup.sh` configures
@@ -55,6 +56,20 @@ valdo serve                      # Web UI at http://localhost:8000/ui
 When you want to exercise Valdo against a real **PostgreSQL** instead of local
 SQLite — closer to a production database, still zero external infra — use the
 `docker-compose.yml` at the repo root. It requires only a running Docker daemon.
+
+**One command (recommended):** `valdo-setup.sh --env full-stack` drives this
+stack end-to-end — it preflights Docker (daemon + a compose CLI; supports both
+the `docker compose` v2 plugin and legacy `docker-compose`), runs
+`docker compose up -d --build`, waits for the `valdo` service to report
+healthy, and smoke-checks the health endpoint, then prints next steps:
+
+```bash
+bash scripts/valdo-setup.sh --env full-stack            # build + start + wait-healthy + smoke
+bash scripts/valdo-setup.sh --env full-stack --down     # tear down (keeps the DB volume)
+bash scripts/valdo-setup.sh --env full-stack --down -v  # tear down + drop the DB volume
+```
+
+Or drive `docker compose` directly:
 
 ```bash
 docker compose up -d --build      # build images, start the stack
@@ -108,9 +123,11 @@ docker compose down        # stop + remove containers, KEEP the data volume
 docker compose down -v     # also remove valdo-pgdata (fresh DB next time)
 ```
 
-> **Not yet wired into the setup script.** `bash scripts/valdo-setup.sh
-> --env full-stack` to drive this stack is a separate story (S11-2). For now,
-> use the `docker compose` commands above directly.
+> **Wired into the setup script (S11-2, #400).** `bash scripts/valdo-setup.sh
+> --env full-stack` is the one-command path: it preflights Docker, brings the
+> stack up, waits for the app to be healthy, and smoke-checks the health
+> endpoint. Use it instead of running the `docker compose` commands by hand
+> (those remain valid for ad-hoc control / teardown).
 
 ---
 

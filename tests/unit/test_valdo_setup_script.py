@@ -1,10 +1,14 @@
-"""Contract tests for scripts/valdo-setup.sh (S10-3, #398).
+"""Contract tests for scripts/valdo-setup.sh (S10-3, #398; S11-2, #400).
 
-These tests assert the single local-setup script honours its documented
-contract without performing the (slow) full venv build:
+These tests assert the single setup script honours its documented contract
+without performing the (slow) full venv build or a live docker-compose run:
 
-  * the deferred ``--env int`` / ``--env full-stack`` seams exit 0 with a
-    clear "deferred" message and do NOT touch the filesystem;
+  * the deferred ``--env int`` seam exits 0 with a clear "deferred" message and
+    does NOT touch the filesystem;
+  * ``--env full-stack`` is IMPLEMENTED (S11-2): it no longer prints "deferred";
+    its branch drives docker-compose with a Docker preflight, an ``up -d
+    --build``, a wait-for-healthy poll, and a host smoke check (static guards
+    on the script text, since a live compose run is verified out-of-band);
   * ``--help`` / ``-h`` print usage and exit 0;
   * an unknown flag and a bad ``--env`` value exit non-zero;
   * the script never clobbers an existing ``.env`` (static guard);
@@ -13,9 +17,10 @@ contract without performing the (slow) full venv build:
     ``set -euo pipefail`` (static guards on architecture principle #5 and
     safe-shell requirements).
 
-The full venv + migration + ``valdo info`` path is verified manually in the
-S10-3 implementation run (documented in CHANGELOG / the story write-up); it is
-intentionally NOT executed here to keep the unit suite fast and hermetic.
+The full venv + migration + ``valdo info`` local path and the live
+docker-compose full-stack bring-up are verified manually in the implementation
+runs (documented in CHANGELOG / the story write-ups); they are intentionally
+NOT executed here to keep the unit suite fast and hermetic.
 """
 
 from __future__ import annotations
@@ -80,10 +85,62 @@ def test_env_int_is_deferred_and_touches_nothing(tmp_path):
     assert not (tmp_path / ".venv").exists()
 
 
-def test_env_full_stack_is_deferred():
-    result = _run(["--env", "full-stack"], cwd=REPO_ROOT)
+def test_env_full_stack_is_implemented_not_deferred():
+    """``--env full-stack`` is wired to docker-compose (S11-2), not deferred.
+
+    We assert on the script *text* rather than executing it: a live run would
+    require the Docker daemon and would build/start containers, which is not
+    appropriate for a fast, hermetic unit test. The full bring-up is verified
+    live in the S11-2 implementation run.
+    """
+    text = SCRIPT.read_text(encoding="utf-8")
+    # The full-stack branch dispatches to the bring-up orchestrator, not a
+    # "deferred" message.
+    assert "run_fullstack" in text
+    # It must NOT lump full-stack into the deferred seam any more: the old
+    # shared deferred case label (``int|full-stack)`` at the start of a line)
+    # is gone; "int" now stands alone as the only deferred env.
+    import re
+
+    assert not re.search(r"(?m)^\s*int\|full-stack\)", text)
+    # Preflight: verifies docker + the daemon + a compose CLI.
+    assert "fullstack_preflight" in text
+    assert "docker info" in text  # daemon-running check
+    # Drives compose up with build.
+    assert "up -d --build" in text
+    # Waits for the valdo service to be healthy and smoke-checks the endpoint.
+    assert "fullstack_wait_healthy" in text
+    assert "fullstack_smoke" in text
+    assert "/api/v1/system/health" in text
+
+
+def test_full_stack_supports_both_compose_v2_and_legacy():
+    """Compose detection must support `docker compose` (v2) and `docker-compose`."""
+    text = SCRIPT.read_text(encoding="utf-8")
+    # v2 plugin probe, preferred first.
+    assert "docker compose version" in text
+    # legacy v1 binary fallback.
+    assert "docker-compose" in text
+
+
+def test_full_stack_documents_teardown():
+    """The full-stack path offers/documents a teardown (--down, compose down)."""
+    text = SCRIPT.read_text(encoding="utf-8")
+    assert "--down" in text
+    assert "fullstack_down" in text
+    # Volume-dropping teardown variant.
+    assert "down -v" in text
+
+
+def test_env_int_is_implemented_message_lists_only_int_as_deferred():
+    """The int deferred message must no longer call full-stack deferred."""
+    result = _run(["--env", "int"], cwd=REPO_ROOT)
     assert result.returncode == 0, result.stderr
-    assert "deferred" in result.stdout.lower()
+    out = result.stdout.lower()
+    assert "deferred" in out
+    # full-stack is now implemented; the int message advertises it, but must
+    # not describe full-stack itself as deferred.
+    assert "full-stack" not in out or "implemented" in out
 
 
 def test_env_equals_form_is_accepted():
