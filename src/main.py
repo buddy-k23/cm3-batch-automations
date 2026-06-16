@@ -415,85 +415,47 @@ def reconcile(mapping, table, schema, output, fail_on_warnings):
 @click.option('--fail-on-warnings', is_flag=True, help='Return non-zero exit code if warnings are found')
 @click.option('--fail-on-drift', is_flag=True, help='Return non-zero exit code if new errors/warnings appear vs baseline')
 def reconcile_all(mappings_dir, pattern, output, baseline, fail_on_warnings, fail_on_drift):
-    """Reconcile all mapping documents in a directory against database schema."""
+    """Reconcile all mapping documents in a directory against database schema.
+
+    Thin delegator: the bulk workflow (per-file parse/reconcile loop, summary
+    aggregation, and the baseline drift-diff) lives in the shared service seam
+    ``src.services.reconcile_all_service`` so REST / MCP can reuse it. This
+    command only parses flags, renders output, and sets the exit code
+    (Architecture Principle #1: no business logic in main.py).
+    """
     logger = setup_logger('valdo', log_to_file=False)
 
     try:
         import json
-        from pathlib import Path
-        from src.database.adapters.factory import get_database_adapter
-        from src.database.reconciliation import SchemaReconciler
-        from src.config.loader import ConfigLoader
-        from src.config.mapping_parser import MappingParser
+        from src.services.reconcile_all_service import reconcile_all_service
 
-        loader = ConfigLoader()
-        parser = MappingParser()
-        # Adapter selected via DB_ADAPTER (oracle/postgresql/sqlite).
-        adapter = get_database_adapter()
-        reconciler = SchemaReconciler(adapter)
-
-        mapping_files = sorted(Path(mappings_dir).glob(pattern))
-        if not mapping_files:
-            click.echo(click.style(f"No mapping files found in {mappings_dir} matching '{pattern}'", fg='yellow'))
-            return
-
-        results = []
-        total_errors = 0
-        total_warnings = 0
-        invalid_mappings = 0
-
-        # Open one connection for the whole batch (per-mapping reconcile is a
-        # no-op on the already-open adapter).
-        adapter.connect()
-        for mapping_file in mapping_files:
+        def _render_mapping(mapping_file, entry):
+            """Per-mapping progress callback — presentation only."""
             click.echo(f"\nReconciling: {mapping_file}")
-            try:
-                mapping_dict = loader.load_mapping(str(mapping_file))
-                mapping_doc = parser.parse(mapping_dict)
-                result = reconciler.reconcile_mapping(mapping_doc)
-
-                errors = result.get('error_count', len(result.get('errors', [])))
-                warnings = result.get('warning_count', len(result.get('warnings', [])))
-                total_errors += errors
-                total_warnings += warnings
-
-                if not result.get('valid', False):
-                    invalid_mappings += 1
+            errors = entry.get('error_count', len(entry.get('errors', [])))
+            warnings = entry.get('warning_count', len(entry.get('warnings', [])))
+            if not entry.get('valid', False):
+                if 'mapping_name' in entry:
                     click.echo(click.style(f"  ✗ INVALID ({errors} errors, {warnings} warnings)", fg='red'))
                 else:
-                    status_color = 'yellow' if warnings else 'green'
-                    status_text = f"  ✓ VALID ({warnings} warnings)" if warnings else "  ✓ VALID"
-                    click.echo(click.style(status_text, fg=status_color))
+                    failure = entry.get('errors', ['unknown error'])[0]
+                    detail = failure.split(': ', 1)[1] if ': ' in failure else failure
+                    click.echo(click.style(f"  ✗ FAILED to process: {detail}", fg='red'))
+            else:
+                status_color = 'yellow' if warnings else 'green'
+                status_text = f"  ✓ VALID ({warnings} warnings)" if warnings else "  ✓ VALID"
+                click.echo(click.style(status_text, fg=status_color))
 
-                results.append({
-                    'mapping_file': str(mapping_file),
-                    'mapping_name': mapping_doc.mapping_name,
-                    **result,
-                })
+        summary = reconcile_all_service(
+            mappings_dir=mappings_dir,
+            pattern=pattern,
+            baseline=baseline,
+            on_mapping=_render_mapping,
+        )
 
-            except Exception as file_error:
-                invalid_mappings += 1
-                total_errors += 1
-                click.echo(click.style(f"  ✗ FAILED to process: {file_error}", fg='red'))
-                results.append({
-                    'mapping_file': str(mapping_file),
-                    'valid': False,
-                    'errors': [f"Failed to process mapping: {file_error}"],
-                    'warnings': [],
-                    'error_count': 1,
-                    'warning_count': 0,
-                })
-
-        adapter.disconnect()
-
-        summary = {
-            'total_mappings': len(mapping_files),
-            'valid_mappings': len(mapping_files) - invalid_mappings,
-            'invalid_mappings': invalid_mappings,
-            'total_errors': total_errors,
-            'total_warnings': total_warnings,
-            'results': results,
-        }
+        if summary['total_mappings'] == 0:
+            click.echo(click.style(f"No mapping files found in {mappings_dir} matching '{pattern}'", fg='yellow'))
+            return
 
         click.echo("\n" + "=" * 60)
         click.echo("RECONCILE-ALL SUMMARY")
@@ -504,84 +466,19 @@ def reconcile_all(mappings_dir, pattern, output, baseline, fail_on_warnings, fai
         click.echo(f"Total errors:    {summary['total_errors']}")
         click.echo(f"Total warnings:  {summary['total_warnings']}")
 
-        drift = None
-        if baseline:
-            with open(baseline, 'r') as f:
-                baseline_report = json.load(f)
-
-            baseline_results = {
-                r.get('mapping_file'): r
-                for r in baseline_report.get('results', [])
-                if r.get('mapping_file')
-            }
-            current_results = {
-                r.get('mapping_file'): r
-                for r in results
-                if r.get('mapping_file')
-            }
-
-            baseline_files = set(baseline_results.keys())
-            current_files = set(current_results.keys())
-
-            added_files = sorted(current_files - baseline_files)
-            removed_files = sorted(baseline_files - current_files)
-
-            changed = []
-            new_errors = 0
-            new_warnings = 0
-
-            for mf in sorted(current_files & baseline_files):
-                old = baseline_results[mf]
-                new = current_results[mf]
-                old_e = old.get('error_count', len(old.get('errors', [])))
-                old_w = old.get('warning_count', len(old.get('warnings', [])))
-                new_e = new.get('error_count', len(new.get('errors', [])))
-                new_w = new.get('warning_count', len(new.get('warnings', [])))
-
-                delta_e = new_e - old_e
-                delta_w = new_w - old_w
-                if delta_e != 0 or delta_w != 0:
-                    changed.append({
-                        'mapping_file': mf,
-                        'old_errors': old_e,
-                        'new_errors': new_e,
-                        'delta_errors': delta_e,
-                        'old_warnings': old_w,
-                        'new_warnings': new_w,
-                        'delta_warnings': delta_w,
-                    })
-                    if delta_e > 0:
-                        new_errors += delta_e
-                    if delta_w > 0:
-                        new_warnings += delta_w
-
-            drift = {
-                'baseline': baseline,
-                'added_files': added_files,
-                'removed_files': removed_files,
-                'changed': changed,
-                'new_errors': new_errors,
-                'new_warnings': new_warnings,
-            }
-
+        drift = summary.get('drift')
+        if drift is not None:
             click.echo("\nDRIFT SUMMARY")
             click.echo("-" * 60)
-            click.echo(f"Added mappings:   {len(added_files)}")
-            click.echo(f"Removed mappings: {len(removed_files)}")
-            click.echo(f"Changed mappings: {len(changed)}")
-            click.echo(f"New errors:       {new_errors}")
-            click.echo(f"New warnings:     {new_warnings}")
-
-        if drift is not None:
-            summary['drift'] = drift
+            click.echo(f"Added mappings:   {len(drift['added_files'])}")
+            click.echo(f"Removed mappings: {len(drift['removed_files'])}")
+            click.echo(f"Changed mappings: {len(drift['changed'])}")
+            click.echo(f"New errors:       {drift['new_errors']}")
+            click.echo(f"New warnings:     {drift['new_warnings']}")
 
         if output:
-            if output.lower().endswith('.json'):
-                with open(output, 'w') as f:
-                    json.dump(summary, f, indent=2)
-            else:
-                with open(output, 'w') as f:
-                    f.write(json.dumps(summary, indent=2))
+            with open(output, 'w') as f:
+                json.dump(summary, f, indent=2)
             click.echo(f"\nAggregate report written to: {output}")
 
         has_drift_regression = bool(drift and (drift.get('new_errors', 0) > 0 or drift.get('new_warnings', 0) > 0))
@@ -593,6 +490,8 @@ def reconcile_all(mappings_dir, pattern, output, baseline, fail_on_warnings, fai
         ):
             sys.exit(1)
 
+    except SystemExit:
+        raise
     except Exception as e:
         logger.error(f"Error reconciling mappings directory: {e}")
         sys.exit(1)

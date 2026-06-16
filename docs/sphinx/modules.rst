@@ -269,6 +269,10 @@ Services
    :members:
    :undoc-members:
 
+.. automodule:: src.services.reconcile_all_service
+   :members:
+   :undoc-members:
+
 .. automodule:: src.services.db_file_compare_service
    :members:
    :undoc-members:
