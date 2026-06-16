@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - fix(parsers): FormatDetector routes .csv to CSV parser (comma) and .tsv to TSV (tab), not PipeDelimitedParser (S8-2, #393)
 
 ### Added
+- feat(mcp): optional Redis-backed rate-limit backend so caps hold across gunicorn workers; in-memory remains default (S17-1, #419)
 - ci: GitHub Actions unit-test + coverage gate workflow (informational; #416 promotes to required) (S13.5-5, #411)
 - feat(reconcile): expose adapter-agnostic reconcile via a service seam, `POST /api/v2/reconcile`, the `reconcile_mapping` MCP tool, and a DB Compare UI panel (#407)
 - feat(db): DatabaseAdapter.get_column_metadata + CanonicalType type model (all 3 adapters), per ADR 0022 (S12-2, #403)

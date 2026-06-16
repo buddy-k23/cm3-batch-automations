@@ -9,3 +9,12 @@ ipython>=8.0.0
 jupyter>=1.0.0
 sphinx>=7.3.0
 playwright~=1.40  # Playwright sync API for E2E UI tests
+
+# Optional / test-only: shared (Redis) MCP rate-limit backend (S17-1, #419).
+# The 'redis' package is imported LAZILY only when
+# VALDO_MCP_RATE_LIMIT_BACKEND=redis is selected; in-memory is the default
+# and the only REQUIRED path, so neither belongs in core requirements.txt.
+# fakeredis[lua] runs the backend's server-side Lua script in-process for
+# tests without a live Redis (the 'lua' extra provides the scripting engine).
+redis>=5.0.0
+fakeredis[lua]>=2.20.0
