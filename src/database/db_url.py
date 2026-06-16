@@ -10,6 +10,17 @@ Adapter selection is driven by the ``DB_ADAPTER`` environment variable
 
 import os
 
+# Shared generic-adapter defaults — single source of truth, imported from
+# src.config.db_config so the PostgreSQL ``DB_NAME`` default (``valdo``) and the
+# host/port can never drift from the adapter again (S16-4, #424).
+from src.config.db_config import (
+    _DEFAULT_DB_HOST,
+    _DEFAULT_DB_NAME,
+    _DEFAULT_DB_PORT,
+    _DEFAULT_DSN,
+    _DEFAULT_USER,
+)
+
 
 def get_db_url() -> str:
     """Return SQLAlchemy connection URL based on DB_ADAPTER env var.
@@ -40,9 +51,9 @@ def get_db_url() -> str:
     if adapter == "postgresql":
         user = os.getenv("DB_USER", "")
         password = os.getenv("DB_PASSWORD", "")
-        host = os.getenv("DB_HOST", "localhost")
-        port = os.getenv("DB_PORT", "5432")
-        dbname = os.getenv("DB_NAME", "valdo")
+        host = os.getenv("DB_HOST", _DEFAULT_DB_HOST)
+        port = os.getenv("DB_PORT", _DEFAULT_DB_PORT)
+        dbname = os.getenv("DB_NAME", _DEFAULT_DB_NAME)
         return f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{dbname}"
 
     elif adapter == "sqlite":
@@ -50,9 +61,9 @@ def get_db_url() -> str:
         return f"sqlite:///{path}"
 
     else:  # oracle (default)
-        user = os.getenv("ORACLE_USER", "APP_INT")
+        user = os.getenv("ORACLE_USER", _DEFAULT_USER)
         password = os.getenv("ORACLE_PASSWORD", "")
-        dsn = os.getenv("ORACLE_DSN", "localhost:1521/FREEPDB1")
+        dsn = os.getenv("ORACLE_DSN", _DEFAULT_DSN)
 
         # Parse DSN: "host:port/service" or "host/service" or "host:port"
         if "/" in dsn:

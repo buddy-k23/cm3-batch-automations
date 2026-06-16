@@ -7,18 +7,14 @@ ensuring full backward compatibility with existing configuration.
 
 from __future__ import annotations
 
-import os
 from typing import Optional
 
 import oracledb
 import pandas as pd
 
+from src.config.db_config import get_db_config
 from src.database.adapters._delimited_writer import _write_delimited
 from src.database.adapters.base import CanonicalType, ColumnMeta, DatabaseAdapter
-
-# Default values kept in sync with src.config.db_config
-_DEFAULT_USER = "APP_INT"
-_DEFAULT_DSN = "localhost:1521/FREEPDB1"
 
 
 def _as_int(value) -> Optional[int]:
@@ -92,8 +88,9 @@ def _normalize_oracle_type(
 class OracleAdapter(DatabaseAdapter):
     """Database adapter for Oracle using ``oracledb`` in thin mode.
 
-    Connection parameters are read from environment variables on construction
-    so that the adapter can be instantiated without external dependencies:
+    Connection parameters are resolved on construction from the central
+    :func:`~src.config.db_config.get_db_config`, which reads these settings
+    through the active ``SECRETS_PROVIDER`` (env / Vault / Azure):
 
     - ``ORACLE_USER`` — database username (default ``APP_INT``)
     - ``ORACLE_PASSWORD`` — database password (no default; required to connect)
@@ -111,25 +108,34 @@ class OracleAdapter(DatabaseAdapter):
         password: Optional[str] = None,
         dsn: Optional[str] = None,
     ) -> None:
-        """Initialise Oracle adapter from explicit values or environment variables.
+        """Initialise Oracle adapter from explicit values or central config.
 
-        When a parameter is *None* the corresponding ``ORACLE_*`` env var is
-        read.  This allows callers that already hold resolved credentials to
-        pass them directly while supporting the common env-var-driven path.
+        When a parameter is *None* it is resolved from the single source of
+        truth :func:`~src.config.db_config.get_db_config`, which reads the
+        ``ORACLE_*`` settings through the active ``SECRETS_PROVIDER`` (env /
+        Vault / Azure).  This means factory-created adapters honour Vault/Azure
+        secret resolution exactly like :func:`~src.config.db_config.get_connection`
+        does, instead of reading ``os.environ`` directly with their own
+        defaults (S16-4, #424).  Callers that already hold resolved credentials
+        may still pass them explicitly.
 
         Args:
-            username: Oracle username.  Falls back to ``ORACLE_USER`` or
-                ``APP_INT``.
-            password: Oracle password.  Falls back to ``ORACLE_PASSWORD`` or
-                ``""`` (empty string — connection will fail fast).
-            dsn: Oracle Easy Connect string.  Falls back to ``ORACLE_DSN`` or
-                ``localhost:1521/FREEPDB1``.
+            username: Oracle username.  Falls back to the central config
+                (``ORACLE_USER`` → ``APP_INT``).
+            password: Oracle password.  Falls back to the central config
+                (``ORACLE_PASSWORD`` → ``""``; connection then fails fast).
+            dsn: Oracle Easy Connect string.  Falls back to the central config
+                (``ORACLE_DSN`` → ``localhost:1521/FREEPDB1``).
         """
-        self.username: str = username or os.getenv("ORACLE_USER", _DEFAULT_USER)
-        self.password: str = password if password is not None else os.getenv(
-            "ORACLE_PASSWORD", ""
-        )
-        self.dsn: str = dsn or os.getenv("ORACLE_DSN", _DEFAULT_DSN)
+        # Only build the central config when a value actually needs resolving,
+        # so callers that pass everything explicitly incur no provider lookup.
+        if username is None or password is None or dsn is None:
+            cfg = get_db_config()
+        else:
+            cfg = None
+        self.username: str = username if username is not None else cfg.user
+        self.password: str = password if password is not None else cfg.password
+        self.dsn: str = dsn if dsn is not None else cfg.dsn
         self._connection: Optional[oracledb.Connection] = None
 
     # ------------------------------------------------------------------

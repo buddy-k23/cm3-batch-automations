@@ -5,18 +5,21 @@ can still be instantiated, but :meth:`PostgreSQLAdapter.connect` will raise a
 descriptive :class:`ImportError` with installation instructions rather than a
 cryptic ``ModuleNotFoundError``.
 
-Connection parameters are read from these environment variables:
+Connection parameters are resolved from the central
+:func:`~src.config.db_config.get_db_config` (single source of truth), which
+reads these environment variables and resolves ``DB_USER`` / ``DB_PASSWORD``
+through the active ``SECRETS_PROVIDER`` (env / Vault / Azure):
 
 - ``DB_HOST`` — PostgreSQL server hostname (default ``localhost``)
 - ``DB_PORT`` — PostgreSQL server port (default ``5432``)
-- ``DB_NAME`` — Database / catalog name (default ``postgres``)
+- ``DB_NAME`` — Database / catalog name (default ``valdo`` — the Valdo
+  application database; matches :mod:`src.database.db_url`)
 - ``DB_USER`` — Database username (default ``postgres``)
 - ``DB_PASSWORD`` — Database password (no default; required to connect)
 """
 
 from __future__ import annotations
 
-import os
 from typing import Optional
 
 import sys
@@ -24,13 +27,9 @@ from typing import Any
 
 import pandas as pd
 
+from src.config.db_config import get_db_config
 from src.database.adapters._delimited_writer import _write_delimited
 from src.database.adapters.base import CanonicalType, ColumnMeta, DatabaseAdapter
-
-_DEFAULT_HOST = "localhost"
-_DEFAULT_PORT = 5432
-_DEFAULT_DB = "postgres"
-_DEFAULT_USER = "postgres"
 
 
 def _pg_as_int(value) -> Optional[int]:
@@ -126,26 +125,32 @@ class PostgreSQLAdapter(DatabaseAdapter):
         username: Optional[str] = None,
         password: Optional[str] = None,
     ) -> None:
-        """Initialise PostgreSQL adapter from explicit values or env vars.
+        """Initialise PostgreSQL adapter from explicit values or central config.
+
+        When a parameter is *None* it is resolved from the single source of
+        truth :func:`~src.config.db_config.get_db_config`, so the PostgreSQL
+        defaults (``DB_NAME=valdo``) and the credential resolution path
+        (``DB_USER`` / ``DB_PASSWORD`` via ``SECRETS_PROVIDER``) match the rest
+        of the application instead of being re-derived here with divergent
+        defaults (S16-4, #424).
 
         Args:
             host: PostgreSQL hostname.  Falls back to ``DB_HOST`` or
                 ``"localhost"``.
             port: PostgreSQL port.  Falls back to ``DB_PORT`` or ``5432``.
-            database: Database name.  Falls back to ``DB_NAME`` or
-                ``"postgres"``.
+            database: Database name.  Falls back to ``DB_NAME`` or ``"valdo"``.
             username: Database user.  Falls back to ``DB_USER`` or
                 ``"postgres"``.
-            password: Database password.  Falls back to ``DB_PASSWORD`` or
-                ``""`` (empty — connection will fail at the server level).
+            password: Database password.  Falls back to ``DB_PASSWORD`` (via
+                the secrets provider) or ``""`` (empty — connection will fail
+                at the server level).
         """
-        self.host: str = host or os.getenv("DB_HOST", _DEFAULT_HOST)
-        self.port: int = int(port or os.getenv("DB_PORT", _DEFAULT_PORT))
-        self.database: str = database or os.getenv("DB_NAME", _DEFAULT_DB)
-        self.username: str = username or os.getenv("DB_USER", _DEFAULT_USER)
-        self.password: str = (
-            password if password is not None else os.getenv("DB_PASSWORD", "")
-        )
+        cfg = get_db_config()
+        self.host: str = host or cfg.db_host
+        self.port: int = int(port or cfg.db_port)
+        self.database: str = database or cfg.db_name
+        self.username: str = username or cfg.db_user
+        self.password: str = password if password is not None else cfg.db_password
         self._connection: Optional[object] = None  # psycopg2.connection at runtime
 
     # ------------------------------------------------------------------

@@ -49,6 +49,15 @@ _DEFAULT_USER = "APP_INT"
 _DEFAULT_DSN = "localhost:1521/FREEPDB1"
 _DEFAULT_ADAPTER = "oracle"
 
+# Generic (non-Oracle) adapter defaults — single source of truth shared by the
+# PostgreSQL adapter and :mod:`src.database.db_url`.  ``DB_NAME`` is the Valdo
+# application database (``valdo``), NOT the Postgres admin catalog ``postgres``
+# (the prior divergence reconciled in S16-4, #424).
+_DEFAULT_DB_HOST = "localhost"
+_DEFAULT_DB_PORT = "5432"
+_DEFAULT_DB_NAME = "valdo"
+_DEFAULT_DB_USER = "postgres"
+
 
 @dataclass(frozen=True)
 class DbConfig:
@@ -62,10 +71,14 @@ class DbConfig:
         schema: Schema qualifier for SQL table references.
         db_adapter: Adapter type: ``"oracle"`` (default), ``"postgresql"``,
             or ``"sqlite"``.
-        db_host: Generic host for non-Oracle adapters.  ``None`` when unset.
-        db_port: Generic port for non-Oracle adapters.  ``None`` when unset.
-        db_name: Generic database name for non-Oracle adapters.  ``None``
-            when unset.
+        db_host: Generic host for non-Oracle adapters (default ``localhost``).
+        db_port: Generic port for non-Oracle adapters (default ``5432``).
+        db_name: Generic database name for non-Oracle adapters (default
+            ``valdo`` — the Valdo application database).
+        db_user: Generic username for non-Oracle adapters (default
+            ``postgres``).  Resolved via the secrets provider.
+        db_password: Generic password for non-Oracle adapters.  Resolved via
+            the secrets provider; empty string when unset.
     """
 
     user: str
@@ -76,6 +89,8 @@ class DbConfig:
     db_host: Optional[str] = None
     db_port: Optional[str] = None
     db_name: Optional[str] = None
+    db_user: str = _DEFAULT_DB_USER
+    db_password: str = ""
 
 
 def get_db_config() -> DbConfig:
@@ -100,9 +115,14 @@ def get_db_config() -> DbConfig:
     dsn = secrets.get_secret("ORACLE_DSN", default=_DEFAULT_DSN)
     schema = secrets.get_secret("ORACLE_SCHEMA", default=user)
     db_adapter = os.environ.get("DB_ADAPTER", _DEFAULT_ADAPTER)
-    db_host = os.environ.get("DB_HOST") or None
-    db_port = os.environ.get("DB_PORT") or None
-    db_name = os.environ.get("DB_NAME") or None
+    # Generic (non-Oracle) adapter parameters.  Hosts/ports/names are not
+    # secrets, but DB_USER/DB_PASSWORD are resolved through the same provider so
+    # Vault/Azure applies to factory-created PostgreSQL connections (S16-4).
+    db_host = os.environ.get("DB_HOST") or _DEFAULT_DB_HOST
+    db_port = os.environ.get("DB_PORT") or _DEFAULT_DB_PORT
+    db_name = os.environ.get("DB_NAME") or _DEFAULT_DB_NAME
+    db_user = secrets.get_secret("DB_USER", default=_DEFAULT_DB_USER)
+    db_password = secrets.get_secret("DB_PASSWORD", default="")
     return DbConfig(
         user=user,
         password=password,
@@ -112,6 +132,8 @@ def get_db_config() -> DbConfig:
         db_host=db_host,
         db_port=db_port,
         db_name=db_name,
+        db_user=db_user,
+        db_password=db_password,
     )
 
 

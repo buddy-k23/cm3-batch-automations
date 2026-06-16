@@ -1,39 +1,31 @@
-"""Load and manage configuration files."""
+"""Load column-mapping configuration files.
+
+Note:
+    The former ``ConfigLoader.load(environment)`` method (which read
+    ``config/<env>.json``) and ``merge_with_env`` were removed in S16-4 (#424):
+    they were exercised only by tests and had **no** runtime consumer — the
+    live database configuration is resolved from environment variables via
+    :func:`src.config.db_config.get_db_config` (and the secrets provider).
+    Editing ``config/<env>.json`` therefore had zero runtime effect, an operator
+    trap.  Only :meth:`ConfigLoader.load_mapping` is live (used by reconcile and
+    the ETL pipeline runner) and is retained.
+"""
 
 import json
 import os
-from typing import Dict, Any
+from typing import Dict
 
 
 class ConfigLoader:
-    """Loads configuration from JSON files."""
+    """Loads column-mapping JSON files for reconcile / ETL pipeline steps."""
 
     def __init__(self, config_dir: str = "config"):
         """Initialize config loader.
-        
+
         Args:
             config_dir: Directory containing configuration files
         """
         self.config_dir = config_dir
-
-    def load(self, environment: str = "dev") -> Dict[str, Any]:
-        """Load configuration for specified environment.
-        
-        Args:
-            environment: Environment name (dev, staging, prod)
-            
-        Returns:
-            Configuration dictionary
-        """
-        config_file = os.path.join(self.config_dir, f"{environment}.json")
-        
-        if not os.path.exists(config_file):
-            raise FileNotFoundError(f"Configuration file not found: {config_file}")
-        
-        with open(config_file, "r") as f:
-            config = json.load(f)
-        
-        return config
 
     def load_mapping(self, mapping_file: str) -> Dict[str, str]:
         """Load column mapping configuration.
@@ -57,26 +49,5 @@ class ConfigLoader:
         
         with open(mapping_path, "r") as f:
             mapping = json.load(f)
-        
-        return mapping
 
-    @staticmethod
-    def merge_with_env(config: Dict[str, Any]) -> Dict[str, Any]:
-        """Merge configuration with environment variables.
-        
-        Args:
-            config: Base configuration dictionary
-            
-        Returns:
-            Merged configuration
-        """
-        merged = config.copy()
-        
-        if "ORACLE_USER" in os.environ:
-            merged.setdefault("database", {})["username"] = os.environ["ORACLE_USER"]
-        if "ORACLE_PASSWORD" in os.environ:
-            merged.setdefault("database", {})["password"] = os.environ["ORACLE_PASSWORD"]
-        if "ORACLE_DSN" in os.environ:
-            merged.setdefault("database", {})["dsn"] = os.environ["ORACLE_DSN"]
-        
-        return merged
+        return mapping

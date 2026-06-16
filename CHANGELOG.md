@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - security(db): parameterize extractor SQL — bind limit, allow-list identifiers, validate where (S13.5-4, #410)
 
 ### Changed
+- refactor(config): remove the dead config/<env>.json loader (operator trap); unify DB-config defaults; adapters resolve credentials via SECRETS_PROVIDER (S16-4, #424)
 - refactor(reconcile): reconcile-all + baseline drift-diff extracted to reconcile_all_service; main.py delegates (S16-3, #421)
 - docs(db): document the backend matrix (reconcile/extract/db-compare on Oracle/PG/SQLite); finalize Oracle-module dispositions per ADR 0022; Postgres full-stack smoke (S15-3, #406)
 - feat(db): db-compare honors DB_ADAPTER via the factory (no OracleConnection fallback); runs on SQLite/Postgres/Oracle (S15-2, #405)

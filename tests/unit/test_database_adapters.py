@@ -677,10 +677,16 @@ class TestBackwardCompatibility:
         assert cfg.db_port == "5432"
         assert cfg.db_name == "mydb"
 
-    def test_db_config_generic_vars_default_to_none(
+    def test_db_config_generic_vars_use_unified_defaults(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """db_host, db_port, db_name default to None when env vars are absent."""
+        """Generic DB_* vars fall back to the unified defaults when unset.
+
+        S16-4 (#424): db_host/db_port/db_name no longer default to ``None``;
+        they default to the SINGLE source-of-truth values shared with both the
+        PostgreSQL adapter and :mod:`src.database.db_url` — reconciling the old
+        ``DB_NAME`` ``postgres`` vs ``valdo`` divergence onto ``valdo``.
+        """
         monkeypatch.delenv("DB_HOST", raising=False)
         monkeypatch.delenv("DB_PORT", raising=False)
         monkeypatch.delenv("DB_NAME", raising=False)
@@ -690,9 +696,9 @@ class TestBackwardCompatibility:
         reload(m)
 
         cfg = m.get_db_config()
-        assert cfg.db_host is None
-        assert cfg.db_port is None
-        assert cfg.db_name is None
+        assert cfg.db_host == "localhost"
+        assert cfg.db_port == "5432"
+        assert cfg.db_name == "valdo"
 
 
 # ---------------------------------------------------------------------------

@@ -43,7 +43,6 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "valdo-setup.sh"
 INT_ENV_EXAMPLE = REPO_ROOT / ".env.int.example"
-INT_CONFIG = REPO_ROOT / "config" / "int.json"
 
 _BASH = shutil.which("bash")
 
@@ -220,17 +219,15 @@ def test_env_equals_form_is_accepted(tmp_path):
             shutil.move(str(backup), str(int_env))
 
 
-def test_env_int_example_and_config_int_committed():
-    """The committed INT artifacts exist with the expected shape."""
-    assert INT_ENV_EXAMPLE.is_file(), ".env.int.example must be committed"
-    assert INT_CONFIG.is_file(), "config/int.json must be committed"
-    import json
+def test_env_int_example_committed():
+    """The committed INT env template exists.
 
-    cfg = json.loads(INT_CONFIG.read_text(encoding="utf-8"))
-    assert cfg["environment"] == "int"
-    # Mirrors the staging.json shape.
-    for section in ("database", "logging", "file_processing"):
-        assert section in cfg
+    S16-4 (#424): the former ``config/int.json`` assertions were removed along
+    with the file itself — ``config/<env>.json`` was a dead, no-runtime-effect
+    config layer (operator trap).  The LIVE INT configuration mechanism is the
+    ``.env.int`` env-var file scaffolded from this committed example template.
+    """
+    assert INT_ENV_EXAMPLE.is_file(), ".env.int.example must be committed"
 
 
 def test_env_int_example_has_no_real_secrets():
