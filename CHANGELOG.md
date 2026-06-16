@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - security(db): parameterize extractor SQL — bind limit, allow-list identifiers, validate where (S13.5-4, #410)
 
 ### Changed
+- feat(mcp): jti on MCPPrincipal + per-token limiter keyed on jti; cross-worker revocation propagation (optional shared store; DB remains source of truth) (S17-2, #420)
 - refactor(validators): chunked cross-row checks dispatch via the same registry as single-pass — one source of truth per check, prevents drift (S16-5, #418)
 - refactor(config): remove the dead config/<env>.json loader (operator trap); unify DB-config defaults; adapters resolve credentials via SECRETS_PROVIDER (S16-4, #424)
 - refactor(reconcile): reconcile-all + baseline drift-diff extracted to reconcile_all_service; main.py delegates (S16-3, #421)

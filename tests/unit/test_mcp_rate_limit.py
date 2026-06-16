@@ -39,6 +39,7 @@ from src.mcp.rate_limit import (
     RateLimitDecision,
     RateLimiter,
     classify_request,
+    token_identity,
 )
 
 
@@ -263,3 +264,69 @@ def test_decision_dataclass_shape():
     assert d.allowed is True
     assert d.retry_after == 0
     assert d.scope is None
+
+
+# ---------------------------------------------------------------------------
+# S17-2 (#420): per-token bucket keyed on jti
+# ---------------------------------------------------------------------------
+
+
+class _Principal:
+    """Minimal stand-in for MCPPrincipal — duck-typed for token_identity."""
+
+    def __init__(self, user, auth_kind, jti=None):
+        self.user = user
+        self.auth_kind = auth_kind
+        self.jti = jti
+
+
+class TestTokenIdentityKeyedOnJti:
+    def test_uses_jti_when_present(self):
+        p = _Principal(user="jsmith", auth_kind="token", jti="a" * 32)
+        assert token_identity(p) == f"jti:{'a' * 32}"
+
+    def test_falls_back_to_auth_kind_user_without_jti(self):
+        # Legacy/dev tokens (no jti) keep the old composite key.
+        p = _Principal(user="jsmith", auth_kind="token", jti=None)
+        assert token_identity(p) == "token:jsmith"
+
+    def test_api_key_principal_without_jti_uses_fallback(self):
+        p = _Principal(user="apikey:abc123", auth_kind="api_key", jti=None)
+        assert token_identity(p) == "api_key:apikey:abc123"
+
+    def test_none_principal_is_anonymous(self):
+        assert token_identity(None) == "anonymous"
+
+    def test_two_sessions_same_user_distinct_jti_get_separate_buckets(self):
+        # The whole point of S17-2: two live sessions for ONE user no longer
+        # share a per-token bucket — each jti is its own unit of identity.
+        clock = _FakeClock()
+        limiter = RateLimiter(
+            per_token_cap=2, per_ip_cap=1000, run_status_cap=1000,
+            clock=clock,
+        )
+        sess_a = _Principal("jsmith", "token", jti="1" * 32)
+        sess_b = _Principal("jsmith", "token", jti="2" * 32)
+
+        # Session A burns its full per-token budget.
+        assert limiter.check_tool_call(token_identity(sess_a), "9.9.9.9", "validate_file").allowed
+        assert limiter.check_tool_call(token_identity(sess_a), "9.9.9.9", "validate_file").allowed
+        a_denied = limiter.check_tool_call(token_identity(sess_a), "9.9.9.9", "validate_file")
+        assert a_denied.allowed is False
+        assert a_denied.scope == "per_token"
+
+        # Session B (same user, different jti) still has its OWN budget.
+        assert limiter.check_tool_call(token_identity(sess_b), "9.9.9.9", "validate_file").allowed
+
+    def test_same_jti_shares_one_bucket(self):
+        clock = _FakeClock()
+        limiter = RateLimiter(
+            per_token_cap=2, per_ip_cap=1000, run_status_cap=1000,
+            clock=clock,
+        )
+        p = _Principal("jsmith", "token", jti="3" * 32)
+        key = token_identity(p)
+        assert limiter.check_tool_call(key, "9.9.9.9", "validate_file").allowed
+        assert limiter.check_tool_call(key, "9.9.9.9", "validate_file").allowed
+        # Same jti → same bucket → 3rd call denied.
+        assert limiter.check_tool_call(key, "9.9.9.9", "validate_file").allowed is False

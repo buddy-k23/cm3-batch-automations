@@ -47,6 +47,7 @@ values (Architecture Principle: SQL-injection prevention). The table
 from __future__ import annotations
 
 import logging
+import os
 import threading
 import time
 from datetime import datetime, timezone
@@ -57,19 +58,68 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "RevocationStore",
     "DatabaseRevocationStore",
+    "SharedRevocationSet",
     "RevocationCache",
     "make_revocation_store",
+    "make_shared_revocation_set",
     "get_revocation_cache",
     "reset_revocation_cache",
+    "DEFAULT_CACHE_TTL_SECONDS",
+    "ENV_CACHE_TTL_SECONDS",
+    "ENV_REVOCATION_BACKEND",
+    "ENV_REVOCATION_REDIS_URL",
 ]
 
 
 # Default cache TTL — how long a loaded blocklist snapshot is trusted
-# before the next lookup reloads it from the table. 60s per the issue AC.
+# before the next lookup reloads it from the table. 60s per the original
+# S9-4 AC. S17-2 (#420) makes this configurable so an operator running
+# multiple workers WITHOUT a shared store can tighten the bound on how long
+# a revocation takes to propagate to every worker (each worker converges
+# within its own TTL of the DB, the source of truth).
 DEFAULT_CACHE_TTL_SECONDS = 60.0
+ENV_CACHE_TTL_SECONDS = "VALDO_MCP_REVOCATION_CACHE_TTL"
+
+# S17-2 (#420): optional shared revocation backend. Under multiple gunicorn
+# workers the per-process cache means a revoked jti lingers up to one TTL
+# per worker. Selecting ``redis`` publishes each revocation to a shared
+# Redis SET that EVERY worker consults before trusting its local snapshot,
+# so a revocation is visible fleet-wide within seconds (effectively
+# immediately) rather than a per-worker TTL. ``memory``/``db`` (the
+# default) keeps the DB-as-truth + per-process TTL behaviour. Redis stays
+# an OPTIONAL dependency, imported lazily, fail-soft on unavailability.
+ENV_REVOCATION_BACKEND = "VALDO_MCP_REVOCATION_BACKEND"
+DEFAULT_REVOCATION_BACKEND = "memory"
+ENV_REVOCATION_REDIS_URL = "VALDO_MCP_REVOCATION_REDIS_URL"
+DEFAULT_REVOCATION_REDIS_URL = "redis://localhost:6379/0"
+
+# Redis SET key under which revoked jtis are published/queried.
+_SHARED_SET_KEY = "valdo:mcp:revoked_jti"
 
 # Fixed table name (issue spec). Never interpolated with caller data.
 _TABLE_NAME = "MCP_REVOKED_TOKENS"
+
+
+def _resolve_cache_ttl() -> float:
+    """Resolve the revocation cache TTL (seconds) from the environment.
+
+    Reads :data:`ENV_CACHE_TTL_SECONDS` fresh; a missing, empty,
+    non-numeric, or non-positive value falls back to
+    :data:`DEFAULT_CACHE_TTL_SECONDS` (a malformed value must not silently
+    disable the bound). A shorter TTL tightens cross-worker convergence at
+    the cost of more frequent (still cheap, one ``SELECT jti``) reloads.
+
+    Returns:
+        The TTL in seconds as a float.
+    """
+    raw = os.environ.get(ENV_CACHE_TTL_SECONDS)
+    if raw is None:
+        return DEFAULT_CACHE_TTL_SECONDS
+    try:
+        value = float(raw.strip())
+    except (ValueError, AttributeError):
+        return DEFAULT_CACHE_TTL_SECONDS
+    return value if value > 0 else DEFAULT_CACHE_TTL_SECONDS
 
 
 def _qualified(schema_prefix: str, table: str) -> str:
@@ -206,6 +256,84 @@ class DatabaseRevocationStore:
 
 
 # ---------------------------------------------------------------------------
+# Optional shared (Redis) revocation set — cross-worker propagation (S17-2)
+# ---------------------------------------------------------------------------
+
+
+class SharedRevocationSet:
+    """Redis-backed shared set of revoked jtis for cross-worker propagation.
+
+    The DB table (:class:`DatabaseRevocationStore`) remains the **source of
+    truth**; this is a fast shared *signal* so a revocation published by one
+    gunicorn worker is visible to every other worker within seconds instead
+    of a full per-process cache TTL. Each :meth:`add` does ``SADD`` on one
+    Redis SET; each :meth:`contains` does ``SISMEMBER`` — both O(1).
+
+    Reuses the S17-1 optional-Redis pattern: the ``redis`` package is
+    imported **lazily** by :meth:`from_url`; this class itself takes an
+    already-constructed client (or a test fake), so importing this module
+    never requires ``redis``.
+
+    Callers (:class:`RevocationCache`) wrap every method in fail-soft
+    handling — an unreachable shared set must degrade to DB+local, never
+    break auth. The signature gate in :func:`src.mcp.auth.verify_token`
+    runs BEFORE any shared lookup, so an unauthenticated caller never
+    reaches Redis.
+    """
+
+    def __init__(self, client: Any, set_key: str = _SHARED_SET_KEY) -> None:
+        """Wrap an existing redis-py-compatible *client*.
+
+        Args:
+            client: A client exposing ``sadd`` / ``sismember``. A
+                ``fakeredis`` client or a small fake satisfies this.
+            set_key: The Redis SET key to publish/query. A fixed module
+                constant by default; never caller-interpolated with secrets.
+        """
+        self._client = client
+        self._key = set_key
+
+    @classmethod
+    def from_url(
+        cls,
+        url: str,
+        connector: Optional[Any] = None,
+    ) -> "SharedRevocationSet":
+        """Build a shared set from a Redis URL, importing ``redis`` lazily.
+
+        Args:
+            url: Redis connection URL (e.g. ``redis://host:6379/0``).
+            connector: Optional ``(url) -> client`` factory used in tests to
+                inject a fake without importing ``redis``. Defaults to
+                ``redis.Redis.from_url`` with a connection ping (fail fast at
+                boot rather than on the first revocation).
+
+        Returns:
+            A connected :class:`SharedRevocationSet`.
+
+        Raises:
+            Exception: Any import/connection error is propagated so the
+                factory can fail-soft to DB-only with a visible warning.
+        """
+        if connector is not None:
+            client = connector(url)
+        else:  # pragma: no cover - requires the optional redis package
+            import redis  # lazy: optional dependency
+
+            client = redis.Redis.from_url(url)
+            client.ping()
+        return cls(client=client)
+
+    def add(self, jti: str) -> None:
+        """Publish *jti* to the shared set (``SADD``). May raise on outage."""
+        self._client.sadd(self._key, jti)
+
+    def contains(self, jti: str) -> bool:
+        """Return True if *jti* is in the shared set (``SISMEMBER``)."""
+        return bool(self._client.sismember(self._key, jti))
+
+
+# ---------------------------------------------------------------------------
 # In-memory TTL cache over the store
 # ---------------------------------------------------------------------------
 
@@ -227,20 +355,32 @@ class RevocationCache:
         store: RevocationStore,
         ttl_seconds: float = DEFAULT_CACHE_TTL_SECONDS,
         clock=time.monotonic,
+        shared_set: Optional[Any] = None,
     ) -> None:
         """Construct a TTL cache over *store*.
 
         Args:
-            store: The backing :class:`RevocationStore`.
+            store: The backing :class:`RevocationStore` (the source of
+                truth, e.g. :class:`DatabaseRevocationStore`).
             ttl_seconds: How long a loaded snapshot is trusted before the
                 next lookup reloads it. Defaults to
                 :data:`DEFAULT_CACHE_TTL_SECONDS`.
             clock: Monotonic clock callable, injectable for deterministic
                 tests. Production uses ``time.monotonic``.
+            shared_set: Optional cross-worker shared set (S17-2, #420)
+                exposing ``add(jti)`` and ``contains(jti)`` — e.g. a
+                :class:`SharedRevocationSet`. When present, :meth:`revoke`
+                publishes to it and :meth:`is_revoked` consults it BEFORE
+                trusting a "not revoked" local snapshot, so a revocation on
+                one worker is visible to others within seconds rather than a
+                per-worker TTL. Every shared-set call is fail-soft: an
+                unreachable shared set degrades to DB+local (logged), never
+                breaking auth.
         """
         self._store = store
         self._ttl = ttl_seconds
         self._clock = clock
+        self._shared = shared_set
         self._lock = threading.Lock()
         self._revoked: Set[str] = set()
         self._loaded_at: Optional[float] = None
@@ -275,8 +415,20 @@ class RevocationCache:
     def is_revoked(self, jti: str) -> bool:
         """Return True if *jti* is on the blocklist.
 
-        Answered from the in-memory snapshot when fresh (no DB); reloads
-        from the store on a cold/expired cache.
+        Resolution order (S17-2, #420):
+
+        1. **Shared set** (when configured) — consulted first so a
+           revocation published by ANOTHER worker is seen immediately,
+           without waiting for this worker's local TTL to elapse. Fail-soft:
+           if the shared set is unreachable the error is logged and we fall
+           through to the local snapshot (degrade to DB+local).
+        2. **Local TTL snapshot** — answered from the in-memory set when
+           fresh (no DB round-trip); reloads from the store (the source of
+           truth) on a cold/expired cache.
+
+        The caller (:func:`src.mcp.auth.verify_token`) has already passed
+        the signature + expiry gates, so only authenticated tokens reach
+        this shared/DB lookup.
 
         Args:
             jti: The opaque token id to check.
@@ -284,6 +436,23 @@ class RevocationCache:
         Returns:
             True if the jti is revoked, False otherwise.
         """
+        # 1. Shared-set fast path (cross-worker). A True is authoritative;
+        # a False (or an error) just falls through to the local snapshot —
+        # the DB remains the source of truth, so the shared set can only
+        # ADD a positive signal, never mask a DB-recorded revocation.
+        if self._shared is not None:
+            try:
+                if self._shared.contains(jti):
+                    return True
+            except Exception as exc:  # noqa: BLE001 — fail-soft to DB+local.
+                logger.warning(
+                    "MCP revocation shared-set lookup failed; degrading to "
+                    "DB+local for jti_suffix=%s. Underlying error: %s",
+                    jti[-6:],
+                    exc,
+                )
+
+        # 2. Local TTL snapshot over the DB source of truth.
         now = self._clock()
         with self._lock:
             if not self._is_fresh(now):
@@ -304,13 +473,36 @@ class RevocationCache:
             revoked_by: Principal issuing the revocation.
 
         Raises:
-            Exception: Propagated from the store on a DB write failure.
+            Exception: Propagated from the store on a DB write failure (a
+                silently-dropped revocation would be a security hole — the
+                DB is the source of truth and MUST persist the row).
         """
+        # 1. Persist to the source of truth first. If this raises, the
+        # revocation has NOT taken effect and the error propagates — we do
+        # not touch the shared set or local snapshot on a failed DB write.
         self._store.revoke(jti, reason, revoked_by)
+
+        # 2. Publish to the shared set so OTHER workers see it immediately
+        # (S17-2, #420). Fail-soft: a shared-set outage must not undo the
+        # already-persisted DB revocation — other workers still converge
+        # within their TTL via the DB. Log loudly so the degraded
+        # propagation is visible.
+        if self._shared is not None:
+            try:
+                self._shared.add(jti)
+            except Exception as exc:  # noqa: BLE001 — DB row already written.
+                logger.warning(
+                    "MCP revocation: shared-set publish failed for "
+                    "jti_suffix=%s; the DB row is persisted so other workers "
+                    "still converge within their cache TTL. Error: %s",
+                    jti[-6:],
+                    exc,
+                )
+
+        # 3. Invalidate the local snapshot so this worker sees its own
+        # revocation immediately (and picks up any concurrent rows).
         with self._lock:
             self._revoked.add(jti)
-            # Force a reload on next lookup so any concurrently-added
-            # revocations in other rows are also picked up promptly.
             self._loaded_at = None
 
     def invalidate(self) -> None:
@@ -363,6 +555,60 @@ def make_revocation_store() -> Optional[RevocationStore]:
     return store
 
 
+def make_shared_revocation_set() -> Optional["SharedRevocationSet"]:
+    """Build the optional cross-worker shared set, or ``None`` (S17-2, #420).
+
+    Returns ``None`` for the default (``memory``/``db``) backend so the
+    cache runs DB-as-truth + per-process TTL. When
+    :data:`ENV_REVOCATION_BACKEND` selects ``redis``, builds a
+    :class:`SharedRevocationSet` from :data:`ENV_REVOCATION_REDIS_URL`
+    (importing ``redis`` lazily). On any import/connection failure it logs a
+    WARNING and returns ``None`` — fail-soft to DB+local, mirroring the
+    S17-1 rate-limit backend posture: a security control stays UP with
+    bounded (TTL) propagation rather than crashing on a missing optional
+    store.
+
+    Returns:
+        A connected :class:`SharedRevocationSet`, or ``None`` to run
+        DB-only.
+    """
+    choice = (
+        os.environ.get(ENV_REVOCATION_BACKEND) or DEFAULT_REVOCATION_BACKEND
+    ).strip().lower()
+    if choice in ("", "memory", "in-memory", "inmemory", "db", "database", "local"):
+        return None
+    if choice != "redis":
+        logger.warning(
+            "Unknown MCP revocation backend %r (env %s); using DB-only "
+            "propagation (per-process TTL).",
+            choice,
+            ENV_REVOCATION_BACKEND,
+        )
+        return None
+
+    url = os.environ.get(ENV_REVOCATION_REDIS_URL) or DEFAULT_REVOCATION_REDIS_URL
+    try:
+        shared = SharedRevocationSet.from_url(url)
+        logger.info(
+            "MCP revocation: using shared Redis set at %s (revocations "
+            "propagate across workers within seconds).",
+            url,
+        )
+        return shared
+    except Exception as exc:  # noqa: BLE001 — fail-soft to DB-only.
+        logger.warning(
+            "MCP revocation shared Redis set unavailable (%s); FALLING BACK "
+            "to DB-only propagation. A revoked token now converges across "
+            "workers within the cache TTL (%s) rather than immediately. Set "
+            "%s correctly or install the optional 'redis' package to restore "
+            "immediate cross-worker propagation.",
+            exc,
+            ENV_CACHE_TTL_SECONDS,
+            ENV_REVOCATION_REDIS_URL,
+        )
+        return None
+
+
 class _NullStore:
     """No-op store used when no database backend is available.
 
@@ -408,7 +654,11 @@ def get_revocation_cache() -> RevocationCache:
     with _cache_lock:
         if _cache_singleton is None:
             store = make_revocation_store() or _NullStore()
-            _cache_singleton = RevocationCache(store)
+            _cache_singleton = RevocationCache(
+                store,
+                ttl_seconds=_resolve_cache_ttl(),
+                shared_set=make_shared_revocation_set(),
+            )
         return _cache_singleton
 
 

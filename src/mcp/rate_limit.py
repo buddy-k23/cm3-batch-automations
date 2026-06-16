@@ -757,12 +757,23 @@ def _env_int(name: str, default: int) -> int:
 def token_identity(principal: Any) -> str:
     """Derive a stable per-token bucket key from an :class:`MCPPrincipal`.
 
-    S9-4 will add a ``jti`` to the token format; until then the principal's
-    ``user`` plus ``auth_kind`` is the most stable available identity (an
-    API-key caller's ``user`` is a 6-char key suffix, a token caller's is
-    their username). The function is defensive — a ``None`` principal (dev
-    mode without a seeded principal, or a transport edge) collapses to a
-    fixed ``"anonymous"`` key so the limiter still meters the stream.
+    S17-2 (#420): when the principal carries a token ``jti`` (every token
+    minted from S9-4 onward does), the bucket keys on ``jti:<jti>``. The
+    jti is the per-token unit of identity used by revocation, so keying the
+    limiter on it makes the two controls agree AND means two *separate*
+    live sessions for the **same** user no longer share one bucket (a
+    long-standing under-count: each session is its own token, so each gets
+    its own budget).
+
+    Fallback: a principal *without* a jti — API-key, session-cookie, and
+    dev callers, plus legacy EF-S7 tokens still inside the revocation grace
+    window — keeps the original ``auth_kind:user`` composite key. (An
+    API-key caller's ``user`` is a 6-char key suffix; a session caller's is
+    their CN — both stable enough to meter on absent a jti.)
+
+    The function is defensive — a ``None`` principal (dev mode without a
+    seeded principal, or a transport edge) collapses to a fixed
+    ``"anonymous"`` key so the limiter still meters the stream.
 
     Args:
         principal: The authenticated principal, or ``None``.
@@ -772,6 +783,9 @@ def token_identity(principal: Any) -> str:
     """
     if principal is None:
         return "anonymous"
+    jti = getattr(principal, "jti", None)
+    if jti:
+        return f"jti:{jti}"
     user = getattr(principal, "user", None) or "anonymous"
     auth_kind = getattr(principal, "auth_kind", None) or "unknown"
     return f"{auth_kind}:{user}"

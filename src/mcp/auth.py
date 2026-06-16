@@ -279,12 +279,21 @@ class MCPPrincipal:
             the parent FastAPI surface.
         auth_kind: How the principal was authenticated —
             ``"api_key"`` | ``"session"`` | ``"token"`` | ``"dev"``.
+        jti: The opaque token id (S17-2, #420) for ``token`` principals
+            minted from S9-4 onward. ``None`` for callers without a token
+            jti — API-key/session/dev principals, and legacy EF-S7 tokens
+            still inside the grace window (which have no jti). The per-token
+            rate limiter keys its bucket on this when present
+            (:func:`src.mcp.rate_limit.token_identity`) so two live sessions
+            for the same user no longer share a bucket, and the limiter's
+            unit-of-identity matches revocation (which is also keyed on jti).
     """
 
     user: str
     principal_dn: str
     role: str
     auth_kind: str
+    jti: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -677,6 +686,8 @@ def load_stdio_user(source: Optional[Path] = None) -> MCPPrincipal:
         principal_dn=payload.principal_dn,
         role=payload.role,
         auth_kind="token",
+        # S17-2 (#420): surface the jti for the stdio principal too.
+        jti=payload.jti or None,
     )
     set_current_user(principal)
     return principal
@@ -758,6 +769,10 @@ def _check_bearer_token(request: Request) -> Optional[MCPPrincipal]:
         principal_dn=verified.principal_dn,
         role=verified.role,
         auth_kind="token",
+        # S17-2 (#420): surface the verified jti so the per-token limiter
+        # buckets on it. The empty-string legacy jti normalises to None so
+        # token_identity falls back to the auth_kind:user composite.
+        jti=verified.jti or None,
     )
 
 

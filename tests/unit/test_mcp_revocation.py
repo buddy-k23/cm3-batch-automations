@@ -18,12 +18,15 @@ scenario lives in ``tests/integration/test_mcp_token_revocation.py``.
 
 from __future__ import annotations
 
+import importlib.util
 import time
 from pathlib import Path
 from typing import Iterator, Set
 
 import pytest
 from sqlalchemy import create_engine, text
+
+_HAS_FAKEREDIS = importlib.util.find_spec("fakeredis") is not None
 
 _SIGNING_KEY = "unit-test-signing-key-not-for-prod"
 
@@ -294,3 +297,215 @@ def test_null_store_rejects_writes():
     assert store.load_all() == set()
     with pytest.raises(RuntimeError, match="not available"):
         store.revoke("j", "r", "by")
+
+
+# ---------------------------------------------------------------------------
+# S17-2 (#420): jti surfaced on MCPPrincipal
+# ---------------------------------------------------------------------------
+
+
+def test_bearer_principal_carries_jti(signing_key_env):
+    """A principal built from a minted+verified bearer token carries its jti."""
+    from src.mcp.auth import (
+        MCPPrincipal,
+        _check_bearer_token,
+        encode_bearer,
+        mint_token,
+    )
+
+    token = mint_token("jsmith", "CN=jsmith,DC=bank", "admin")
+    bearer = encode_bearer(token)
+
+    class _Req:
+        headers = {"authorization": f"Bearer {bearer}"}
+
+    principal = _check_bearer_token(_Req())
+    assert isinstance(principal, MCPPrincipal)
+    assert principal.jti == token["jti"]
+    assert principal.auth_kind == "token"
+
+
+def test_legacy_token_principal_has_none_jti(signing_key_env, monkeypatch):
+    """A legacy (no-jti) token within grace yields a principal with jti=None."""
+    from src.mcp.auth import _check_bearer_token, encode_bearer
+
+    now = int(time.time())
+    monkeypatch.setenv("VALDO_MCP_JTI_GRACE_UNTIL", str(now + 3600))
+    token = _legacy_token(issued_at=now)
+    bearer = encode_bearer(token)
+
+    class _Req:
+        headers = {"authorization": f"Bearer {bearer}"}
+
+    principal = _check_bearer_token(_Req())
+    assert principal is not None
+    assert principal.jti is None  # empty wire jti normalises to None
+
+
+def test_load_stdio_user_carries_jti(signing_key_env, tmp_path):
+    """The stdio principal also surfaces the token's jti."""
+    from src.mcp.auth import load_stdio_user, mint_token, write_token_file
+
+    token = mint_token("agent", "CN=agent,DC=bank", "tester")
+    path = write_token_file(token, target=tmp_path / "mcp-token")
+    principal = load_stdio_user(source=path)
+    assert principal.jti == token["jti"]
+
+
+# ---------------------------------------------------------------------------
+# S17-2 (#420): cross-worker revocation propagation
+# ---------------------------------------------------------------------------
+
+
+class _SharedSet:
+    """In-process stand-in for the optional shared (Redis) revocation set.
+
+    Two RevocationCache instances ("workers") that share ONE _SharedSet see
+    a revocation immediately — modelling the live-Redis SET that the real
+    SharedRevocationStore publishes to. ``raise_on`` lets a test simulate an
+    unreachable shared store to exercise the fail-soft path.
+    """
+
+    def __init__(self) -> None:
+        self.members: Set[str] = set()
+        self.raise_on: set[str] = set()
+
+    def add(self, jti: str) -> None:
+        if "add" in self.raise_on:
+            raise ConnectionError("shared store unreachable")
+        self.members.add(jti)
+
+    def contains(self, jti: str) -> bool:
+        if "contains" in self.raise_on:
+            raise ConnectionError("shared store unreachable")
+        return jti in self.members
+
+
+def test_shared_store_propagates_revocation_immediately(sqlite_revocation_db):
+    """With a shared store, a revoke on worker A is seen by worker B at once.
+
+    Both workers have FRESH local snapshots (so a TTL reload alone would NOT
+    converge), yet B rejects the jti immediately because the shared set is
+    consulted before the local snapshot decides "not revoked".
+    """
+    from src.mcp.revocation import DatabaseRevocationStore, RevocationCache
+
+    shared = _SharedSet()
+    eng_a = create_engine(f"sqlite:///{sqlite_revocation_db}")
+    eng_b = create_engine(f"sqlite:///{sqlite_revocation_db}")
+    try:
+        cache_a = RevocationCache(
+            DatabaseRevocationStore(engine=eng_a, schema_prefix=""),
+            ttl_seconds=60.0, shared_set=shared,
+        )
+        cache_b = RevocationCache(
+            DatabaseRevocationStore(engine=eng_b, schema_prefix=""),
+            ttl_seconds=60.0, shared_set=shared,
+        )
+        # Warm both local snapshots so neither will reload within the TTL.
+        assert cache_a.is_revoked("hot") is False
+        assert cache_b.is_revoked("hot") is False
+
+        # Worker A revokes. DB is updated AND the shared set is published to.
+        cache_a.revoke("hot", reason="stolen", revoked_by="admin")
+
+        # Worker B sees it WITHOUT waiting for its TTL — via the shared set.
+        assert cache_b.is_revoked("hot") is True
+    finally:
+        eng_a.dispose()
+        eng_b.dispose()
+
+
+def test_db_remains_source_of_truth_bounded_convergence(sqlite_revocation_db):
+    """No shared store: DB is truth; a second worker converges within the TTL.
+
+    Worker A revokes (DB row written). Worker B has a fresh snapshot so does
+    NOT see it yet (bounded staleness); once B's TTL elapses it reloads from
+    the DB — the source of truth — and rejects the jti.
+    """
+    from src.mcp.revocation import DatabaseRevocationStore, RevocationCache
+
+    eng_a = create_engine(f"sqlite:///{sqlite_revocation_db}")
+    eng_b = create_engine(f"sqlite:///{sqlite_revocation_db}")
+    clock_b = {"t": 1000.0}
+    try:
+        cache_a = RevocationCache(
+            DatabaseRevocationStore(engine=eng_a, schema_prefix=""),
+            ttl_seconds=5.0,
+        )
+        cache_b = RevocationCache(
+            DatabaseRevocationStore(engine=eng_b, schema_prefix=""),
+            ttl_seconds=5.0, clock=lambda: clock_b["t"],
+        )
+        assert cache_b.is_revoked("hot") is False  # warm B's snapshot
+
+        cache_a.revoke("hot", reason="stolen", revoked_by="admin")
+
+        # Within B's TTL: not yet visible (bounded staleness).
+        clock_b["t"] = 1003.0
+        assert cache_b.is_revoked("hot") is False
+        # After B's TTL: reload from the DB (source of truth) → revoked.
+        clock_b["t"] = 1006.0
+        assert cache_b.is_revoked("hot") is True
+    finally:
+        eng_a.dispose()
+        eng_b.dispose()
+
+
+def test_shared_store_unreachable_fails_soft_to_db(sqlite_revocation_db):
+    """A broken shared set degrades to DB+local — no crash, still correct."""
+    from src.mcp.revocation import DatabaseRevocationStore, RevocationCache
+
+    shared = _SharedSet()
+    shared.raise_on = {"add", "contains"}
+    eng = create_engine(f"sqlite:///{sqlite_revocation_db}")
+    try:
+        cache = RevocationCache(
+            DatabaseRevocationStore(engine=eng, schema_prefix=""),
+            ttl_seconds=60.0, shared_set=shared,
+        )
+        # Revoke must still persist to the DB even though the shared add raises.
+        cache.revoke("hot", reason="stolen", revoked_by="admin")
+        # is_revoked must not crash on the shared contains() error; the local
+        # snapshot (invalidated by revoke) reloads from the DB and finds it.
+        assert cache.is_revoked("hot") is True
+    finally:
+        eng.dispose()
+
+
+def test_cache_ttl_is_configurable_via_env(monkeypatch):
+    """VALDO_MCP_REVOCATION_CACHE_TTL bounds convergence without a shared store."""
+    from src.mcp import revocation
+
+    monkeypatch.setenv("VALDO_MCP_REVOCATION_CACHE_TTL", "3")
+    assert revocation._resolve_cache_ttl() == 3.0
+
+    monkeypatch.setenv("VALDO_MCP_REVOCATION_CACHE_TTL", "not-a-number")
+    assert revocation._resolve_cache_ttl() == revocation.DEFAULT_CACHE_TTL_SECONDS
+
+
+def test_make_shared_set_defaults_to_none(monkeypatch):
+    """Default (memory/db) backend → no shared set (DB-only propagation)."""
+    from src.mcp import revocation
+
+    monkeypatch.delenv("VALDO_MCP_REVOCATION_BACKEND", raising=False)
+    assert revocation.make_shared_revocation_set() is None
+    monkeypatch.setenv("VALDO_MCP_REVOCATION_BACKEND", "db")
+    assert revocation.make_shared_revocation_set() is None
+
+
+@pytest.mark.skipif(
+    not _HAS_FAKEREDIS, reason="fakeredis (optional test dep) not installed"
+)
+def test_shared_set_against_fakeredis():
+    """SharedRevocationSet add/contains round-trips against a fakeredis client."""
+    import fakeredis
+
+    from src.mcp.revocation import SharedRevocationSet
+
+    client = fakeredis.FakeStrictRedis()
+    shared = SharedRevocationSet(client=client, set_key="test:revoked")
+    assert shared.contains("j1") is False
+    shared.add("j1")
+    assert shared.contains("j1") is True
+    assert shared.contains("j2") is False
