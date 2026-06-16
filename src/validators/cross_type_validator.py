@@ -84,8 +84,22 @@ class CrossTypeValidator:
                 result = method(rule, groups, all_rows_types)
                 violations.extend(result)
             except Exception as exc:
-                _logger.warning(
+                # Fail closed (S16-1, #425): a check that errors must NOT
+                # silently pass (the old blanket warning biased toward valid).
+                # Surface an error-severity violation so ``valid`` reflects it.
+                _logger.error(
                     "cross_type check '%s' raised an exception: %s", rule.check, exc
+                )
+                violations.append(
+                    self._make_violation(
+                        rule,
+                        field=rule.check,
+                        value=None,
+                        message=(
+                            f"cross_type check '{rule.check}' failed to "
+                            f"evaluate: {exc}"
+                        ),
+                    )
                 )
         return violations
 
@@ -257,7 +271,7 @@ class CrossTypeValidator:
         # Compute actual sum across all sum_of fields in count_of rows.
         fields_to_sum = rule.sum_of or ([rule.sum_field] if rule.sum_field else [])
         actual_sum: float = 0.0
-        for row in count_of_rows:
+        for idx, row in enumerate(count_of_rows):
             for field_name in fields_to_sum:
                 raw = self._get_field(row, field_name)
                 if raw is None:
@@ -265,7 +279,24 @@ class CrossTypeValidator:
                 try:
                     actual_sum += float(str(raw).strip())
                 except (ValueError, TypeError):
-                    pass
+                    # Fail closed (S16-1, #425): a detail amount that cannot be
+                    # coerced for the sum must NOT silently vanish (which would
+                    # let a corrupt file pass) — surface it as a violation.
+                    violation = self._make_violation(
+                        rule,
+                        field=field_name,
+                        value=raw,
+                        message=(
+                            f"'{rule.count_of}' row {idx + 1} field "
+                            f"'{field_name}' value '{raw}' could not be coerced "
+                            f"to a number for '{rule.trailer_field}' sum check."
+                        ),
+                        row_number=idx + 1,
+                    )
+                    # Distinct issue code so consumers can tell coercion failures
+                    # apart from a genuine sum mismatch.
+                    violation.issue_code = "CT_UNCOERCIBLE"
+                    violations.append(violation)
 
         for row in type_rows:
             declared = self._get_field(row, rule.trailer_field)

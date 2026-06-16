@@ -231,23 +231,30 @@ class AzureKeyVaultSecretsProvider(SecretsProvider):
 
         Args:
             key: Secret name in the vault.
-            default: Fallback if retrieval fails.
+            default: Fallback returned only when the SDK/HTTP call *succeeds*
+                but the secret value is empty.  A retrieval *error* fails closed
+                (raises ``RuntimeError``) rather than returning *default*.
 
         Returns:
-            Secret value, or *default*.
+            Secret value, or *default* when the value is legitimately empty.
+
+        Raises:
+            RuntimeError: If the configured vault cannot be reached / read
+                (fail closed — S16-1, #425).
         """
         logger.debug("AzureKeyVaultSecretsProvider: reading key=%s", key)
         try:
             if self._use_sdk:
                 return self._get_via_sdk(key)
             return self._get_via_http(key)
-        except Exception:
-            logger.warning(
-                "AzureKeyVaultSecretsProvider: failed to read key=%s, "
-                "returning default",
-                key,
-            )
-            return default
+        except Exception as exc:
+            # Fail closed (S16-1, #425): a configured external provider that
+            # errors must NOT silently degrade to an empty-string default —
+            # that masks an outage and lets the app run without credentials.
+            raise RuntimeError(
+                f"AzureKeyVaultSecretsProvider failed to read key={key!r} "
+                f"(vault_url={self._vault_url!r})"
+            ) from exc
 
     # -- internal ----------------------------------------------------------
 
@@ -355,3 +362,58 @@ def get_secrets_provider() -> SecretsProvider:
         f"Unknown secrets provider: {provider_name!r}.  "
         f"Supported values: env, vault, azure"
     )
+
+
+def _is_external_provider() -> bool:
+    """Return True when a non-default (external) secrets provider is configured.
+
+    The default ``env`` provider is local-dev-friendly and does not fail closed
+    on a normally-unset optional variable.  ``vault`` / ``azure`` are
+    *configured external* providers for which a required-secret failure must be
+    fatal.
+
+    Returns:
+        ``True`` if ``SECRETS_PROVIDER`` selects vault/azure, else ``False``.
+    """
+    return os.getenv("SECRETS_PROVIDER", "env").lower().strip() in {"vault", "azure"}
+
+
+def get_required_secret(key: str, *, default: str = "") -> str:
+    """Resolve a *required* secret, failing closed for configured providers.
+
+    Fail-closed precision (S16-1, #425):
+
+    - With the default ``env`` provider, this behaves like a normal read: an
+      unset optional variable returns *default* (does **not** raise), preserving
+      local development where no external provider is configured.
+    - With a *configured external* provider (``vault`` / ``azure``), any
+      provider error propagates as a :class:`RuntimeError`, and a successful
+      lookup that resolves to an *empty* value for a required secret is also a
+      :class:`RuntimeError` — the app must not silently run without the secret.
+
+    Args:
+        key: The secret key / identifier to resolve.
+        default: Value returned for the ``env`` provider when *key* is unset.
+            Ignored for the fail-closed external-provider path.
+
+    Returns:
+        The resolved secret value (or *default* under the env provider).
+
+    Raises:
+        RuntimeError: When a configured external provider errors, or resolves a
+            required secret to an empty value.
+    """
+    provider = get_secrets_provider()
+    if not _is_external_provider():
+        # Default env provider: optional/unset vars are fine in local dev.
+        return provider.get_secret(key, default=default)
+
+    # Configured external provider: errors already raise (fail closed).  Also
+    # treat an empty resolution of a *required* secret as a hard failure.
+    value = provider.get_secret(key)
+    if not value:
+        raise RuntimeError(
+            f"Required secret {key!r} could not be resolved from the "
+            f"configured secrets provider (fail closed)."
+        )
+    return value

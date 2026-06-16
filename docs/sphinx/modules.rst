@@ -309,6 +309,10 @@ Services
    :members:
    :undoc-members:
 
+.. automodule:: src.services.db_health_service
+   :members:
+   :undoc-members:
+
 .. automodule:: src.services.downloader_logger
    :members:
    :undoc-members:

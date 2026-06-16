@@ -76,7 +76,33 @@ class MultiRecordValidator:
               - ``cross_type_violations`` (list[dict]): Cross-type rule violations.
               - ``valid`` (bool): True when no error-severity violations exist.
         """
-        groups, all_rows_types, total_rows = self._read_and_group(file_path, config)
+        try:
+            groups, all_rows_types, total_rows = self._read_and_group(file_path, config)
+        except MultiRecordReaderError as exc:
+            # Fail closed (S16-1, #425): an unreadable/corrupt file must NOT be
+            # reported as an empty-and-valid pass. Surface an error-severity
+            # violation and force ``valid=False`` so callers keying on ``valid``
+            # see the failure.
+            _logger.error("Cannot read multi-record file '%s': %s", file_path, exc)
+            read_error = RuleViolation(
+                rule_id="MR_UNREADABLE",
+                rule_name="unreadable_input",
+                severity="error",
+                row_number=0,
+                field="file",
+                value=file_path,
+                message=(
+                    f"Multi-record file '{file_path}' could not be read: {exc}"
+                ),
+                issue_code="MR_UNREADABLE",
+            )
+            return {
+                "total_rows": 0,
+                "record_type_results": {},
+                "cross_type_violations": [read_error.to_dict()],
+                "valid": False,
+                "error": str(exc),
+            }
 
         cross_type_violations: List[RuleViolation] = []
 
@@ -178,9 +204,11 @@ class MultiRecordValidator:
         ``_enforce_expect``, ``CrossTypeValidator``) is unchanged.
 
         On a missing or unreadable file the primitive raises
-        :class:`~src.validators.multi_record_reader.MultiRecordReaderError`;
-        this wrapper logs and returns the empty-result tuple ``({}, [], 0)``
-        to match the validator's pre-#21 behaviour for downstream callers.
+        :class:`~src.validators.multi_record_reader.MultiRecordReaderError`.
+        This wrapper deliberately lets that propagate (S16-1, #425): an
+        unreadable/corrupt file must be a hard failure, not an empty-and-valid
+        pass. :meth:`validate` catches it and returns a ``valid=False`` result
+        with an explanatory ``MR_UNREADABLE`` violation.
 
         Args:
             file_path: Path to the data file.
@@ -199,18 +227,17 @@ class MultiRecordValidator:
         groups[_UNKNOWN_TYPE] = []
         all_rows_types: List[Optional[str]] = []
 
-        try:
-            for row in read_multi_record_file(file_path, config):
-                if isinstance(row, ParsedRow):
-                    groups[row.record_type].append(row.raw_line)
-                    all_rows_types.append(row.record_type)
-                else:
-                    # UnknownRecordTypeRow
-                    groups[_UNKNOWN_TYPE].append(row.raw_line)
-                    all_rows_types.append(None)
-        except MultiRecordReaderError as exc:
-            _logger.error("Cannot open file '%s': %s", file_path, exc)
-            return {}, [], 0
+        # MultiRecordReaderError (missing/unreadable/corrupt file) intentionally
+        # propagates to validate(), which converts it into a valid=False result
+        # with an explanatory violation (S16-1, #425).
+        for row in read_multi_record_file(file_path, config):
+            if isinstance(row, ParsedRow):
+                groups[row.record_type].append(row.raw_line)
+                all_rows_types.append(row.record_type)
+            else:
+                # UnknownRecordTypeRow
+                groups[_UNKNOWN_TYPE].append(row.raw_line)
+                all_rows_types.append(None)
 
         return groups, all_rows_types, len(all_rows_types)
 

@@ -280,17 +280,107 @@ class TestAzureKeyVaultSecretsProvider:
         result = provider.get_secret("MY_SECRET")
         assert result == "az-secret-value"
 
-    def test_returns_default_on_error(self) -> None:
-        """Returns default when secret retrieval fails."""
+    def test_raises_on_error_fails_closed(self) -> None:
+        """A configured Azure provider that errors FAILS CLOSED (raises) (S16-1).
+
+        Previously the provider swallowed the error and returned the default
+        (empty string), silently degrading to no credentials. A configured
+        external provider erroring is now a hard failure.
+        """
         provider = AzureKeyVaultSecretsProvider(
             vault_url="https://myvault.vault.azure.net"
         )
         provider._use_sdk = False
 
         with patch("src.utils.secrets.urllib.request.urlopen", side_effect=Exception("fail")):
-            result = provider.get_secret("BAD_KEY", default="safe")
+            with pytest.raises(RuntimeError):
+                provider.get_secret("BAD_KEY", default="safe")
 
-        assert result == "safe"
+
+# ---------------------------------------------------------------------------
+# Fail-closed semantics for CONFIGURED external providers (S16-1, #425)
+# ---------------------------------------------------------------------------
+
+
+class TestFailClosed:
+    """A configured external provider must fail closed; env provider unchanged."""
+
+    def test_env_provider_required_unset_optional_unchanged(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """get_required_secret on the env provider returns default for an unset var.
+
+        'Fail closed' applies to a configured external provider erroring on a
+        required secret — NOT to the default env provider returning a normally
+        unset optional var. This must NOT raise, preserving local dev.
+        """
+        from src.utils.secrets import get_required_secret
+
+        monkeypatch.delenv("SECRETS_PROVIDER", raising=False)
+        monkeypatch.delenv("SOME_OPTIONAL_VAR", raising=False)
+        assert (
+            get_required_secret("SOME_OPTIONAL_VAR", default="dev-fallback")
+            == "dev-fallback"
+        )
+
+    def test_env_provider_required_present_returns_value(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """get_required_secret returns the env value when set (env provider)."""
+        from src.utils.secrets import get_required_secret
+
+        monkeypatch.delenv("SECRETS_PROVIDER", raising=False)
+        monkeypatch.setenv("PRESENT_REQUIRED", "real")
+        assert get_required_secret("PRESENT_REQUIRED") == "real"
+
+    def test_configured_provider_error_fails_closed(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A configured external provider that errors on a required secret raises."""
+        from src.utils.secrets import get_required_secret
+
+        monkeypatch.setenv("SECRETS_PROVIDER", "vault")
+        monkeypatch.setenv("VAULT_ADDR", "https://vault.example.com")
+        monkeypatch.setenv("VAULT_ROLE_ID", "r")
+        monkeypatch.setenv("VAULT_SECRET_ID", "s")
+        with patch(
+            "src.utils.secrets.urllib.request.urlopen",
+            side_effect=Exception("vault down"),
+        ):
+            with pytest.raises(RuntimeError):
+                get_required_secret("ORACLE_PASSWORD")
+
+    def test_configured_provider_missing_required_fails_closed(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A configured external provider resolving empty for a REQUIRED secret raises."""
+        from src.utils.secrets import get_required_secret
+
+        monkeypatch.setenv("SECRETS_PROVIDER", "vault")
+        monkeypatch.setenv("VAULT_ADDR", "https://vault.example.com")
+        monkeypatch.setenv("VAULT_ROLE_ID", "r")
+        monkeypatch.setenv("VAULT_SECRET_ID", "s")
+
+        auth_response = MagicMock()
+        auth_response.read.return_value = json.dumps(
+            {"auth": {"client_token": "s.tok"}}
+        ).encode()
+        auth_response.__enter__ = lambda s: s
+        auth_response.__exit__ = MagicMock(return_value=False)
+
+        secret_response = MagicMock()
+        secret_response.read.return_value = json.dumps(
+            {"data": {"data": {"OTHER": "x"}}}
+        ).encode()
+        secret_response.__enter__ = lambda s: s
+        secret_response.__exit__ = MagicMock(return_value=False)
+
+        with patch(
+            "src.utils.secrets.urllib.request.urlopen",
+            side_effect=[auth_response, secret_response],
+        ):
+            with pytest.raises(RuntimeError):
+                get_required_secret("ORACLE_PASSWORD")
 
 
 # ---------------------------------------------------------------------------

@@ -299,6 +299,38 @@ class TestRecordGrouping:
 
 
 # ---------------------------------------------------------------------------
+# Unreadable / corrupt input (S16-1, #425)
+# ---------------------------------------------------------------------------
+
+
+class TestUnreadableInput:
+    """An unreadable file must fail, not pass as empty-and-valid (S16-1, #425)."""
+
+    def test_missing_file_returns_invalid_with_error(self):
+        """A non-existent file yields ``valid=False`` plus an explanatory error.
+
+        Regression guard for the fail-open bug where MultiRecordReaderError was
+        swallowed and the validator returned ({}, [], 0) → no violations →
+        ``valid=True``, making a corrupt/unreadable file indistinguishable from
+        a clean pass.
+        """
+        config = _make_config()
+        validator = MultiRecordValidator()
+        result = validator.validate("/no/such/path/does_not_exist_12345.txt", config)
+
+        assert result["valid"] is False, "unreadable file must not validate as valid"
+        # An explanatory error/violation must be surfaced — not empty-and-valid.
+        violations = result.get("cross_type_violations", [])
+        assert any(
+            v.get("issue_code") == "MR_UNREADABLE"
+            or "could not be read" in (v.get("message", "").lower())
+            or "cannot" in (v.get("message", "").lower())
+            for v in violations
+        ), f"expected an explanatory read-failure violation, got {violations}"
+        assert any(v.get("severity") == "error" for v in violations)
+
+
+# ---------------------------------------------------------------------------
 # Unknown record type handling
 # ---------------------------------------------------------------------------
 
@@ -667,6 +699,63 @@ class TestCrossTypeValidator:
         )
         violations = self.validator.validate(groups, [rule], [])
         assert len(violations) >= 1
+
+    def test_header_trailer_sum_uncoercible_detail_surfaces_violation(self):
+        """An uncoercible detail amount must surface a violation, not vanish (S16-1).
+
+        Regression guard: previously ``except (ValueError, TypeError): pass``
+        silently dropped a non-numeric detail value from the computed sum, so a
+        corrupt amount could let a file pass. The uncoercible value must now
+        produce a violation.
+        """
+        groups = {
+            "detail": [
+                {"REC_TYPE": "DTL", "AMOUNT": "100"},
+                {"REC_TYPE": "DTL", "AMOUNT": "NOT_A_NUMBER"},
+            ],
+            "trailer": [{"REC_TYPE": "TRL", "TOTAL": "100"}],
+        }
+        rule = CrossTypeRule(
+            check="header_trailer_sum",
+            record_type="trailer",
+            trailer_field="TOTAL",
+            sum_of=["AMOUNT"],
+            count_of="detail",
+        )
+        violations = self.validator.validate(groups, [rule], [])
+        assert len(violations) >= 1, "uncoercible detail value must surface a violation"
+        assert any(
+            v.issue_code == "CT_UNCOERCIBLE" or "could not" in v.message.lower()
+            or "uncoercible" in v.message.lower() or "non-numeric" in v.message.lower()
+            for v in violations
+        ), f"expected a coercion-failure violation, got {[v.message for v in violations]}"
+
+    def test_check_exception_surfaces_violation(self):
+        """A check that raises must surface a violation, not silently pass (S16-1).
+
+        Regression guard for the blanket ``except Exception -> warning`` in
+        ``validate`` that biased toward valid: an internal error in a check
+        must now produce an error-severity violation so ``valid`` reflects it.
+        """
+        rule = CrossTypeRule(
+            check="header_trailer_sum",
+            record_type="trailer",
+            trailer_field="TOTAL",
+            sum_of=["AMOUNT"],
+            count_of="detail",
+        )
+        # Patch the check method to blow up, simulating an internal failure.
+        from unittest.mock import patch
+
+        with patch.object(
+            CrossTypeValidator,
+            "_check_header_trailer_sum",
+            side_effect=RuntimeError("boom"),
+        ):
+            violations = self.validator.validate({}, [rule], [])
+        assert any(v.severity == "error" for v in violations), (
+            "a check that errors must produce an error-severity violation"
+        )
 
     # ---- header_detail_consistent ------------------------------------------
 

@@ -19,9 +19,22 @@ class ErrorResponse(BaseModel):
 
 
 class HealthResponse(BaseModel):
-    """Model for health check response."""
+    """Model for health check (liveness) response."""
     status: str
     version: str
+    timestamp: str
+
+
+class ReadinessResponse(BaseModel):
+    """Model for the readiness probe response.
+
+    Attributes:
+        ready: ``True`` when the app can serve DB-backed traffic.
+        database_connected: Result of the cheap, bounded DB connectivity probe.
+        timestamp: ISO-8601 UTC timestamp of the check.
+    """
+    ready: bool
+    database_connected: bool
     timestamp: str
 
 

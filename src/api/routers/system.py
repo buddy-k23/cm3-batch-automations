@@ -1,7 +1,12 @@
 """System endpoints - health check and system information."""
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from src.api.models.response import HealthResponse, SystemInfoResponse
+from fastapi.responses import JSONResponse
+from src.api.models.response import (
+    HealthResponse,
+    ReadinessResponse,
+    SystemInfoResponse,
+)
 from datetime import datetime
 from typing import List
 import sys
@@ -10,6 +15,7 @@ from src.api.auth import require_api_key, require_role
 from src.api.models.db_profile import DbProfile
 from src.config.db_connections import get_named_connections
 from src.database.connection import OracleConnection
+from src.services.db_health_service import check_db_connectivity
 from src.services.db_profiles_service import load_profiles, resolve_profile
 from src.services.metrics_registry import METRICS
 
@@ -18,10 +24,16 @@ router = APIRouter()
 
 @router.get("/health", response_model=HealthResponse)
 async def health_check():
-    """
-    Health check endpoint.
-    
-    Returns system status and version information.
+    """Liveness probe — is the process up?
+
+    This is the **liveness** signal: it is intentionally cheap and does NOT
+    touch the database, so a transient DB outage does not flap the load
+    balancer or take the app out of rotation (S16-1, #425).  Use ``/ready``
+    for DB-backed readiness.
+
+    Returns:
+        :class:`~src.api.models.response.HealthResponse` with ``status``,
+        ``version``, and ``timestamp``.
     """
     return HealthResponse(
         status="healthy",
@@ -30,18 +42,48 @@ async def health_check():
     )
 
 
+@router.get("/ready", response_model=ReadinessResponse)
+async def readiness_check():
+    """Readiness probe — can the app serve DB-backed traffic?
+
+    Performs a cheap, bounded ``SELECT 1`` against the configured database
+    adapter (S16-1, #425).  Returns HTTP 200 when the database is reachable and
+    HTTP 503 when it is not, so an orchestrator can stop routing DB-backed
+    traffic without affecting liveness (``/health``).
+
+    No auth required — readiness, like liveness, is an infrastructure signal.
+
+    Returns:
+        :class:`~src.api.models.response.ReadinessResponse`.  HTTP 503 when the
+        database is unreachable.
+    """
+    connected = check_db_connectivity()
+    payload = ReadinessResponse(
+        ready=connected,
+        database_connected=connected,
+        timestamp=datetime.utcnow().isoformat() + "Z",
+    )
+    if not connected:
+        return JSONResponse(status_code=503, content=payload.model_dump())
+    return payload
+
+
 @router.get("/info", response_model=SystemInfoResponse)
 async def system_info(_=Depends(require_api_key)):
-    """
-    Get system information.
-    
-    Returns Python version, API version, and supported formats.
+    """Get system information.
+
+    Returns Python version, API version, supported formats, and the real
+    database-connectivity state from a cheap, bounded probe (S16-1, #425) —
+    no longer a hardcoded ``False``.
+
+    Returns:
+        :class:`~src.api.models.response.SystemInfoResponse`.
     """
     return SystemInfoResponse(
         python_version=f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
         api_version="1.0.0",
         supported_formats=["pipe_delimited", "fixed_width", "csv", "tsv"],
-        database_connected=False  # TODO: Check actual database connection
+        database_connected=check_db_connectivity(),
     )
 
 
