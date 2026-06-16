@@ -126,7 +126,13 @@ bash scripts/valdo-setup.sh --env full-stack --down       # tear it down (keeps 
 bash scripts/valdo-setup.sh --env full-stack --down -v    # tear down + drop the DB volume
 ```
 
-> **Environments:** `--env local` (default, SQLite) and `--env full-stack` (docker-compose: Valdo app + Postgres) are implemented. `--env int` (INT-region Oracle wiring) is a seam reserved for a future sprint — it exits cleanly with a "deferred" note. See `docs/sprints/SPRINT_11_KICKOFF.md`.
+**INT-region (Oracle) scaffold + validate, one command** — creates/validates `.env.int` from the committed `.env.int.example` template, reports any required vars still set to placeholders, and (only when all are set *and* the Oracle DSN is reachable) runs migrations + a connection smoke:
+
+```bash
+bash scripts/valdo-setup.sh --env int           # scaffold .env.int, validate required vars
+```
+
+> **Environments:** `--env local` (default, SQLite), `--env full-stack` (docker-compose: Valdo app + Postgres), and `--env int` (INT-region Oracle **scaffold + validate**) are all implemented. There is no live INT environment in this repo, so `--env int` produces/validates the INT config and connects only if the DSN is reachable — otherwise it prints the remaining steps and exits cleanly. See `docs/sprints/SPRINT_11_KICKOFF.md`.
 
 > **Windows (no WSL):** use `scripts/setup_windows.ps1` (PowerShell) or `setup-windows.bat`. The per-OS scripts (`scripts/setup_mac.sh`, `scripts/setup_rhel.sh`, `setup-linux.sh`) remain available but `valdo-setup.sh` is the recommended local entry point.
 

@@ -1,30 +1,39 @@
-"""Contract tests for scripts/valdo-setup.sh (S10-3, #398; S11-2, #400).
+"""Contract tests for scripts/valdo-setup.sh (S10-3, #398; S11-2, #400; S11-3, #401).
 
 These tests assert the single setup script honours its documented contract
 without performing the (slow) full venv build or a live docker-compose run:
 
-  * the deferred ``--env int`` seam exits 0 with a clear "deferred" message and
-    does NOT touch the filesystem;
+  * ``--env int`` is IMPLEMENTED (S11-3): it is no longer "deferred". It
+    scaffolds ``.env.int`` from ``.env.int.example`` (never clobbering),
+    validates the required INT vars are set to non-placeholder values
+    (reporting any missing precisely and exiting non-zero), and only when all
+    are set AND the Oracle DSN is reachable runs migrations + a smoke. Verified
+    here both as static guards on the script text and a live run that asserts
+    the placeholder-template path reports missing vars and exits non-zero;
   * ``--env full-stack`` is IMPLEMENTED (S11-2): it no longer prints "deferred";
     its branch drives docker-compose with a Docker preflight, an ``up -d
     --build``, a wait-for-healthy poll, and a host smoke check (static guards
     on the script text, since a live compose run is verified out-of-band);
   * ``--help`` / ``-h`` print usage and exit 0;
   * an unknown flag and a bad ``--env`` value exit non-zero;
-  * the script never clobbers an existing ``.env`` (static guard);
+  * the script never clobbers an existing ``.env`` / ``.env.int`` (static guards);
   * the script wires the zero-infra SQLite defaults (static guard);
   * the script resolves the repo root from its own location and uses
     ``set -euo pipefail`` (static guards on architecture principle #5 and
-    safe-shell requirements).
+    safe-shell requirements);
+  * the committed ``.env.int.example`` carries placeholders only — no real
+    secret / high-entropy value (Sprint 11 HIGH-impact risk).
 
-The full venv + migration + ``valdo info`` local path and the live
-docker-compose full-stack bring-up are verified manually in the implementation
-runs (documented in CHANGELOG / the story write-ups); they are intentionally
-NOT executed here to keep the unit suite fast and hermetic.
+The full venv + migration + ``valdo info`` local path, the live docker-compose
+full-stack bring-up, and the reachable-Oracle migrate/smoke INT path are
+verified manually in the implementation runs (documented in CHANGELOG / the
+story write-ups); they are intentionally NOT executed here to keep the unit
+suite fast and hermetic.
 """
 
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -33,6 +42,8 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "valdo-setup.sh"
+INT_ENV_EXAMPLE = REPO_ROOT / ".env.int.example"
+INT_CONFIG = REPO_ROOT / "config" / "int.json"
 
 _BASH = shutil.which("bash")
 
@@ -75,14 +86,44 @@ def test_help_exits_zero_and_prints_usage():
         assert "Usage:" in result.stdout
 
 
-def test_env_int_is_deferred_and_touches_nothing(tmp_path):
-    # Run in an empty scratch dir; a deferred path must not create files.
-    result = _run(["--env", "int"], cwd=tmp_path)
-    assert result.returncode == 0, result.stderr
-    assert "deferred" in result.stdout.lower()
-    # No .env / .venv / dirs created by the deferred path.
-    assert not (tmp_path / ".env").exists()
-    assert not (tmp_path / ".venv").exists()
+def test_env_int_scaffolds_and_reports_placeholders(tmp_path):
+    """``--env int`` from the placeholder template reports missing vars + exits non-zero.
+
+    The script resolves PROJECT_ROOT from its own location and operates on the
+    repo-root ``.env.int``, so we back up / restore any real ``.env.int`` the
+    developer may have, and remove it first so the run scaffolds a fresh one
+    from the committed placeholder template.
+    """
+    int_env = REPO_ROOT / ".env.int"
+    backup = tmp_path / "env.int.backup"
+    had_existing = int_env.exists()
+    if had_existing:
+        shutil.copy2(int_env, backup)
+    try:
+        int_env.unlink(missing_ok=True)
+        result = _run(["--env", "int"], cwd=REPO_ROOT)
+        # Placeholder template => required vars unset => non-zero exit.
+        assert result.returncode != 0, result.stdout + result.stderr
+        out = result.stdout + result.stderr
+        # The scaffold step created .env.int from the example.
+        assert ".env.int" in out
+        assert int_env.exists(), "the run must scaffold a fresh .env.int"
+        # The placeholder Oracle creds + signing keys are reported as missing.
+        for var in (
+            "ORACLE_USER",
+            "ORACLE_PASSWORD",
+            "ORACLE_DSN",
+            "VALDO_MCP_TOKEN_SIGNING_KEY",
+            "VALDO_SESSION_SIGNING_KEY",
+        ):
+            assert var in out, f"{var} must be reported as still-placeholder"
+        assert "complete .env.int" in out.lower()
+        # It is no longer the old "deferred" seam.
+        assert "deferred" not in result.stdout.lower()
+    finally:
+        int_env.unlink(missing_ok=True)
+        if had_existing:
+            shutil.move(str(backup), str(int_env))
 
 
 def test_env_full_stack_is_implemented_not_deferred():
@@ -132,21 +173,93 @@ def test_full_stack_documents_teardown():
     assert "down -v" in text
 
 
-def test_env_int_is_implemented_message_lists_only_int_as_deferred():
-    """The int deferred message must no longer call full-stack deferred."""
-    result = _run(["--env", "int"], cwd=REPO_ROOT)
-    assert result.returncode == 0, result.stderr
-    out = result.stdout.lower()
-    assert "deferred" in out
-    # full-stack is now implemented; the int message advertises it, but must
-    # not describe full-stack itself as deferred.
-    assert "full-stack" not in out or "implemented" in out
+def test_env_int_is_implemented_not_deferred():
+    """``--env int`` is wired to the INT scaffold+validate flow, not deferred.
+
+    Static guards on the script text: the int branch dispatches to ``run_int``
+    (the scaffold/validate/reachability orchestrator), scaffolds ``.env.int``
+    from ``.env.int.example`` without clobbering, validates required vars, and
+    does a bounded reachability check before any migrate. No env value is
+    "deferred" any more.
+    """
+    text = SCRIPT.read_text(encoding="utf-8")
+    assert "run_int" in text
+    assert ".env.int.example" in text
+    assert "int_validate_required" in text
+    assert "int_dsn_reachable" in text
+    assert "alembic upgrade head" in text
+    # No-clobber on the INT env file.
+    assert 'if [ -f "$INT_ENV_FILE" ]; then' in text
+    # The old standalone "deferred" int echo is gone.
+    assert "setup is deferred to a future sprint" not in text
 
 
-def test_env_equals_form_is_accepted():
-    result = _run(["--env=int"], cwd=REPO_ROOT)
+def test_no_env_value_is_deferred_in_help():
+    """The help text no longer marks any --env value as deferred."""
+    result = _run(["--help"], cwd=REPO_ROOT)
     assert result.returncode == 0, result.stderr
-    assert "deferred" in result.stdout.lower()
+    assert "deferred" not in result.stdout.lower()
+
+
+def test_env_equals_form_is_accepted(tmp_path):
+    """``--env=int`` (equals form) reaches the INT flow (scaffolds .env.int)."""
+    int_env = REPO_ROOT / ".env.int"
+    backup = tmp_path / "env.int.backup"
+    had_existing = int_env.exists()
+    if had_existing:
+        shutil.copy2(int_env, backup)
+    try:
+        int_env.unlink(missing_ok=True)
+        result = _run(["--env=int"], cwd=REPO_ROOT)
+        # Placeholder template => non-zero, and .env.int was scaffolded.
+        assert result.returncode != 0, result.stdout + result.stderr
+        assert int_env.exists()
+    finally:
+        int_env.unlink(missing_ok=True)
+        if had_existing:
+            shutil.move(str(backup), str(int_env))
+
+
+def test_env_int_example_and_config_int_committed():
+    """The committed INT artifacts exist with the expected shape."""
+    assert INT_ENV_EXAMPLE.is_file(), ".env.int.example must be committed"
+    assert INT_CONFIG.is_file(), "config/int.json must be committed"
+    import json
+
+    cfg = json.loads(INT_CONFIG.read_text(encoding="utf-8"))
+    assert cfg["environment"] == "int"
+    # Mirrors the staging.json shape.
+    for section in ("database", "logging", "file_processing"):
+        assert section in cfg
+
+
+def test_env_int_example_has_no_real_secrets():
+    """Sprint 11 HIGH-impact risk: the committed example is placeholders only.
+
+    Every line that assigns a secret-ish variable must carry a placeholder
+    marker (``<...>`` / ``SET_ME``) rather than a real high-entropy value.
+    """
+    text = INT_ENV_EXAMPLE.read_text(encoding="utf-8")
+    secret_keys = (
+        "ORACLE_PASSWORD",
+        "VALDO_SESSION_SIGNING_KEY",
+        "VALDO_MCP_TOKEN_SIGNING_KEY",
+        "VAULT_SECRET_ID",
+    )
+    placeholder = re.compile(r"<[^>]+>|SET_ME", re.IGNORECASE)
+    for line in text.splitlines():
+        stripped = line.lstrip("# ").rstrip()
+        for key in secret_keys:
+            if stripped.startswith(f"{key}="):
+                value = stripped.split("=", 1)[1]
+                assert placeholder.search(value), (
+                    f"{key} in .env.int.example must be a placeholder, "
+                    f"got {value!r}"
+                )
+                # Defensive: no long hex/base64-ish blob (a real key shape).
+                assert not re.search(r"[0-9a-fA-F]{32,}", value), (
+                    f"{key} appears to contain a real high-entropy value"
+                )
 
 
 def test_unknown_flag_exits_nonzero():

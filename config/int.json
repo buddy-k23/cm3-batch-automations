@@ -1,0 +1,18 @@
+{
+  "environment": "int",
+  "database": {
+    "username": "APP_INT",
+    "dsn": "int-db.example.internal:1521/INTPDB1",
+    "encoding": "UTF-8"
+  },
+  "logging": {
+    "level": "INFO",
+    "log_dir": "logs",
+    "log_to_file": true
+  },
+  "file_processing": {
+    "input_dir": "/data/input",
+    "output_dir": "/data/reports",
+    "archive_dir": "/data/archive"
+  }
+}

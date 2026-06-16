@@ -57,6 +57,9 @@ logs/
 # Environment variables
 .env
 .env.local
+# INT-region env: the real file is gitignored, the template is committed.
+.env.int
+!.env.int.example
 
 # LDAPS CA bundles (operator-provided, environment-specific)
 certs/

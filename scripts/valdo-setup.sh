@@ -39,7 +39,22 @@
 #                      by the compose `migrate` service (gates the app); the script
 #                      confirms it completed rather than double-running them.
 #                      `--down` (optionally with `-v`/`--destroy`) tears it down.
-#   --env int          deferred — prints a roadmap note and exits 0 (seam only).
+#   --env int          INT-region Oracle scaffold + config validation (S11-3).
+#                      There is NO live INT environment here, so this is
+#                      scaffold + validate (connect only if reachable):
+#                        - create .env.int from .env.int.example ONLY if missing
+#                          (never clobber); note it if it already exists;
+#                        - validate the required INT vars are set to non-
+#                          placeholder values (Oracle creds/DSN, the MCP + session
+#                          signing keys, and the secrets-provider-specific vars
+#                          when SECRETS_PROVIDER != env). Report any still-
+#                          placeholder/missing vars precisely and exit non-zero;
+#                        - when all required vars are set, do a short, bounded TCP
+#                          reachability check on the Oracle DSN host:port. If
+#                          reachable → `alembic upgrade head` (DB_ADAPTER=oracle)
+#                          + a connection smoke. If NOT reachable → print precise
+#                          next steps (complete network/VPN, then re-run) and exit 0.
+#                      No `--env` value is "deferred" any more.
 #
 # Windows note: this script targets bash environments (incl. WSL and Git Bash).
 # Native Windows users should use scripts/setup_windows.ps1 or setup-windows.bat.
@@ -85,7 +100,13 @@ Options:
                        the valdo service to be healthy, then smoke the health
                        endpoint. Supports `docker compose` (v2) and legacy
                        `docker-compose` (prefers v2). Requires a running Docker daemon.
-  --env int          Deferred to a future sprint (seam only) — exits cleanly.
+  --env int          INT-region Oracle scaffold + config validation. Creates
+                       .env.int from .env.int.example if missing (never clobbers),
+                       validates the required INT vars are set to non-placeholder
+                       values (reports any that are missing and exits non-zero),
+                       and — only when all are set AND the Oracle DSN is reachable
+                       — runs migrations + a connection smoke. If the DSN is not
+                       reachable it prints next steps and exits 0 (scaffold-complete).
   --down             (full-stack only) Tear the compose stack down and exit.
   -v, --destroy      (full-stack only, with --down) Also remove the Postgres
                      data volume (`docker compose down -v`) — drops all data.
@@ -356,6 +377,292 @@ run_fullstack() {
     echo "Postgres data persists in the named volume 'valdo-pgdata' across 'down' (not '-v')."
 }
 
+# =============================================================================
+# INT scaffold + validate (`--env int`, S11-3, #401).
+#
+# No live INT environment exists here, so this path SCAFFOLDS the INT config and
+# VALIDATES it. It connects (migrate + smoke) ONLY when the Oracle DSN is
+# reachable; otherwise it prints precise next steps and exits 0.
+# =============================================================================
+
+INT_ENV_FILE=".env.int"
+INT_ENV_EXAMPLE=".env.int.example"
+
+# Read a KEY=VALUE from the INT env file (last occurrence wins). Strips inline
+# `export ` prefixes and surrounding quotes; ignores comment/blank lines. Prints
+# the value (possibly empty) to stdout. Pure shell — no `source` (so a malformed
+# file can never execute), no new Python deps.
+int_env_get() {
+    local key="$1" file="$2" line val
+    [ -f "$file" ] || return 0
+    # Grab the last non-comment assignment for this exact key.
+    line="$(grep -E "^[[:space:]]*(export[[:space:]]+)?${key}=" "$file" | tail -n 1 || true)"
+    [ -n "$line" ] || return 0
+    val="${line#*=}"
+    # Strip matching surrounding single/double quotes.
+    case "$val" in
+        \"*\") val="${val#\"}"; val="${val%\"}" ;;
+        \'*\') val="${val#\'}"; val="${val%\'}" ;;
+    esac
+    printf '%s' "$val"
+}
+
+# Decide whether a value still counts as "unset" for validation purposes: empty,
+# or still carrying a template placeholder marker (<...> or SET_ME / change-me /
+# your_..._here patterns). Returns 0 (true) when the value is a placeholder.
+int_is_placeholder() {
+    local val="$1"
+    [ -z "$val" ] && return 0
+    case "$val" in
+        *"<"*">"*) return 0 ;;          # <INT_ORACLE_USER>, <SET_ME>, ...
+        *SET_ME*|*set_me*) return 0 ;;
+        *change-me*|*change_me*|*CHANGE-ME*|*CHANGE_ME*) return 0 ;;
+        *your_*_here*|*your-*-here*) return 0 ;;
+    esac
+    return 1
+}
+
+# Validate the required INT vars in $INT_ENV_FILE. Appends the name of every var
+# that is still a placeholder/unset to the global INT_MISSING array. The required
+# set depends on SECRETS_PROVIDER (vault/azure add their own required vars).
+INT_MISSING=()
+int_validate_required() {
+    local file="$1"
+    INT_MISSING=()
+
+    # Always-required core vars.
+    local required=(
+        ORACLE_USER
+        ORACLE_PASSWORD
+        ORACLE_DSN
+        VALDO_MCP_TOKEN_SIGNING_KEY
+        VALDO_SESSION_SIGNING_KEY
+    )
+
+    # Secrets-provider-specific required vars (only when not the plain env provider).
+    local provider
+    provider="$(int_env_get SECRETS_PROVIDER "$file")"
+    provider="$(printf '%s' "$provider" | tr '[:upper:]' '[:lower:]')"
+    case "$provider" in
+        vault)
+            required+=(VAULT_ADDR VAULT_ROLE_ID VAULT_SECRET_ID)
+            ;;
+        azure)
+            required+=(AZURE_VAULT_URL)
+            ;;
+    esac
+
+    local key val
+    for key in "${required[@]}"; do
+        val="$(int_env_get "$key" "$file")"
+        if int_is_placeholder "$val"; then
+            INT_MISSING+=("$key")
+        fi
+    done
+}
+
+# Parse host and port out of an Oracle Easy Connect DSN ("host:port/service",
+# "host/service", or "host:port"). Sets the globals INT_DSN_HOST / INT_DSN_PORT
+# (port defaults to 1521 when absent).
+INT_DSN_HOST=""
+INT_DSN_PORT=""
+int_parse_dsn() {
+    local dsn="$1" hostport
+    # Drop the /service suffix if present.
+    hostport="${dsn%%/*}"
+    if [ "$hostport" != "$dsn" ] || [ "${dsn#*/}" != "$dsn" ]; then
+        :  # had a slash; hostport already trimmed
+    fi
+    case "$hostport" in
+        *:*)
+            INT_DSN_HOST="${hostport%:*}"
+            INT_DSN_PORT="${hostport##*:}"
+            ;;
+        *)
+            INT_DSN_HOST="$hostport"
+            INT_DSN_PORT="1521"
+            ;;
+    esac
+}
+
+# Bounded TCP reachability check for host:port. Portable: prefers bash
+# /dev/tcp with a backgrounded timeout, falls back to the Python stdlib socket
+# (no new deps, no sqlplus required). Returns 0 if a connection opened.
+int_dsn_reachable() {
+    local host="$1" port="$2" timeout_secs="${3:-5}" py="$4"
+    [ -n "$host" ] && [ -n "$port" ] || return 1
+
+    # Prefer Python stdlib socket — uniform timeout semantics across shells.
+    if [ -n "$py" ] && [ -x "$py" ]; then
+        "$py" - "$host" "$port" "$timeout_secs" <<'PY' >/dev/null 2>&1
+import socket, sys
+host, port, timeout = sys.argv[1], int(sys.argv[2]), float(sys.argv[3])
+try:
+    with socket.create_connection((host, port), timeout=timeout):
+        sys.exit(0)
+except OSError:
+    sys.exit(1)
+PY
+        return $?
+    fi
+
+    # Fallback: bash /dev/tcp with a watchdog so we never hang.
+    (
+        exec 3<>"/dev/tcp/${host}/${port}"
+    ) >/dev/null 2>&1 &
+    local pid=$!
+    local waited=0
+    while kill -0 "$pid" 2>/dev/null; do
+        if [ "$waited" -ge "$timeout_secs" ]; then
+            kill "$pid" 2>/dev/null || true
+            wait "$pid" 2>/dev/null || true
+            return 1
+        fi
+        sleep 1
+        waited=$((waited + 1))
+    done
+    wait "$pid" 2>/dev/null
+    return $?
+}
+
+# Locate a venv python/alembic if a venv already exists, else fall back to a
+# system python so validation-only runs work without a built venv. Sets the
+# globals INT_PY and INT_ALEMBIC (the latter may be empty if unavailable).
+INT_PY=""
+INT_ALEMBIC=""
+int_resolve_tools() {
+    local candidate
+    if [ -x ".venv/bin/python" ]; then
+        INT_PY=".venv/bin/python"
+        [ -x ".venv/bin/alembic" ] && INT_ALEMBIC=".venv/bin/alembic"
+    elif [ -x ".venv/Scripts/python" ] || [ -f ".venv/Scripts/python" ]; then
+        INT_PY=".venv/Scripts/python"
+        { [ -x ".venv/Scripts/alembic" ] || [ -f ".venv/Scripts/alembic" ]; } && INT_ALEMBIC=".venv/Scripts/alembic"
+    else
+        for candidate in python3.13 python3.12 python3.11 python3 python; do
+            if command -v "$candidate" >/dev/null 2>&1; then
+                INT_PY="$(command -v "$candidate")"
+                break
+            fi
+        done
+    fi
+}
+
+# Orchestrate the INT scaffold + validate flow.
+run_int() {
+    cd "$PROJECT_ROOT"
+    echo "========================================="
+    echo " Valdo — INT scaffold + config validation"
+    echo "========================================="
+    echo "Repo root: ${PROJECT_ROOT}"
+    echo ""
+
+    # [1/3] Scaffold .env.int (never clobber).
+    echo "[1/3] Scaffolding ${INT_ENV_FILE}..."
+    if [ -f "$INT_ENV_FILE" ]; then
+        echo "      ${INT_ENV_FILE} already exists — leaving it untouched (no clobber)."
+    elif [ -f "$INT_ENV_EXAMPLE" ]; then
+        cp "$INT_ENV_EXAMPLE" "$INT_ENV_FILE"
+        echo "      Created ${INT_ENV_FILE} from ${INT_ENV_EXAMPLE}."
+        echo "      NOTE: it is filled with PLACEHOLDERS — complete it before INT use."
+    else
+        echo "ERROR: ${INT_ENV_EXAMPLE} not found — cannot scaffold ${INT_ENV_FILE}." >&2
+        echo "Restore the committed template and re-run." >&2
+        exit 1
+    fi
+
+    # [2/3] Validate required vars are set to non-placeholder values.
+    echo "[2/3] Validating required INT variables in ${INT_ENV_FILE}..."
+    int_validate_required "$INT_ENV_FILE"
+    if [ "${#INT_MISSING[@]}" -gt 0 ]; then
+        echo ""
+        echo "      The following required INT variables are still unset or carry a"
+        echo "      placeholder value and MUST be completed:"
+        local key
+        for key in "${INT_MISSING[@]}"; do
+            echo "        - ${key}"
+        done
+        echo ""
+        echo "ERROR: ${INT_ENV_FILE} is incomplete (${#INT_MISSING[@]} required var(s) still placeholder/unset)." >&2
+        echo "Next steps:" >&2
+        echo "  1. Edit ${PROJECT_ROOT}/${INT_ENV_FILE} and set the variables listed above" >&2
+        echo "     to real INT values (signing keys: python -c \"import secrets; print(secrets.token_hex(32))\")." >&2
+        echo "  2. Re-run: bash scripts/valdo-setup.sh --env int" >&2
+        echo "Complete .env.int then re-run." >&2
+        exit 1
+    fi
+    echo "      All required INT variables are set (non-placeholder)."
+
+    # [3/3] Reachability-gated migrate + smoke.
+    echo "[3/3] Checking Oracle DSN reachability..."
+    local dsn
+    dsn="$(int_env_get ORACLE_DSN "$INT_ENV_FILE")"
+    int_parse_dsn "$dsn"
+    echo "      DSN: ${dsn}  (host=${INT_DSN_HOST} port=${INT_DSN_PORT})"
+
+    int_resolve_tools
+    if [ -z "$INT_PY" ]; then
+        echo "      NOTE: no Python interpreter found to perform the reachability probe." >&2
+    fi
+
+    if int_dsn_reachable "$INT_DSN_HOST" "$INT_DSN_PORT" 5 "$INT_PY"; then
+        echo "      Oracle DSN is reachable (TCP connect to ${INT_DSN_HOST}:${INT_DSN_PORT})."
+        int_migrate_and_smoke
+        echo ""
+        echo "========================================="
+        echo " INT setup complete — schema migrated + smoke passed"
+        echo "========================================="
+        exit 0
+    fi
+
+    echo "      Oracle DSN is NOT reachable from here (TCP connect to"
+    echo "      ${INT_DSN_HOST}:${INT_DSN_PORT} failed within the timeout)."
+    echo ""
+    echo "========================================="
+    echo " INT scaffold complete — config validated, DB not reachable"
+    echo "========================================="
+    echo ""
+    echo "This is expected when you are off the INT network. The INT config is"
+    echo "scaffolded and all required variables are set. To finish the bring-up:"
+    echo "  1. Connect to the INT network / VPN so ${INT_DSN_HOST}:${INT_DSN_PORT} is reachable."
+    echo "  2. Re-run: bash scripts/valdo-setup.sh --env int"
+    echo "     (it will then run 'alembic upgrade head' against Oracle and a connection smoke)."
+    echo ""
+    echo "No changes were made to the database; nothing further is required now."
+    exit 0
+}
+
+# Run migrations against INT Oracle then a connection smoke, with the INT env
+# loaded and DB_ADAPTER forced to oracle. Called only when the DSN is reachable.
+int_migrate_and_smoke() {
+    if [ -z "$INT_ALEMBIC" ] && { [ -z "$INT_PY" ] || ! "$INT_PY" -c "import alembic" >/dev/null 2>&1; }; then
+        echo "      NOTE: alembic is not available (no built .venv?). Skipping migrate/smoke."
+        echo "            Run 'bash scripts/valdo-setup.sh' once to build the venv, then re-run --env int."
+        return 0
+    fi
+
+    echo "      Running migrations (alembic upgrade head, Oracle)..."
+    # Load the validated INT env into this subshell only; force the Oracle
+    # adapter. We export every non-comment assignment from .env.int.
+    if [ -n "$INT_ALEMBIC" ]; then
+        ( set -a; . "./${INT_ENV_FILE}"; set +a; DB_ADAPTER=oracle "$INT_ALEMBIC" upgrade head )
+    else
+        ( set -a; . "./${INT_ENV_FILE}"; set +a; DB_ADAPTER=oracle "$INT_PY" -m alembic upgrade head )
+    fi || {
+        echo "ERROR: 'alembic upgrade head' against INT Oracle failed. See output above." >&2
+        exit 1
+    }
+    echo "      Migrations applied."
+
+    echo "      Connection smoke (oracledb thin connect)..."
+    if [ -n "$INT_PY" ]; then
+        ( set -a; . "./${INT_ENV_FILE}"; set +a; DB_ADAPTER=oracle "$INT_PY" -c \
+            "from src.config.db_config import get_connection; c=get_connection(); c.close(); print('ok')" ) \
+            && echo "      Connection smoke OK." \
+            || { echo "ERROR: INT Oracle connection smoke failed." >&2; exit 1; }
+    fi
+}
+
 # --- Environment dispatch ----------------------------------------------------
 case "$ENV_TARGET" in
     local)
@@ -365,11 +672,7 @@ case "$ENV_TARGET" in
         exit 0
         ;;
     int)
-        echo "The '--env int' setup is deferred to a future sprint."
-        echo "Implemented today: '--env local' (SQLite, zero infra) and"
-        echo "'--env full-stack' (docker-compose: Valdo app + Postgres)."
-        echo "See docs/sprints/SPRINT_11_KICKOFF.md (\"After Sprint 11\" roadmap):"
-        echo "  - int: INT-region Oracle wiring (scaffold + validate)"
+        run_int
         exit 0
         ;;
     *)
@@ -558,4 +861,4 @@ echo "       python3 -m pytest tests/unit/ -q"
 echo ""
 echo "Local DB: SQLite at ${PROJECT_ROOT}/${DB_PATH:-valdo.db} (no external Oracle needed)."
 echo "Want Postgres? Run: bash scripts/valdo-setup.sh --env full-stack (docker-compose)."
-echo "For the INT environment, see docs/INSTALL.md (deferred this sprint)."
+echo "For the INT environment (Oracle scaffold + validate): bash scripts/valdo-setup.sh --env int"

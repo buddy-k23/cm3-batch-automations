@@ -35,15 +35,56 @@ valdo serve                      # Web UI at http://localhost:8000/ui
 
 - `--env local` (default, SQLite) and `--env full-stack` (docker-compose:
   Valdo app + Postgres — see the [Full-stack section](#full-stack-docker-compose--valdo-app--postgres) below) are implemented.
-- `--env int` (INT-region Oracle wiring) is a seam reserved for a future sprint
-  and exits cleanly with a "deferred" message (see `docs/sprints/SPRINT_11_KICKOFF.md`).
+- `--env int` (INT-region Oracle **scaffold + validate** — see the
+  [INT section](#int-region-oracle-scaffold--validate) below) is implemented.
 - Native Windows (no WSL): use `scripts/setup_windows.ps1` or `setup-windows.bat`.
 
 > **Local default = SQLite; INT/prod = Oracle.** `valdo-setup.sh` configures
-> SQLite for zero-infra local dev. For Oracle-backed INT/prod, set the
-> `ORACLE_*` / `DB_ADAPTER=oracle` variables in `.env` (see
-> [Configuration](#configuration) and [Database Setup](#database-setup) below);
-> the `--env int` Oracle-wiring path is deferred to a future sprint.
+> SQLite for zero-infra local dev. For Oracle-backed INT, run
+> `bash scripts/valdo-setup.sh --env int` (scaffold + validate; see below), or
+> set the `ORACLE_*` / `DB_ADAPTER=oracle` variables in `.env` manually (see
+> [Configuration](#configuration) and [Database Setup](#database-setup) below).
+
+## INT-region (Oracle) scaffold + validate
+
+`bash scripts/valdo-setup.sh --env int` produces and validates the INT-region
+configuration. There is **no live INT environment** in this repository, so the
+path is **scaffold + validate** — it connects only when the Oracle DSN is
+actually reachable from where you run it:
+
+```bash
+bash scripts/valdo-setup.sh --env int
+```
+
+What it does, in order:
+
+1. **Scaffold** — copies the committed `.env.int.example` template to `.env.int`
+   **only if `.env.int` is missing** (it never clobbers an existing one; it
+   prints a note when one already exists). `.env.int` is gitignored; the
+   `.env.int.example` template is committed and contains **placeholders only —
+   never a real secret**.
+2. **Validate** — reads `.env.int` and checks the required INT variables are set
+   to non-placeholder values: `ORACLE_USER`, `ORACLE_PASSWORD`, `ORACLE_DSN`,
+   `VALDO_MCP_TOKEN_SIGNING_KEY`, `VALDO_SESSION_SIGNING_KEY` (plus the
+   secrets-provider-specific vars — `VAULT_*` or `AZURE_VAULT_URL` — when
+   `SECRETS_PROVIDER` is not `env`). It prints a **precise list** of any vars
+   still set to a placeholder/unset and, if any are missing, **exits non-zero**
+   with "complete `.env.int` then re-run" guidance.
+3. **Reachability-gated migrate + smoke** — when all required vars are set, it
+   does a short, bounded TCP connect to the host:port parsed from `ORACLE_DSN`.
+   - **Reachable** → runs `alembic upgrade head` (with `.env.int` loaded and
+     `DB_ADAPTER=oracle`) and an `oracledb` thin-mode connection smoke.
+   - **Not reachable** (e.g. you are off the INT network / VPN) → prints the
+     remaining steps (connect to the INT network, then re-run) and **exits 0**
+     (scaffold complete; no DB changes made).
+
+The flow is idempotent and safe to re-run. Generate signing keys with
+`python -c "import secrets; print(secrets.token_hex(32))"`.
+
+> **Filling `.env.int`:** complete every `<PLACEHOLDER>` / `<SET_ME>` value with
+> a real INT value before INT use. For non-`env` secrets providers, set
+> `SECRETS_PROVIDER=vault` (or `azure`) and uncomment + complete the provider
+> block in the template.
 
 ## Full-stack (docker-compose) — Valdo app + Postgres
 
