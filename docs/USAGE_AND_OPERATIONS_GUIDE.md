@@ -2942,6 +2942,7 @@ DB_ADAPTER=sqlite DB_NAME=test.db valdo extract \
 
 - **CSV-to-CSV reconciliation** -- start from [`templates/etl/csv_file_comparison.yml`](../templates/etl/csv_file_comparison.yml) (worked sample + README under [`templates/etl/csv_file_comparison_sample/`](../templates/etl/csv_file_comparison_sample/) and [`templates/etl/csv_file_comparison_README.md`](../templates/etl/csv_file_comparison_README.md)); see [Choose Your Shape](etl/CHOOSE_YOUR_SHAPE.md) for the full template-by-shape decision tree.
 - **Fixed-width single-record validation** -- start from [`templates/etl/fixed_width_single_record.yml`](../templates/etl/fixed_width_single_record.yml) (worked sample + README under [`templates/etl/fixed_width_single_record_sample/`](../templates/etl/fixed_width_single_record_sample/) and [`templates/etl/fixed_width_single_record_README.md`](../templates/etl/fixed_width_single_record_README.md)) when every line in your fixed-width file carries the same record shape; the 80-char, 10-row sample seeds three primary violations (`FW_FMT_001`, `FW_VAL_001`, `FW_LEN_001`) so you can see the contract end-to-end before adapting it.
+- **DB-to-file reconciliation** -- start from [`templates/etl/db_to_file_reconciliation.yml`](../templates/etl/db_to_file_reconciliation.yml) (worked sample + README under [`templates/etl/db_to_file_reconciliation_sample/`](../templates/etl/db_to_file_reconciliation_sample/) and [`templates/etl/db_to_file_reconciliation_README.md`](../templates/etl/db_to_file_reconciliation_README.md)) when you need to diff a generated output file against the rows a SQL `SELECT` says it should contain. The sample ships both an Oracle and a SQLite extract so BAs can prototype Oracle-free; the worked example is designed to produce **zero violations** -- it's the green-path contract pinned by `tests/unit/test_etl_templates.py`. Drives `valdo db-compare` (`--query-or-table`, `--mapping`, `--actual-file`, `--key-columns`), reading Oracle credentials from `ORACLE_USER` / `ORACLE_PASSWORD` / `ORACLE_DSN`.
 
 The `run-etl-pipeline` command executes multi-gate ETL validation pipelines
 defined in YAML. It is designed for CI/CD integration -- the command exits
@@ -3561,6 +3562,26 @@ volumes:
   uploads:
   reports:
 ```
+
+### MCP BA Workflow — `pick_etl_shape`
+
+The capstone Sprint 7 workflow lets a BA describe their data problem
+in plain English and have an MCP-aware agent pick the right Valdo ETL
+template, walk them through filling it in, and validate before any
+commit.
+
+**End-to-end flow.** Open Claude Desktop (or any MCP-aware client
+wired per [`docs/MCP_CLIENTS.md`](MCP_CLIENTS.md)) and say:
+*"Use the `pick_etl_shape` prompt with description = 'I need to
+compare two CSV exports'."* The agent will fetch the
+`templates://etl/list` catalogue, ask 2-3 clarifying questions, pick
+a template, walk the BA through the `<FILL_IN_*>` placeholders, and
+run `onboard_source_dry_run` (or `compare_two_files` for ad-hoc
+diffs) before any commit. The full BA decision tree is documented at
+[`docs/etl/CHOOSE_YOUR_SHAPE.md`](etl/CHOOSE_YOUR_SHAPE.md) — the
+prompt links to it rather than re-encoding it inline. See
+[`docs/MCP_SERVER.md#prompts`](MCP_SERVER.md) for the operational
+reference and drift-prevention contract.
 
 ### MCP Run State Persistence
 

@@ -147,3 +147,8 @@ _*_report_*/
 tests/manual/valdo_test.db
 tests/manual/*.db-journal
 
+# Regenerable SQLite DB produced by the DB-to-file reconciliation sample
+# driver (templates/etl/db_to_file_reconciliation_sample/build_sample.py).
+templates/etl/db_to_file_reconciliation_sample/sample.db
+templates/etl/db_to_file_reconciliation_sample/*.db-journal
+

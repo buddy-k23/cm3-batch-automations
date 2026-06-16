@@ -1,0 +1,105 @@
+# Valdo template -- DB-to-file reconciliation
+#
+# Use this template when:
+#   - You have a generated output file (CSV, TSV, pipe-delimited, fixed-width)
+#   - You have a SQL query that produces the EXPECTED rows for that file
+#     directly from the system-of-record database
+#   - You want a row-by-row, field-by-field diff between the SQL extract
+#     and the actual file, joined on a known key column
+#
+# How this template is wired:
+#   - Top-level required keys (source, schema_version) load through
+#     src.pipeline.etl_config.SourceConfig.model_validate(...) -- the
+#     same Pydantic contract used for per-source YAMLs in
+#     config/e2e/sources/ and the sibling templates in this directory.
+#     SourceConfig allows extra keys (extra="allow"), so the
+#     reconciliation-specific blocks below are first-class additive
+#     metadata for BAs and the CLI / service driver.
+#   - Filled-in example below references the sample under
+#     templates/etl/db_to_file_reconciliation_sample/.
+#   - Replace every <FILL_IN_*> marker with your value, then run:
+#       valdo db-compare \
+#         --query-or-table "$(cat <this_dir>/extract.sql)" \
+#         --mapping        <this_dir>/mapping.json \
+#         --actual-file    <path/to/output.txt> \
+#         --key-columns    <comma-separated-key-cols> \
+#         --output         reports/db_recon.json
+#
+# Where does this template fit? See docs/etl/CHOOSE_YOUR_SHAPE.md
+# (Shape 4 -- DB-to-file reconciliation).
+#
+# Note on backends. The committed CLI (`valdo db-compare`) connects to
+# Oracle via ORACLE_USER / ORACLE_PASSWORD / ORACLE_DSN environment
+# variables. The sample under db_to_file_reconciliation_sample/ ships
+# two SQL files -- extract.oracle.sql and extract.sqlite.sql -- so a BA
+# can prototype the comparison against a local SQLite database (see the
+# README) before pointing at production Oracle.
+
+# ---------------------------------------------------------------------------
+# Identity -- required by SourceConfig
+# ---------------------------------------------------------------------------
+source: <FILL_IN_SOURCE_NAME>                # e.g., "CUSTOMER_EXPORT_RECON"
+schema_version: 1                            # Per-source YAML schema version
+description: "Brief one-line description of what this reconciliation proves"
+
+# ---------------------------------------------------------------------------
+# Expected SQL -- the database side of the reconciliation
+#
+# expected_sql:    path to the .sql file containing the SELECT that
+#                  produces one row per record that SHOULD appear in the
+#                  output file. The shape of the result set MUST match
+#                  the file columns declared in `mapping` below (column
+#                  name + order). Use Oracle-quoted aliases ("FIELD-NAME")
+#                  when the file uses punctuation the database won't tolerate.
+# connection_env:  the environment-variable prefix the comparator reads
+#                  to obtain credentials. Defaults to "ORACLE" (so the
+#                  service reads ORACLE_USER / ORACLE_PASSWORD / ORACLE_DSN).
+#                  Leave at the default unless you are running against a
+#                  non-Oracle backend with a custom adapter.
+# ---------------------------------------------------------------------------
+expected_sql:
+  query_file: "<FILL_IN_PATH_TO_EXTRACT_SQL>"   # e.g., "templates/etl/db_to_file_reconciliation_sample/extract.oracle.sql"
+  connection_env: "ORACLE"                      # leave as-is for production Oracle
+
+# ---------------------------------------------------------------------------
+# Output file -- the file side of the reconciliation
+#
+# Each entry declares one logical file_type with its glob pattern and the
+# mapping JSON that describes the per-field shape (column names for
+# delimited files; position + length + data_type for fixed-width).
+#
+# target_staging_table is left empty -- this template covers the
+# DB-extract → file diff, not the file → staging load.
+# ---------------------------------------------------------------------------
+input_files:
+  - file_type: ACTUAL                          # logical label for the produced file
+    glob: "<FILL_IN_OUTPUT_GLOB>"              # e.g., "*_customer_export_*.txt"
+    mapping: "<FILL_IN_PATH_TO_MAPPING_JSON>"  # column-name & type contract
+    target_staging_table: ""                   # leave empty for DB-to-file recon
+
+# ---------------------------------------------------------------------------
+# Reconciliation settings -- how DB rows are matched to file rows
+#
+# key_columns:    column(s) used as the join key; must exist in BOTH the
+#                 SQL result set AND the file mapping.
+# ignored_fields: columns to skip during the diff (e.g., load timestamps,
+#                 run IDs that legitimately differ between DB and file).
+# case_sensitive: when false, string values are compared after .casefold()
+# trim_whitespace: when true, leading/trailing whitespace is stripped before
+#                 comparison (recommended for fixed-width-exported files).
+# ---------------------------------------------------------------------------
+reconciliation:
+  key_columns: [<FILL_IN_KEY_COLUMNS>]         # e.g., [CUSTOMER_ID]
+  ignored_fields: []                           # e.g., [LOAD_TIMESTAMP, RUN_ID]
+  case_sensitive: true
+  trim_whitespace: true
+
+# ---------------------------------------------------------------------------
+# Numeric tolerance -- optional per-column wiggle room
+#
+# Use when a column is a known floating-point or rounded amount that may
+# legitimately differ by sub-cent values between the SQL projection and
+# the file. Omit the block (or leave it empty) for strict exact-match.
+# ---------------------------------------------------------------------------
+tolerance:
+  numeric_columns: {}                          # e.g., {BALANCE: 0.01, RATE: 0.0001}

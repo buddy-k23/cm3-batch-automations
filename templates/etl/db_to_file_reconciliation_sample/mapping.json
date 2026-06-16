@@ -1,0 +1,46 @@
+{
+  "mapping_name": "db_to_file_reconciliation_sample",
+  "version": "1.0.0",
+  "description": "Sample column-name mapping for the DB-to-file reconciliation template. The four columns mirror the SAMPLE_CUSTOMER table seeded by build_sample.py and the SELECT in extract.sqlite.sql / extract.oracle.sql. CUSTOMER_ID is the join key.",
+  "source": {
+    "type": "database",
+    "format": "query"
+  },
+  "target": {
+    "type": "file",
+    "format": "pipe_delimited",
+    "encoding": "UTF-8",
+    "delimiter": "|"
+  },
+  "fields": [
+    {
+      "name": "CUSTOMER_ID",
+      "target_name": "CUSTOMER_ID",
+      "data_type": "string",
+      "required": true,
+      "description": "Customer identifier -- the join key for reconciliation"
+    },
+    {
+      "name": "NAME",
+      "target_name": "NAME",
+      "data_type": "string",
+      "required": true,
+      "description": "Customer full name"
+    },
+    {
+      "name": "EMAIL",
+      "target_name": "EMAIL",
+      "data_type": "string",
+      "required": false,
+      "description": "Customer email address"
+    },
+    {
+      "name": "BALANCE",
+      "target_name": "BALANCE",
+      "data_type": "number",
+      "required": true,
+      "description": "Account balance in account currency"
+    }
+  ],
+  "key_columns": ["CUSTOMER_ID"]
+}

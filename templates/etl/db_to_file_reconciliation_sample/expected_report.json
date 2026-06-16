@@ -1,0 +1,22 @@
+{
+  "workflow": {
+    "status": "passed",
+    "db_rows_extracted": 5,
+    "query_or_table": "extract.sqlite.sql"
+  },
+  "compare": {
+    "only_in_file1": [],
+    "only_in_file2": [],
+    "differences": [],
+    "total_rows_file1": 5,
+    "total_rows_file2": 5,
+    "matching_rows": 5,
+    "rows_with_differences": 0,
+    "field_statistics": {
+      "fields_with_differences": 0,
+      "field_difference_counts": {},
+      "field_difference_types": {},
+      "most_different_field": null
+    }
+  }
+}
