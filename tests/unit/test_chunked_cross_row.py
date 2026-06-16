@@ -10,9 +10,11 @@ import csv
 import json
 from pathlib import Path
 
+import pandas as pd
 import pytest
 
 from src.parsers.chunked_validator import ChunkedFileValidator
+from src.validators.cross_row_validator import CrossRowValidator
 
 
 # ---------------------------------------------------------------------------
@@ -284,3 +286,159 @@ def test_non_chunked_mode_unchanged(tmp_path):
     # large chunk_size = all rows in one chunk → already works
     result = _run(_csv(tmp_path, rows), _rules(tmp_path, rules), chunk_size=1000)
     assert len(result["business_rules"]["violations"]) >= 1
+
+
+# ---------------------------------------------------------------------------
+# Test 7: sequential start/step parity — chunked map-reduce vs single-pass
+# (issue #413 / S14-3)
+# ---------------------------------------------------------------------------
+
+# Chunk size used to split fixtures across multiple partial states so the
+# map-reduce path is genuinely exercised (no single chunk holds a whole group).
+_PARITY_CHUNK_ROWS = 2
+
+
+def _chunked_seq_violations(rule: dict, df: pd.DataFrame, chunk_rows: int) -> list:
+    """Run the chunked map-reduce trio over ``df`` split into ``chunk_rows``-sized chunks.
+
+    Mirrors what :class:`~src.parsers.chunked_validator.ChunkedFileValidator`
+    does internally — collect a partial state per chunk, merge them, then
+    evaluate — so the test asserts parity against the single-pass path without
+    touching files or the file reader.
+
+    Args:
+        rule: Cross-row rule dict (``check == "sequential"``).
+        df: DataFrame to validate.
+        chunk_rows: Number of rows per chunk.
+
+    Returns:
+        List of :class:`~src.validators.rule_engine.RuleViolation` objects from
+        the merged-state evaluation.
+    """
+    validator = CrossRowValidator()
+    partials = [
+        validator.collect_partial_state(rule, df.iloc[i : i + chunk_rows])
+        for i in range(0, len(df), chunk_rows)
+    ]
+    merged = validator.merge_partial_states(rule, partials)
+    return validator.evaluate_merged_state(rule, merged)
+
+
+def _verdict(violations: list) -> set:
+    """Reduce a violation list to a comparable verdict — the set of bad rows.
+
+    Args:
+        violations: List of :class:`~src.validators.rule_engine.RuleViolation`.
+
+    Returns:
+        Set of ``row_number`` ints — order-independent and path-independent.
+    """
+    return {v.row_number for v in violations}
+
+
+def test_sequential_nondefault_start_step_parity():
+    """Chunked verdict must equal single-pass for a NON-default start/step rule.
+
+    Group A is a valid descending run (998, 997, 996); group B is a single row
+    that is not 998. The single-pass path honours ``start=998, step=-1`` and
+    flags only group B. Before the fix the chunked path hardcodes the run
+    ``{1..n}`` and flags BOTH groups; after the fix the verdicts match.
+    """
+    df = pd.DataFrame({
+        "ACCT": ["A", "A", "A", "B"],
+        "REF":  [998, 997, 996, 994],
+    })
+    rule = _make_rule(
+        "sequential", key_field="ACCT", sequence_field="REF",
+        start=998, step=-1,
+    )
+
+    single = CrossRowValidator().validate(rule, df)
+    chunked = _chunked_seq_violations(rule, df, _PARITY_CHUNK_ROWS)
+
+    # Single-pass flags only group B's single row (REF=994 != 998).
+    assert _verdict(single) == {4}
+    assert _verdict(chunked) == _verdict(single)
+
+
+def test_sequential_ascending_from_100_parity():
+    """start=100, step=1 — a valid run is clean in BOTH paths.
+
+    Before the fix the chunked path flags every group (expects {1,2,3}); after
+    the fix it honours start=100 and agrees with the single-pass verdict (no
+    violations).
+    """
+    df = pd.DataFrame({
+        "ACCT": ["A", "A", "A"],
+        "REF":  [100, 101, 102],
+    })
+    rule = _make_rule(
+        "sequential", key_field="ACCT", sequence_field="REF",
+        start=100, step=1,
+    )
+
+    single = CrossRowValidator().validate(rule, df)
+    chunked = _chunked_seq_violations(rule, df, _PARITY_CHUNK_ROWS)
+
+    assert _verdict(single) == set()
+    assert _verdict(chunked) == _verdict(single)
+
+
+def test_sequential_default_start_step_parity():
+    """Default (start=1, step=1) stays green and identical in BOTH paths."""
+    df = pd.DataFrame({
+        "ACCT": ["A", "A", "A", "B", "B"],
+        "REF":  [1, 2, 3, 1, 2],
+    })
+    rule = _make_rule("sequential", key_field="ACCT", sequence_field="REF")
+
+    single = CrossRowValidator().validate(rule, df)
+    chunked = _chunked_seq_violations(rule, df, _PARITY_CHUNK_ROWS)
+
+    assert _verdict(single) == set()
+    assert _verdict(chunked) == _verdict(single)
+
+
+def test_sequential_out_of_sequence_flagged_in_both_paths():
+    """A genuinely out-of-sequence group is flagged identically in BOTH paths.
+
+    Group A has a gap (start=100, step=1 expects {100,101,102} but sees
+    {100,101,103}); group B is a valid run. Both paths must flag exactly
+    group A's rows.
+    """
+    df = pd.DataFrame({
+        "ACCT": ["A", "A", "A", "B", "B"],
+        "REF":  [100, 101, 103, 100, 101],
+    })
+    rule = _make_rule(
+        "sequential", key_field="ACCT", sequence_field="REF",
+        start=100, step=1,
+    )
+
+    single = CrossRowValidator().validate(rule, df)
+    chunked = _chunked_seq_violations(rule, df, _PARITY_CHUNK_ROWS)
+
+    # Group A is rows 1-3 (1-indexed); group B (rows 4-5) is clean.
+    assert _verdict(single) == {1, 2, 3}
+    assert _verdict(chunked) == _verdict(single)
+
+
+def _make_rule(check: str, **kwargs) -> dict:
+    """Return a minimal cross_row rule dict for the given check type.
+
+    Args:
+        check: The cross-row check type (e.g. ``"sequential"``).
+        **kwargs: Additional rule keys (e.g. ``key_field``, ``start``).
+
+    Returns:
+        A rule dict suitable for :meth:`CrossRowValidator.validate` and the
+        map-reduce trio.
+    """
+    return {
+        "id": "CR_PARITY",
+        "name": f"test_{check}",
+        "type": "cross_row",
+        "check": check,
+        "severity": "error",
+        **kwargs,
+    }

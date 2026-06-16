@@ -722,9 +722,31 @@ class CrossRowValidator:
         elif check == "sequential":
             key_field = rule.get("key_field", "")
             seq_field = rule.get("sequence_field", "")
+            # Honour the configurable run (start/step) exactly as the
+            # single-pass path does (see :meth:`_check_sequential`), so the
+            # chunked verdict matches single-pass for non-default rules. (#413)
+            try:
+                start = int(rule.get("start", 1))
+                step = int(rule.get("step", 1))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"cross_row rule '{rule.get('id')}' (check=sequential): "
+                    f"'start'/'step' must be integers, got "
+                    f"start={rule.get('start')!r}, step={rule.get('step')!r}"
+                ) from exc
+            if step == 0:
+                raise ValueError(
+                    f"cross_row rule '{rule.get('id')}' (check=sequential): "
+                    f"'step' must be a non-zero integer"
+                )
+            run_desc = (
+                "sequential"
+                if start == 1 and step == 1
+                else f"the run starting {start} step {step}"
+            )
             for k, seq_vals in merged_state.get("groups", {}).items():
                 n = len(merged_state.get("rows", {}).get(k, []))
-                expected = set(range(1, n + 1))
+                expected = {start + step * i for i in range(n)}
                 if set(seq_vals) != expected:
                     for idx in merged_state.get("rows", {}).get(k, []):
                         violations.append(
@@ -733,7 +755,7 @@ class CrossRowValidator:
                                 idx,
                                 seq_field,
                                 None,
-                                f"{description}: '{seq_field}' is not sequential "
+                                f"{description}: '{seq_field}' is not {run_desc} "
                                 f"within '{key_field}'='{k}' group",
                             )
                         )
