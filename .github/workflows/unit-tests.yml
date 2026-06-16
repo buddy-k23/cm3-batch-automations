@@ -1,0 +1,74 @@
+name: Unit tests + coverage gate
+
+# S13.5-5 (Sprint 13.5, #411): run the unit suite (tests/unit/) and the
+# 80% coverage gate (--cov-fail-under=80, configured in pytest.ini) on
+# every PR/push so test results are visible in CI.
+#
+# INFORMATIONAL-FIRST: this job is intentionally non-blocking this sprint.
+# The unit suite has ~27 known env-bound failures, and going red on those
+# would block every PR. The "Run unit tests + coverage gate" step below
+# carries `continue-on-error: true`, so a red result is reported (and the
+# annotation is visible) but does NOT fail the workflow / block merges.
+#
+# PROMOTION TO A REQUIRED CHECK is tracked by #416 (triage / xfail of the
+# ~27 env-bound failures). Once that lands, drop `continue-on-error` here
+# and add this job to the branch-protection required checks. Mirrors the
+# Sprint 8 drift-check informational-first pattern.
+
+on:
+  pull_request:
+    branches:
+      - valdo-version-v4
+      - main
+  push:
+    branches:
+      - valdo-version-v4
+      - main
+
+jobs:
+  unit-tests:
+    name: Unit tests + coverage gate (informational)
+    runs-on: ubuntu-latest
+
+    # CI-only DUMMY signing key. This is NOT a real secret -- it is a test
+    # value so the ~24 API tests that need a session-cookie signer can run
+    # in CI. CI checkout is clean, so no local .env/valdo.db is present
+    # (those are gitignored), which is exactly the "true baseline" state:
+    # the suite runs without local env overrides. Do not reuse this value
+    # for any real deployment.
+    env:
+      VALDO_SESSION_SIGNING_KEY: ci-dummy-signing-key-not-a-secret
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        # Editable install so `src` imports resolve the same way they do
+        # for local developers. requirements.txt covers the full runtime
+        # (pandas / pydantic / pyyaml / oracledb / fastapi / mcp ...) plus
+        # pytest + pytest-cov, which is everything needed to import src and
+        # run the unit suite. oracledb/pandas ship manylinux wheels, so no
+        # extra system packages are required on ubuntu-latest. Lean by
+        # design: unit tests only -- no server/DB, so integration/e2e are
+        # not installed or run here.
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install -r requirements.txt
+
+      - name: Run unit tests + coverage gate
+        # INFORMATIONAL: continue-on-error keeps a red result visible but
+        # non-blocking while the ~27 env-bound failures are triaged (#416).
+        # The coverage gate (--cov-fail-under=80) is configured in
+        # pytest.ini addopts and applies automatically; --cov=src and
+        # --cov-report=term-missing are passed explicitly per the story.
+        continue-on-error: true
+        run: |
+          pytest tests/unit/ --cov=src --cov-report=term-missing
