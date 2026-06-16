@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- feat(templates): generic DB-to-file reconciliation template + sample (S7-1, #375)
+- feat(mcp): templates://etl/* resources (S7-2, #380)
+- feat(mcp): formats://supported resource enumerates Valdo formats (S7-3, #381)
+- feat(mcp): compare_two_files tool for ad-hoc file diff (S7-4, #382)
+- feat(mcp): pick_etl_shape prompt guides BA to right template (S7-5, #383)
+
 ### Changed
 - MCP run registry persisted to `APP_MCP_RUN_REGISTRY` so
   `validate_file` / `get_run_status` / `get_violations` survive a

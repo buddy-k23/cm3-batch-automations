@@ -1,6 +1,6 @@
-"""MCP prompt templates for Valdo (EF-S6).
+"""MCP prompt templates for Valdo (EF-S6 + S7-5).
 
-This module ships the three named workflow prompts that surface in MCP
+This module ships the four named workflow prompts that surface in MCP
 clients (Claude Desktop, mcp-cli, etc.) and guide an agent through the
 correct Valdo tool-call sequence for the most common BA / SRE flows:
 
@@ -18,6 +18,15 @@ correct Valdo tool-call sequence for the most common BA / SRE flows:
   sample file. Wraps ``infer_mapping_from_sample`` and walks the user
   through inferred fields, flagging low-confidence ``FIELD_NNN``
   placeholders that didn't get header-sniffed.
+
+* :func:`build_pick_etl_shape_messages` — BA-facing demo entry-point
+  (S7-5, #383). Given a free-text problem description, instructs the
+  agent to fetch ``templates://etl/list``, ask 2-3 clarifying
+  questions, recommend a shape, fetch the matching
+  ``templates://etl/<shape>``, and validate via
+  ``onboard_source_dry_run`` (or ``compare_two_files`` for ad-hoc
+  diffs) before any commit. Closes the BA decision-tree loop captured
+  in ``docs/etl/CHOOSE_YOUR_SHAPE.md``.
 
 Design notes
 ------------
@@ -42,14 +51,23 @@ Tool / resource name discipline
 The prompt bodies reference Valdo tool and resource names verbatim:
 
 * Tools: ``upload_workbook_as_spec``, ``onboard_source_dry_run``,
-  ``get_run_status``, ``get_violations``, ``infer_mapping_from_sample``.
-* Resources: ``taxonomy://violations``.
+  ``get_run_status``, ``get_violations``, ``infer_mapping_from_sample``,
+  ``compare_two_files``.
+* Resources: ``taxonomy://violations``, ``templates://etl/list``,
+  ``templates://etl/<shape>``.
+
+To prevent drift, the tool names and resource URIs referenced by the
+S7-5 ``pick_etl_shape`` prompt are kept as module-level constants
+(``_TOOL_*`` and ``_RES_*``) and interpolated into the prompt body
+rather than hand-typed inline. A rename in :mod:`src.mcp.server` (the
+registration source of truth) only requires touching the corresponding
+constant here, and the integration tests will fail fast on mismatch.
 
 The integration test suite
 (``tests/integration/test_mcp_prompts.py``) asserts these strings appear
-in the rendered messages, so any tool rename in EF-S2/4/5 will fail
-the test fast and force a coordinated prompt update — no silent drift
-between the registered tool surface and the prompt instructions.
+in the rendered messages, so any tool rename in EF-S2/4/5/S7-4 will
+fail the test fast and force a coordinated prompt update — no silent
+drift between the registered tool surface and the prompt instructions.
 """
 
 from __future__ import annotations
@@ -63,10 +81,26 @@ __all__ = [
     "ONBOARD_NEW_SOURCE_DESCRIPTION",
     "DIAGNOSE_VALIDATION_FAILURE_DESCRIPTION",
     "INFER_FIELD_MAP_DESCRIPTION",
+    "PICK_ETL_SHAPE_DESCRIPTION",
     "build_onboard_new_source_messages",
     "build_diagnose_validation_failure_messages",
     "build_infer_field_map_messages",
+    "build_pick_etl_shape_messages",
 ]
+
+# ---------------------------------------------------------------------------
+# S7-5 — shared constants for tool / resource names referenced by
+# ``pick_etl_shape``. Kept module-level so a rename in ``src/mcp/server.py``
+# (the registration source of truth) is a single-line edit here, and tests
+# can import these names to assert the prompt body without re-typing the
+# literals. The integration test still asserts the literal substrings so
+# this layer of indirection cannot silently swap a name to a typo'd value.
+# ---------------------------------------------------------------------------
+_TOOL_ONBOARD_SOURCE_DRY_RUN = "onboard_source_dry_run"
+_TOOL_COMPARE_TWO_FILES = "compare_two_files"
+_RES_ETL_TEMPLATES_LIST = "templates://etl/list"
+_RES_ETL_TEMPLATE_PREFIX = "templates://etl/"
+_DECISION_TREE_DOC_PATH = "docs/etl/CHOOSE_YOUR_SHAPE.md"
 
 
 # One-sentence descriptions exposed in MCP clients' prompt pickers. Kept
@@ -88,6 +122,13 @@ INFER_FIELD_MAP_DESCRIPTION = (
     "Infer a draft field mapping from a sample CSV / fixed-width file "
     "and walk the user through the inferred fields, flagging "
     "low-confidence placeholder names."
+)
+
+PICK_ETL_SHAPE_DESCRIPTION = (
+    "Given a free-text description of the BA's data problem, fetch "
+    "the ETL template catalogue, ask 2-3 clarifying questions, "
+    "recommend a template shape, and walk the BA through filling it "
+    "in — validating via onboard_source_dry_run before any commit."
 )
 
 
@@ -262,6 +303,65 @@ def build_infer_field_map_messages(
            `onboard_new_source` flow against the updated workbook.
 
         Tool name is exact: `infer_mapping_from_sample`.
+        """
+    )
+    return [UserMessage(content=body)]
+
+
+def build_pick_etl_shape_messages(description: str) -> List[UserMessage]:
+    """Render the ``pick_etl_shape`` prompt messages (S7-5).
+
+    The S7 capstone prompt. Given a BA's free-text problem description
+    (e.g. ``"I need to compare two CSV exports"``), the rendered
+    messages instruct an agent to:
+
+    1. Fetch ``templates://etl/list`` to see every available shape.
+    2. Ask the BA 2-3 clarifying questions (file vs DB? single record
+       vs multi? key column known?).
+    3. Recommend a template name + one-line reasoning.
+    4. Fetch the recommended ``templates://etl/<shape>`` and walk the
+       BA through filling in the ``<FILL_IN_*>`` placeholders.
+    5. Validate via ``onboard_source_dry_run`` (or
+       ``compare_two_files`` for ad-hoc file diffs) before any commit.
+
+    The body intentionally stays under 1000 characters and points the
+    agent at the human-readable BA decision tree
+    (``docs/etl/CHOOSE_YOUR_SHAPE.md``) rather than re-encoding the
+    table inline — single source of truth, no drift.
+
+    Args:
+        description: Free-text description of the BA's data problem.
+            Surfaced verbatim into the prompt body so the agent reads
+            the same words the BA typed.
+
+    Returns:
+        A list of :class:`UserMessage` instances forming the prompt
+        context.
+    """
+    body = dedent(
+        f"""\
+        BA problem: {description}
+
+        Help the BA pick the right Valdo ETL template:
+
+        1. Fetch `{_RES_ETL_TEMPLATES_LIST}` for the catalogue (each
+           entry has a `shape` + one-line `description`).
+
+        2. Ask 2-3 clarifying questions before recommending: file vs
+           database source? one record type per row or
+           header/detail/trailer? key column(s) known? See
+           `{_DECISION_TREE_DOC_PATH}` for the full decision tree.
+
+        3. Recommend ONE template with one-line reasoning tied to the
+           BA's answers. Do not list every shape — pick one.
+
+        4. Fetch `{_RES_ETL_TEMPLATE_PREFIX}<shape>` for that shape and
+           walk the BA through the `<FILL_IN_*>` placeholders verbatim
+           so they can copy-paste.
+
+        5. Validate the filled-in spec with `{_TOOL_ONBOARD_SOURCE_DRY_RUN}`
+           (or `{_TOOL_COMPARE_TWO_FILES}` for ad-hoc file diffs)
+           BEFORE any commit. Stop and confirm after the dry-run.
         """
     )
     return [UserMessage(content=body)]

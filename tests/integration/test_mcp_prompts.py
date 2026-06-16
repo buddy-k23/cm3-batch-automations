@@ -63,6 +63,7 @@ _EXPECTED_PROMPT_NAMES = sorted([
     "onboard_new_source",
     "diagnose_validation_failure",
     "infer_field_map",
+    "pick_etl_shape",
 ])
 
 
@@ -174,7 +175,13 @@ def _join_prompt_text(get_result: Dict[str, Any]) -> str:
 
 
 def test_mcp_prompts_list_has_three_entries(monkeypatch):
-    """``prompts/list`` returns exactly the three EF-S6 workflow prompts.
+    """``prompts/list`` returns the four registered workflow prompts.
+
+    Three are EF-S6 (``onboard_new_source``,
+    ``diagnose_validation_failure``, ``infer_field_map``); the fourth
+    is ``pick_etl_shape`` added by S7-5 (#383). The test name is kept
+    historical to preserve test history; the set assertion drives the
+    actual contract.
 
     The list is asserted as a sorted name set so the test does not care
     about registration order; each entry must also carry a non-empty
@@ -381,4 +388,145 @@ def test_prompt_with_required_param_missing_raises(monkeypatch):
     err_text = json.dumps(err).lower()
     assert "workbook_path" in err_text or "required" in err_text or "missing" in err_text, (
         f"error envelope did not surface the missing-param cause: {err!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# S7-5 — ``pick_etl_shape`` capstone prompt.
+# ---------------------------------------------------------------------------
+
+
+def test_pick_etl_shape_references_templates_resource(monkeypatch):
+    """``pick_etl_shape`` body references the catalogue + dry-run + compare.
+
+    Acceptance criterion 3 of S7-5 (#383): the prompt body must mention
+    ``templates://etl/list`` so the agent knows where to discover
+    available shapes. We also pin the other load-bearing strings
+    (``templates://etl/``, ``onboard_source_dry_run``, and the S7-4
+    ``compare_two_files`` tool) here because a rename in
+    ``src/mcp/server.py`` should fail this test fast and force a
+    coordinated prompt update — no silent drift.
+
+    The BA-facing decision tree
+    (``docs/etl/CHOOSE_YOUR_SHAPE.md``) is referenced verbatim so the
+    agent can deep-link the BA to the human-readable guide rather
+    than re-encoding it inline; we pin that path too.
+    """
+    monkeypatch.setenv("VALDO_MCP_AUTH", "dev")
+    app = _fresh_app()
+
+    with TestClient(app) as client:
+        init = _rpc(
+            client, "initialize", request_id=1, params=_INIT_PAYLOAD["params"]
+        )
+        assert "result" in init, init
+
+        get_body = _rpc(
+            client,
+            "prompts/get",
+            request_id=2,
+            params={
+                "name": "pick_etl_shape",
+                "arguments": {
+                    "description": "I need a starting template for a new source",
+                },
+            },
+        )
+
+    text = _join_prompt_text(get_body)
+
+    # Catalogue resource — the prompt MUST point the agent here first.
+    assert "templates://etl/list" in text, (
+        f"pick_etl_shape body missing templates://etl/list reference: {text!r}"
+    )
+    # Single-shape URI prefix — the agent fetches one of these after
+    # the catalogue narrowed the choice.
+    assert "templates://etl/" in text, (
+        f"pick_etl_shape body missing templates://etl/<shape> reference: {text!r}"
+    )
+    # Validation gate — the prompt MUST instruct the agent to dry-run
+    # before any commit.
+    assert "onboard_source_dry_run" in text, (
+        f"pick_etl_shape body missing onboard_source_dry_run reference: {text!r}"
+    )
+    # S7-4 ad-hoc compare tool — included so the agent has a path for
+    # BAs whose problem is "diff two files" (no source registration
+    # needed).
+    assert "compare_two_files" in text, (
+        f"pick_etl_shape body missing compare_two_files reference: {text!r}"
+    )
+    # Human-readable BA decision tree pointer — deep-linkable.
+    assert "docs/etl/CHOOSE_YOUR_SHAPE.md" in text, (
+        f"pick_etl_shape body missing CHOOSE_YOUR_SHAPE.md reference: {text!r}"
+    )
+    # The BA's description must surface verbatim into the prompt so
+    # the agent sees the same words the user typed.
+    assert "I need a starting template for a new source" in text, (
+        f"pick_etl_shape body did not interpolate description: {text!r}"
+    )
+
+
+def test_pick_etl_shape_demo_csv_recommends_template_workflow(monkeypatch):
+    """S7-5 demo path: ``description="I need to compare two CSV exports"``.
+
+    Acceptance criterion 4 of S7-5 (#383): invoking the prompt with the
+    canonical CSV problem statement returns messages that instruct the
+    agent to fetch the catalogue and a single-shape template.
+
+    The prompt body is intentionally generic (it does not hardcode
+    ``csv_file_comparison`` — the agent reasons from the catalogue),
+    so the assertion targets the workflow surface rather than a
+    specific template name. The agent — given the BA description, the
+    catalogue, and the dry-run gate — is expected to land on the CSV
+    template, which is what we are demonstrating end-to-end in the
+    Sprint 7 demo.
+    """
+    monkeypatch.setenv("VALDO_MCP_AUTH", "dev")
+    app = _fresh_app()
+
+    with TestClient(app) as client:
+        init = _rpc(
+            client, "initialize", request_id=1, params=_INIT_PAYLOAD["params"]
+        )
+        assert "result" in init, init
+
+        get_body = _rpc(
+            client,
+            "prompts/get",
+            request_id=2,
+            params={
+                "name": "pick_etl_shape",
+                "arguments": {
+                    "description": "I need to compare two CSV exports",
+                },
+            },
+        )
+
+    text = _join_prompt_text(get_body)
+
+    # The BA's problem statement is surfaced verbatim so the agent
+    # reads the same words the BA typed.
+    assert "I need to compare two CSV exports" in text, (
+        f"pick_etl_shape demo body did not interpolate CSV description: {text!r}"
+    )
+    # Step 1: agent must be told to fetch the catalogue.
+    assert "templates://etl/list" in text, (
+        f"pick_etl_shape demo body missing catalogue fetch step: {text!r}"
+    )
+    # Step 4: agent must fetch a specific template body after
+    # narrowing — assert the single-shape URI prefix appears.
+    assert "templates://etl/<shape>" in text, (
+        f"pick_etl_shape demo body missing single-shape template fetch step: {text!r}"
+    )
+    # Step 5: ad-hoc compare path must be advertised because the BA's
+    # problem is a file-diff use case — that is the entire point of
+    # surfacing ``compare_two_files`` alongside ``onboard_source_dry_run``.
+    assert "compare_two_files" in text, (
+        f"pick_etl_shape demo body missing compare_two_files for CSV diff: {text!r}"
+    )
+
+    # Body length budget — keep the prompt scannable. Tight upper bound
+    # so we notice if the prompt drifts into a lecture.
+    assert len(text) < 1000, (
+        f"pick_etl_shape body exceeded 1000-char budget: {len(text)} chars"
     )

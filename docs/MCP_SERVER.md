@@ -17,7 +17,7 @@ see the `tools/list` response or
 
 ## Tools
 
-The MCP server exposes nine tools as of Sprint 5 (EF chain):
+The MCP server exposes ten tools as of Sprint 7:
 
 - `list_sources`, `get_source_spec`, `list_recent_runs` — read-only
   (EF-S2)
@@ -25,9 +25,307 @@ The MCP server exposes nine tools as of Sprint 5 (EF chain):
   (EF-S4)
 - `infer_mapping_from_sample`, `upload_workbook_as_spec`,
   `onboard_source_dry_run` — onboarding (EF-S5)
+- `compare_two_files` — ad-hoc file diff (S7-4)
 
 Each tool's input schema and description are surfaced via the standard
 MCP `tools/list` discovery call.
+
+### Tool: `compare_two_files` (S7-4)
+
+Ad-hoc row-by-row comparison of two files by a declared set of key
+columns. The tool wraps
+[`src/comparators/file_comparator.py::FileComparator`](../src/comparators/file_comparator.py)
+directly so an agent can diff two arbitrary files without first
+registering them as a Valdo source.
+
+**Input parameters**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `left_path` | string | yes | Path to the left-hand file. Extension drives parsing. |
+| `right_path` | string | yes | Path to the right-hand file. Extension drives parsing. |
+| `key_columns` | list[string] | yes | Non-empty list of column names to join on. Every entry must exist in both files' headers. |
+| `mapping_path` | string | no | Path to a mapping JSON. Required when either file is `.txt` (fixed-width). |
+
+**Auto-detection by extension**
+
+| Extension | Behaviour |
+|-----------|-----------|
+| `.csv` | Comma-separated, header row required. Parsed with `pandas.read_csv(sep=",")`. |
+| `.tsv` | Tab-separated, header row required. Parsed with `pandas.read_csv(sep="\t")`. |
+| `.txt` | Fixed-width. `mapping_path` is REQUIRED — the mapping's `fields` array provides field names + lengths. |
+
+The `.csv` branch deliberately bypasses
+[`FormatDetector`](../src/parsers/format_detector.py) because of a known
+routing bug (tracked as S6-2): the detector still funnels `.csv` files
+through `PipeDelimitedParser` with a hardcoded `sep="|"`. When S6-2
+ships, the workaround in `compare_tools.py` can be retired.
+
+**Response shape**
+
+```json
+{
+  "comparison_id": "ab12cd34...",
+  "summary": {
+    "matched": 4,
+    "differing": 1,
+    "only_in_left": 0,
+    "only_in_right": 0
+  },
+  "top_differences": [
+    {
+      "keys": {"id": "3"},
+      "differences": {
+        "balance": {"left": "300.00", "right": "350.00", "type": "value_difference"}
+      },
+      "difference_count": 1
+    }
+  ]
+}
+```
+
+- `comparison_id` is **ephemeral** — minted per call (UUID hex), never
+  persisted. The S7-4 story explicitly placed run history out of scope
+  for ad-hoc compares; clients that need durable history should use
+  `validate_file` + `get_run_status` instead.
+- `top_differences` is capped at 10 entries (`TOP_DIFFERENCES_LIMIT` in
+  [`src/mcp/compare_tools.py`](../src/mcp/compare_tools.py)) to bound the
+  response budget. Larger diffs are still reported via the summary
+  counts; agents needing the full diff should use the CLI / API surface.
+
+**Deviation from the original issue spec**
+
+The S7-4 issue draft includes a `severity_filter` parameter. The
+underlying `FileComparator` does not classify per-row severity — it
+returns a flat list of row-level differences with field-level
+before/after values but no severity bucket. Rather than ship a parameter
+that silently never matches anything, `severity_filter` was dropped from
+the public tool signature. This is documented in
+[`src/mcp/compare_tools.py`](../src/mcp/compare_tools.py)'s module
+docstring.
+
+**Errors**
+
+All failures surface as MCP `ToolError`:
+
+- Missing `left_path` / `right_path`
+- Unsupported extension
+- `.txt` without `mapping_path`
+- Empty / non-list `key_columns`
+- Key column missing from either file's header
+- Malformed mapping JSON (no `fields`, missing `name`/`length`)
+- pandas / `FixedWidthParser` parse failures
+
+---
+
+## Resources
+
+The MCP server exposes the following resource URIs, discoverable via the
+standard `resources/list` call:
+
+### `taxonomy://violations` and `taxonomy://rules` (EF-S3)
+
+Live introspection of the engine's violation kinds (`taxonomy://violations`)
+and rule check names (`taxonomy://rules`). Each entry has `{name,
+description}` (violations) or `{name, category, description}` (rules).
+See [`src/mcp/taxonomy.py`](../src/mcp/taxonomy.py) for the
+introspection sources.
+
+### `templates://etl/*` (S7-2)
+
+Three resources backed by [`src/mcp/resources/etl_templates.py`](../src/mcp/resources/etl_templates.py)
+let agents browse the committed ETL templates under
+[`templates/etl/`](../templates/etl/) without scraping the filesystem.
+The shape list is **auto-discovered on every read** — no template name
+is hardcoded in the server.
+
+| URI                                             | MIME              | Returns                                                                                          |
+|-------------------------------------------------|-------------------|--------------------------------------------------------------------------------------------------|
+| `templates://etl/list`                          | `application/json`| List of `{shape, description}` entries — one per discovered template.                            |
+| `templates://etl/<shape>`                       | `text/yaml`       | The raw YAML body of one template, verbatim (comments and `<FILL_IN_*>` placeholders preserved). |
+| `templates://etl/<shape>/sample`                | `application/json`| Manifest of the paired `<shape>_sample/` directory — file paths, sizes, 200-char text previews.  |
+
+**Description sourcing.** For each discovered template the one-line
+description is resolved in this order: (1) the top-level
+`description:` field in the YAML (the canonical source; modelled by
+`SourceConfig`), (2) the first prose paragraph after the H1 in the
+paired `<shape>_README.md`, (3) the literal placeholder
+`(no description available)` so a missing description is visible
+rather than silently omitted.
+
+**Failure handling.** A template whose YAML fails to validate through
+`src.pipeline.etl_config.SourceConfig.model_validate()` is omitted
+from `templates://etl/list` (and a `WARNING` is logged) so an agent
+never picks up a half-broken shape.
+
+#### Example — list templates
+
+Request (JSON-RPC):
+
+```json
+{"jsonrpc": "2.0", "id": 1, "method": "resources/read",
+ "params": {"uri": "templates://etl/list"}}
+```
+
+Response body (abbreviated):
+
+```json
+[
+  {"shape": "csv_file_comparison",
+   "description": "Brief one-line description of the comparison"},
+  {"shape": "db_to_file_reconciliation",
+   "description": "Brief one-line description of what this reconciliation proves"},
+  {"shape": "fixed_width_single_record",
+   "description": "Brief one-line description of the file being validated"}
+]
+```
+
+#### Example — fetch one template body
+
+Request: `resources/read` with `uri = templates://etl/csv_file_comparison`.
+
+Response: the verbatim text of
+[`templates/etl/csv_file_comparison.yml`](../templates/etl/csv_file_comparison.yml)
+as a single `TextResourceContents.text` field. The agent can paste
+this straight into a working spec.
+
+#### Example — fetch a sample manifest
+
+Request: `resources/read` with `uri = templates://etl/csv_file_comparison/sample`.
+
+Response body:
+
+```json
+{
+  "sample_dir": "templates/etl/csv_file_comparison_sample",
+  "files": [
+    {"path": "expected_report.json", "size_bytes": 1834, "preview": "{\n  \"total_rows_file1\": 5, ..."},
+    {"path": "left.csv",             "size_bytes":  291, "preview": "CUSTOMER_ID,NAME,EMAIL,..."},
+    {"path": "mapping.json",         "size_bytes":  812, "preview": "{\n  \"mapping_name\": \"csv_..."},
+    {"path": "right.csv",            "size_bytes":  293, "preview": "CUSTOMER_ID,NAME,EMAIL,..."}
+  ]
+}
+```
+
+The manifest is intentionally **not** a tarball — large fixtures
+(Excel workbooks, multi-MB CSVs) are listed but not inlined, keeping
+the response budget bounded. Binary files have `"preview": null`.
+
+### `formats://supported` (S7-3)
+
+A single static-URI resource backed by
+[`src/mcp/resources/formats.py`](../src/mcp/resources/formats.py) that
+enumerates every input format Valdo's engine can validate today (each
+with its sprint of introduction and, when one exists, a pointer to
+the matching `templates://etl/<shape>` template) plus the formats
+tracked by open ADR issues.
+
+Source-of-truth is two module-level constants — `SUPPORTED_TODAY` and
+`PLANNED` — at the top of `src/mcp/resources/formats.py`. Adding a
+new format when an ADR closes is a one-line edit there; the resource
+handler does no I/O at request time and needs no other change.
+
+**Response shape:**
+
+```json
+{
+  "supported_today": [
+    {"format": "fixed_width_single", "since": "Sprint 1",
+     "template": "templates://etl/fixed_width_single_record"},
+    {"format": "fixed_width_multi_record", "since": "Sprint 2",
+     "template": null},
+    {"format": "csv", "since": "Sprint 1",
+     "template": "templates://etl/csv_file_comparison"},
+    {"format": "pipe_delimited", "since": "Sprint 1",
+     "template": null},
+    {"format": "db_to_file", "since": "Sprint 3",
+     "template": "templates://etl/db_to_file_reconciliation"}
+  ],
+  "planned": [
+    {"format": "json",
+     "issue": "https://github.com/buddy-k23/valdo/issues/377"},
+    {"format": "xml",
+     "issue": "https://github.com/buddy-k23/valdo/issues/378"},
+    {"format": "db_to_db",
+     "issue": "https://github.com/buddy-k23/valdo/issues/379"}
+  ]
+}
+```
+
+**`template: null` semantics.** A `null` template means the engine
+supports the format (so an agent CAN ask for a validation run) but no
+public `templates/etl/` shape covers it yet — the agent should fall
+back to the inline mapping/rules workflow or to
+`infer_mapping_from_sample`. `pipe_delimited` is the canonical
+worked example: the parser shipped in Sprint 1, but no template
+exists for it.
+
+**Cross-checked at test time.** The integration test
+`tests/integration/test_mcp_formats_resource.py` asserts that every
+non-null `template` URI resolves through `templates://etl/list` and
+that every `planned.issue` URL matches the
+`https://github.com/buddy-k23/valdo/issues/<digits>` shape — a
+placeholder or a typo'd issue number cannot ship without breaking CI.
+
+---
+
+## Prompts
+
+The MCP server exposes four workflow prompts via the standard
+`prompts/list` discovery call. Each prompt is a templated free-text
+instruction set that surfaces in MCP clients' prompt pickers (Claude
+Desktop, mcp-cli, VSCode, etc.) and guides the agent through the
+correct tool-call sequence:
+
+- `onboard_new_source` — sandbox an Excel workbook, dry-run the
+  artefact tree, summarise drift, gate on user confirmation before
+  any write (EF-S6).
+- `diagnose_validation_failure` — triage a failed run by joining
+  `get_run_status` + `get_violations` + the `taxonomy://violations`
+  resource into a top-5 severity-grouped summary (EF-S6).
+- `infer_field_map` — bootstrap a draft mapping from a sample file
+  via `infer_mapping_from_sample`, flagging low-confidence
+  `FIELD_NNN` placeholders (EF-S6).
+- `pick_etl_shape` — BA-facing capstone (S7-5). Takes a free-text
+  problem description and walks the agent through the catalogue →
+  clarifying questions → template recommendation → fill-in → dry-run
+  loop.
+
+### Prompt: `pick_etl_shape` (S7-5)
+
+The BA-facing entry-point for the Sprint 7 demo. Given a free-text
+description of the BA's data problem, the rendered messages instruct
+the agent to:
+
+1. Fetch `templates://etl/list` to see every available shape (the
+   S7-2 auto-discovered catalogue).
+2. Ask 2-3 clarifying questions before recommending — file vs
+   database source? single record type per row or
+   header/detail/trailer? key column(s) known? The BA-readable
+   decision tree is [`docs/etl/CHOOSE_YOUR_SHAPE.md`](etl/CHOOSE_YOUR_SHAPE.md)
+   (deep-linked from the prompt body, not re-encoded inline).
+3. Recommend ONE template with one-line reasoning tied to the BA's
+   answers — not a menu of every shape.
+4. Fetch `templates://etl/<shape>` for the recommended shape and walk
+   the BA through the `<FILL_IN_*>` placeholders verbatim.
+5. Validate the filled-in spec with `onboard_source_dry_run` (or
+   `compare_two_files` for ad-hoc file diffs — the S7-4 path) BEFORE
+   any commit. Stop and confirm after the dry-run.
+
+**Body length budget.** The rendered prompt body stays under 1000
+characters by design — agents read briefly and the LLM does the
+reasoning. The drift-prevention strings (`templates://etl/list`,
+`templates://etl/`, `onboard_source_dry_run`, `compare_two_files`,
+`docs/etl/CHOOSE_YOUR_SHAPE.md`) are kept as module-level constants in
+[`src/mcp/prompts.py`](../src/mcp/prompts.py) so a rename in
+`src/mcp/server.py` only needs touching one constant; the integration
+tests fail fast on any mismatch.
+
+**Invocation example (Claude Desktop / mcp-cli).** "Use the
+`pick_etl_shape` prompt with description = 'I need to compare two
+CSV exports'." The agent fetches the catalogue, asks about key
+columns, and lands on the CSV template — closing the demo loop end
+to end.
 
 ---
 

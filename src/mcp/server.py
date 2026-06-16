@@ -4,27 +4,38 @@ This module wires a Streamable-HTTP MCP server (built on `mcp.server.fastmcp`)
 into the existing FastAPI process. The server registers the following
 capabilities:
 
-* Tools: nine tools total. Three read-only (EF-S2) — ``list_sources``,
+* Tools: ten tools total. Three read-only (EF-S2) — ``list_sources``,
   ``get_source_spec``, ``list_recent_runs``. Three action tools (EF-S4)
   — ``validate_file``, ``get_run_status``, ``get_violations``. Three
   onboarding tools (EF-S5) — ``upload_workbook_as_spec``,
-  ``onboard_source_dry_run``, ``infer_mapping_from_sample``. All wrap
-  the existing Valdo service layer; implementations live in
+  ``onboard_source_dry_run``, ``infer_mapping_from_sample``. One
+  ad-hoc compare tool (S7-4) — ``compare_two_files``. All wrap the
+  existing Valdo service layer; implementations live in
   :mod:`src.mcp.tools` (read-only), :mod:`src.mcp.action_tools`
-  (mutating), and :mod:`src.mcp.onboarding_tools` (onboarding) to keep
-  this module focused on FastMCP registration.
+  (mutating), :mod:`src.mcp.onboarding_tools` (onboarding), and
+  :mod:`src.mcp.compare_tools` (ad-hoc compare) to keep this module
+  focused on FastMCP registration.
 * Resources: ``taxonomy://violations`` and ``taxonomy://rules`` (EF-S3 —
   live introspection of the engine's violation kinds and rule check names;
-  see :mod:`src.mcp.taxonomy`).
-* Prompts: three workflow prompts (EF-S6) — ``onboard_new_source``,
-  ``diagnose_validation_failure``, and ``infer_field_map``. Each is a
-  templated free-text instruction set that surfaces in MCP clients'
-  prompt pickers; implementations live in :mod:`src.mcp.prompts`.
+  see :mod:`src.mcp.taxonomy`), three ``templates://etl/*`` resources
+  (S7-2 — auto-discovered ETL template catalogue, single-shape YAML body,
+  and per-shape sample-directory manifest; see
+  :mod:`src.mcp.resources.etl_templates`), and ``formats://supported``
+  (S7-3 — enumeration of supported + planned input formats, backed by
+  module-level constants in :mod:`src.mcp.resources.formats`).
+* Prompts: four workflow prompts — three from EF-S6
+  (``onboard_new_source``, ``diagnose_validation_failure``,
+  ``infer_field_map``) plus the BA-facing capstone ``pick_etl_shape``
+  added by S7-5. Each is a templated free-text instruction set that
+  surfaces in MCP clients' prompt pickers; implementations live in
+  :mod:`src.mcp.prompts`.
 
 The MCP capability advertisement therefore exposes tools, resources, and
-prompts — ``tools/list`` returns the nine tools (three read-only + three
-action + three onboarding), ``resources/list`` returns the two taxonomy
-URIs, and ``prompts/list`` returns the three EF-S6 workflow prompts.
+prompts — ``tools/list`` returns the ten tools (three read-only + three
+action + three onboarding + one ad-hoc compare), ``resources/list``
+returns the two taxonomy URIs plus the S7-2 / S7-3 ETL surface, and
+``prompts/list`` returns the four workflow prompts (EF-S6 trio + S7-5
+``pick_etl_shape``).
 
 Auth posture (EF-S7 — production bridge):
     The MCP sub-app is protected by :class:`src.mcp.auth.MCPAuthMiddleware`
@@ -71,6 +82,10 @@ from src.mcp.action_tools import (
     get_violations_payload,
     validate_file_payload,
 )
+from src.mcp.compare_tools import (
+    COMPARE_TWO_FILES_DESCRIPTION,
+    compare_two_files_payload,
+)
 from src.mcp.onboarding_tools import (
     INFER_MAPPING_FROM_SAMPLE_DESCRIPTION,
     ONBOARD_SOURCE_DRY_RUN_DESCRIPTION,
@@ -83,10 +98,18 @@ from src.mcp.prompts import (
     DIAGNOSE_VALIDATION_FAILURE_DESCRIPTION,
     INFER_FIELD_MAP_DESCRIPTION,
     ONBOARD_NEW_SOURCE_DESCRIPTION,
+    PICK_ETL_SHAPE_DESCRIPTION,
     build_diagnose_validation_failure_messages,
     build_infer_field_map_messages,
     build_onboard_new_source_messages,
+    build_pick_etl_shape_messages,
 )
+from src.mcp.resources.etl_templates import (
+    list_templates_payload,
+    load_sample_manifest,
+    load_template_yaml,
+)
+from src.mcp.resources.formats import formats_supported_payload
 from src.mcp.taxonomy import list_rule_taxonomy, list_violation_taxonomy
 from src.mcp.tools import (
     GET_SOURCE_SPEC_DESCRIPTION,
@@ -103,6 +126,20 @@ __all__ = ["build_mcp_server", "MCPAuthMiddleware"]
 # them rather than hard-coding string literals).
 TAXONOMY_VIOLATIONS_URI = "taxonomy://violations"
 TAXONOMY_RULES_URI = "taxonomy://rules"
+
+# ETL template resource URIs (S7-2). The two single-shape URIs use the
+# FastMCP ``{shape}`` placeholder convention so a single registered
+# handler covers every auto-discovered template — no per-template
+# registration, no hardcoded shape names.
+ETL_TEMPLATES_LIST_URI = "templates://etl/list"
+ETL_TEMPLATE_BY_SHAPE_URI = "templates://etl/{shape}"
+ETL_TEMPLATE_SAMPLE_URI = "templates://etl/{shape}/sample"
+
+# Supported-formats resource URI (S7-3). A single static URI; the
+# payload is read from module-level constants in
+# :mod:`src.mcp.resources.formats` so adding a new format when an ADR
+# closes is a one-line edit there, not a server-file change.
+FORMATS_SUPPORTED_URI = "formats://supported"
 
 # JSON MIME type advertised on each taxonomy resource — agents that fetch
 # the resource know to ``json.loads`` the text body without sniffing.
@@ -198,7 +235,7 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
             "(EF-S5: upload_workbook_as_spec, onboard_source_dry_run, "
             "infer_mapping_from_sample), and workflow prompts (EF-S6: "
             "onboard_new_source, diagnose_validation_failure, "
-            "infer_field_map) are registered."
+            "infer_field_map; S7-5: pick_etl_shape) are registered."
         ),
         stateless_http=True,
         json_response=True,
@@ -265,6 +302,109 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
     )
     def _rule_taxonomy_resource() -> str:
         return json.dumps(list_rule_taxonomy(), ensure_ascii=False, indent=2)
+
+    # ------------------------------------------------------------------
+    # S7-2 — ETL template resources.
+    #
+    # Three resources back the agent-facing ``templates://etl/*`` surface:
+    #
+    # * ``templates://etl/list``        — JSON listing of every shape +
+    #   one-line description (auto-discovered from templates/etl/*.yml).
+    # * ``templates://etl/{shape}``     — the YAML body of one template,
+    #   returned verbatim (text/yaml) so the agent can paste it into a
+    #   working spec without parsing.
+    # * ``templates://etl/{shape}/sample`` — a JSON manifest of the
+    #   paired <shape>_sample/ directory (file paths + sizes + 200-char
+    #   previews); the manifest is intentionally NOT a tarball so large
+    #   fixtures don't blow the response budget.
+    #
+    # Discovery, validation, and description-sourcing live in
+    # :mod:`src.mcp.resources.etl_templates` — this layer stays a
+    # declarative registration manifest. We do NOT cache the discovery
+    # output: each ``resources/read`` call re-scans the templates
+    # directory so a new template dropped in during a dev cycle is
+    # picked up immediately (same posture as the taxonomy resources).
+    # ------------------------------------------------------------------
+
+    @mcp_server.resource(
+        ETL_TEMPLATES_LIST_URI,
+        name="etl-templates-list",
+        title="Valdo ETL template catalogue",
+        description=(
+            "Live list of ETL template shapes available under "
+            "templates/etl/. Each entry has a 'shape' (the URI suffix "
+            "for templates://etl/<shape>) and a one-line 'description' "
+            "drawn from the template's own 'description:' field. "
+            "Auto-discovered on every read — no hardcoded shape names."
+        ),
+        mime_type=_JSON_MIME,
+    )
+    def _etl_templates_list_resource() -> str:
+        return json.dumps(list_templates_payload(), ensure_ascii=False, indent=2)
+
+    @mcp_server.resource(
+        ETL_TEMPLATE_BY_SHAPE_URI,
+        name="etl-template",
+        title="Valdo ETL template YAML",
+        description=(
+            "Raw YAML body of one ETL template shape. The content is "
+            "returned verbatim — comments, indentation, and "
+            "<FILL_IN_*> placeholders are preserved so the agent can "
+            "surface the template to the user as a copy-pasteable "
+            "starting point."
+        ),
+        mime_type="text/yaml",
+    )
+    def _etl_template_resource(shape: str) -> str:
+        return load_template_yaml(shape)
+
+    @mcp_server.resource(
+        ETL_TEMPLATE_SAMPLE_URI,
+        name="etl-template-sample",
+        title="Valdo ETL template sample directory manifest",
+        description=(
+            "JSON manifest of the paired <shape>_sample/ directory: "
+            "each file's relative path, size in bytes, and a short "
+            "text preview (or null for binary files). The manifest is "
+            "NOT a tarball — large fixtures are listed but not inlined."
+        ),
+        mime_type=_JSON_MIME,
+    )
+    def _etl_template_sample_resource(shape: str) -> str:
+        return json.dumps(
+            load_sample_manifest(shape), ensure_ascii=False, indent=2
+        )
+
+    # ------------------------------------------------------------------
+    # S7-3 — supported-formats resource.
+    #
+    # ``formats://supported`` enumerates every Valdo input format an
+    # agent can ask the engine to validate today, plus the formats
+    # tracked by open ADR issues. Backed by module-level constants in
+    # :mod:`src.mcp.resources.formats` — see that module's docstring for
+    # the source-of-truth contract. The handler does no I/O at request
+    # time, so the response budget is bounded and deterministic.
+    # ------------------------------------------------------------------
+
+    @mcp_server.resource(
+        FORMATS_SUPPORTED_URI,
+        name="formats-supported",
+        title="Valdo supported formats",
+        description=(
+            "Enumeration of every input format Valdo's engine can "
+            "validate today (each with its sprint of introduction "
+            "and, when one exists, a pointer to the matching "
+            "templates://etl/<shape> template) plus the formats "
+            "tracked by open ADR issues. Source-of-truth is "
+            "module-level constants — easy to update when a new "
+            "format lands or an ADR closes."
+        ),
+        mime_type=_JSON_MIME,
+    )
+    def _formats_supported_resource() -> str:
+        return json.dumps(
+            formats_supported_payload(), ensure_ascii=False, indent=2
+        )
 
     # ------------------------------------------------------------------
     # EF-S2 — read-only MCP tools.
@@ -421,6 +561,38 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
         )
 
     # ------------------------------------------------------------------
+    # S7-4 — ad-hoc file-compare action tool.
+    #
+    # ``compare_two_files`` lets an agent diff two arbitrary files by a
+    # declared set of key columns without first registering them as a
+    # Valdo *source*. Auto-detection by extension (.csv / .tsv / .txt);
+    # fixed-width files require a mapping JSON. The tool is a thin
+    # adapter over :class:`src.comparators.file_comparator.FileComparator`
+    # — no business logic lives here. See :mod:`src.mcp.compare_tools`
+    # for the rationale on the ``severity_filter`` parameter being
+    # omitted (the comparator does not classify severity) and the
+    # CSV-routing workaround for the S6-2 bug.
+    # ------------------------------------------------------------------
+
+    @mcp_server.tool(
+        name="compare_two_files",
+        title="Compare two files row-by-row",
+        description=COMPARE_TWO_FILES_DESCRIPTION,
+    )
+    def _compare_two_files_tool(
+        left_path: str,
+        right_path: str,
+        key_columns: List[str],
+        mapping_path: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        return compare_two_files_payload(
+            left_path=left_path,
+            right_path=right_path,
+            key_columns=key_columns,
+            mapping_path=mapping_path,
+        )
+
+    # ------------------------------------------------------------------
     # EF-S6 — workflow prompts.
     #
     # Three templated free-text prompts that surface in MCP clients'
@@ -469,6 +641,27 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
             sample_file_path=sample_file_path,
             file_type=file_type,
         )
+
+    # ------------------------------------------------------------------
+    # S7-5 — BA-facing capstone prompt.
+    #
+    # ``pick_etl_shape`` closes the Sprint 7 demo loop: a BA describes
+    # their data problem in free text and the agent uses the S7-2
+    # template catalogue plus the S7-3 supported-formats resource to
+    # recommend a shape, walk them through filling it in, and validate
+    # via the onboarding dry-run (or compare_two_files for ad-hoc
+    # diffs) before any commit. The body deliberately points at
+    # ``docs/etl/CHOOSE_YOUR_SHAPE.md`` rather than re-encoding the
+    # decision tree inline so there is a single source of truth.
+    # ------------------------------------------------------------------
+
+    @mcp_server.prompt(
+        name="pick_etl_shape",
+        title="Recommend a Valdo ETL template from a BA's description",
+        description=PICK_ETL_SHAPE_DESCRIPTION,
+    )
+    def _pick_etl_shape_prompt(description: str):
+        return build_pick_etl_shape_messages(description=description)
 
     # Materialise the Streamable HTTP transport. This call is what creates
     # the session manager; accessing `mcp_server.session_manager` before

@@ -76,7 +76,9 @@ Automated batch file validation, comparison, and ETL testing tool with multi-dat
 ### For agents / AI clients
 
 Wire Claude Desktop, VSCode Copilot Chat, or GitLab Duo to Valdo's
-9-tool MCP surface:
+10-tool + 4-prompt MCP surface (BAs: try the `pick_etl_shape`
+prompt to get a template recommendation from a free-text problem
+description — S7-5):
 
 | Guide | Description |
 |-------|-------------|

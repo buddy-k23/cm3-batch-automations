@@ -182,21 +182,23 @@ def test_mcp_capabilities_advertise_expected_registries(monkeypatch):
 
     Baseline pinned after each MCP-track story lands:
 
-    * ``tools/list``     — exactly nine entries: three read-only added
+    * ``tools/list``     — exactly ten entries: three read-only added
       by EF-S2 (``list_sources``, ``get_source_spec``,
       ``list_recent_runs``), three action tools added by EF-S4
-      (``validate_file``, ``get_run_status``, ``get_violations``), and
+      (``validate_file``, ``get_run_status``, ``get_violations``),
       three onboarding tools added by EF-S5
       (``upload_workbook_as_spec``, ``onboard_source_dry_run``,
-      ``infer_mapping_from_sample``). Stories EF-S6 and onwards will
+      ``infer_mapping_from_sample``), and one ad-hoc compare tool
+      added by S7-4 (``compare_two_files``). Stories beyond S7 will
       extend this set.
     * ``resources/list`` — exactly two entries, the
       ``taxonomy://violations`` and ``taxonomy://rules`` URIs added by
       EF-S3. Stories EF-S5 and onwards will extend this; this test pins
       the current expected set so accidental drift is caught.
-    * ``prompts/list``   — exactly three entries, the workflow prompts
-      added by EF-S6 (``onboard_new_source``,
-      ``diagnose_validation_failure``, ``infer_field_map``).
+    * ``prompts/list``   — exactly four entries: the three workflow
+      prompts added by EF-S6 (``onboard_new_source``,
+      ``diagnose_validation_failure``, ``infer_field_map``) plus the
+      BA-facing capstone ``pick_etl_shape`` added by S7-5 (#383).
 
     Each ``*/list`` call is sent as its own POST because the scaffold uses
     stateless HTTP (``stateless_http=True``); there is no session token
@@ -237,7 +239,7 @@ def test_mcp_capabilities_advertise_expected_registries(monkeypatch):
             assert "result" in body, f"{method} body missing 'result': {body!r}"
             list_results[method] = body["result"].get(result_key, [])
 
-    # EF-S6 — exactly three workflow prompts. Full message-body
+    # EF-S6 + S7-5 — exactly four workflow prompts. Full message-body
     # assertions live in ``test_mcp_prompts.py``; here we only pin the
     # registry size and prompt names so accidental drift is caught at
     # the registry level.
@@ -246,17 +248,20 @@ def test_mcp_capabilities_advertise_expected_registries(monkeypatch):
         "diagnose_validation_failure",
         "infer_field_map",
         "onboard_new_source",
-    ], f"prompts/list names drifted from EF-S6 baseline: {prompt_names!r}"
+        "pick_etl_shape",
+    ], f"prompts/list names drifted from EF-S6+S7-5 baseline: {prompt_names!r}"
 
-    # EF-S2 + EF-S4 + EF-S5 — exactly nine tools: three read-only,
-    # three action, three onboarding, no more, no less. The full
-    # input-schema shape of each tool is asserted in
+    # EF-S2 + EF-S4 + EF-S5 + S7-4 — exactly ten tools: three read-only,
+    # three action, three onboarding, one ad-hoc compare, no more, no
+    # less. The full input-schema shape of each tool is asserted in
     # ``test_mcp_read_tools.py`` (EF-S2), ``test_mcp_action_tools.py``
-    # (EF-S4), and ``test_mcp_onboarding_tools.py`` (EF-S5); here we
-    # only pin the registry size and tool names so accidental drift is
-    # caught at the registry level.
+    # (EF-S4), ``test_mcp_onboarding_tools.py`` (EF-S5), and
+    # ``test_mcp_compare_tool.py`` (S7-4); here we only pin the
+    # registry size and tool names so accidental drift is caught at
+    # the registry level.
     tool_names = sorted(t["name"] for t in list_results["tools/list"])
     assert tool_names == [
+        "compare_two_files",
         "get_run_status",
         "get_source_spec",
         "get_violations",
@@ -266,13 +271,25 @@ def test_mcp_capabilities_advertise_expected_registries(monkeypatch):
         "onboard_source_dry_run",
         "upload_workbook_as_spec",
         "validate_file",
-    ], f"tools/list names drifted from EF-S2+EF-S4+EF-S5 baseline: {tool_names!r}"
+    ], f"tools/list names drifted from EF-S2+EF-S4+EF-S5+S7-4 baseline: {tool_names!r}"
 
-    # EF-S3 — exactly the two taxonomy resources, no more, no less. The
-    # shape of each entry is asserted in
-    # ``test_mcp_taxonomy_resources.py``; here we only verify the
-    # registry size and URIs so this test stays a focused baseline.
+    # EF-S3 + S7-2 + S7-3 — the static-URI resource baseline.
+    # ``resources/list`` advertises only resources with a fully-qualified
+    # URI; URI-template resources such as ``templates://etl/{shape}`` and
+    # ``templates://etl/{shape}/sample`` (S7-2) appear under the separate
+    # ``resources/templates/list`` endpoint and are NOT enumerated here.
+    # The shape of each entry is asserted in the per-resource integration
+    # tests (``test_mcp_taxonomy_resources.py`` for EF-S3,
+    # ``test_mcp_template_resources.py`` for S7-2,
+    # ``test_mcp_formats_resource.py`` for S7-3); here we only verify
+    # the registry size and URIs so this test stays a focused baseline.
     resource_uris = sorted(r["uri"] for r in list_results["resources/list"])
-    assert resource_uris == ["taxonomy://rules", "taxonomy://violations"], (
-        f"resources/list URIs drifted from EF-S3 baseline: {resource_uris!r}"
+    assert resource_uris == [
+        "formats://supported",
+        "taxonomy://rules",
+        "taxonomy://violations",
+        "templates://etl/list",
+    ], (
+        f"resources/list URIs drifted from EF-S3+S7-2+S7-3 baseline: "
+        f"{resource_uris!r}"
     )
