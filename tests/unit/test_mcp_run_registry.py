@@ -433,3 +433,164 @@ def test_factory_returns_database_when_table_present(monkeypatch, caplog):
 
     assert isinstance(reg, DatabaseRunRegistry)
     assert any("using database backend" in r.message for r in caplog.records)
+
+
+# ---------------------------------------------------------------------------
+# claim_next — atomic queued -> running transition (S9-5, #391, ADR 0021)
+# ---------------------------------------------------------------------------
+
+
+def test_inmemory_claim_next_returns_oldest_queued():
+    """claim_next claims the oldest queued row and flips it to running."""
+    from src.mcp.run_registry import InMemoryRunRegistry, RunRecord
+
+    reg = InMemoryRunRegistry()
+    reg.put(RunRecord(
+        run_id="old", source="SHAW", file_path="/tmp/a.dat", file_type=None,
+        status="queued", started_at="2026-06-15T10:00:00.000000Z",
+    ))
+    reg.put(RunRecord(
+        run_id="new", source="SHAW", file_path="/tmp/b.dat", file_type=None,
+        status="queued", started_at="2026-06-15T10:05:00.000000Z",
+    ))
+
+    claimed = reg.claim_next()
+    assert claimed is not None
+    assert claimed.run_id == "old"
+    assert claimed.status == "running"
+    # The persisted row must reflect the running transition.
+    assert reg.get("old").status == "running"
+
+
+def test_inmemory_claim_next_empty_returns_none():
+    """claim_next on an empty (or no-queued) registry returns None."""
+    from src.mcp.run_registry import InMemoryRunRegistry
+
+    reg = InMemoryRunRegistry()
+    assert reg.claim_next() is None
+
+
+def test_inmemory_claim_next_skips_non_queued():
+    """claim_next ignores running/completed/failed rows."""
+    from src.mcp.run_registry import InMemoryRunRegistry, RunRecord
+
+    reg = InMemoryRunRegistry()
+    reg.put(RunRecord(
+        run_id="r1", source="S", file_path="/tmp/a", file_type=None,
+        status="running", started_at="2026-06-15T10:00:00.000000Z",
+    ))
+    reg.put(RunRecord(
+        run_id="r2", source="S", file_path="/tmp/b", file_type=None,
+        status="completed", started_at="2026-06-15T10:01:00.000000Z",
+    ))
+    assert reg.claim_next() is None
+
+
+def test_inmemory_claim_next_atomicity_two_claimers_one_winner():
+    """Two claims against ONE queued row never return the same job twice.
+
+    Either two distinct jobs are claimed (when >1 queued exist) or one
+    claimer wins and the other gets ``None`` (when exactly one queued
+    exists). This is the in-memory analogue of the DB row-claim race.
+    """
+    from src.mcp.run_registry import InMemoryRunRegistry, RunRecord
+
+    reg = InMemoryRunRegistry()
+    reg.put(RunRecord(
+        run_id="only", source="S", file_path="/tmp/a", file_type=None,
+        status="queued", started_at="2026-06-15T10:00:00.000000Z",
+    ))
+
+    first = reg.claim_next()
+    second = reg.claim_next()
+
+    assert first is not None and first.run_id == "only"
+    assert second is None  # already claimed -> no longer queued
+
+
+def test_db_claim_next_returns_oldest_queued(sqlite_engine):
+    """claim_next on the SQLite backend claims + flips the oldest queued row."""
+    from src.mcp.run_registry import DatabaseRunRegistry, RunRecord
+
+    engine, schema = sqlite_engine
+    reg = DatabaseRunRegistry(engine=engine, schema_prefix=schema)
+
+    reg.put(RunRecord(
+        run_id="old", source="SHAW", file_path="/tmp/a.dat", file_type=None,
+        status="queued", started_at="2026-06-15T10:00:00.000000Z",
+    ))
+    reg.put(RunRecord(
+        run_id="new", source="SHAW", file_path="/tmp/b.dat", file_type=None,
+        status="queued", started_at="2026-06-15T10:05:00.000000Z",
+    ))
+
+    claimed = reg.claim_next()
+    assert claimed is not None
+    assert claimed.run_id == "old"
+    assert claimed.status == "running"
+    assert reg.get("old").status == "running"
+    # The younger row is untouched.
+    assert reg.get("new").status == "queued"
+
+
+def test_db_claim_next_no_queued_returns_none(sqlite_engine):
+    """claim_next returns None when no queued rows exist."""
+    from src.mcp.run_registry import DatabaseRunRegistry, RunRecord
+
+    engine, schema = sqlite_engine
+    reg = DatabaseRunRegistry(engine=engine, schema_prefix=schema)
+
+    reg.put(RunRecord(
+        run_id="done", source="S", file_path="/tmp/a", file_type=None,
+        status="completed", started_at="2026-06-15T10:00:00.000000Z",
+    ))
+    assert reg.claim_next() is None
+
+
+def test_db_claim_next_atomicity_two_claimers_one_winner(sqlite_engine):
+    """Two sequential claims of a single queued row: one wins, one gets None.
+
+    The guarded ``UPDATE ... WHERE status='queued'`` means the second
+    claim sees the row already ``running`` and must not re-claim it — the
+    same job is never handed to two workers.
+    """
+    from src.mcp.run_registry import DatabaseRunRegistry, RunRecord
+
+    engine, schema = sqlite_engine
+    reg = DatabaseRunRegistry(engine=engine, schema_prefix=schema)
+
+    reg.put(RunRecord(
+        run_id="only", source="S", file_path="/tmp/a", file_type=None,
+        status="queued", started_at="2026-06-15T10:00:00.000000Z",
+    ))
+
+    first = reg.claim_next()
+    second = reg.claim_next()
+
+    assert first is not None and first.run_id == "only"
+    assert second is None
+
+
+def test_db_claim_next_two_queued_yields_two_distinct(sqlite_engine):
+    """Two queued rows -> two claims return two DIFFERENT jobs."""
+    from src.mcp.run_registry import DatabaseRunRegistry, RunRecord
+
+    engine, schema = sqlite_engine
+    reg = DatabaseRunRegistry(engine=engine, schema_prefix=schema)
+
+    reg.put(RunRecord(
+        run_id="j1", source="S", file_path="/tmp/a", file_type=None,
+        status="queued", started_at="2026-06-15T10:00:00.000000Z",
+    ))
+    reg.put(RunRecord(
+        run_id="j2", source="S", file_path="/tmp/b", file_type=None,
+        status="queued", started_at="2026-06-15T10:01:00.000000Z",
+    ))
+
+    first = reg.claim_next()
+    second = reg.claim_next()
+    third = reg.claim_next()
+
+    claimed_ids = {first.run_id, second.run_id}
+    assert claimed_ids == {"j1", "j2"}, f"expected both jobs, got {claimed_ids!r}"
+    assert third is None

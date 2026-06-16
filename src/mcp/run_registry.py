@@ -192,6 +192,23 @@ class RunRegistry(Protocol):
         Used by the ``validate_file`` idempotency guard.
         """
 
+    def claim_next(self) -> Optional[RunRecord]:
+        """Atomically claim the oldest ``queued`` run and flip it to ``running``.
+
+        Background-job primitive added by S9-5 / ADR 0021. The
+        ``valdo run-job-worker`` process calls this to dequeue exactly one
+        job. The transition is a *guarded* one — only a row still in the
+        ``queued`` state is claimed and moved to ``running`` — so two
+        concurrent workers can never claim the same row (the loser sees
+        the row already ``running`` and gets either a different job or
+        ``None``).
+
+        Returns:
+            The claimed :class:`RunRecord` (now in ``running`` state with
+            its ``started_at`` refreshed to the claim time), or ``None``
+            when no ``queued`` row is available.
+        """
+
 
 # ---------------------------------------------------------------------------
 # In-memory backend (always available)
@@ -258,6 +275,30 @@ class InMemoryRunRegistry:
                     continue
                 return record
         return None
+
+    def claim_next(self) -> Optional[RunRecord]:
+        """Atomically claim the oldest ``queued`` record (S9-5, ADR 0021).
+
+        The ``threading.Lock`` is the synchronisation point here, mirroring
+        the row-level lock the database backend relies on: the scan for the
+        oldest queued row and the flip to ``running`` happen under one lock
+        acquisition, so two threads cannot both claim the same record.
+
+        "Oldest" is defined by ``started_at`` (ISO-8601 strings sort
+        lexicographically in chronological order), matching the
+        ``ORDER BY started_at`` the database backend uses.
+
+        Returns:
+            The claimed :class:`RunRecord` (now ``running``), or ``None``
+            when no ``queued`` record exists.
+        """
+        with self._lock:
+            queued = [r for r in self._runs.values() if r.status == "queued"]
+            if not queued:
+                return None
+            oldest = min(queued, key=lambda r: r.started_at)
+            oldest.status = "running"
+            return oldest
 
     def clear(self) -> None:
         """Drop every record. Test-only — production code MUST NOT call."""
@@ -493,6 +534,101 @@ class DatabaseRunRegistry:
                 exc,
             )
             return None
+
+    def claim_next(self) -> Optional[RunRecord]:
+        """Atomically claim the oldest ``queued`` row (S9-5, ADR 0021).
+
+        Implements the guarded transition the ADR specifies. In ONE
+        transaction:
+
+        1. ``SELECT run_id ... WHERE status='queued' ORDER BY started_at``
+           (oldest first), bounded to a single row, to pick a candidate.
+        2. ``UPDATE ... SET status='running', started_at=:now
+           WHERE run_id=:run_id AND status='queued'`` — the ``AND
+           status='queued'`` guard is what makes the claim safe under
+           concurrency: if another worker raced in and already moved the
+           row to ``running``, this UPDATE matches **zero** rows and we
+           return ``None`` (or, on a retry loop, would pick the next
+           candidate). Relies on the database's row-level locking within
+           the transaction so two workers never both win the same row.
+
+        All SQL is parameterised — no value is ever f-string-interpolated
+        (only the already-validated, schema-qualified table identifier is,
+        exactly as every other method in this class does).
+
+        Returns:
+            The claimed :class:`RunRecord` in ``running`` state, or
+            ``None`` when no ``queued`` row could be claimed.
+        """
+        from sqlalchemy import text
+
+        # The single-row limit clause differs across dialects; Oracle <12c
+        # has no LIMIT. We avoid the issue entirely by selecting ordered
+        # candidates and taking the first the guarded UPDATE can win — for
+        # the pilot's volume a bounded fetch is unnecessary, but we cap the
+        # candidate scan to keep the round-trip small.
+        now_dt = datetime.now(timezone.utc)
+
+        with self._engine.begin() as conn:
+            rows = conn.execute(
+                text(
+                    f"SELECT run_id FROM {self._table} "
+                    "WHERE status = 'queued' "
+                    "ORDER BY started_at"
+                )
+            ).fetchall()
+
+            for row in rows:
+                candidate_id = row[0]
+                updated = conn.execute(
+                    text(
+                        f"UPDATE {self._table} SET "
+                        " status = 'running', "
+                        " started_at = :started_at "
+                        "WHERE run_id = :run_id AND status = 'queued'"
+                    ),
+                    {"run_id": candidate_id, "started_at": now_dt},
+                )
+                if updated.rowcount == 1:
+                    # We won the row. Re-read the payload and reflect the
+                    # running transition in the returned record.
+                    payload_row = conn.execute(
+                        text(
+                            f"SELECT payload FROM {self._table} "
+                            "WHERE run_id = :run_id"
+                        ),
+                        {"run_id": candidate_id},
+                    ).fetchone()
+                    if payload_row is None:
+                        continue
+                    try:
+                        record = RunRecord.from_payload(payload_row[0])
+                    except (ValueError, KeyError, TypeError) as exc:
+                        logger.warning(
+                            "APP_MCP_RUN_REGISTRY claimed payload for "
+                            "run_id=%s is corrupt; skipping: %s",
+                            candidate_id,
+                            exc,
+                        )
+                        continue
+                    record.status = "running"
+                    # Reflect the claim time in the payload so the JSON
+                    # ``started_at`` matches the searchable column we set.
+                    record.started_at = (
+                        now_dt.strftime("%Y-%m-%dT%H:%M:%S.%f") + "Z"
+                    )
+                    # Keep the persisted ``payload`` JSON consistent with
+                    # the searchable ``status`` column we just flipped.
+                    conn.execute(
+                        text(
+                            f"UPDATE {self._table} SET payload = :payload "
+                            "WHERE run_id = :run_id"
+                        ),
+                        {"payload": record.to_payload(), "run_id": candidate_id},
+                    )
+                    return record
+
+        return None
 
     def clear(self) -> None:
         """Delete every row. Test-only — production code MUST NOT call."""

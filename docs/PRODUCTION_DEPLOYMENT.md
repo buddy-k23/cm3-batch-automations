@@ -569,9 +569,93 @@ migration is idempotent and cross-dialect (Oracle / PostgreSQL / SQLite).
 
 ## Background job worker (S9-5)
 
-> _Reserved for S9-5 (#391)._ Decoupling long validations from the MCP request
-> path (ADR 0021 — run-history table as queue). Enqueue/worker operation and
-> the `valdo run-job-worker` fast-follow documented here.
+Per **ADR 0021** (`docs/adr/0021-mcp-background-jobs.md`, Option A), long
+validations are decoupled from the MCP request path: instead of running the
+engine synchronously inside the `validate_file` MCP call (which ties up a
+gunicorn worker for the duration of a 10M-row file), `validate_file` writes a
+durable `queued` row to `APP_MCP_RUN_REGISTRY` and returns within 100ms. A
+separate **`valdo run-job-worker`** process claims that row out of band and
+runs the validation. No new runtime dependency — the queue is the database
+table the run registry already persists.
+
+> **This sprint ships the SKELETON** (`valdo run-job-worker --once` +
+> the `claim_next` atomic dequeue + the async feature flag). The production
+> continuous poll loop, backoff, metrics, and the stuck-`running` reaper are a
+> fast-follow (M). The async flag therefore defaults **OFF** — see below.
+
+### The async feature flag (`VALDO_MCP_ASYNC_VALIDATE`)
+
+| Value | Behaviour |
+|---|---|
+| unset / `0` / `false` (**default this sprint**) | `validate_file` runs the engine **synchronously inline** (legacy behaviour). Safe when no worker is deployed. |
+| `1` / `true` / `yes` / `on` | `validate_file` **enqueues only** and returns immediately; a `run-job-worker` must be draining the queue or runs sit `queued` forever. |
+
+**Deploy order matters:** deploy and start the `run-job-worker` systemd unit
+**before** setting `VALDO_MCP_ASYNC_VALIDATE=1` on the gunicorn unit. Enabling
+async with no worker present leaves validations stuck in `queued`.
+
+### Draining the queue
+
+```bash
+# One drain-and-exit cycle — claim a single queued job, run it, exit.
+# Use for cron / manual backlog draining / CI. (--once is the only mode
+# wired this sprint; the continuous loop is the fast-follow.)
+cd /opt/valdo && valdo run-job-worker --once
+```
+
+A cron entry (`* * * * * cd /opt/valdo && valdo run-job-worker --once`) is a
+valid stop-gap until the continuous worker lands.
+
+### systemd unit (separate from the gunicorn service)
+
+The worker runs as its **own** systemd unit, distinct from `valdo.service`
+(the gunicorn MCP server). Example `valdo-job-worker.service` for the
+continuous mode the fast-follow ships (the `--once` cron form above needs no
+long-running unit):
+
+```ini
+[Unit]
+Description=Valdo MCP background validation worker
+After=network.target
+
+[Service]
+Type=simple
+User=valdo
+WorkingDirectory=/opt/valdo
+EnvironmentFile=/etc/valdo/valdo.env
+# Continuous mode is the fast-follow; --once shown here for the skeleton.
+ExecStart=/opt/valdo/.venv/bin/valdo run-job-worker --once
+# TimeoutStopSec MUST exceed the worst-case single-file validation time so a
+# graceful stop is never SIGKILL'd mid-run (which would strand a row in
+# 'running' until the reaper — see below).
+TimeoutStopSec=120
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### Lifecycle guarantees
+
+- **Restart-pickup (works today).** `queued` rows are durable in the database
+  backend. A worker, host, or deploy restart leaves the row `queued`; the next
+  `run-job-worker --once` (or future poll) claims it. **No work is lost on
+  deploy/rotation.**
+- **Atomic claim (works today).** `run-job-worker` claims a job via the
+  registry's guarded `UPDATE ... SET status='running' WHERE status='queued'`,
+  so two workers never grab the same job — a different worker either claims a
+  different `queued` row or gets nothing.
+- **Graceful shutdown (fast-follow).** The continuous worker will trap
+  `SIGTERM`/`SIGINT`, finish its current run, and exit without claiming new
+  work. Set `TimeoutStopSec` above the worst-case validation time.
+- **Stuck-`running` reaper (fast-follow — manual until then).** If a worker
+  dies mid-run, its row stays `running`. The reaper (deferred to the follow-up
+  M) will reset rows whose `started_at` is older than ≈2× the max validation
+  time back to `queued`. **Until it lands, reset a stuck row manually:**
+  ```sql
+  UPDATE APP_MCP_RUN_REGISTRY SET status='queued'
+  WHERE run_id = :stuck_run_id AND status='running';
+  ```
 
 ---
 
@@ -583,3 +667,4 @@ migration is idempotent and cross-dialect (Oracle / PostgreSQL / SQLite).
 | S9-2 (#390) | Health probe — `/mcp/health` schema, 503 semantics, LB/K8s probe config |
 | S9-3 (#388) | Rate limiting — per-token/per-IP caps, env vars, 429/Retry-After, resource-exempt + get_run_status-elevated rules, in-memory-vs-Redis |
 | S9-4 (#389) | Token revocation — `jti` format + 24h grace window, `POST /api/v2/mcp/revoke` (admin-only), `valdo mcp-revoke` CLI, 60s-TTL blocklist cache, `MCP_REVOKED_TOKENS` (Alembic 0005), incident-response flow |
+| S9-5 (#391) | Background job worker (skeleton) — ADR 0021 run-registry-as-queue, `VALDO_MCP_ASYNC_VALIDATE` flag (default off), `valdo run-job-worker --once`, separate systemd unit, atomic `claim_next`, restart-pickup, manual stuck-run reset (reaper is fast-follow) |

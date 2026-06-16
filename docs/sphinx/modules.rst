@@ -367,6 +367,10 @@ Pipeline
    :members:
    :undoc-members:
 
+.. automodule:: src.commands.run_job_worker
+   :members:
+   :undoc-members:
+
 Transforms
 ----------
 

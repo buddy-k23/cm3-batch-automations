@@ -54,6 +54,7 @@ Idempotency on ``validate_file``:
 from __future__ import annotations
 
 import logging
+import os
 import threading
 import time
 import uuid
@@ -105,6 +106,33 @@ _STATUS_RUNNING = "running"
 _STATUS_COMPLETED = "completed"
 _STATUS_FAILED = "failed"
 _TERMINAL_STATUSES = frozenset({_STATUS_COMPLETED, _STATUS_FAILED})
+
+# Background-job feature gate (S9-5, ADR 0021). When truthy, ``validate_file``
+# ENQUEUES the run (writes ``queued`` and returns) instead of driving the
+# engine inline; the ``valdo run-job-worker`` process picks the row up. The
+# flag defaults OFF this sprint so the legacy synchronous path remains the
+# safe fallback when no worker is deployed — the follow-up flips the default
+# on once the worker is the supported path. See ADR 0021 §1.
+_ASYNC_VALIDATE_FLAG = "VALDO_MCP_ASYNC_VALIDATE"
+
+
+def _async_validate_enabled() -> bool:
+    """Return whether ``validate_file`` should enqueue instead of run inline.
+
+    Reads :data:`_ASYNC_VALIDATE_FLAG` at call time (not import time) so a
+    deployment / test can toggle it without reimporting the module. Truthy
+    values are ``1``, ``true``, ``yes``, ``on`` (case-insensitive); anything
+    else — including unset — keeps the synchronous default.
+
+    Returns:
+        ``True`` when the async/enqueue path is enabled, else ``False``.
+    """
+    return os.getenv(_ASYNC_VALIDATE_FLAG, "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -517,7 +545,14 @@ def validate_file_payload(
     )
     _get_registry().put(record)
 
-    _run_validate_synchronously(record, artefacts)
+    # ADR 0021: when the async flag is ON, ENQUEUE only — the durable
+    # ``queued`` row above is the work item; ``valdo run-job-worker`` claims
+    # and runs it out of band, so this call returns within 100ms (no engine
+    # work). When OFF (the sprint default), keep the legacy behaviour and
+    # drive the validation inline so nothing breaks where no worker is
+    # deployed.
+    if not _async_validate_enabled():
+        _run_validate_synchronously(record, artefacts)
 
     return {
         "run_id": run_id,
@@ -720,14 +755,15 @@ def get_violations_payload(
 
 VALIDATE_FILE_DESCRIPTION = (
     "Start a Valdo validation run for a source + file. Returns immediately "
-    "with a run_id and started_at timestamp; the validation itself runs "
-    "synchronously inside this call today (EF-S5 will move it to a "
-    "background worker). Poll get_run_status to discover when the run "
-    "completes, then page get_violations for the results. Raises a tool "
-    "error when the source is unknown, the file does not exist, or the "
-    "source overlay cannot be parsed. A second call with the same source "
-    "+ file_path while a previous run is still in flight returns the "
-    "existing run_id (no double-trigger)."
+    "with a run_id and started_at timestamp. When the background worker is "
+    "enabled (VALDO_MCP_ASYNC_VALIDATE) the run is queued and executed "
+    "out-of-band by the valdo run-job-worker process; otherwise it runs "
+    "synchronously inside this call. Either way, poll get_run_status to "
+    "discover when the run completes, then page get_violations for the "
+    "results. Raises a tool error when the source is unknown, the file does "
+    "not exist, or the source overlay cannot be parsed. A second call with "
+    "the same source + file_path while a previous run is still in flight "
+    "returns the existing run_id (no double-trigger)."
 )
 
 GET_RUN_STATUS_DESCRIPTION = (
