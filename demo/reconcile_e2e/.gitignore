@@ -1,0 +1,14 @@
+# Runtime SQLite DB seeded by seed_db.py (regenerated on each run).
+seed/*.db
+seed/*.db-journal
+seed/*.db-wal
+seed/*.db-shm
+
+# Browser / node detritus (none expected, but guard against it).
+node_modules/
+.playwright/
+*-trace.zip
+test-results/
+
+# Keep the captured demo artifacts (PNG/JSON/TXT) under artifacts/ — they are
+# the deliverable and are intentionally NOT ignored.

@@ -1,0 +1,40 @@
+========================================================================
+Valdo #407 cross-dialect reconcile — MCP transcript
+========================================================================
+captured_at : 2026-06-16T17:21:25.608904+00:00
+transport   : MCP Streamable-HTTP (JSON-RPC) via /mcp/
+DB_ADAPTER  : sqlite
+DB_PATH     : /Users/pavankanduri/claude-ws/valdo/valdo-feature-valdo-engine-v3/demo/reconcile_e2e/seed/reconcile_demo.db
+tool present: True
+
+--- REQUEST (JSON-RPC tools/call) ---
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/call",
+  "params": {
+    "name": "reconcile_mapping",
+    "arguments": {
+      "mapping": "reconcile_demo",
+      "table": "CUSTOMER"
+    }
+  }
+}
+
+--- VERDICT ---
+status            : mismatch
+valid             : True
+table             : CUSTOMER
+db_adapter        : SQLiteAdapter
+summary           : {"mapped_columns": 6, "database_columns": 6, "error_count": 0, "warning_count": 3, "advisory_count": 2, "mismatch_count": 1}
+
+mismatches:
+  - Type mismatch for AGE: mapping expects 'integer', database has 'VARCHAR(10)'
+
+advisories:
+  - Column IS_ACTIVE: declared 'boolean' stored as 'INTEGER' — no native boolean on this backend (advisory, not an error)
+  - Column NOTES: database type could not be determined (typeless backend) — mapping 'string' accepted without a type assertion
+
+errors:
+  (none)
+========================================================================

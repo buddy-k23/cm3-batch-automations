@@ -1,0 +1,102 @@
+{
+  "mapping_name": "reconcile_demo",
+  "version": "1.0.0",
+  "description": "#407 cross-dialect reconcile demo mapping. Most fields match the SQLite CUSTOMER table cleanly; AGE forces a type mismatch and IS_ACTIVE / NOTES exercise dialect-neutral advisories.",
+  "source": {
+    "type": "file",
+    "format": "pipe_delimited"
+  },
+  "target": {
+    "type": "database",
+    "table_name": "CUSTOMER"
+  },
+  "fields": [
+    {
+      "field_name": "customer_id",
+      "data_type": "string",
+      "required": true
+    },
+    {
+      "field_name": "first_name",
+      "data_type": "string",
+      "required": false
+    },
+    {
+      "field_name": "email",
+      "data_type": "string",
+      "required": false
+    },
+    {
+      "field_name": "age",
+      "data_type": "integer",
+      "required": false
+    },
+    {
+      "field_name": "is_active",
+      "data_type": "boolean",
+      "required": false
+    },
+    {
+      "field_name": "notes",
+      "data_type": "string",
+      "required": false
+    }
+  ],
+  "mappings": [
+    {
+      "source_column": "customer_id",
+      "target_column": "CUSTOMER_ID",
+      "data_type": "string",
+      "required": true,
+      "transformations": [],
+      "validation_rules": []
+    },
+    {
+      "source_column": "first_name",
+      "target_column": "FIRST_NAME",
+      "data_type": "string",
+      "required": false,
+      "transformations": [],
+      "validation_rules": []
+    },
+    {
+      "source_column": "email",
+      "target_column": "EMAIL",
+      "data_type": "string",
+      "required": false,
+      "transformations": [],
+      "validation_rules": []
+    },
+    {
+      "source_column": "age",
+      "target_column": "AGE",
+      "data_type": "integer",
+      "required": false,
+      "transformations": [],
+      "validation_rules": []
+    },
+    {
+      "source_column": "is_active",
+      "target_column": "IS_ACTIVE",
+      "data_type": "boolean",
+      "required": false,
+      "transformations": [],
+      "validation_rules": []
+    },
+    {
+      "source_column": "notes",
+      "target_column": "NOTES",
+      "data_type": "string",
+      "required": false,
+      "transformations": [],
+      "validation_rules": []
+    }
+  ],
+  "key_columns": [
+    "customer_id"
+  ],
+  "metadata": {
+    "demo": "reconcile_e2e",
+    "issue": "407"
+  }
+}

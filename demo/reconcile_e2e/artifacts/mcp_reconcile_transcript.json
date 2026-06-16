@@ -1,0 +1,110 @@
+{
+  "demo": "reconcile_e2e / MCP segment (#407)",
+  "captured_at": "2026-06-16T17:21:25.608904+00:00",
+  "transport": "MCP Streamable-HTTP (JSON-RPC) via /mcp/",
+  "env": {
+    "VALDO_MCP_AUTH": "dev",
+    "DB_ADAPTER": "sqlite",
+    "DB_PATH": "/Users/pavankanduri/claude-ws/valdo/valdo-feature-valdo-engine-v3/demo/reconcile_e2e/seed/reconcile_demo.db"
+  },
+  "tools_advertised": [
+    "compare_two_files",
+    "get_run_status",
+    "get_source_spec",
+    "get_violations",
+    "infer_mapping_from_sample",
+    "list_recent_runs",
+    "list_sources",
+    "onboard_source_dry_run",
+    "reconcile_mapping",
+    "upload_workbook_as_spec",
+    "validate_file"
+  ],
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 2,
+    "method": "tools/call",
+    "params": {
+      "name": "reconcile_mapping",
+      "arguments": {
+        "mapping": "reconcile_demo",
+        "table": "CUSTOMER"
+      }
+    }
+  },
+  "raw_tool_response": {
+    "jsonrpc": "2.0",
+    "id": 2,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"status\": \"mismatch\",\n  \"valid\": true,\n  \"mapping_name\": \"reconcile_demo\",\n  \"table\": \"CUSTOMER\",\n  \"schema\": null,\n  \"db_adapter\": \"SQLiteAdapter\",\n  \"summary\": {\n    \"mapped_columns\": 6,\n    \"database_columns\": 6,\n    \"error_count\": 0,\n    \"warning_count\": 3,\n    \"advisory_count\": 2,\n    \"mismatch_count\": 1\n  },\n  \"errors\": [],\n  \"mismatches\": [\n    \"Type mismatch for AGE: mapping expects 'integer', database has 'VARCHAR(10)'\"\n  ],\n  \"advisories\": [\n    \"Column IS_ACTIVE: declared 'boolean' stored as 'INTEGER' \u2014 no native boolean on this backend (advisory, not an error)\",\n    \"Column NOTES: database type could not be determined (typeless backend) \u2014 mapping 'string' accepted without a type assertion\"\n  ],\n  \"warnings\": [\n    \"Type mismatch for AGE: mapping expects 'integer', database has 'VARCHAR(10)'\",\n    \"Column IS_ACTIVE: declared 'boolean' stored as 'INTEGER' \u2014 no native boolean on this backend (advisory, not an error)\",\n    \"Column NOTES: database type could not be determined (typeless backend) \u2014 mapping 'string' accepted without a type assertion\"\n  ],\n  \"unmapped_required\": []\n}"
+        }
+      ],
+      "structuredContent": {
+        "result": {
+          "status": "mismatch",
+          "valid": true,
+          "mapping_name": "reconcile_demo",
+          "table": "CUSTOMER",
+          "schema": null,
+          "db_adapter": "SQLiteAdapter",
+          "summary": {
+            "mapped_columns": 6,
+            "database_columns": 6,
+            "error_count": 0,
+            "warning_count": 3,
+            "advisory_count": 2,
+            "mismatch_count": 1
+          },
+          "errors": [],
+          "mismatches": [
+            "Type mismatch for AGE: mapping expects 'integer', database has 'VARCHAR(10)'"
+          ],
+          "advisories": [
+            "Column IS_ACTIVE: declared 'boolean' stored as 'INTEGER' \u2014 no native boolean on this backend (advisory, not an error)",
+            "Column NOTES: database type could not be determined (typeless backend) \u2014 mapping 'string' accepted without a type assertion"
+          ],
+          "warnings": [
+            "Type mismatch for AGE: mapping expects 'integer', database has 'VARCHAR(10)'",
+            "Column IS_ACTIVE: declared 'boolean' stored as 'INTEGER' \u2014 no native boolean on this backend (advisory, not an error)",
+            "Column NOTES: database type could not be determined (typeless backend) \u2014 mapping 'string' accepted without a type assertion"
+          ],
+          "unmapped_required": []
+        }
+      },
+      "isError": false
+    }
+  },
+  "verdict": {
+    "status": "mismatch",
+    "valid": true,
+    "mapping_name": "reconcile_demo",
+    "table": "CUSTOMER",
+    "schema": null,
+    "db_adapter": "SQLiteAdapter",
+    "summary": {
+      "mapped_columns": 6,
+      "database_columns": 6,
+      "error_count": 0,
+      "warning_count": 3,
+      "advisory_count": 2,
+      "mismatch_count": 1
+    },
+    "errors": [],
+    "mismatches": [
+      "Type mismatch for AGE: mapping expects 'integer', database has 'VARCHAR(10)'"
+    ],
+    "advisories": [
+      "Column IS_ACTIVE: declared 'boolean' stored as 'INTEGER' \u2014 no native boolean on this backend (advisory, not an error)",
+      "Column NOTES: database type could not be determined (typeless backend) \u2014 mapping 'string' accepted without a type assertion"
+    ],
+    "warnings": [
+      "Type mismatch for AGE: mapping expects 'integer', database has 'VARCHAR(10)'",
+      "Column IS_ACTIVE: declared 'boolean' stored as 'INTEGER' \u2014 no native boolean on this backend (advisory, not an error)",
+      "Column NOTES: database type could not be determined (typeless backend) \u2014 mapping 'string' accepted without a type assertion"
+    ],
+    "unmapped_required": []
+  }
+}
