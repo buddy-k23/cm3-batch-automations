@@ -1,2 +1,0 @@
-format,delimiter,quote_char,escape_char,record_length,header_enabled,header_total_count_field
-delimited,,~,\,,MAYBE,total_count

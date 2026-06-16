@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+- chore(repo): remove pilot_database_validations/ prototype per ADR 0020 — kill-and-defer, no DB-to-DB capability lost (S8.5-2, #394)
+
 ### Fixed
 - fix(cli): valdo compare returns non-zero exit code on differences (S8-1, #392)
 - fix(parsers): FormatDetector routes .csv to CSV parser (comma) and .tsv to TSV (tab), not PipeDelimitedParser (S8-2, #393)
