@@ -110,6 +110,14 @@ async def mcp_login(request: Request, body: MCPLoginRequest) -> MCPLoginResponse
             detail="LDAP auth is not configured on this server.",
         )
 
+    # S9-1 (#387): behind the nginx reverse proxy the TCP peer is nginx, not
+    # the agent host. ProxyHeadersMiddleware (wired in src.api.main, trust
+    # list via VALDO_MCP_TRUSTED_PROXIES) has already rewritten
+    # ``request.client`` from a trusted X-Forwarded-For, so this captures the
+    # REAL client IP for the token-mint audit trail — critical for SOX
+    # attribution of who minted which credential, not the proxy's address.
+    client_ip = request.client.host if request.client else "unknown"
+
     audit = get_audit_logger()
     try:
         user = ldap_authenticate(body.username, body.password, ldap_cfg)
@@ -120,6 +128,7 @@ async def mcp_login(request: Request, body: MCPLoginRequest) -> MCPLoginResponse
             "mcp_login_failure",
             triggered_by="mcp_login_cli",
             username=body.username,
+            client_ip=client_ip,
             reason=str(exc),
         )
         # "invalid_credentials" and "user_not_found" both collapse to 401
@@ -158,6 +167,7 @@ async def mcp_login(request: Request, body: MCPLoginRequest) -> MCPLoginResponse
         sub=user.dn,
         username=body.username,
         role=role,
+        client_ip=client_ip,
         expires_at=token["expires_at"],
     )
     return MCPLoginResponse(

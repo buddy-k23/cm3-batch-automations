@@ -1,0 +1,295 @@
+# Valdo MCP — Production Deployment Runbook
+
+**Audience:** SRE / platform / security engineers deploying the Valdo MCP
+server into the bank's INT region (and later prod) behind the edge.
+
+**Scope:** This runbook is the single operational source of truth for
+hardening and running the Valdo MCP server in a bank network. It is built up
+across Sprint 9 — each story appends its own section. Work top-to-bottom for
+a first deploy; jump to a section for a targeted change.
+
+**End state (Sprint 9 goal):** an SRE can follow this document from a bare
+RHEL host to a TLS-terminated `https://valdo.bank.internal/mcp/initialize`
+handshake, with rate limiting, a token-revocation lever, an LB health probe,
+and validations decoupled from the request path.
+
+> Replace every `valdo.bank.internal` / cert path / IP in this runbook with
+> your environment's real values. Nothing host-specific is hardcoded in the
+> shipped artefacts (Architecture Principle #5).
+
+## Architecture at a glance
+
+```
+   Agent / BA client (Mac or VDI)
+            │  HTTPS
+            ▼
+   ┌─────────────────────────┐   :443 TLS termination, security headers,
+   │  nginx 1.20+ (RHEL)     │   gzip, X-Forwarded-* injection
+   │  /etc/nginx/conf.d/     │
+   │      valdo.conf         │
+   └───────────┬─────────────┘
+               │  HTTP, loopback, X-Forwarded-For = real client
+               ▼
+   ┌─────────────────────────┐   uvicorn/gunicorn → src.api.main:app
+   │  Valdo app 127.0.0.1:8000│   ProxyHeadersMiddleware recovers real IP
+   │  (systemd: valdo.service)│   MCP sub-app mounted at /mcp
+   └───────────┬─────────────┘
+               │  JDBC / oracledb thin
+               ▼
+        Oracle (run history, etc.)
+```
+
+---
+
+## TLS + nginx (S9-1)
+
+This section takes you from zero to a valid TLS handshake at
+`https://<FQDN>/mcp/initialize`.
+
+### 0. Prerequisites
+
+- RHEL 8 or 9 host, the Valdo RPM installed (`valdo.service` present), app
+  reachable on loopback (`curl -s http://127.0.0.1:8000/api/v1/system/health`).
+- nginx 1.20+ installed: `sudo dnf install nginx && nginx -v`.
+- SELinux: allow nginx to make outbound (proxy) connections:
+  `sudo setsebool -P httpd_can_network_connect 1`.
+- firewalld: open the edge ports:
+  `sudo firewall-cmd --permanent --add-service=https --add-service=http && sudo firewall-cmd --reload`.
+
+### 1. Bind the app to loopback and trust the proxy
+
+The app must listen only where nginx can reach it, and must trust nginx's
+forwarded headers so audit logs record the **real client IP**, not nginx's.
+
+In `/etc/valdo/.env` (read by `valdo.service`):
+
+```bash
+# App bind — loopback only; nginx is the sole ingress.
+VALDO_HOST=127.0.0.1
+VALDO_PORT=8000
+
+# Trust the local nginx as a forwarding proxy. Comma-separated proxy
+# IPs/CIDRs, or "*" ONLY if nothing but nginx can reach the app port.
+# Single-host topology → loopback is correct and is also the default.
+VALDO_MCP_TRUSTED_PROXIES=127.0.0.1
+
+# Hostnames the MCP transport will accept (DNS-rebinding protection).
+# Comma-separated; must include your public FQDN.
+VALDO_MCP_ALLOWED_HOSTS=valdo.bank.internal
+
+# MCP auth (EF-S7) — token signing key + LDAP must be configured for real
+# auth; never run prod with VALDO_MCP_AUTH=dev.
+VALDO_MCP_TOKEN_SIGNING_KEY=<32+ random bytes; rotate to revoke all tokens>
+```
+
+> **Why this matters:** FastAPI sees nginx as the TCP peer. uvicorn's
+> `ProxyHeadersMiddleware` (wired in `src/api/main.py`) rewrites
+> `request.client.host` from `X-Forwarded-For` **only when the peer is in
+> `VALDO_MCP_TRUSTED_PROXIES`**. This is what makes the MCP token-mint audit
+> event (`mcp_login_success` / `mcp_login_failure`, `client_ip` field) record
+> the agent's real IP. Leave the trust list tight — an over-broad list lets a
+> caller spoof its IP via a forged header.
+
+Restart: `sudo systemctl restart valdo`.
+
+### 2. Request a TLS certificate from the bank PKI team
+
+Production certs come from the bank's internal PKI/CA — **Valdo does not mint
+them**. Hand off:
+
+1. Generate a CSR + private key on the host (key never leaves the box):
+
+   ```bash
+   sudo mkdir -p /etc/pki/tls/private /etc/pki/tls/certs
+   sudo openssl req -new -newkey rsa:2048 -nodes \
+     -keyout /etc/pki/tls/private/valdo.key \
+     -out /tmp/valdo.csr \
+     -subj "/CN=valdo.bank.internal/O=YourBank/OU=Platform"
+   sudo chmod 600 /etc/pki/tls/private/valdo.key
+   ```
+
+2. Submit `/tmp/valdo.csr` to the PKI team via their cert-request process.
+   Request: server-auth EKU, SAN = your FQDN, 1-year validity (or per bank
+   policy).
+3. They return a **leaf cert** and the **intermediate chain**. Concatenate
+   leaf + intermediates (leaf first) into the cert file nginx serves:
+
+   ```bash
+   sudo bash -c 'cat valdo-leaf.crt valdo-intermediates.crt > /etc/pki/tls/certs/valdo.crt'
+   sudo chmod 644 /etc/pki/tls/certs/valdo.crt
+   ```
+
+### 3. INT-region self-signed path (test before real certs land)
+
+The PKI handoff has lead time. To validate the **whole nginx+app path** in
+INT before real certs arrive, use a self-signed cert. This is for INT only —
+clients must explicitly trust or `-k`-skip it; never use self-signed in prod.
+
+```bash
+sudo openssl req -x509 -newkey rsa:2048 -nodes -days 90 \
+  -keyout /etc/pki/tls/private/valdo.key \
+  -out /etc/pki/tls/certs/valdo.crt \
+  -subj "/CN=valdo.bank.internal" \
+  -addext "subjectAltName=DNS:valdo.bank.internal"
+sudo chmod 600 /etc/pki/tls/private/valdo.key
+```
+
+> Valdo also ships a config-driven self-signed strategy
+> (`config/ui.yml` → `tls.strategy: self_signed`, `src/services/tls_service.py`)
+> for the app's own direct-TLS mode. In the nginx-terminated topology TLS
+> lives at nginx, so the self-signed cert above is what you point nginx at.
+
+### 4. Install and activate the nginx config
+
+The RPM ships the sample to `/etc/nginx/conf.d/valdo.conf.sample` (it does
+**not** auto-activate, so it can't clobber a hand-tuned conf).
+
+```bash
+sudo cp /etc/nginx/conf.d/valdo.conf.sample /etc/nginx/conf.d/valdo.conf
+sudo vi /etc/nginx/conf.d/valdo.conf
+#   - set server_name to your FQDN (both server blocks)
+#   - set ssl_certificate / ssl_certificate_key paths
+#   - confirm the upstream address (default 127.0.0.1:8000)
+#   - on nginx 1.20–1.24: replace `http2 on;` with `listen 443 ssl http2;`
+```
+
+Validate and reload:
+
+```bash
+sudo nginx -t            # MUST print "syntax is ok" + "test is successful"
+sudo systemctl enable --now nginx
+sudo systemctl reload nginx
+```
+
+The shipped config provides: TLS 1.2/1.3 termination, HTTP→HTTPS 308
+redirect, `X-Forwarded-Proto` / `X-Forwarded-Host` / `X-Forwarded-For` /
+`X-Real-IP` injection, WebSocket/stream upgrade headers for MCP
+Streamable-HTTP, gzip for JSON, and security headers (HSTS,
+X-Content-Type-Options, X-Frame-Options, Referrer-Policy).
+
+### 5. Validate the end-to-end TLS handshake
+
+```bash
+# (a) Certificate served + chain valid (drop --insecure once real certs land)
+openssl s_client -connect valdo.bank.internal:443 -servername valdo.bank.internal </dev/null 2>/dev/null \
+  | openssl x509 -noout -subject -issuer -dates
+
+# (b) HTTP redirects to HTTPS
+curl -sI http://valdo.bank.internal/ | grep -i location   # → https://...
+
+# (c) Security headers present
+curl -sI https://valdo.bank.internal/healthz | grep -iE 'strict-transport|x-content-type|x-frame'
+
+# (d) THE acceptance check — a real MCP initialize handshake over TLS.
+#     Use --insecure ONLY for the INT self-signed phase.
+curl -sk https://valdo.bank.internal/mcp/initialize \
+  -H "Authorization: Bearer $(base64 < ~/.valdo/mcp-token | tr -d '\n')" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize",
+       "params":{"protocolVersion":"2024-11-05","capabilities":{},
+                 "clientInfo":{"name":"curl","version":"0"}}}'
+# Expect a JSON-RPC result with serverInfo.name == "valdo".
+```
+
+If `initialize` returns 401, the token/auth chain is the issue (see
+EF-S7 / `docs/MCP_SERVER.md`); if it returns a 421/400 about host, add the
+FQDN to `VALDO_MCP_ALLOWED_HOSTS` and restart the app.
+
+### 6. Confirm the real client IP reaches the audit trail
+
+```bash
+# After a successful `valdo mcp-login` through nginx:
+sudo tail -n 20 /var/log/valdo/audit.jsonl | grep mcp_login_success
+# The "client_ip" field must be the AGENT's IP, not 127.0.0.1 / nginx.
+```
+
+If `client_ip` shows the proxy address, `VALDO_MCP_TRUSTED_PROXIES` does not
+include the nginx hop — fix and restart the app.
+
+### 7. Certificate renewal
+
+**Manual (bank PKI, the default path):** Certs expire (typically annually).
+~30 days before `notAfter` (from step 5a), repeat step 2 to obtain a renewed
+cert, drop the new chain over `/etc/pki/tls/certs/valdo.crt` (and key if
+re-keyed), then:
+
+```bash
+sudo nginx -t && sudo systemctl reload nginx   # reload — no downtime
+```
+
+Set a calendar reminder, or monitor expiry:
+
+```bash
+echo | openssl s_client -connect valdo.bank.internal:443 2>/dev/null \
+  | openssl x509 -noout -enddate
+```
+
+**Automated (certbot / ACME, only if the bank runs an internal ACME CA):**
+The shipped config already serves `/.well-known/acme-challenge/` from
+`/var/lib/nginx/acme` for http-01. If an internal ACME endpoint exists:
+
+```bash
+sudo dnf install certbot python3-certbot-nginx
+sudo certbot certonly --webroot -w /var/lib/nginx/acme \
+  -d valdo.bank.internal --server https://acme.bank.internal/directory
+# certbot installs a systemd timer that renews + reloads nginx automatically.
+sudo systemctl list-timers | grep certbot
+```
+
+Point `ssl_certificate` / `ssl_certificate_key` at the certbot live paths
+(`/etc/letsencrypt/live/<FQDN>/fullchain.pem` and `privkey.pem`) and add a
+`--deploy-hook "systemctl reload nginx"`.
+
+### Troubleshooting (TLS + nginx)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `nginx -t` fails on `$connection_upgrade` | duplicate `map` from another conf | delete the `map` block in `valdo.conf` (a shared snippet already defines it) |
+| `502 Bad Gateway` | app down / SELinux blocking proxy | `systemctl status valdo`; `setsebool -P httpd_can_network_connect 1` |
+| `client_ip` = 127.0.0.1 in audit | proxy not trusted | add nginx hop to `VALDO_MCP_TRUSTED_PROXIES`, restart app |
+| `421`/host error on `initialize` | DNS-rebinding protection | add FQDN to `VALDO_MCP_ALLOWED_HOSTS`, restart app |
+| `SSL_ERROR` / cert untrusted | self-signed in INT | expected — use `-k`, or import the INT CA into the client trust store |
+
+---
+
+## Health probe (S9-2)
+
+> _Reserved for S9-2 (#390)._ A dedicated `/mcp/health` endpoint for
+> load-balancer / readiness probes (exercises the handshake + a resource read
+> + tool count, no DB round-trip, <100 ms, no auth). When it lands, repoint
+> the nginx `location = /healthz` block above from
+> `/api/v1/system/health` to `/mcp/health`.
+
+---
+
+## Rate limiting (S9-3)
+
+> _Reserved for S9-3 (#388)._ Per-token + per-IP token-bucket rate limiting on
+> `/mcp/` (`src/mcp/rate_limit.py`), returning `429` with rate-limit headers.
+> Operational tuning (bucket sizes, refill rates, env vars) documented here.
+
+---
+
+## Token revocation (S9-4)
+
+> _Reserved for S9-4 (#389)._ Per-token (`jti`-based) revocation blocklist with
+> a 24h grace window, the `MCP_REVOKED_TOKENS` table (Alembic `0005`),
+> `POST /api/v2/mcp/revoke`, and the `valdo mcp-revoke` CLI. Revocation
+> procedure + cache-TTL behaviour documented here.
+
+---
+
+## Background job worker (S9-5)
+
+> _Reserved for S9-5 (#391)._ Decoupling long validations from the MCP request
+> path (ADR 0021 — run-history table as queue). Enqueue/worker operation and
+> the `valdo run-job-worker` fast-follow documented here.
+
+---
+
+## Change log of this runbook
+
+| Sprint story | Section added |
+|---|---|
+| S9-1 (#387) | Architecture overview, TLS + nginx, forwarded-IP wiring |

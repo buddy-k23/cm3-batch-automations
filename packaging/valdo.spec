@@ -39,6 +39,8 @@ mkdir -p %{buildroot}/var/lib/valdo/data
 mkdir -p %{buildroot}/var/lib/valdo/reports
 mkdir -p %{buildroot}%{_unitdir}
 mkdir -p %{buildroot}%{_bindir}
+# S9-1 (#387): nginx reverse-proxy sample drop-in directory.
+mkdir -p %{buildroot}/etc/nginx/conf.d
 
 # Copy application files
 cp -r src %{buildroot}/opt/valdo/
@@ -53,6 +55,11 @@ cp .flake8 %{buildroot}/opt/valdo/
 # Copy configuration
 cp -r config/* %{buildroot}/etc/valdo/
 cp .env.example %{buildroot}/etc/valdo/
+
+# S9-1 (#387): ship the nginx reverse-proxy config as a *.sample so it never
+# overwrites a hand-tuned production conf. SRE activates it per
+# docs/PRODUCTION_DEPLOYMENT.md ("## TLS + nginx (S9-1)").
+cp packaging/nginx/valdo.conf %{buildroot}/etc/nginx/conf.d/valdo.conf.sample
 
 # Create systemd service file
 cat > %{buildroot}%{_unitdir}/valdo.service << 'EOF'
@@ -175,6 +182,9 @@ fi
 %dir %attr(0750,root,valdo) /etc/valdo
 %config(noreplace) %attr(0640,root,valdo) /etc/valdo/*.json
 %config(noreplace) %attr(0600,root,valdo) /etc/valdo/.env.example
+# S9-1 (#387): nginx reverse-proxy sample. *.sample (not the live conf) so
+# rpm never disrupts a running nginx; noreplace preserves operator edits.
+%config(noreplace) %attr(0644,root,root) /etc/nginx/conf.d/valdo.conf.sample
 %dir %attr(0755,valdo,valdo) /var/log/valdo
 %dir %attr(0755,valdo,valdo) /var/lib/valdo
 %dir %attr(0755,valdo,valdo) /var/lib/valdo/data
@@ -183,6 +193,11 @@ fi
 %attr(0755,root,root) %{_bindir}/valdo
 
 %changelog
+* Mon Jun 16 2026 Development Team <dev@example.com> - 0.1.0-2
+- S9-1 (#387): ship nginx reverse-proxy config to
+  /etc/nginx/conf.d/valdo.conf.sample (TLS termination + X-Forwarded-*).
+  See docs/PRODUCTION_DEPLOYMENT.md for activation.
+
 * Thu Feb 06 2026 Development Team <dev@example.com> - 0.1.0-1
 - Initial RPM release
 - Core modules implemented:

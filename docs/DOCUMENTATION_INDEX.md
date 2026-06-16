@@ -40,6 +40,7 @@ This is the **single source of truth** for docs navigation.
 - `docs/TRANSFORMATION_TYPES.md`
 
 ## Deployment
+- `docs/PRODUCTION_DEPLOYMENT.md` — MCP production runbook: TLS + nginx reverse proxy, X-Forwarded-* (S9-1), and later S9 hardening sections
 - `docs/DEPLOYMENT_OPTIONS.md`
 - `docs/RHEL_DEPLOYMENT.md`
 - `docs/RPM_DEPLOYMENT.md`

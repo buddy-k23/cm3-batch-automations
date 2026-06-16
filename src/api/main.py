@@ -130,6 +130,37 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ---------------------------------------------------------------------------
+# S9-1 (#387) — X-Forwarded-* trust behind the nginx reverse proxy.
+#
+# In production Valdo runs behind nginx (TLS termination + proxy_pass; see
+# packaging/nginx/valdo.conf and docs/PRODUCTION_DEPLOYMENT.md). The TCP peer
+# FastAPI sees is therefore nginx, not the real client. uvicorn's
+# ProxyHeadersMiddleware rewrites ``request.client.host`` and the request
+# scheme from ``X-Forwarded-For`` / ``X-Forwarded-Proto`` **only** when the
+# immediate peer is in the trusted-proxy list — so MCP token-signing audit
+# events and any IP-based logging record the REAL client IP, while an
+# untrusted peer cannot spoof its address by setting the header itself.
+#
+# Trust list is config-driven (Architecture Principle #5 — no hardcoded
+# infra). ``VALDO_MCP_TRUSTED_PROXIES`` is a comma-separated list of proxy
+# hostnames / IPs (e.g. "127.0.0.1,10.0.0.0/8") or the literal "*" to trust
+# every peer (ONLY safe when nothing but the proxy can reach this port).
+# Default trusts loopback, matching the single-host nginx→gunicorn topology
+# the runbook documents.
+# ---------------------------------------------------------------------------
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware  # noqa: E402
+
+_trusted_proxies_raw = os.getenv("VALDO_MCP_TRUSTED_PROXIES", "127.0.0.1")
+if _trusted_proxies_raw.strip() == "*":
+    _proxy_trusted_hosts: "list[str] | str" = "*"
+else:
+    _proxy_trusted_hosts = [
+        h.strip() for h in _trusted_proxies_raw.split(",") if h.strip()
+    ] or ["127.0.0.1"]
+
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=_proxy_trusted_hosts)
+
 # IP Whitelist middleware — loaded from ui.yml security section at module load time.
 # add_middleware must be called before the app starts serving, so we read the config
 # here rather than in the lifespan handler.

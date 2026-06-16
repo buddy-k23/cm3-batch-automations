@@ -1129,14 +1129,24 @@ def generate_test_data(mapping, rows, output, seed, inject_errors_json, multi_re
 
 
 @cli.command()
-@click.option('--host', default='0.0.0.0', show_default=True, help='Bind address for the server')
-@click.option('--port', default=8000, type=int, show_default=True, help='Port to listen on')
+@click.option('--host', default=None, help='Bind address (default: VALDO_HOST env or 0.0.0.0)')
+@click.option('--port', default=None, type=int, help='Port to listen on (default: VALDO_PORT env or 8000)')
 def serve(host, port):
-    """Start the FastAPI validation server."""
+    """Start the FastAPI validation server.
+
+    Host/port resolve in this order: explicit CLI flag, then ``VALDO_HOST`` /
+    ``VALDO_PORT`` env (set in /etc/valdo/.env behind the nginx reverse proxy
+    per docs/PRODUCTION_DEPLOYMENT.md), then the 0.0.0.0:8000 default. Behind
+    nginx, bind to loopback (VALDO_HOST=127.0.0.1) so only the proxy can reach
+    the app; X-Forwarded-* handling is wired in src.api.main.
+    """
     import uvicorn
     import yaml
     from pathlib import Path as _Path
     from src.services.tls_service import resolve_tls
+
+    host = host or os.getenv("VALDO_HOST", "0.0.0.0")
+    port = port if port is not None else int(os.getenv("VALDO_PORT", "8000"))
 
     _ui_yml = _Path(__file__).parent.parent / "config" / "ui.yml"
     _tls_config = {}
