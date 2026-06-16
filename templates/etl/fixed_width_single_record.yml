@@ -1,0 +1,75 @@
+# Valdo template -- Fixed-width single-record validation
+#
+# Use this template when:
+#   - Your file is fixed-width (positions + lengths per field)
+#   - Every line has the SAME shape (one record type per file)
+#   - You want field-level validation: types, lengths, valid_values, required
+#
+# For multi-record fixed-width (header + multiple detail types + trailer),
+# see the SHAW TRANERT umbrella under config/mappings/SHAW_TRANERT.yaml.
+# For delimited (CSV / TSV / pipe), see csv_file_comparison.yml.
+#
+# How this template is wired:
+#   - Top-level required keys (source, schema_version) load through
+#     src.pipeline.etl_config.SourceConfig.model_validate(...) -- the same
+#     Pydantic contract used for per-source YAMLs in config/e2e/sources/.
+#     SourceConfig allows extra keys (extra="allow"), so the input_files
+#     block is a first-class declaration of the file(s) the BA wants to
+#     validate.
+#   - Filled-in example below references the sample under
+#     templates/etl/fixed_width_single_record_sample/.
+#   - Replace every <FILL_IN_*> marker with your value, then run:
+#       valdo validate \
+#         --file <input.txt> \
+#         --mapping <this_dir>/mapping.json \
+#         --strict-fixed-width \
+#         --output reports/fw_validate.html
+#
+# Where does this template fit? See docs/etl/CHOOSE_YOUR_SHAPE.md
+# (Shape 1 -- fixed-width single-record).
+
+# ---------------------------------------------------------------------------
+# Identity -- required by SourceConfig
+# ---------------------------------------------------------------------------
+source: <FILL_IN_SOURCE_NAME>                  # e.g., "ACCOUNT_DAILY"
+schema_version: 1                              # Per-source YAML schema version
+description: "Brief one-line description of the file being validated"
+
+# ---------------------------------------------------------------------------
+# Input files -- the fixed-width file(s) to validate
+#
+# Each entry declares one logical file_type with its glob pattern, the
+# mapping JSON that describes the per-field positions/lengths/types, and
+# (optionally) a rules JSON for per-field business validation.
+#
+# The mapping JSON is the contract -- the per-field validation engine reads
+# `position` (1-indexed), `length`, `data_type`, optional `valid_values`,
+# optional `format` (e.g. "9(10)" for a 10-digit numeric, "MM/DD/CCYY" for a
+# date), and optional `required` from each `fields[]` entry. The committed
+# sample at templates/etl/fixed_width_single_record_sample/mapping.json is
+# the worked example -- adapt it; do not rebuild from scratch.
+#
+# target_staging_table is left empty for the file-only validation case. If
+# your downstream flow loads the file into Oracle staging, set it to the
+# bare table name and the file_to_staging gate will pick it up.
+# ---------------------------------------------------------------------------
+input_files:
+  - file_type: <FILL_IN_FILE_TYPE>             # e.g., "ACCOUNTS"
+    glob: "<FILL_IN_GLOB>"                     # e.g., "accounts_*.txt"
+    mapping: "<FILL_IN_PATH_TO_MAPPING_JSON>"  # e.g., "config/mappings/account_mapping.json"
+    target_staging_table: ""                   # leave empty for file-only validation
+
+# ---------------------------------------------------------------------------
+# Strictness -- how rigorously the validator enforces the spec
+#
+# strict_fixed_width: when true, the validator enforces exact field lengths,
+#                     positions, and format pictures (e.g. "9(5)" must be
+#                     exactly 5 digits). Leave as true for production-grade
+#                     fixed-width validation.
+# strict_level:       one of "basic", "format", "all".
+#                       basic  -- required-field empties only
+#                       format -- adds format/valid_values checks
+#                       all    -- adds length and alignment checks
+# ---------------------------------------------------------------------------
+strict_fixed_width: true
+strict_level: "all"

@@ -1,0 +1,44 @@
+{
+  "_note": "Documented expected-violations contract for the fixed-width single-record sample. The actual `valdo validate` output also includes correlated rollup messages (FW_LEN_002 alignment, FW_ALIGN_001/002 misalignment diagnostics) -- those are derivative of the three primary defects below. The test under tests/unit/test_etl_templates.py::test_fw_single_sample_finds_3_violations pins exactly these three primary codes.",
+  "expected_primary_violations": [
+    {
+      "row": 8,
+      "field": "BALANCE",
+      "code": "FW_FMT_001",
+      "category": "strict_fixed_width",
+      "severity": "error",
+      "message": "Field 'BALANCE' has invalid format for value 'ABCD123456'",
+      "defect_type": "type_mismatch",
+      "expected": "9(10) -- 10-digit numeric",
+      "actual": "ABCD123456 -- non-numeric characters present"
+    },
+    {
+      "row": 9,
+      "field": "ACCT_STATUS",
+      "code": "FW_VAL_001",
+      "category": "strict_fixed_width",
+      "severity": "error",
+      "message": "Field 'ACCT_STATUS' has invalid value 'XX'",
+      "defect_type": "valid_values_violation",
+      "expected": "one of ['AC', 'CL', 'SU']",
+      "actual": "XX"
+    },
+    {
+      "row": 10,
+      "field": null,
+      "code": "FW_LEN_001",
+      "category": "format",
+      "severity": "error",
+      "message": "Row 10 length mismatch: expected 80, got 75",
+      "defect_type": "length_mismatch",
+      "expected": 80,
+      "actual": 75
+    }
+  ],
+  "summary": {
+    "total_rows": 10,
+    "valid_rows_expected": 7,
+    "primary_violation_count": 3,
+    "valid": false
+  }
+}

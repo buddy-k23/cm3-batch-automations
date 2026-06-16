@@ -1,0 +1,91 @@
+{
+  "mapping_name": "fixed_width_single_record_sample",
+  "version": "1.0.0",
+  "description": "Sample fixed-width single-record mapping for the BA-facing template. Worked example: a flat DDA-style accounts export with one record type per line (80-char rows). Mirrors the field-spec shape used by config/mappings/SHAW_TRANERT_BATCH_HEADER_mapping.json -- each field carries 1-indexed position, length, data_type, and optional valid_values / format / required.",
+  "source": {
+    "type": "file",
+    "format": "fixed_width",
+    "encoding": "UTF-8"
+  },
+  "target": {
+    "type": "file"
+  },
+  "fields": [
+    {
+      "name": "ACCT_NUM",
+      "data_type": "decimal",
+      "target_name": "acct_num",
+      "position": 1,
+      "length": 5,
+      "format": "9(5)",
+      "required": true,
+      "description": "Account number -- zero-padded numeric identifier (5 chars)."
+    },
+    {
+      "name": "ACCT_NAME",
+      "data_type": "string",
+      "target_name": "acct_name",
+      "position": 6,
+      "length": 20,
+      "required": true,
+      "description": "Account holder name -- blank-padded right (20 chars)."
+    },
+    {
+      "name": "BRANCH_CODE",
+      "data_type": "decimal",
+      "target_name": "branch_code",
+      "position": 26,
+      "length": 5,
+      "format": "9(5)",
+      "required": true,
+      "description": "Originating branch -- zero-padded numeric (5 chars)."
+    },
+    {
+      "name": "OPEN_DATE",
+      "data_type": "date",
+      "target_name": "open_date",
+      "position": 31,
+      "length": 10,
+      "format": "MM/DD/CCYY",
+      "required": true,
+      "description": "Account open date in MM/DD/CCYY format (10 chars including slashes)."
+    },
+    {
+      "name": "BALANCE",
+      "data_type": "decimal",
+      "target_name": "balance",
+      "position": 41,
+      "length": 10,
+      "format": "9(10)",
+      "required": true,
+      "description": "Current balance -- zero-padded numeric (10 chars). The sample's row 8 carries non-numeric characters to exercise the format check."
+    },
+    {
+      "name": "ACCT_STATUS",
+      "data_type": "string",
+      "target_name": "acct_status",
+      "position": 51,
+      "length": 2,
+      "required": true,
+      "description": "Account status code. The sample's row 9 carries 'XX' to exercise the valid_values check.",
+      "valid_values": [
+        "AC",
+        "CL",
+        "SU"
+      ]
+    },
+    {
+      "name": "FILLER",
+      "data_type": "string",
+      "target_name": "filler",
+      "position": 53,
+      "length": 28,
+      "required": false,
+      "description": "Reserved filler -- blanks to fill the 80-char width."
+    }
+  ],
+  "key_columns": [
+    "ACCT_NUM"
+  ],
+  "total_record_length": 80
+}

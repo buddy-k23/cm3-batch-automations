@@ -2941,6 +2941,7 @@ DB_ADAPTER=sqlite DB_NAME=test.db valdo extract \
 ### For BAs
 
 - **CSV-to-CSV reconciliation** -- start from [`templates/etl/csv_file_comparison.yml`](../templates/etl/csv_file_comparison.yml) (worked sample + README under [`templates/etl/csv_file_comparison_sample/`](../templates/etl/csv_file_comparison_sample/) and [`templates/etl/csv_file_comparison_README.md`](../templates/etl/csv_file_comparison_README.md)); see [Choose Your Shape](etl/CHOOSE_YOUR_SHAPE.md) for the full template-by-shape decision tree.
+- **Fixed-width single-record validation** -- start from [`templates/etl/fixed_width_single_record.yml`](../templates/etl/fixed_width_single_record.yml) (worked sample + README under [`templates/etl/fixed_width_single_record_sample/`](../templates/etl/fixed_width_single_record_sample/) and [`templates/etl/fixed_width_single_record_README.md`](../templates/etl/fixed_width_single_record_README.md)) when every line in your fixed-width file carries the same record shape; the 80-char, 10-row sample seeds three primary violations (`FW_FMT_001`, `FW_VAL_001`, `FW_LEN_001`) so you can see the contract end-to-end before adapting it.
 
 The `run-etl-pipeline` command executes multi-gate ETL validation pipelines
 defined in YAML. It is designed for CI/CD integration -- the command exits

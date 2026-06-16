@@ -10,7 +10,7 @@ Read this before hand-authoring a mapping. Pick the shape that matches your data
 
 | # | Shape | Status | Template / Worked example | Best for | BA complexity |
 |---|-------|--------|---------------------------|----------|---------------|
-| 1 | Fixed-width single-record | Engine ready | `templates/etl/fixed_width_single_record.yml` (coming in Sprint 6 S6-3) | One record type per file (e.g., DDA accounts, customer master) | S |
+| 1 | Fixed-width single-record | End-to-end | [`templates/etl/fixed_width_single_record.yml`](../../templates/etl/fixed_width_single_record.yml) + [worked sample](../../templates/etl/fixed_width_single_record_sample/) ([README](../../templates/etl/fixed_width_single_record_README.md)) | One record type per file (e.g., DDA accounts, customer master) | S |
 | 2 | Fixed-width multi-record | End-to-end | [`config/mappings/SHAW_TRANERT.yaml`](../../config/mappings/SHAW_TRANERT.yaml) (worked example) | Header + multiple detail types + trailer (e.g., TRANERT NEW1/CUS/ORI/COD/CBRS/REC) | L |
 | 3 | CSV / TSV | End-to-end | [`templates/etl/csv_file_comparison.yml`](../../templates/etl/csv_file_comparison.yml) + [worked sample](../../templates/etl/csv_file_comparison_sample/) ([README](../../templates/etl/csv_file_comparison_README.md)) | Comma- or tab-delimited files with a header row | S |
 | 4 | Pipe-delimited | Engine ready | No dedicated template — adapt the CSV template, set `delimiter: "\|"` | Pipe-separated extracts (common in mainframe → distributed handoffs) | S |

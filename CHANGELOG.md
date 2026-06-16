@@ -24,6 +24,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ORI=2, COD=2, CBRS=2, REC=2). EXPECTED_*_TBL seed updated to match.
 
 ### Added
+- `templates/etl/fixed_width_single_record.yml` — BA-facing fixed-width
+  single-record validation template, plus a worked sample under
+  `templates/etl/fixed_width_single_record_sample/` (deterministic
+  10-row × 80-char `input.txt`, hand-curated `mapping.json` mirroring
+  the SHAW TRANERT batch-header field-spec shape, `expected_report.json`
+  pinning the documented violations contract, and `build_sample.py` as
+  the deterministic generator) plus a one-page
+  `templates/etl/fixed_width_single_record_README.md`. The template
+  validates through `src.pipeline.etl_config.SourceConfig.model_validate`
+  and the sample drives the strict fixed-width validator to produce
+  exactly three primary violations: `FW_FMT_001` on row 8 (non-numeric
+  BALANCE), `FW_VAL_001` on row 9 (ACCT_STATUS not in `['AC','CL','SU']`),
+  and `FW_LEN_001` on row 10 (75 chars vs. expected 80). The S6-4
+  decision tree's fixed-width single-record row now links to the real
+  template instead of a "coming soon" placeholder. New regression
+  tests extend `tests/unit/test_etl_templates.py`:
+  `test_fw_single_template_validates` and
+  `test_fw_single_sample_finds_3_violations` (S6-3, #374).
 - `templates/etl/csv_file_comparison.yml` — BA-facing CSV-to-CSV
   reconciliation template, plus a worked sample under
   `templates/etl/csv_file_comparison_sample/` (left.csv, right.csv,
