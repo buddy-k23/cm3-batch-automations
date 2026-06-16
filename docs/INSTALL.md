@@ -12,7 +12,39 @@
 
 ---
 
-## Quick Start (3 steps)
+## Quick Start — one command (recommended, local)
+
+On macOS, Linux, RHEL, or WSL/Git Bash, a single command goes from a fresh
+clone to a running Valdo on **SQLite with zero external infrastructure** (no
+Oracle needed):
+
+```bash
+bash scripts/valdo-setup.sh
+```
+
+It detects your OS, finds Python 3.11+, creates/refreshes `.venv`, installs the
+project + API dependencies, writes a local `.env` (SQLite defaults — **never**
+overwriting an existing `.env`), creates the working directories, runs
+`alembic upgrade head` against local SQLite, and smoke-checks `valdo info`. The
+script is **idempotent** and safe to re-run.
+
+```bash
+source .venv/bin/activate        # .venv/Scripts/activate on Git Bash
+valdo serve                      # Web UI at http://localhost:8000/ui
+```
+
+- `--env local` (default) is the only implemented target.
+- `--env int` and `--env full-stack` are seams reserved for a future sprint and
+  exit cleanly with a "deferred" message (see `docs/sprints/SPRINT_10_KICKOFF.md`).
+- Native Windows (no WSL): use `scripts/setup_windows.ps1` or `setup-windows.bat`.
+
+> **Local default = SQLite; INT/prod = Oracle.** `valdo-setup.sh` configures
+> SQLite for zero-infra local dev. For Oracle-backed INT/prod, set the
+> `ORACLE_*` / `DB_ADAPTER=oracle` variables in `.env` (see
+> [Configuration](#configuration) and [Database Setup](#database-setup) below);
+> the `--env int` Oracle-wiring path is deferred to a future sprint.
+
+## Quick Start — manual (3 steps)
 
 ```bash
 # 1. Create and activate a virtual environment

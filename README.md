@@ -102,29 +102,29 @@ Start here if you're scoping a new source system or picking a template:
 For Java multi-step ETL regression orchestration, see:
 - `docs/PIPELINE_REGRESSION_GUIDE.md`
 
-### First-Time Setup (Beginner Friendly)
+### First-Time Setup (one command)
 
-> **New to this project?** See `docs/INSTALL.md` for a step-by-step installation guide covering Windows, Linux, and VSCode setup. Quick helper scripts: `setup-windows.bat` (Windows) and `setup-linux.sh` (Linux/macOS).
-
-**Important:** Open your terminal or command prompt and navigate to the **project root directory** before running these commands.
-
-#### macOS / Linux
-
-This script checks for Python 3.11+, creates a virtual environment, installs dependencies, and sets up working directories.
+**The single, recommended local path** — works on macOS, Linux, RHEL, and WSL/Git Bash. From a fresh clone, one command takes you to a running Valdo on **SQLite with zero external infrastructure** (no Oracle required):
 
 ```bash
-# macOS
-bash scripts/setup_mac.sh
-
-# RHEL 8.9+ (with sudo access)
-bash scripts/setup_rhel.sh
-
-# Activate the virtual environment
-source .venv/bin/activate
-
-# Verify installation
-valdo --help
+bash scripts/valdo-setup.sh
 ```
+
+This detects your OS, finds Python 3.11+, creates/refreshes `.venv`, installs the project + API deps, writes a local `.env` (SQLite defaults, never clobbering an existing one), creates the working directories, runs `alembic upgrade head` against local SQLite, and smoke-checks `valdo info`. It is **idempotent** — safe to re-run.
+
+```bash
+# After setup completes:
+source .venv/bin/activate        # .venv/Scripts/activate on Git Bash
+valdo serve                      # Web UI at http://localhost:8000/ui
+```
+
+> **Environments:** `--env local` (default) is the only implemented target. `--env int` and `--env full-stack` are seams reserved for a future sprint — they exit cleanly with a "deferred" note. See `docs/sprints/SPRINT_10_KICKOFF.md`.
+
+> **Windows (no WSL):** use `scripts/setup_windows.ps1` (PowerShell) or `setup-windows.bat`. The per-OS scripts (`scripts/setup_mac.sh`, `scripts/setup_rhel.sh`, `setup-linux.sh`) remain available but `valdo-setup.sh` is the recommended local entry point.
+
+**Important:** the script resolves the repo root from its own location, so you can run it from anywhere — but navigating to the project root first keeps relative paths predictable.
+
+For full details (Windows, INT/Oracle, VSCode), see `docs/INSTALL.md`.
 
 #### Windows (PowerShell)
 
