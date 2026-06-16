@@ -1,4 +1,28 @@
-"""Transaction management for database operations."""
+"""Transaction management for database operations.
+
+.. note::
+   **Oracle-only; quarantined — not on any adapter-routed feature path.**
+
+   Per ADR 0022 §6 and the architecture review (#431), this module's
+   ``TransactionManager`` / ``IsolatedTestTransaction`` / ``BatchTransactionManager`` /
+   ``TransactionLogger`` have **no functional consumer in ``src/``** — the only
+   in-tree references are the ``src/database/__init__.py`` re-export and
+   ``tests/unit/test_transaction.py``. None of the DB-integration features
+   (``reconcile`` / ``extract`` / ``db-compare`` / ``run-tests``) instantiate
+   them, and they were never migrated onto :func:`get_database_adapter`.
+
+   The DDL is **Oracle-only**: ``TransactionLogger.create_log_table`` emits
+   ``VARCHAR2(...)``, ``NUMBER GENERATED ALWAYS AS IDENTITY`` and ``SYSTIMESTAMP``
+   and traps ``ORA-00955``; savepoint SQL is ANSI-ish but the connection contract
+   is :class:`~src.database.connection.OracleConnection`.
+
+   It is **kept (not removed)** in S15-3 only because ``tests/unit/test_transaction.py``
+   still exercises it (so the removal condition in ADR 0022 — *zero consumers in
+   ``src/`` AND ``tests/``* — is not met). #431 therefore remains open: migrating
+   this to cross-dialect DDL (or removing it together with its tests) is filed as
+   a follow-up to be picked up only if a feature path needs a non-Oracle
+   ``TransactionLogger``.
+"""
 
 import oracledb
 from typing import Optional, Callable, Any

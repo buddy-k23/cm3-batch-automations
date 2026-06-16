@@ -1,0 +1,47 @@
+{
+  "mapping_name": "pg_smoke_customers",
+  "version": "1.0.0",
+  "description": "S15-3 (#406) Postgres full-stack smoke mapping for the seeded CUSTOMERS table. Exercises adapter-agnostic reconcile/db-compare against PostgreSQL (DB_ADAPTER=postgresql), including the boolean-on-Postgres canonical-type case.",
+  "source": {
+    "type": "file",
+    "format": "pipe_delimited"
+  },
+  "target": {
+    "type": "database",
+    "table_name": "customers"
+  },
+  "key_columns": ["customer_id"],
+  "fields": [
+    {"name": "customer_id", "target_name": "customer_id", "data_type": "integer"},
+    {"name": "customer_name", "target_name": "customer_name", "data_type": "string"},
+    {"name": "balance", "target_name": "balance", "data_type": "decimal"},
+    {"name": "active_flag", "target_name": "active_flag", "data_type": "boolean"}
+  ],
+  "mappings": [
+    {
+      "source_column": "customer_id",
+      "target_column": "customer_id",
+      "data_type": "integer",
+      "required": true
+    },
+    {
+      "source_column": "customer_name",
+      "target_column": "customer_name",
+      "data_type": "string",
+      "length": 50,
+      "required": true
+    },
+    {
+      "source_column": "balance",
+      "target_column": "balance",
+      "data_type": "decimal",
+      "required": false
+    },
+    {
+      "source_column": "active_flag",
+      "target_column": "active_flag",
+      "data_type": "boolean",
+      "required": false
+    }
+  ]
+}

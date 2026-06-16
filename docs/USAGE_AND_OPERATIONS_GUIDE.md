@@ -2378,10 +2378,29 @@ per `etl-templates-allowlist.txt`'s header convention.
 
 ## 8. Database Integration
 
-This section covers Valdo's Oracle database features: connecting to a database,
+This section covers Valdo's database features: connecting to a database,
 comparing DB data against batch files, extracting tables to flat files,
 reconciling mapping schemas, generating expected output files, and tracking
 run history.
+
+> **Backend matrix (ADR 0022).** The three user-facing DB-integration features
+> — **`reconcile`/`reconcile-all`**, **`extract`**, and **`db-compare`** — are
+> **backend-agnostic**. They run on **Oracle, PostgreSQL, and SQLite**, selected
+> by the **`DB_ADAPTER`** environment variable (`oracle` (default) /
+> `postgresql` / `sqlite`), routed through the shared
+> `get_database_adapter()` factory. The same mapping reconciles correctly
+> against any of the three backends (the `CanonicalType` model normalises each
+> backend's catalog types, so a mapping field is not falsely reported as a type
+> mismatch). The `ORACLE_*` variables below apply only when `DB_ADAPTER=oracle`;
+> see [§8.8 Pluggable Database Adapters](#88-pluggable-database-adapters) for the
+> PostgreSQL/SQLite variables and the per-feature support matrix.
+>
+> **Still Oracle-only (by design):** the `run-tests` Oracle gate and
+> `generate-oracle-expected` (the Oracle-expected-rowset generator) are
+> intentionally Oracle-bound — they read transformation SQL from the Oracle
+> `app_int` schema and are not part of the portable feature set. The
+> `OracleConnection` class is retained for these paths and is deprecated as a
+> direct entry point for everything else (use the adapter factory instead).
 
 ### 8.1 Connection Setup
 
@@ -3015,8 +3034,8 @@ The rules file can define cross-row checks like:
 
 Valdo supports multiple database backends through a pluggable adapter
 architecture. Each adapter implements the same interface
-(`DatabaseAdapter`), so all database commands (`db-compare`, `extract`,
-`reconcile`, `reconcile-all`, `generate-oracle-expected`) work identically
+(`DatabaseAdapter`), so the **backend-agnostic** database commands
+(`db-compare`, `extract`, `reconcile`, `reconcile-all`) work identically
 regardless of which backend is active. Your mapping files, rules, and
 comparison workflows remain the same.
 
@@ -3027,6 +3046,20 @@ comparison workflows remain the same.
 | Oracle | `oracle` (default) | `oracledb` (thin mode) | Supported |
 | PostgreSQL | `postgresql` | `psycopg2` | Supported |
 | SQLite | `sqlite` | `sqlite3` (stdlib) | Supported |
+
+#### Per-feature backend support (ADR 0022)
+
+| Command | Oracle | PostgreSQL | SQLite | Notes |
+|---|:---:|:---:|:---:|---|
+| `reconcile` / `reconcile-all` | Yes | Yes | Yes | Adapter-routed (Sprint 12). `CanonicalType` normalises catalog types across backends. PK/UNIQUE constraint reconciliation is currently Oracle-only and degrades to *skipped* (not a false failure) on PostgreSQL/SQLite. |
+| `extract` | Yes | Yes | Yes | Adapter-routed (Sprint 15). Dialect-correct paging (`FETCH FIRST … ROWS ONLY` on Oracle, `LIMIT n` on PostgreSQL/SQLite). |
+| `db-compare` | Yes | Yes | Yes | Adapter-routed (Sprint 15). The `db_file_compare_service` honours `DB_ADAPTER` via the factory — no `OracleConnection.from_env()` fallback. |
+| `run-tests` (Oracle gate) | Yes | — | — | **Oracle-only by design.** Reads expected rowsets from the Oracle `app_int` schema. |
+| `generate-oracle-expected` | Yes | — | — | **Oracle-only by design.** Uses `OracleConnection.from_env()` directly to read transformation SQL from Oracle; not part of the portable feature set. |
+
+The L2b SQL-truth E2E gate (`scripts/e2e_lib`) connects through the separate
+`TruthSource` seam (ADR 0010), which is Oracle-only today and intentionally
+distinct from the `DatabaseAdapter` factory.
 
 #### Selecting an Adapter
 

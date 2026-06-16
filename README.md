@@ -20,6 +20,7 @@ Automated batch file validation, comparison, and ETL testing tool with multi-dat
 
 ### Database Integration
 - **Pluggable adapters**: Oracle, PostgreSQL, SQLite (configurable via `DB_ADAPTER` env var)
+- **Backend-agnostic features (ADR 0022)**: `reconcile`/`reconcile-all`, `extract`, and `db-compare` all run on Oracle, PostgreSQL, **and** SQLite via the shared `get_database_adapter()` factory — the same mapping reconciles correctly against any backend. (`run-tests`' Oracle gate and `generate-oracle-expected` remain Oracle-only by design.)
 - **DB-to-file comparison**: Extract from database, compare against batch file
 - **Schema reconciliation**: Validate mappings against actual DB schema with drift detection
 - **Data extraction**: Export tables/queries to flat files
@@ -449,7 +450,7 @@ valdo/
 │   │   ├── models/      # Pydantic models
 │   │   └── routers/     # API endpoints
 │   ├── parsers/         # File parsers
-│   ├── database/        # Oracle DB connectivity
+│   ├── database/        # DB connectivity (Oracle/PostgreSQL/SQLite via adapters/)
 │   ├── validators/      # Validation logic
 │   ├── comparators/     # File comparison
 │   ├── config/          # Configuration management

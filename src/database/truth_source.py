@@ -28,6 +28,29 @@ Design notes
   and raises a single :class:`TruthSourceError` on failure, leaving the
   degrade-to-``infra_error`` policy to the caller (preserved in R-01b).
 * No secret values are ever included in error messages (AGENTS.md #3).
+
+Relationship to the ``DatabaseAdapter`` factory (ADR 0022 §6)
+-------------------------------------------------------------
+This module is **intentionally separate** from
+:func:`src.database.adapters.factory.get_database_adapter` and is **not** dead
+code. The two seams serve *different consumers* with *different contracts*:
+
+* :class:`TruthSource` returns a **raw PEP-249 connection** for the L2b /
+  E2E-harness comparator engine (``scripts/e2e_lib/run_source.py`` →
+  :func:`scripts.e2e_lib.run_source._open_l2b_connection`, and
+  ``scripts/e2e_lib/db_truth_comparator.py``). The comparator engine drives the
+  cursor itself.
+* :class:`~src.database.adapters.base.DatabaseAdapter` returns a higher-level
+  pandas/file API (``execute_query`` / ``extract_to_file`` / ``get_column_metadata``)
+  for the in-process ``src/`` DB-integration features
+  (``reconcile`` / ``extract`` / ``db-compare``).
+
+ADR 0010 deliberately scoped ``TruthSource`` to "produce a connection" for the
+comparator, and ADR 0022 explicitly **declines to merge** the two seams. Unifying
+:class:`SqlDialect` (here) with
+:class:`~src.database.adapters.types.CanonicalType` is deferred until a second,
+non-Oracle ``TruthSource`` backend actually lands (the same deferral ADR 0010
+made for its own dialect shape) — do not build it speculatively.
 """
 
 from __future__ import annotations

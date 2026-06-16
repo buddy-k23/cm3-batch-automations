@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**Valdo** is a FastAPI + Python CLI tool for validating, comparing, masking, and inspecting batch files against mapping schemas and business rules. It supports fixed-width, CSV, TSV, and pipe-delimited formats, with Oracle database integration for extraction, comparison, and schema reconciliation.
+**Valdo** is a FastAPI + Python CLI tool for validating, comparing, masking, and inspecting batch files against mapping schemas and business rules. It supports fixed-width, CSV, TSV, and pipe-delimited formats, with backend-agnostic database integration (Oracle, PostgreSQL, SQLite via `DB_ADAPTER`) for extraction, comparison, and schema reconciliation.
 
 **Key entry points:**
 - CLI: `src/main.py` (Click commands — `valdo validate`, `valdo compare`, `valdo mask`, etc.)
@@ -54,10 +54,11 @@
 - **Fixed-width length warnings:** Mapping converter warns if any field has a missing length; warning appears in the upload response
 
 ### Database Integration
-- Oracle via `oracledb` thin mode (configurable via `ORACLE_*` env vars)
+- **Backend-agnostic (ADR 0022):** `reconcile`/`reconcile-all`, `extract`, and `db-compare` run on Oracle, PostgreSQL, and SQLite via the `get_database_adapter()` factory, selected by `DB_ADAPTER`. `run-tests`' Oracle gate and `generate-oracle-expected` remain Oracle-only by design (`OracleConnection` is retained for those paths and deprecated as a direct entry point elsewhere).
+- Oracle via `oracledb` thin mode (configurable via `ORACLE_*` env vars); PostgreSQL via `psycopg2`; SQLite via stdlib `sqlite3`
 - Pluggable secrets provider: env, HashiCorp Vault, Azure Key Vault (`SECRETS_PROVIDER` env var)
 - Schema reconciliation and drift detection
-- Run history stored in Oracle tables
+- Run history stored in the configured backend (Oracle/PostgreSQL/SQLite)
 
 ### Web UI (5 tabs)
 - **Quick Test:** upload, validate, compare with metric cards; drift badge (⚠️) shown after validate if schema drift detected; "Download Failed Rows" button shown when `invalid_rows > 0`
