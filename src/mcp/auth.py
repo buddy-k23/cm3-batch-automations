@@ -93,6 +93,14 @@ DEV_AUTH_SENTINEL = "dev"
 # the server to have this configured.
 TOKEN_SIGNING_KEY_ENV_VAR = "VALDO_MCP_TOKEN_SIGNING_KEY"
 
+# S9-2 (#390) — the load-balancer health probe path. The MCP sub-app is
+# mounted at ``/mcp`` by the parent FastAPI app, so the externally-visible
+# path of the health route is ``/mcp/health`` and that is what the
+# Starlette middleware observes on ``request.url.path``. The probe MUST
+# work with no credential (load balancers do not authenticate), so the
+# auth middleware short-circuits this exact path before any auth check.
+HEALTH_PATH = "/mcp/health"
+
 # Default location of the stdio bearer token on the user's machine.
 # Overridable via ``VALDO_MCP_TOKEN_PATH`` for ops and tests.
 DEFAULT_TOKEN_PATH = Path.home() / ".valdo" / "mcp-token"
@@ -595,6 +603,13 @@ class MCPAuthMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request: Request, call_next):
+        # 0. Health-probe bypass (S9-2, #390). The load-balancer health
+        # endpoint must answer WITHOUT any credential — register it
+        # outside the token-auth gate. We match the exact mounted path so
+        # the bypass cannot be widened by a crafted prefix.
+        if request.url.path == HEALTH_PATH:
+            return await call_next(request)
+
         # 1. Dev-mode bypass.
         if os.environ.get(DEV_AUTH_ENV_VAR) == DEV_AUTH_SENTINEL:
             dev_principal = MCPPrincipal(
@@ -644,6 +659,7 @@ class MCPAuthMiddleware(BaseHTTPMiddleware):
 __all__ = [
     "DEV_AUTH_ENV_VAR",
     "DEV_AUTH_SENTINEL",
+    "HEALTH_PATH",
     "TOKEN_SIGNING_KEY_ENV_VAR",
     "TOKEN_PATH_ENV_VAR",
     "DEFAULT_TOKEN_PATH",

@@ -329,6 +329,58 @@ to end.
 
 ---
 
+## Health probe (S9-2, #390)
+
+`GET /mcp/health` is the MCP-aware load-balancer / readiness probe. It is a
+new MCP surface distinct from the FastAPI process-liveness endpoint
+(`/api/v1/system/health`): the FastAPI process can be up while the MCP
+transport is wedged, and this probe detects exactly that.
+
+**No auth.** The route is registered *outside* the MCP token-auth gate
+(`MCPAuthMiddleware` short-circuits the `/mcp/health` path before any
+credential check) so load balancers — which never authenticate — can poll it.
+Every other `/mcp/` path still requires a session cookie, `X-API-Key`, or
+bearer token.
+
+**What it exercises (in-process, no DB round-trip, <100 ms target):**
+
+1. **Session-manager liveness** — the FastMCP Streamable-HTTP session manager
+   has entered `run()` (the in-process analogue of a healthy `initialize`
+   handshake).
+2. **Resource read** — reads `taxonomy://violations` through the registered
+   handler.
+3. **Registry enumeration** — counts registered tools / resources / prompts
+   from the live registry (no hardcoded expected literal).
+
+The handler is thin — all check logic lives in
+[`src/mcp/health.py`](../src/mcp/health.py) (`check_mcp_health`); the route in
+`src/mcp/server.py` only maps the structured result onto a 200/503 status.
+
+**Success (200):**
+
+```json
+{
+  "status": "healthy",
+  "mcp_protocol_version": "2025-11-25",
+  "tool_count": 10,
+  "resource_count": 4,
+  "prompt_count": 4,
+  "uptime_seconds": 137
+}
+```
+
+**Failure (503):** any failed check yields a structured body with
+`status: "unhealthy"`, a `failed_check` token (`session_manager` |
+`resource_read` | `registry`), and an operator-facing `reason` (never a raw
+stack trace).
+
+Operational detail — nginx probe wiring, Kubernetes `readinessProbe` example,
+and the 200/503 LB action table — lives in
+[`docs/PRODUCTION_DEPLOYMENT.md`](PRODUCTION_DEPLOYMENT.md), section
+"Health probe (S9-2)".
+
+---
+
 ## Run state persistence (S6-1, #386)
 
 **Background.** EF-S4 introduced the `validate_file` tool, which starts

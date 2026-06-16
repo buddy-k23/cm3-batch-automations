@@ -255,11 +255,102 @@ Point `ssl_certificate` / `ssl_certificate_key` at the certbot live paths
 
 ## Health probe (S9-2)
 
-> _Reserved for S9-2 (#390)._ A dedicated `/mcp/health` endpoint for
-> load-balancer / readiness probes (exercises the handshake + a resource read
-> + tool count, no DB round-trip, <100 ms, no auth). When it lands, repoint
-> the nginx `location = /healthz` block above from
-> `/api/v1/system/health` to `/mcp/health`.
+`GET /mcp/health` is the **MCP-aware** load-balancer / readiness probe. The
+FastAPI process can be alive (`/api/v1/system/health` returns 200) while the
+MCP surface is wedged — the session manager never entered its run loop, a
+resource handler started raising, or the tool registry regressed to empty. A
+load balancer polling process-liveness alone would keep routing BA agents at a
+broken transport. `/mcp/health` closes that gap.
+
+**What it checks (in-process, NO DB round-trip):**
+
+1. **Session-manager liveness** — confirms the FastMCP Streamable-HTTP session
+   manager has entered `run()`. This is the in-process analogue of a
+   successful `initialize` handshake; a dead manager means every `/mcp/`
+   JSON-RPC call would fail.
+2. **Resource read** — actually reads the `taxonomy://violations` resource
+   through the registered handler, proving the resource path serves.
+3. **Registry enumeration** — counts the registered tools, resources, and
+   prompts from the live registry (no hardcoded expected literal — the counts
+   move every sprint).
+
+**No auth required.** The route is registered *outside* the MCP token-auth
+gate (`MCPAuthMiddleware` short-circuits the `/mcp/health` path before any
+credential check), because load balancers do not authenticate. Every other
+`/mcp/` path still requires a session cookie, `X-API-Key`, or bearer token.
+
+**Latency target: <100 ms.** Every check is in-process and touches only the
+FastMCP registries and the engine-introspection taxonomy — there is
+deliberately no DB query — so the endpoint stays cheap to poll frequently.
+
+**Success — HTTP 200:**
+
+```json
+{
+  "status": "healthy",
+  "mcp_protocol_version": "2025-11-25",
+  "tool_count": 10,
+  "resource_count": 4,
+  "prompt_count": 4,
+  "uptime_seconds": 137
+}
+```
+
+`mcp_protocol_version` tracks the installed `mcp` library; `*_count` fields
+are the live registry sizes; `uptime_seconds` is whole seconds since the MCP
+server module came up (correlate against a deploy/restart event).
+
+**Failure — HTTP 503:** any failed internal check collapses to a structured
+body the operator (and the failing load-balancer access-log line) can read
+without a token:
+
+```json
+{
+  "status": "unhealthy",
+  "failed_check": "session_manager",
+  "reason": "MCP session manager is not running — the Streamable-HTTP transport cannot complete an initialize handshake.",
+  "mcp_protocol_version": "2025-11-25",
+  "tool_count": 0,
+  "resource_count": 0,
+  "prompt_count": 0,
+  "uptime_seconds": 5
+}
+```
+
+`failed_check` is one of `session_manager` | `resource_read` | `registry`. The
+`reason` is operator-facing and never echoes a raw stack trace.
+
+**Load-balancer / nginx probe config:** the shipped `packaging/nginx/valdo.conf`
+proxies `location = /healthz` to `http://valdo_mcp/mcp/health` (access logging
+off). Point your LB / Kubernetes readiness probe at `/healthz` (or directly at
+`/mcp/health`):
+
+```nginx
+location = /healthz {
+    proxy_pass       http://valdo_mcp/mcp/health;
+    proxy_set_header Host $host;
+    access_log       off;
+}
+```
+
+| Probe response | LB action |
+|---|---|
+| `200` | Node in service — route traffic |
+| `503` | Drain this node — MCP surface degraded |
+| no response / timeout | Node down — drain |
+
+For Kubernetes, use it as a `readinessProbe` (poll every 5–10 s; the <100 ms
+budget keeps the overhead negligible):
+
+```yaml
+readinessProbe:
+  httpGet:
+    path: /mcp/health
+    port: 8000
+  periodSeconds: 10
+  timeoutSeconds: 1
+  failureThreshold: 3
+```
 
 ---
 
@@ -293,3 +384,4 @@ Point `ssl_certificate` / `ssl_certificate_key` at the certbot live paths
 | Sprint story | Section added |
 |---|---|
 | S9-1 (#387) | Architecture overview, TLS + nginx, forwarded-IP wiring |
+| S9-2 (#390) | Health probe — `/mcp/health` schema, 503 semantics, LB/K8s probe config |

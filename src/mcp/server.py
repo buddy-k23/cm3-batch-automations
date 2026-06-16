@@ -68,6 +68,7 @@ from typing import Any, Dict, List, Optional
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.applications import Starlette
+from starlette.responses import JSONResponse
 
 from src.mcp.auth import (
     DEV_AUTH_ENV_VAR as _DEV_AUTH_ENV_VAR,
@@ -669,9 +670,43 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
     # after calling streamable_http_app()").
     transport_app = mcp_server.streamable_http_app()
 
+    # ------------------------------------------------------------------
+    # S9-2 (#390) — load-balancer health probe at GET /mcp/health.
+    #
+    # The route is added to the transport's own route table (it becomes
+    # ``/mcp/health`` once the parent FastAPI app mounts this sub-app at
+    # ``/mcp``). It is registered OUTSIDE the token-auth dependency: the
+    # MCP transport itself sits behind :class:`MCPAuthMiddleware`, but
+    # load balancers do not authenticate, so the auth middleware below
+    # explicitly bypasses the health path (see HEALTH_PATH / the dispatch
+    # short-circuit in src.mcp.auth).
+    #
+    # The handler is intentionally thin (Architecture Principle #1): it
+    # delegates every check to :func:`src.mcp.health.check_mcp_health`
+    # and only maps the structured result onto an HTTP status code. The
+    # probe is in-process only — NO DB round-trip — to stay inside the
+    # #390 <100 ms budget.
+    # ------------------------------------------------------------------
+    from starlette.routing import Route as _Route
+
+    async def _mcp_health_route(request):  # noqa: ANN001 - Starlette handler
+        # Imported lazily inside the handler so the health service module
+        # (and its process-start timestamp) initialises with the rest of
+        # the app rather than at server-build time.
+        from src.mcp.health import check_mcp_health
+
+        result = await check_mcp_health(mcp_server)
+        status_code = 200 if result.healthy else 503
+        return JSONResponse(result.to_payload(), status_code=status_code)
+
+    transport_app.router.routes.append(
+        _Route("/health", _mcp_health_route, methods=["GET"], name="mcp_health")
+    )
+
     # Wrap the transport in our dev-auth gate. We use Starlette's
     # add_middleware (not FastAPI's) because the transport is a plain
-    # Starlette application.
+    # Starlette application. The middleware bypasses the health path so the
+    # probe works with no token (see src.mcp.auth.HEALTH_PATH).
     transport_app.add_middleware(MCPAuthMiddleware)
 
     return mcp_server, transport_app
