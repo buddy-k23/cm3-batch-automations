@@ -78,9 +78,18 @@ VALDO_MCP_TRUSTED_PROXIES=127.0.0.1
 VALDO_MCP_ALLOWED_HOSTS=valdo.bank.internal
 
 # MCP auth (EF-S7) — token signing key + LDAP must be configured for real
-# auth; never run prod with VALDO_MCP_AUTH=dev.
+# auth. Leave VALDO_MCP_AUTH unset/empty in prod (signed-token auth).
 VALDO_MCP_TOKEN_SIGNING_KEY=<32+ random bytes; rotate to revoke all tokens>
 ```
+
+> **Never enable the dev-auth bypass in INT/prod (S13.5-3, #409).** The
+> zero-credential `admin` bypass now requires BOTH `VALDO_MCP_AUTH=dev` AND
+> `VALDO_ALLOW_DEV_AUTH=1`. `VALDO_MCP_AUTH=dev` on its own does NOT bypass
+> auth — the server logs a one-time `mcp_dev_auth_misconfigured` warning and
+> falls through to the production auth chain (fail-closed). Do **not** set
+> `VALDO_ALLOW_DEV_AUTH` anywhere other than a developer's local machine.
+> A `.env` copied from `.env.example` ships with `VALDO_MCP_AUTH=` empty and
+> is therefore never auth-bypassed out of the box.
 
 > **Why this matters:** FastAPI sees nginx as the TCP peer. uvicorn's
 > `ProxyHeadersMiddleware` (wired in `src/api/main.py`) rewrites

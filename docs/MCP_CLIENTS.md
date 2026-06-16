@@ -63,10 +63,18 @@ All three clients ultimately authenticate against the same backend:
 |----------------------|-----------------------------------------------------------|-----------------------------------------------------------------|
 | Bearer token (HMAC)  | Claude Desktop, VSCode, native Duo MCP                    | `valdo mcp-login` → writes `~/.valdo/mcp-token` (0600 perms)    |
 | `X-API-Key`          | Duo Custom Tool fallback, service-to-service automation   | Server admin runs `valdo create-api-key --role ...`             |
-| Dev-mode bypass      | INT only — `VALDO_MCP_AUTH=dev`                           | Server-side env var; no client credential needed                |
+| Dev-mode bypass      | LOCAL dev only — `VALDO_MCP_AUTH=dev` **+** `VALDO_ALLOW_DEV_AUTH=1` | Two server-side env vars; no client credential needed |
 
 The token TTL is configurable; the default is 8 hours, max 24 hours.
 See [`src/mcp/auth.py`](../src/mcp/auth.py) for the TTL clamp constants.
+
+> **Dev-mode bypass is a strict, two-key opt-in (S13.5-3, #409).** The
+> zero-credential `admin` bypass requires BOTH `VALDO_MCP_AUTH=dev` AND a
+> truthy `VALDO_ALLOW_DEV_AUTH` (`1`/`true`/`yes`/`on`). Setting
+> `VALDO_MCP_AUTH=dev` alone does NOT bypass auth — the server warns once and
+> falls through to the production auth chain. This keeps a copied
+> `.env.example` (which ships `VALDO_MCP_AUTH=` empty) safe by default. Never
+> set `VALDO_ALLOW_DEV_AUTH` in INT/prod.
 
 ---
 

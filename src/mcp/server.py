@@ -71,9 +71,8 @@ from starlette.applications import Starlette
 from starlette.responses import JSONResponse
 
 from src.mcp.auth import (
-    DEV_AUTH_ENV_VAR as _DEV_AUTH_ENV_VAR,
-    DEV_AUTH_SENTINEL as _DEV_AUTH_SENTINEL,
     MCPAuthMiddleware,
+    is_dev_auth_enabled as _is_dev_auth_enabled,
 )
 from src.mcp.action_tools import (
     GET_RUN_STATUS_DESCRIPTION,
@@ -214,7 +213,10 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
     # the only path that fully disables the check. Tests that exercise
     # the production auth chain set the allow-list to ``testserver``.
     transport_security = None
-    if os.environ.get(_DEV_AUTH_ENV_VAR) == _DEV_AUTH_SENTINEL:
+    if _is_dev_auth_enabled():
+        # Dev bypass is deliberately opted in (S13.5-3, #409:
+        # VALDO_MCP_AUTH=dev + VALDO_ALLOW_DEV_AUTH); relax DNS-rebinding
+        # protection so local TestClient/loopback handshakes succeed.
         transport_security = TransportSecuritySettings(
             enable_dns_rebinding_protection=False,
         )

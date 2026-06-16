@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 - security(audit): tamper-evident audit records — HMAC/hash-chain + sequence; write failures no longer silent (S13.5-1, #408)
 - security(audit): audit auth failures + config/mapping/rule/masking mutations (S13.5-2, #415)
+- security(auth): MCP dev-auth requires explicit VALDO_ALLOW_DEV_AUTH opt-in; constant-time API-key compare; placeholder sample keys (S13.5-3, #409)
 
 ### Changed
 - feat(db): reconcile now runs on any backend (Oracle/Postgres/SQLite) via the adapter + canonical type matching, per ADR 0022 (S12-3, #404)

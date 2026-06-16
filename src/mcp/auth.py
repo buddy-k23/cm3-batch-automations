@@ -23,8 +23,11 @@ Three transport modes are supported:
    so agents that already hold a token can use it interchangeably.
 
 A dev-mode bypass (``VALDO_MCP_AUTH=dev``) is preserved for local
-testing — it remains a strict opt-in, never the default. In any other
-mode the middleware fails closed with HTTP 401.
+testing — it remains a strict opt-in, never the default. As of S13.5-3
+(#409) the bypass also requires an explicit ``VALDO_ALLOW_DEV_AUTH=1``
+opt-in: ``VALDO_MCP_AUTH=dev`` ALONE no longer grants the zero-credential
+admin (a copied sample ``.env`` is therefore not auth-bypassed). In any
+other mode the middleware fails closed with HTTP 401.
 
 Token shape:
 
@@ -94,6 +97,66 @@ logger = logging.getLogger(__name__)
 # (e.g. "1", "true") do not silently disable auth.
 DEV_AUTH_ENV_VAR = "VALDO_MCP_AUTH"
 DEV_AUTH_SENTINEL = "dev"
+
+# S13.5-3 (#409): explicit opt-in required for the zero-credential dev
+# bypass. ``VALDO_MCP_AUTH=dev`` ALONE is no longer sufficient — it must
+# be paired with a truthy ``VALDO_ALLOW_DEV_AUTH``. This way a copied
+# ``.env.example`` (which ships ``VALDO_MCP_AUTH=`` empty) is never
+# auth-bypassed, and even a stray ``VALDO_MCP_AUTH=dev`` left in an env
+# fails closed unless the operator deliberately opts in. Local developers
+# set BOTH vars to keep the convenient no-credential workflow.
+DEV_AUTH_OPT_IN_ENV_VAR = "VALDO_ALLOW_DEV_AUTH"
+_DEV_AUTH_OPT_IN_TRUTHY = frozenset({"1", "true", "yes", "on"})
+
+
+def is_dev_auth_enabled() -> bool:
+    """Return whether the zero-credential dev-auth bypass is active.
+
+    The dev bypass is enabled only when BOTH of these hold:
+
+    * ``VALDO_MCP_AUTH`` equals the exact sentinel ``"dev"``, AND
+    * ``VALDO_ALLOW_DEV_AUTH`` is a truthy opt-in (``1``/``true``/``yes``/
+      ``on``, case-insensitive).
+
+    Requiring the explicit opt-in (S13.5-3, #409) means a copied sample
+    ``.env`` is never auth-bypassed: ``VALDO_MCP_AUTH=dev`` without the
+    opt-in is treated as "auth misconfigured" and the middleware falls
+    through to the production (no-bypass) auth chain.
+
+    Returns:
+        True when the deliberate dev bypass is active, False otherwise.
+    """
+    if os.environ.get(DEV_AUTH_ENV_VAR) != DEV_AUTH_SENTINEL:
+        return False
+    opt_in = os.environ.get(DEV_AUTH_OPT_IN_ENV_VAR, "").strip().lower()
+    return opt_in in _DEV_AUTH_OPT_IN_TRUTHY
+
+
+# Guard so the misconfiguration warning is emitted at most once per process
+# even on a hot request path.
+_dev_auth_warned = False
+
+
+def _warn_dev_auth_not_opted_in() -> None:
+    """Warn once that ``VALDO_MCP_AUTH=dev`` is set without the opt-in.
+
+    Emitted from the middleware when the dev sentinel is present but
+    ``VALDO_ALLOW_DEV_AUTH`` is missing/falsy (S13.5-3, #409). The request
+    is NOT bypassed — it falls through to the production auth chain — but
+    the operator is told how to deliberately enable the dev path.
+    """
+    global _dev_auth_warned
+    if _dev_auth_warned:
+        return
+    _dev_auth_warned = True
+    logger.warning(
+        "mcp_dev_auth_misconfigured: %s=dev is set but %s is not enabled; "
+        "the zero-credential dev bypass is DISABLED (fail-closed). Set "
+        "%s=1 to deliberately enable it for local development.",
+        DEV_AUTH_ENV_VAR,
+        DEV_AUTH_OPT_IN_ENV_VAR,
+        DEV_AUTH_OPT_IN_ENV_VAR,
+    )
 
 # Env var that holds the HMAC-SHA256 signing key for stdio bearer tokens.
 # Must be set in production (any non-dev mode) or the middleware refuses
@@ -805,8 +868,13 @@ class MCPAuthMiddleware(BaseHTTPMiddleware):
         if request.url.path == HEALTH_PATH:
             return await call_next(request)
 
-        # 1. Dev-mode bypass.
-        if os.environ.get(DEV_AUTH_ENV_VAR) == DEV_AUTH_SENTINEL:
+        # 1. Dev-mode bypass — STRICT opt-in (S13.5-3, #409). Requires
+        # BOTH VALDO_MCP_AUTH=dev AND a truthy VALDO_ALLOW_DEV_AUTH so a
+        # copied sample .env is never auth-bypassed. A bare
+        # VALDO_MCP_AUTH=dev without the opt-in is treated as misconfigured
+        # and falls through to the production auth chain (fail-closed); we
+        # emit a one-time warning so the operator can correct it.
+        if is_dev_auth_enabled():
             dev_principal = MCPPrincipal(
                 user="dev",
                 principal_dn="",
@@ -821,6 +889,13 @@ class MCPAuthMiddleware(BaseHTTPMiddleware):
                 return await call_next(request)
             finally:
                 _current_user_ctx.reset(token)
+
+        # Misconfiguration guard (S13.5-3, #409): VALDO_MCP_AUTH=dev set
+        # WITHOUT the VALDO_ALLOW_DEV_AUTH opt-in. We do NOT bypass; instead
+        # we warn once and fall through to the production auth chain so the
+        # request still has to present a real credential.
+        if os.environ.get(DEV_AUTH_ENV_VAR) == DEV_AUTH_SENTINEL:
+            _warn_dev_auth_not_opted_in()
 
         # 2-4. Production auth chain. Order matters: session > API key >
         # bearer token, mirroring the parent FastAPI behaviour (session
@@ -981,6 +1056,8 @@ class MCPAuthMiddleware(BaseHTTPMiddleware):
 __all__ = [
     "DEV_AUTH_ENV_VAR",
     "DEV_AUTH_SENTINEL",
+    "DEV_AUTH_OPT_IN_ENV_VAR",
+    "is_dev_auth_enabled",
     "HEALTH_PATH",
     "TOKEN_SIGNING_KEY_ENV_VAR",
     "TOKEN_PATH_ENV_VAR",

@@ -24,7 +24,7 @@
         "Authorization": "Bearer ${file:~/.valdo/mcp-token#token.value}",
         "Accept": "application/json,text/event-stream"
       },
-      "_comment_dev_mode": "If the Valdo server is running with VALDO_MCP_AUTH=dev (local INT only) the Authorization header is ignored. Production deployments REQUIRE the bearer token.",
+      "_comment_dev_mode": "If the Valdo server is running with the local dev-auth bypass (VALDO_MCP_AUTH=dev AND VALDO_ALLOW_DEV_AUTH=1, S13.5-3 #409) the Authorization header is ignored. VALDO_MCP_AUTH=dev alone does NOT bypass auth. Production deployments REQUIRE the bearer token.",
       "_comment_init": "Optional: tighten the per-request timeout for the slow `validate_file` and `onboard_source_dry_run` tools. Default 30s is enough for read-only tools; bump to 120s if validating large files.",
       "requestTimeoutMs": 30000
     }

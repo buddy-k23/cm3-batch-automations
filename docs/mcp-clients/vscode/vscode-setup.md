@@ -80,11 +80,13 @@ For the full CLI reference (including `--insecure`, `--token-path`,
 and the error model) see
 [`src/commands/mcp_login.py`](../../../src/commands/mcp_login.py).
 
-> **Dev-mode shortcut.** If the Valdo server is running with
-> `VALDO_MCP_AUTH=dev` (local INT only — see
-> [`docs/MCP_SERVER.md`](../../MCP_SERVER.md)) you can skip Step 2
-> entirely. The Authorization header is ignored in dev mode, but
-> setting it anyway does no harm.
+> **Dev-mode shortcut.** If the Valdo server is running with the local
+> dev-auth bypass — which since S13.5-3 (#409) requires BOTH
+> `VALDO_MCP_AUTH=dev` AND `VALDO_ALLOW_DEV_AUTH=1` (local only — see
+> [`docs/MCP_SERVER.md`](../../MCP_SERVER.md)) — you can skip Step 2
+> entirely. The Authorization header is ignored in dev mode, but setting it
+> anyway does no harm. Note: `VALDO_MCP_AUTH=dev` WITHOUT the
+> `VALDO_ALLOW_DEV_AUTH` opt-in does NOT bypass auth.
 
 ---
 
@@ -261,7 +263,8 @@ Most common causes, in order:
 ### "Dev mode" works locally but production doesn't
 
 Production deployments **always** enforce bearer token auth. The
-`VALDO_MCP_AUTH=dev` bypass is INT-only. For prod:
+dev-auth bypass is local-only and requires BOTH `VALDO_MCP_AUTH=dev` and
+`VALDO_ALLOW_DEV_AUTH=1` (S13.5-3, #409) — never set either in prod. For prod:
 
 1. Make sure you ran `valdo mcp-login --server https://<prod-host>`
    (not the local default).

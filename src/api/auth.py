@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hmac
 import logging
 import os
 import time
@@ -40,6 +41,39 @@ def _parse_api_keys() -> Dict[str, str]:
 
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_api_key_role(presented: str, keys: Dict[str, str]) -> str | None:
+    """Resolve the role for a presented API key using a constant-time scan.
+
+    Security (S13.5-3, #409): the previous implementation used a dict
+    lookup (``keys.get(presented)``) whose short-circuiting comparison is
+    timing-attackable — an attacker can recover a configured key byte by
+    byte from response-time differences. This helper instead iterates the
+    configured keys and compares each with :func:`hmac.compare_digest`,
+    which compares the full length in (effectively) constant time. The
+    scan is O(n) in the number of configured keys; that linear cost is the
+    intended trade-off for not leaking match position via timing.
+
+    The ``key:role`` mapping and role resolution are preserved unchanged:
+    the role of the matched key is returned. Every configured key is
+    compared even after a match so the running time does not depend on
+    WHICH key matched.
+
+    Args:
+        presented: The candidate API key value from the request header.
+        keys: Mapping of configured API keys to their assigned roles.
+
+    Returns:
+        The role assigned to the matched key, or ``None`` if no configured
+        key matches.
+    """
+    presented_bytes = presented.encode("utf-8")
+    matched_role: str | None = None
+    for configured_key, role in keys.items():
+        if hmac.compare_digest(configured_key.encode("utf-8"), presented_bytes):
+            matched_role = role
+    return matched_role
 
 
 def verify_api_key(
@@ -92,7 +126,9 @@ def verify_api_key(
         )
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing X-API-Key")
 
-    role = keys.get(x_api_key)
+    # S13.5-3 (#409): constant-time scan over configured keys instead of a
+    # timing-attackable dict lookup. Preserves the key:role mapping.
+    role = _resolve_api_key_role(x_api_key, keys)
     if role is None:
         logger.warning("api_auth_failed path=%s reason=invalid_api_key", request.url.path)
         # Audit before raising the 403; the attempted key VALUE is never
