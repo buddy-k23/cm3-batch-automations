@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - fix(parsers): FormatDetector routes .csv to CSV parser (comma) and .tsv to TSV (tab), not PipeDelimitedParser (S8-2, #393)
 
 ### Added
+- feat(devex): docker-compose full-stack (Valdo app + Postgres, migrate-gated) (S11-1, #399)
 - feat(devex): scripts/valdo-setup.sh — one-command local setup (SQLite, .env, migrations); .env.example completed with VALDO_MCP_* vars (S10-3, #398)
 - feat(mcp): background-worker runtime — poll loop, graceful shutdown, heartbeat + stuck-run reaper (Alembic 0006) (S10-1, #397)
 - feat(mcp): background-job skeleton — run-registry claim_next + valdo run-job-worker --once + async-validate flag, per ADR 0021 (S9-5, #391)

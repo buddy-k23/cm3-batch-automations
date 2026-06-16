@@ -44,6 +44,76 @@ valdo serve                      # Web UI at http://localhost:8000/ui
 > [Configuration](#configuration) and [Database Setup](#database-setup) below);
 > the `--env int` Oracle-wiring path is deferred to a future sprint.
 
+## Full-stack (docker-compose) — Valdo app + Postgres
+
+> **Why here and not `DEPLOYMENT_OPTIONS.md`?** `docs/DEPLOYMENT_OPTIONS.md` is
+> the RHEL **"No Docker"** production guide. This docker-compose stack is a
+> **local developer convenience** for testing closer to a production database
+> (Postgres) without external infra, so it lives next to the other local
+> Quick-Start paths.
+
+When you want to exercise Valdo against a real **PostgreSQL** instead of local
+SQLite — closer to a production database, still zero external infra — use the
+`docker-compose.yml` at the repo root. It requires only a running Docker daemon.
+
+```bash
+docker compose up -d --build      # build images, start the stack
+```
+
+### Topology
+
+| Service | Image / build | Role |
+|---|---|---|
+| `db` | `postgres:16` | PostgreSQL; healthchecked with `pg_isready`; data on the named volume `valdo-pgdata`. |
+| `migrate` | built from `Dockerfile` | One-shot. Runs `alembic upgrade head` against `db` (`DB_ADAPTER=postgresql`), then exits 0. |
+| `valdo` | built from `Dockerfile` | `valdo serve` on port 8000. |
+
+**Startup ordering (migration-safety gate):** `valdo` declares
+`depends_on: migrate: condition: service_completed_successfully`, and `migrate`
+declares `depends_on: db: condition: service_healthy`. So the chain is
+**db healthy → migrate applies all migrations and exits 0 → valdo serves**.
+The app can never come up against an un-migrated (empty) schema.
+
+### Configuration
+
+Every value has a sane inline default — `docker compose up` works with **zero
+extra config**. The stack does **not** read your local `.env` (that one targets
+SQLite). To override, set any of these in the shell or a root `.env`:
+
+| Variable | Default | Notes |
+|---|---|---|
+| `DB_USER` / `DB_PASSWORD` / `DB_NAME` | `valdo` / `valdo` / `valdo` | Shared by `db`, `migrate`, `valdo`. |
+| `VALDO_SESSION_SIGNING_KEY` | `dev-only-compose-signing-key-change-me` | Dev-only; lets the app boot if `auth.enabled` is on. **Never use outside local compose.** |
+
+### Healthcheck & verification
+
+`valdo` has a container healthcheck that probes `GET /api/v1/system/health`
+(stdlib `urllib`, since the slim image has no `curl`). Confirm from the host:
+
+```bash
+docker compose ps                                   # valdo shows (healthy)
+curl -fsS localhost:8000/api/v1/system/health       # {"status":"healthy",...}
+curl -fsS localhost:8000/mcp/health                 # MCP server health
+open http://localhost:8000/ui                        # Web UI
+```
+
+### Data persistence & teardown
+
+PostgreSQL data lives in the Docker-managed named volume `valdo-pgdata`
+(no host bind-mount, nothing written into the repo). It survives
+`docker compose down` and is reused on the next `up`.
+
+```bash
+docker compose down        # stop + remove containers, KEEP the data volume
+docker compose down -v     # also remove valdo-pgdata (fresh DB next time)
+```
+
+> **Not yet wired into the setup script.** `bash scripts/valdo-setup.sh
+> --env full-stack` to drive this stack is a separate story (S11-2). For now,
+> use the `docker compose` commands above directly.
+
+---
+
 ## Quick Start — manual (3 steps)
 
 ```bash

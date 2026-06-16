@@ -1,6 +1,7 @@
 # Core dependencies
 pandas>=1.5.0
 oracledb>=2.0.0
+psycopg2-binary>=2.9.0  # PostgreSQL driver (DB_ADAPTER=postgresql; docker-compose full-stack)
 
 # Database migrations
 alembic>=1.13
@@ -34,6 +35,12 @@ aiofiles>=23.2.1
 pydantic>=2.5.0
 pydantic-settings>=2.1.0
 httpx>=0.28.0  # HTTP client for api_check test type and FastAPI TestClient
+
+# Model Context Protocol server. Imported eagerly by `valdo serve`
+# (src/main.py -> run_job_worker -> src/mcp/action_tools), so the runtime
+# image cannot boot without it. Already pinned in requirements-api.txt;
+# mirrored here so the Dockerfile image (which installs requirements.txt) runs.
+mcp>=1.27.0  # requires Python 3.10+
 
 # LDAPS login (when auth.enabled in config/ui.yml)
 itsdangerous>=2.0   # Starlette SessionMiddleware cookie signing

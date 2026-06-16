@@ -1,0 +1,86 @@
+# Valdo full-stack local environment (S11-1, #399)
+#
+# Brings up the Valdo app against a real PostgreSQL instead of SQLite, to test
+# closer to a production DB without external infra. Topology:
+#
+#   db      -> postgres:16, healthchecked with pg_isready, data on a named volume
+#   migrate -> one-shot, runs `alembic upgrade head` against db, then exits 0
+#   valdo   -> `valdo serve` on :8000, starts ONLY after migrate completes
+#
+# The `migrate` service is the migration-ordering mitigation from the Sprint 11
+# risk table: `valdo` waits on `service_completed_successfully`, so the app can
+# never serve against an un-migrated schema.
+#
+# Zero extra config required:  `docker compose up --build`  just works.
+# Every value below has an inline default; override any of them in a local
+# `.env` (gitignored) or the shell environment if desired. This stack does NOT
+# read the developer's existing `.env` (that one targets SQLite) — DB settings
+# are passed explicitly per service.
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${DB_USER:-valdo}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-valdo}
+      POSTGRES_DB: ${DB_NAME:-valdo}
+    volumes:
+      - valdo-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-valdo} -d ${DB_NAME:-valdo}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  migrate:
+    build:
+      context: .
+    entrypoint: ["alembic", "upgrade", "head"]
+    environment:
+      DB_ADAPTER: postgresql
+      DB_USER: ${DB_USER:-valdo}
+      DB_PASSWORD: ${DB_PASSWORD:-valdo}
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME:-valdo}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  valdo:
+    build:
+      context: .
+    command: ["serve"]
+    environment:
+      DB_ADAPTER: postgresql
+      DB_USER: ${DB_USER:-valdo}
+      DB_PASSWORD: ${DB_PASSWORD:-valdo}
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME:-valdo}
+      VALDO_HOST: 0.0.0.0
+      VALDO_PORT: "8000"
+      # Dev-only signing key so the app boots even if auth.enabled is flipped on.
+      # NEVER use this value outside local docker-compose.
+      VALDO_SESSION_SIGNING_KEY: ${VALDO_SESSION_SIGNING_KEY:-dev-only-compose-signing-key-change-me}
+    ports:
+      - "8000:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      # python:3.11-slim has no curl; use stdlib urllib for the probe.
+      test:
+        - "CMD"
+        - "python"
+        - "-c"
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/v1/system/health', timeout=3).status==200 else 1)"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+volumes:
+  valdo-pgdata:
