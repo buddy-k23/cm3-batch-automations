@@ -1011,3 +1011,156 @@ def test_db_has_live_worker_stale_is_dead(sqlite_engine):
         )
 
     assert reg.has_live_worker(within_seconds=60) is False
+
+
+# ---------------------------------------------------------------------------
+# S17-3 (#430): bounded claim_next / reap_stuck scans
+# ---------------------------------------------------------------------------
+
+
+def test_db_claim_next_fetches_one_candidate_not_whole_queue(sqlite_engine):
+    """claim_next issues a bounded single-candidate SELECT, not a full scan.
+
+    With a deep queue, the candidate-selection SELECT must carry a single-row
+    limit clause (``FETCH FIRST 1 ROW ONLY`` / ``LIMIT 1``) so the registry
+    never pulls the entire queued set into memory per claim. We assert on the
+    emitted SQL via a Connection.execute spy.
+    """
+    from src.mcp.run_registry import DatabaseRunRegistry, RunRecord
+
+    engine, schema = sqlite_engine
+    reg = DatabaseRunRegistry(engine=engine, schema_prefix=schema)
+
+    for i in range(25):
+        reg.put(RunRecord(
+            run_id=f"q-{i:03d}", source="S", file_path=f"/tmp/{i}", file_type=None,
+            status="queued",
+            started_at=f"2026-06-15T10:{i // 60:02d}:{i % 60:02d}.000000Z",
+        ))
+
+    captured: list[str] = []
+    from sqlalchemy.engine import Connection
+
+    orig = Connection.execute
+
+    def _spy(self, clause, *args, **kwargs):
+        captured.append(str(clause))
+        return orig(self, clause, *args, **kwargs)
+
+    Connection.execute = _spy
+    try:
+        claimed = reg.claim_next()
+    finally:
+        Connection.execute = orig
+
+    assert claimed is not None
+    select_sql = [
+        s for s in captured if "SELECT run_id" in s and "status = 'queued'" in s
+    ]
+    assert select_sql, "expected a queued-candidate SELECT to be issued"
+    assert any(
+        ("FETCH FIRST" in s) or ("LIMIT" in s) for s in select_sql
+    ), f"candidate SELECT was not bounded: {select_sql!r}"
+
+
+def test_db_claim_next_drains_queue_one_at_a_time(sqlite_engine):
+    """N queued rows drain via N successive claim_next calls; N+1 returns None."""
+    from src.mcp.run_registry import DatabaseRunRegistry, RunRecord
+
+    engine, schema = sqlite_engine
+    reg = DatabaseRunRegistry(engine=engine, schema_prefix=schema)
+
+    n = 10
+    for i in range(n):
+        reg.put(RunRecord(
+            run_id=f"d-{i:03d}", source="S", file_path=f"/tmp/{i}", file_type=None,
+            status="queued",
+            started_at=f"2026-06-15T10:00:{i:02d}.000000Z",
+        ))
+
+    claimed = []
+    for _ in range(n):
+        rec = reg.claim_next()
+        assert rec is not None
+        claimed.append(rec.run_id)
+
+    assert reg.claim_next() is None
+    assert set(claimed) == {f"d-{i:03d}" for i in range(n)}
+
+
+def test_db_claim_next_lose_the_race_retries_next_candidate(sqlite_engine):
+    """If the single candidate is stolen before its UPDATE, retry the next one.
+
+    Pre-steals the oldest candidate (flips it to running) so its guarded
+    UPDATE matches zero rows. The claim must NOT return None while the queue
+    still holds a claimable row — it must fall through to the next candidate.
+    """
+    from src.mcp.run_registry import DatabaseRunRegistry, RunRecord
+
+    engine, schema = sqlite_engine
+    reg = DatabaseRunRegistry(engine=engine, schema_prefix=schema)
+
+    reg.put(RunRecord(
+        run_id="first", source="S", file_path="/tmp/a", file_type=None,
+        status="queued", started_at="2026-06-15T10:00:00.000000Z",
+    ))
+    reg.put(RunRecord(
+        run_id="second", source="S", file_path="/tmp/b", file_type=None,
+        status="queued", started_at="2026-06-15T10:00:01.000000Z",
+    ))
+
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                f"UPDATE {reg._table} SET status = 'running' WHERE run_id = 'first'"
+            )
+        )
+
+    claimed = reg.claim_next()
+    assert claimed is not None, "claim returned None while 'second' was claimable"
+    assert claimed.run_id == "second"
+    assert claimed.status == "running"
+
+
+def test_db_reap_stuck_is_bounded(sqlite_engine):
+    """reap_stuck processes a bounded batch and leaves fresh rows untouched."""
+    from src.mcp.run_registry import (
+        DatabaseRunRegistry,
+        RunRecord,
+        _REAP_BATCH_SIZE,
+    )
+
+    engine, schema = sqlite_engine
+    reg = DatabaseRunRegistry(engine=engine, schema_prefix=schema)
+
+    now = datetime(2026, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+    stale_before = now - timedelta(seconds=300)
+
+    stale_total = _REAP_BATCH_SIZE + 5
+    for i in range(stale_total):
+        reg.put(RunRecord(
+            run_id=f"stale-{i:03d}", source="S", file_path=f"/tmp/{i}",
+            file_type=None, status="running",
+            started_at=_iso(now - timedelta(hours=1)),
+            last_heartbeat_at=_iso(now - timedelta(seconds=600)),
+        ))
+    reg.put(RunRecord(
+        run_id="fresh", source="S", file_path="/tmp/fresh", file_type=None,
+        status="running", started_at=_iso(now - timedelta(hours=1)),
+        last_heartbeat_at=_iso(now - timedelta(seconds=5)),
+    ))
+
+    reclaimed = reg.reap_stuck(stale_before=stale_before, now=now)
+
+    assert reclaimed <= _REAP_BATCH_SIZE
+    assert reclaimed == _REAP_BATCH_SIZE
+    assert reg.get("fresh").status == "running"
+
+    total = reclaimed
+    for _ in range(5):
+        more = reg.reap_stuck(stale_before=stale_before, now=now)
+        total += more
+        if more == 0:
+            break
+    assert total == stale_total
+    assert reg.get("fresh").status == "running"

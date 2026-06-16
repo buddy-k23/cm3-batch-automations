@@ -381,6 +381,12 @@ class InMemoryRunRegistry:
         lexicographically in chronological order), matching the
         ``ORDER BY started_at`` the database backend uses.
 
+        Parity with the bounded database backend (S17-3, #430): this path
+        already picks a *single* oldest record under one lock acquisition
+        rather than materialising and rewriting the whole queue, so it is
+        inherently bounded — no FETCH FIRST / SKIP LOCKED equivalent is
+        needed because the in-process lock is the synchronisation point.
+
         Returns:
             The claimed :class:`RunRecord` (now ``running``), or ``None``
             when no ``queued`` record exists.
@@ -494,6 +500,27 @@ class InMemoryRunRegistry:
 _TABLE_NAME = "APP_MCP_RUN_REGISTRY"
 _WORKERS_TABLE_NAME = "MCP_WORKERS"
 
+# S17-3 (#430): bound the queue scans.
+#
+# ``claim_next`` fetches ONE candidate at a time instead of the whole queued
+# set. If that single candidate's guarded UPDATE loses the race (another
+# worker claimed it between SELECT and UPDATE), we re-fetch the next candidate
+# up to this many times before giving up — so an empty result genuinely means
+# an empty queue, not transient contention. The cap keeps a pathological
+# all-contended pass bounded.
+_CLAIM_MAX_ATTEMPTS = 16
+
+# ``reap_stuck`` reclaims at most this many stale ``running`` rows per call,
+# so a backlog of stuck rows never turns one reaper pass into an unbounded
+# scan-and-rewrite. The scheduled reaper drains any residual on its next pass.
+_REAP_BATCH_SIZE = 100
+
+# Dialect names (SQLAlchemy ``engine.dialect.name``) that support
+# ``FOR UPDATE SKIP LOCKED`` row-level skip-locking. SQLite does not — it
+# relies on the guarded-UPDATE compare-and-swap (rowcount == 1) as the
+# correctness backstop instead.
+_SKIP_LOCKED_DIALECTS = frozenset({"oracle", "postgresql"})
+
 
 def _qualified(schema_prefix: str, table: str) -> str:
     """Return ``schema.table`` when the schema prefix is non-empty.
@@ -544,6 +571,52 @@ class DatabaseRunRegistry:
         self._engine = engine
         self._table = _qualified(schema_prefix, _TABLE_NAME)
         self._workers_table = _qualified(schema_prefix, _WORKERS_TABLE_NAME)
+        # Cache the dialect once (SQLAlchemy ``engine.dialect.name`` is the
+        # source of truth — more reliable than the DB_ADAPTER env var). Used to
+        # gate ``FOR UPDATE SKIP LOCKED`` and choose the single-row limit form.
+        try:
+            self._dialect = str(engine.dialect.name).lower()
+        except Exception:  # pragma: no cover - defensive, engine always has one
+            self._dialect = os.getenv("DB_ADAPTER", "oracle").lower()
+
+    def _supports_skip_locked(self) -> bool:
+        """Return ``True`` when the active dialect supports SKIP LOCKED.
+
+        Oracle and PostgreSQL implement ``FOR UPDATE SKIP LOCKED`` so
+        concurrent workers grab different rows without contention. SQLite does
+        not; it relies on the guarded-UPDATE compare-and-swap instead.
+
+        Returns:
+            ``True`` for Oracle/PostgreSQL, ``False`` otherwise (e.g. SQLite).
+        """
+        return self._dialect in _SKIP_LOCKED_DIALECTS
+
+    def _one_queued_candidate_sql(self) -> str:
+        """Build the dialect-aware single-candidate SELECT for ``claim_next``.
+
+        Selects the oldest ``queued`` ``run_id`` bounded to ONE row (S17-3,
+        #430). On Oracle/PostgreSQL the row is locked with
+        ``FOR UPDATE SKIP LOCKED`` so concurrent workers skip rows another
+        worker is already claiming. SQLite (no SKIP LOCKED) uses a plain
+        ``LIMIT 1`` and leans on the guarded UPDATE as the correctness
+        backstop. Only the already-validated table identifier is interpolated;
+        no value is ever f-string-injected.
+
+        Returns:
+            A parameter-free SQL string selecting at most one candidate
+            ``run_id``.
+        """
+        base = (
+            f"SELECT run_id FROM {self._table} "
+            "WHERE status = 'queued' "
+            "ORDER BY started_at"
+        )
+        if self._supports_skip_locked():
+            # FETCH FIRST is universal on Oracle 12c+/PostgreSQL; SKIP LOCKED
+            # lets concurrent claimers lock-skip to distinct rows.
+            return f"{base} FETCH FIRST 1 ROW ONLY FOR UPDATE SKIP LOCKED"
+        # SQLite (and any other no-SKIP-LOCKED dialect): bound with LIMIT 1.
+        return f"{base} LIMIT 1"
 
     def _probe(self) -> None:
         """Verify the backing table exists.
@@ -731,19 +804,27 @@ class DatabaseRunRegistry:
     def claim_next(self) -> Optional[RunRecord]:
         """Atomically claim the oldest ``queued`` row (S9-5, ADR 0021).
 
-        Implements the guarded transition the ADR specifies. In ONE
-        transaction:
+        Implements the guarded transition the ADR specifies, with the S17-3
+        (#430) bounded scan. Each attempt runs in ONE transaction:
 
         1. ``SELECT run_id ... WHERE status='queued' ORDER BY started_at``
-           (oldest first), bounded to a single row, to pick a candidate.
+           bounded to a **single** row (``FETCH FIRST 1 ROW ONLY`` on
+           Oracle/PostgreSQL with ``FOR UPDATE SKIP LOCKED``; ``LIMIT 1`` on
+           SQLite) — so we never pull the whole queued set into memory.
         2. ``UPDATE ... SET status='running', started_at=:now
            WHERE run_id=:run_id AND status='queued'`` — the ``AND
            status='queued'`` guard is what makes the claim safe under
-           concurrency: if another worker raced in and already moved the
-           row to ``running``, this UPDATE matches **zero** rows and we
-           return ``None`` (or, on a retry loop, would pick the next
-           candidate). Relies on the database's row-level locking within
-           the transaction so two workers never both win the same row.
+           concurrency: if another worker raced in and already moved the row
+           to ``running``, this UPDATE matches **zero** rows. On
+           Oracle/PostgreSQL ``SKIP LOCKED`` means concurrent claimers select
+           distinct rows so this is rare; on SQLite the guarded UPDATE is the
+           sole correctness backstop.
+
+        Lose-the-race handling (S17-3): if the single candidate's guarded
+        UPDATE matches zero rows, we re-fetch the **next** candidate (up to
+        ``_CLAIM_MAX_ATTEMPTS`` times) rather than returning ``None``. So a
+        ``None`` result means the queue is genuinely empty, never that the
+        one candidate we happened to pick was stolen mid-claim.
 
         All SQL is parameterised — no value is ever f-string-interpolated
         (only the already-validated, schema-qualified table identifier is,
@@ -751,27 +832,23 @@ class DatabaseRunRegistry:
 
         Returns:
             The claimed :class:`RunRecord` in ``running`` state, or
-            ``None`` when no ``queued`` row could be claimed.
+            ``None`` when the ``queued`` set is genuinely empty.
         """
         from sqlalchemy import text
 
-        # The single-row limit clause differs across dialects; Oracle <12c
-        # has no LIMIT. We avoid the issue entirely by selecting ordered
-        # candidates and taking the first the guarded UPDATE can win — for
-        # the pilot's volume a bounded fetch is unnecessary, but we cap the
-        # candidate scan to keep the round-trip small.
-        now_dt = datetime.now(timezone.utc)
+        candidate_sql = self._one_queued_candidate_sql()
 
-        with self._engine.begin() as conn:
-            rows = conn.execute(
-                text(
-                    f"SELECT run_id FROM {self._table} "
-                    "WHERE status = 'queued' "
-                    "ORDER BY started_at"
-                )
-            ).fetchall()
+        # Bounded re-fetch loop: pull ONE candidate, try to win it; on a lost
+        # race (rowcount 0) fetch the next candidate, capped so an all-contended
+        # pass can never spin unbounded.
+        for _ in range(_CLAIM_MAX_ATTEMPTS):
+            now_dt = datetime.now(timezone.utc)
+            with self._engine.begin() as conn:
+                row = conn.execute(text(candidate_sql)).fetchone()
+                if row is None:
+                    # No queued candidate at all — the queue is empty.
+                    return None
 
-            for row in rows:
                 candidate_id = row[0]
                 updated = conn.execute(
                     text(
@@ -783,48 +860,52 @@ class DatabaseRunRegistry:
                     ),
                     {"run_id": candidate_id, "started_at": now_dt},
                 )
-                if updated.rowcount == 1:
-                    # We won the row. Re-read the payload and reflect the
-                    # running transition in the returned record.
-                    payload_row = conn.execute(
-                        text(
-                            f"SELECT payload FROM {self._table} "
-                            "WHERE run_id = :run_id"
-                        ),
-                        {"run_id": candidate_id},
-                    ).fetchone()
-                    if payload_row is None:
-                        continue
-                    try:
-                        record = RunRecord.from_payload(payload_row[0])
-                    except (ValueError, KeyError, TypeError) as exc:
-                        logger.warning(
-                            "APP_MCP_RUN_REGISTRY claimed payload for "
-                            "run_id=%s is corrupt; skipping: %s",
-                            candidate_id,
-                            exc,
-                        )
-                        continue
-                    record.status = "running"
-                    # Reflect the claim time in the payload so the JSON
-                    # ``started_at`` matches the searchable column we set.
-                    record.started_at = (
-                        now_dt.strftime("%Y-%m-%dT%H:%M:%S.%f") + "Z"
-                    )
-                    # Stamp the initial heartbeat (S10-1) in the payload too,
-                    # matching the ``last_heartbeat_at`` column set above.
-                    record.last_heartbeat_at = record.started_at
-                    # Keep the persisted ``payload`` JSON consistent with
-                    # the searchable ``status`` column we just flipped.
-                    conn.execute(
-                        text(
-                            f"UPDATE {self._table} SET payload = :payload "
-                            "WHERE run_id = :run_id"
-                        ),
-                        {"payload": record.to_payload(), "run_id": candidate_id},
-                    )
-                    return record
+                if updated.rowcount != 1:
+                    # Lost the race for this candidate — retry the next one.
+                    continue
 
+                # We won the row. Re-read the payload and reflect the running
+                # transition in the returned record.
+                payload_row = conn.execute(
+                    text(
+                        f"SELECT payload FROM {self._table} "
+                        "WHERE run_id = :run_id"
+                    ),
+                    {"run_id": candidate_id},
+                ).fetchone()
+                if payload_row is None:
+                    continue
+                try:
+                    record = RunRecord.from_payload(payload_row[0])
+                except (ValueError, KeyError, TypeError) as exc:
+                    logger.warning(
+                        "APP_MCP_RUN_REGISTRY claimed payload for "
+                        "run_id=%s is corrupt; skipping: %s",
+                        candidate_id,
+                        exc,
+                    )
+                    continue
+                record.status = "running"
+                # Reflect the claim time in the payload so the JSON
+                # ``started_at`` matches the searchable column we set.
+                record.started_at = now_dt.strftime("%Y-%m-%dT%H:%M:%S.%f") + "Z"
+                # Stamp the initial heartbeat (S10-1) in the payload too,
+                # matching the ``last_heartbeat_at`` column set above.
+                record.last_heartbeat_at = record.started_at
+                # Keep the persisted ``payload`` JSON consistent with the
+                # searchable ``status`` column we just flipped.
+                conn.execute(
+                    text(
+                        f"UPDATE {self._table} SET payload = :payload "
+                        "WHERE run_id = :run_id"
+                    ),
+                    {"payload": record.to_payload(), "run_id": candidate_id},
+                )
+                return record
+
+        # Exhausted the bounded retries (every candidate we fetched was won by
+        # another worker between SELECT and UPDATE). Treat as transiently
+        # empty — the caller's poll loop will retry.
         return None
 
     def heartbeat(self, run_id: str) -> None:
@@ -885,15 +966,27 @@ class DatabaseRunRegistry:
         parameterised (only the already-validated table identifier is
         interpolated, consistent with every other method here).
 
+        The stale-row scan is **bounded** to ``_REAP_BATCH_SIZE`` rows per
+        call (S17-3, #430) so a large backlog of stuck rows never turns one
+        reaper pass into an unbounded scan-and-rewrite; the scheduled reaper
+        drains any residual on a subsequent pass.
+
         Args:
             stale_before: Heartbeat/started-at cutoff.
             now: Current time (unused in the SQL but kept for an identical
                 signature to the in-memory backend and future auditing).
 
         Returns:
-            Number of rows reclaimed.
+            Number of rows reclaimed in this bounded batch.
         """
         from sqlalchemy import text
+
+        # Dialect-aware single-page limit: FETCH FIRST n ROWS ONLY on
+        # Oracle/PostgreSQL, LIMIT n on SQLite (consistent with claim_next).
+        if self._supports_skip_locked():
+            limit_clause = f"FETCH FIRST {int(_REAP_BATCH_SIZE)} ROWS ONLY"
+        else:
+            limit_clause = f"LIMIT {int(_REAP_BATCH_SIZE)}"
 
         with self._engine.begin() as conn:
             rows = conn.execute(
@@ -905,7 +998,9 @@ class DatabaseRunRegistry:
                     "         AND last_heartbeat_at < :stale_before) "
                     "     OR (last_heartbeat_at IS NULL "
                     "         AND started_at < :stale_before) "
-                    "      )"
+                    "      ) "
+                    "ORDER BY started_at "
+                    f"{limit_clause}"
                 ),
                 {"stale_before": stale_before},
             ).fetchall()
