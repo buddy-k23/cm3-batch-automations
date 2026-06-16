@@ -17,6 +17,7 @@ from typing import Optional
 
 import pandas as pd
 
+from src.database.adapters._delimited_writer import _write_delimited
 from src.database.adapters.base import CanonicalType, ColumnMeta, DatabaseAdapter
 
 # Default path: in-memory database — ephemeral, no filesystem required.
@@ -301,14 +302,8 @@ class SQLiteAdapter(DatabaseAdapter):
         except sqlite3.Error as exc:
             raise RuntimeError(f"SQLite extraction failed: {exc}") from exc
 
-        with open(output_path, "w", encoding="utf-8") as fh:
-            fh.write(delimiter.join(col_names) + "\n")
-            for row in rows:
-                fh.write(
-                    delimiter.join(
-                        "" if val is None else str(val) for val in row
-                    )
-                    + "\n"
-                )
-
-        return len(rows)
+        # Delegate the write to the shared csv-based helper (S16-2, #426) so
+        # values containing the delimiter, quotes, or newlines are quoted and
+        # round-trip symmetrically with the comparator's read path.  SQLite
+        # fetches the whole result set, so it is passed as a single batch.
+        return _write_delimited(output_path, delimiter, col_names, [rows])

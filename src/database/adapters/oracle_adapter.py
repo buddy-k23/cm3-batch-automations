@@ -13,6 +13,7 @@ from typing import Optional
 import oracledb
 import pandas as pd
 
+from src.database.adapters._delimited_writer import _write_delimited
 from src.database.adapters.base import CanonicalType, ColumnMeta, DatabaseAdapter
 
 # Default values kept in sync with src.config.db_config
@@ -363,27 +364,26 @@ class OracleAdapter(DatabaseAdapter):
             RuntimeError: If the query or file write fails.
         """
         _CHUNK = 10_000
-        total_rows = 0
+
+        def _batches(cursor):
+            """Yield successive ``fetchmany`` chunks until the cursor drains."""
+            while True:
+                rows = cursor.fetchmany(_CHUNK)
+                if not rows:
+                    break
+                yield rows
 
         try:
             cursor = self._connection.cursor()
             cursor.execute(query, params or {})
             col_names = [desc[0] for desc in cursor.description]
-
-            with open(output_path, "w", encoding="utf-8") as fh:
-                fh.write(delimiter.join(col_names) + "\n")
-                while True:
-                    rows = cursor.fetchmany(_CHUNK)
-                    if not rows:
-                        break
-                    for row in rows:
-                        fh.write(
-                            delimiter.join(
-                                "" if val is None else str(val) for val in row
-                            )
-                            + "\n"
-                        )
-                        total_rows += 1
+            # Delegate the write to the shared csv-based helper (S16-2, #426):
+            # values containing the delimiter, quotes, or newlines are quoted
+            # via QUOTE_MINIMAL and round-trip with the comparator's reader.
+            # The fetchmany batches stream through so memory stays bounded.
+            total_rows = _write_delimited(
+                output_path, delimiter, col_names, _batches(cursor)
+            )
             cursor.close()
         except oracledb.Error as exc:
             raise RuntimeError(f"Oracle extraction failed: {exc}") from exc

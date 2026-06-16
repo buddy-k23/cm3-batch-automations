@@ -215,7 +215,12 @@ class DatabaseAdapter(ABC):
 
         The first line of the output file is a header row containing the
         column names joined by *delimiter*.  Each subsequent line is one data
-        row.  ``None`` values are written as empty strings.
+        row.  ``None`` values are written as empty strings.  Writing goes
+        through the stdlib :mod:`csv` module (``QUOTE_MINIMAL``) so values
+        containing the delimiter, the quote character, or a newline are quoted
+        and round-trip through the comparator's :func:`pandas.read_csv` reader
+        rather than corrupting the file (S16-2, #426); simple values are written
+        unquoted.
 
         Args:
             query: The SELECT statement to execute.
