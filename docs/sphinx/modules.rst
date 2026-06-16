@@ -461,6 +461,10 @@ MCP Server
    :members:
    :undoc-members:
 
+.. automodule:: src.mcp.rate_limit
+   :members:
+   :undoc-members:
+
 MCP Resources
 ~~~~~~~~~~~~~
 

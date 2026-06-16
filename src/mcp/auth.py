@@ -75,6 +75,13 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
+from src.mcp.rate_limit import (
+    RateLimiter,
+    classify_request,
+    client_ip_of,
+    token_identity,
+)
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -600,7 +607,32 @@ class MCPAuthMiddleware(BaseHTTPMiddleware):
     can call :func:`current_user` for audit logging. Any other case
     returns HTTP 401 with a generic JSON body — the error message does
     not distinguish "missing" from "invalid" to avoid user enumeration.
+
+    Rate limiting (S9-3, #390):
+        Once the principal is resolved, billable ``tools/call`` requests
+        pass through a per-token + per-IP sliding-window limiter
+        (:class:`src.mcp.rate_limit.RateLimiter`). On exceedance the
+        middleware short-circuits with HTTP 429 and a ``Retry-After``
+        header — the transport never sees the over-limit call. Resource
+        reads and handshake methods are exempt; ``get_run_status`` polling
+        uses an elevated cap. The limiter is constructed once per
+        middleware instance so its in-process counters persist across
+        requests; all throttling logic lives in
+        :mod:`src.mcp.rate_limit` (this middleware just calls it —
+        Architecture Principle #1).
     """
+
+    def __init__(self, app) -> None:
+        """Wire the auth gate and build the request-path rate limiter.
+
+        Args:
+            app: The wrapped ASGI application (the MCP transport).
+        """
+        super().__init__(app)
+        # One limiter per middleware instance so the in-memory sliding
+        # windows accumulate across requests. Caps are read from the
+        # ``VALDO_MCP_RATE_LIMIT_*`` env vars at construction time.
+        self._rate_limiter = RateLimiter.from_env()
 
     async def dispatch(self, request: Request, call_next):
         # 0. Health-probe bypass (S9-2, #390). The load-balancer health
@@ -620,6 +652,9 @@ class MCPAuthMiddleware(BaseHTTPMiddleware):
             )
             token = _current_user_ctx.set(dev_principal)
             try:
+                limited = await self._enforce_rate_limit(request, dev_principal)
+                if limited is not None:
+                    return limited
                 return await call_next(request)
             finally:
                 _current_user_ctx.reset(token)
@@ -648,9 +683,80 @@ class MCPAuthMiddleware(BaseHTTPMiddleware):
 
         token = _current_user_ctx.set(principal)
         try:
+            limited = await self._enforce_rate_limit(request, principal)
+            if limited is not None:
+                return limited
             return await call_next(request)
         finally:
             _current_user_ctx.reset(token)
+
+    async def _enforce_rate_limit(
+        self,
+        request: Request,
+        principal: MCPPrincipal,
+    ) -> Optional[JSONResponse]:
+        """Apply per-token + per-IP throttling to a billable tool call.
+
+        Reads the JSON-RPC body (cached on the request so the downstream
+        transport re-reads it for free), classifies it, and — only for
+        ``tools/call`` — meters the call against the per-token and per-IP
+        budgets. ``get_run_status`` routes to its elevated cap; resource
+        reads and handshakes are exempt and return ``None`` immediately.
+
+        The body read is wrapped defensively: a body that cannot be parsed
+        as JSON is treated as exempt (fails open) rather than 500-ing —
+        auth has already gated the request, and the transport will reject
+        a malformed body itself.
+
+        Args:
+            request: The incoming MCP request (principal already resolved).
+            principal: The authenticated caller, used for the per-token
+                bucket key.
+
+        Returns:
+            A 429 :class:`JSONResponse` with a ``Retry-After`` header when
+            the call exceeds a budget, or ``None`` when the call is
+            admitted or exempt.
+        """
+        try:
+            raw = await request.body()
+        except Exception:  # noqa: BLE001 — never let a body read break auth.
+            return None
+        if not raw:
+            return None
+        try:
+            body = json.loads(raw)
+        except (ValueError, TypeError):
+            return None
+
+        classification = classify_request(body)
+        if not classification.is_tool_call:
+            return None
+
+        decision = self._rate_limiter.check_tool_call(
+            token_id=token_identity(principal),
+            client_ip=client_ip_of(request),
+            tool_name=classification.tool_name,
+        )
+        if decision.allowed:
+            return None
+
+        logger.warning(
+            "mcp_rate_limited scope=%s tool=%s user=%s retry_after=%ss",
+            decision.scope,
+            classification.tool_name,
+            principal.user,
+            decision.retry_after,
+        )
+        return JSONResponse(
+            status_code=429,
+            content={
+                "error": "Rate limit exceeded",
+                "scope": decision.scope,
+                "retry_after_seconds": decision.retry_after,
+            },
+            headers={"Retry-After": str(decision.retry_after)},
+        )
 
 
 # Re-export the dev-auth sentinels at module level for the legacy

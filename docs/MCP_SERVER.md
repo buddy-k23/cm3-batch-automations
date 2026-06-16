@@ -381,6 +381,58 @@ and the 200/503 LB action table — lives in
 
 ---
 
+## Rate limiting (S9-3, #388)
+
+The `/mcp/` route applies an in-process **sliding-window** rate limiter
+([`src/mcp/rate_limit.py`](../src/mcp/rate_limit.py)) to billable tool calls.
+A client that exceeds its budget receives an **HTTP 429** at the transport
+layer (before the JSON-RPC tool runs), carrying a `Retry-After` header — this
+is a client-visible MCP surface behaviour every agent integration should
+handle.
+
+**What counts against the limit.** Only `tools/call` requests are metered.
+These are **exempt** (never throttled):
+
+- `resources/read` — `taxonomy://…`, `templates://etl/…`, `formats://supported`
+  (cheap, idempotent);
+- the handshake / discovery methods `initialize`, `tools/list`,
+  `resources/list`, `prompts/list`, `ping`.
+
+**Caps (defaults; all env-configurable — see the deployment runbook):**
+
+| Budget | Default / min | Notes |
+|---|---|---|
+| Per **token** (authenticated principal) | 30 | The normal working rate for one agent. |
+| Per **IP** (proxy-corrected client IP) | 60 | Defence-in-depth vs token theft; wider than per-token. |
+| Per-token `get_run_status` polling | 240 | **Elevated** separate counter so polling a long run is not self-DOSed by the normal cap. |
+
+**429 response shape:**
+
+```http
+HTTP/1.1 429 Too Many Requests
+Retry-After: 12
+Content-Type: application/json
+
+{"error": "Rate limit exceeded", "scope": "per_token", "retry_after_seconds": 12}
+```
+
+- `Retry-After` (and the mirrored `retry_after_seconds`) is the whole number
+  of seconds until a slot frees (1–60). Clients should back off for that long
+  before retrying.
+- `scope` is `per_token` or `per_ip`, telling the caller which budget it hit.
+
+**Client guidance.** Treat a 429 as a transient backpressure signal: wait
+`Retry-After` seconds, then retry. Long-poll loops should prefer
+`get_run_status` (elevated cap) over re-issuing heavyweight tools, and should
+honour `Retry-After` rather than tight-looping.
+
+Operational tuning (env vars, the in-memory-vs-Redis state model, the
+multi-worker caveat, and the per-token-runs-first attribution rule) lives in
+[`docs/PRODUCTION_DEPLOYMENT.md`](PRODUCTION_DEPLOYMENT.md), section
+"Rate limiting (S9-3)".
+
+---
+
 ## Run state persistence (S6-1, #386)
 
 **Background.** EF-S4 introduced the `validate_file` tool, which starts

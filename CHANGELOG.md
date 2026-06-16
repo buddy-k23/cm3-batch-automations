@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - fix(parsers): FormatDetector routes .csv to CSV parser (comma) and .tsv to TSV (tab), not PipeDelimitedParser (S8-2, #393)
 
 ### Added
+- feat(mcp): per-token (30/min) + per-IP (60/min) rate limiting on /mcp/ with 429 + Retry-After (S9-3, #388)
 - feat(mcp): /mcp/health endpoint exercises handshake + resources + tool count for LB probes (S9-2, #390)
 - feat(deploy): nginx TLS reverse-proxy config + production deployment runbook; FastAPI honors X-Forwarded-* (S9-1, #387)
 - ci(templates): drift-check workflow for templates/etl/*.yml (S8-5, #384)

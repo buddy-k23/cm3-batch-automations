@@ -356,9 +356,89 @@ readinessProbe:
 
 ## Rate limiting (S9-3)
 
-> _Reserved for S9-3 (#388)._ Per-token + per-IP token-bucket rate limiting on
-> `/mcp/` (`src/mcp/rate_limit.py`), returning `429` with rate-limit headers.
-> Operational tuning (bucket sizes, refill rates, env vars) documented here.
+The `/mcp/` JSON-RPC surface is protected by an in-process **sliding-window**
+rate limiter (`src/mcp/rate_limit.py`), wired into `MCPAuthMiddleware` so it
+runs **after** auth resolves the caller's identity. This means per-token
+limiting keys on the authenticated principal, and per-IP limiting uses the
+**proxy-corrected client IP** recovered by the S9-1 forwarded-headers wiring
+(`VALDO_MCP_TRUSTED_PROXIES`) — not the nginx hop.
+
+**What is limited — only billable tool calls.** The limiter meters
+`tools/call` requests. Three classes of request are **exempt**:
+
+- **Resource reads** (`resources/read` — `taxonomy://…`, `templates://etl/…`,
+  `formats://supported`): cheap and idempotent, never throttled.
+- **Handshake / discovery** (`initialize`, `tools/list`, `resources/list`,
+  `prompts/list`, `ping`): protocol overhead, never throttled.
+- A body the limiter cannot parse as JSON-RPC: fails open (auth already gated
+  the request; the transport rejects the bad body itself).
+
+### Caps and env vars
+
+| Budget | Default | Env var | Rationale |
+|---|---|---|---|
+| Per-token tool calls / min | **30** | `VALDO_MCP_RATE_LIMIT_PER_MINUTE` | One agent's normal working rate. |
+| Per-IP tool calls / min | **60** | `VALDO_MCP_RATE_LIMIT_PER_IP_PER_MINUTE` | Defence-in-depth vs **token theft** — a stolen token used from one box still hits this wall; a thief rotating tokens from one IP is caught here. Wider than per-token (multiple legit agents may share an egress IP). |
+| Per-token `get_run_status` polls / min | **240** | `VALDO_MCP_RATE_LIMIT_RUN_STATUS_PER_MINUTE` | **Elevated** — BAs poll long-running validations; the normal 30/min cap would self-DOS them. ~one poll every 250 ms. Metered on a **separate counter** so polling never erodes the normal tool budget (and vice-versa). |
+
+Each cap falls back to its default when the env var is unset, empty,
+non-numeric, or non-positive — a misconfigured value **cannot silently
+disable** throttling (Architecture Principle #5: config from settings, with a
+safe default). The rolling window is 60 s.
+
+Set the caps in `/etc/valdo/.env` (read by `valdo.service`) and restart:
+
+```bash
+# MCP rate limiting (S9-3). Defaults shown; tune per environment.
+VALDO_MCP_RATE_LIMIT_PER_MINUTE=30
+VALDO_MCP_RATE_LIMIT_PER_IP_PER_MINUTE=60
+VALDO_MCP_RATE_LIMIT_RUN_STATUS_PER_MINUTE=240
+```
+
+### 429 / Retry-After semantics
+
+When a call exceeds a budget the middleware short-circuits — the transport
+never sees the over-limit call — and returns:
+
+```http
+HTTP/1.1 429 Too Many Requests
+Retry-After: 12
+Content-Type: application/json
+
+{"error": "Rate limit exceeded", "scope": "per_token", "retry_after_seconds": 12}
+```
+
+- **`Retry-After`** is whole seconds until a slot frees — i.e. until the
+  *oldest* in-window hit ages out of the 60 s window. It is always ≥ 1 and
+  ≤ 60. A well-behaved client backs off for that long before retrying.
+- **`scope`** names the binding budget (`per_token` or `per_ip`) so an
+  operator can tell a single hot token from a hot source IP. The per-token
+  check runs first, so a single misbehaving token is attributed to
+  `per_token` rather than being masked by the wider IP budget; a
+  token-throttled call does **not** also burn the caller's IP allowance.
+- Each throttle event is logged at WARNING: `mcp_rate_limited scope=… tool=…
+  user=… retry_after=…s` — correlate against the nginx access log to
+  identify the offending agent.
+
+### State model — in-memory now, Redis-pluggable later
+
+Counters live in **process memory** (`InMemorySlidingWindowBackend`, a deque
+of hit timestamps per key behind a `threading.Lock`). This is sufficient for
+the single-host INT pilot. The backend sits behind a one-method
+`RateLimitBackend` protocol, so a Redis (or other shared-store) backend can
+drop in for a **multi-node** deployment without touching the limiter facade
+or the middleware. **Redis is NOT a dependency today** — in-memory is the
+only implementation shipped; distributed coordination is a deliberate
+scale-out follow-up (see Sprint 9 kickoff, "Out of scope").
+
+> **Multi-worker caveat:** with gunicorn running N workers, each worker holds
+> its own in-memory window, so the *effective* cap is up to N × the
+> configured value. For the INT pilot run a single worker, or set the env
+> caps to `configured / N`. The Redis backend removes this caveat — that is
+> its primary motivation for a scale-out deployment.
+
+The window clock is injectable in `rate_limit.py` (`clock` callable) purely
+for deterministic unit tests; production uses `time.monotonic`.
 
 ---
 
@@ -385,3 +465,4 @@ readinessProbe:
 |---|---|
 | S9-1 (#387) | Architecture overview, TLS + nginx, forwarded-IP wiring |
 | S9-2 (#390) | Health probe — `/mcp/health` schema, 503 semantics, LB/K8s probe config |
+| S9-3 (#388) | Rate limiting — per-token/per-IP caps, env vars, 429/Retry-After, resource-exempt + get_run_status-elevated rules, in-memory-vs-Redis |
