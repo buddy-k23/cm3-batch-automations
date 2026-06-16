@@ -57,6 +57,9 @@ class TestDatabaseAdapterABC:
             def table_exists(self, table: str, schema: str = None) -> bool:
                 return False
 
+            def get_column_metadata(self, table: str, schema: str = None) -> dict:
+                return {}
+
             def extract_to_file(
                 self, query: str, output_path: str, delimiter: str = "|"
             ) -> int:

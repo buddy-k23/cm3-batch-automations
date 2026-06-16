@@ -9,9 +9,75 @@ factory without changing call sites.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from enum import Enum
 from typing import Optional
 
 import pandas as pd
+
+
+class CanonicalType(Enum):
+    """Backend-neutral column type model (ADR 0022 §3).
+
+    Each concrete adapter normalises its dialect-native catalog type string
+    into one of these members so that reconciliation can compare a mapping's
+    declared type against a *portable* canonical type rather than against an
+    Oracle/PostgreSQL/SQLite-specific raw type string.
+
+    Members:
+        STRING: Character / text types (VARCHAR2, text, TEXT, …).
+        INTEGER: Whole-number types (NUMBER(p,0), integer, INTEGER, …).
+        DECIMAL: Fixed-point numeric types (NUMBER(p,s>0), numeric, …).
+        FLOAT: Approximate numeric types (FLOAT, double precision, REAL, …).
+        BOOLEAN: Native boolean (PostgreSQL only; advisory elsewhere).
+        DATE: Date-only types.
+        TIMESTAMP: Date+time types.
+        BINARY: Binary / large-object byte types (BLOB, bytea, RAW, …).
+        UNKNOWN: Type could not be determined (e.g. a typeless SQLite column).
+            Treated as compatible-with-everything plus an informational note
+            downstream — never a silent failure.
+    """
+
+    STRING = "STRING"
+    INTEGER = "INTEGER"
+    DECIMAL = "DECIMAL"
+    FLOAT = "FLOAT"
+    BOOLEAN = "BOOLEAN"
+    DATE = "DATE"
+    TIMESTAMP = "TIMESTAMP"
+    BINARY = "BINARY"
+    UNKNOWN = "UNKNOWN"
+
+
+@dataclass(frozen=True)
+class ColumnMeta:
+    """Portable per-column metadata returned by :meth:`get_column_metadata`.
+
+    A frozen (immutable) dataclass carrying the dialect-neutral facts the
+    reconciliation engine needs, with the backend-native ``raw_type`` retained
+    for human-readable messages.
+
+    Attributes:
+        name: Column name as reported by the backend catalog.
+        canonical_type: The portable :class:`CanonicalType` the adapter mapped
+            this column's raw type to.
+        raw_type: Backend-native type string (e.g. ``"VARCHAR2"``,
+            ``"numeric"``, ``"INTEGER"``), kept verbatim for messages.
+        nullable: ``True`` if the column accepts NULL, ``False`` otherwise.
+            Normalised to a real bool (no Oracle ``'Y'``/``'N'`` leak).
+        length: Declared character length, or ``None`` when not applicable /
+            not reported by the backend.
+        precision: Declared numeric precision, or ``None``.
+        scale: Declared numeric scale, or ``None``.
+    """
+
+    name: str
+    canonical_type: CanonicalType
+    raw_type: str
+    nullable: bool
+    length: Optional[int]
+    precision: Optional[int]
+    scale: Optional[int]
 
 
 class DatabaseAdapter(ABC):
@@ -108,6 +174,29 @@ class DatabaseAdapter(ABC):
 
         Returns:
             ``True`` if the table exists, ``False`` otherwise.
+        """
+
+    @abstractmethod
+    def get_column_metadata(
+        self, table: str, schema: Optional[str] = None
+    ) -> dict[str, ColumnMeta]:
+        """Return rich per-column metadata for *table* (ADR 0022 §1).
+
+        Unlike :meth:`get_table_columns` (names only), this returns the type,
+        nullability, and length/precision/scale needed by the reconciliation
+        engine — with each column's backend-native type normalised to a
+        portable :class:`CanonicalType` by the adapter itself, so that dialect
+        knowledge stays inside the adapter rather than leaking into consumers.
+
+        Args:
+            table: Table name (case handling is driver-dependent).
+            schema: Optional schema/owner qualifier.  When *None* the adapter
+                uses the connection's default schema.
+
+        Returns:
+            A mapping of column name to :class:`ColumnMeta`, in the catalog's
+            natural order where the backend provides one.  Returns an empty
+            dict if the table does not exist.
         """
 
     # ------------------------------------------------------------------

@@ -24,12 +24,76 @@ from typing import Any
 
 import pandas as pd
 
-from src.database.adapters.base import DatabaseAdapter
+from src.database.adapters.base import CanonicalType, ColumnMeta, DatabaseAdapter
 
 _DEFAULT_HOST = "localhost"
 _DEFAULT_PORT = 5432
 _DEFAULT_DB = "postgres"
 _DEFAULT_USER = "postgres"
+
+
+def _pg_as_int(value) -> Optional[int]:
+    """Coerce an information_schema cell to ``int`` or ``None``.
+
+    Args:
+        value: A scalar catalog cell (may be ``None``/``NaN``/``float``/``int``).
+
+    Returns:
+        The integer value, or ``None`` when the cell is null / NaN.
+    """
+    if value is None:
+        return None
+    try:
+        if pd.isna(value):
+            return None
+    except (TypeError, ValueError):
+        pass
+    return int(value)
+
+
+def _normalize_postgres_type(data_type: str) -> CanonicalType:
+    """Map a PostgreSQL raw catalog type to a portable :class:`CanonicalType`.
+
+    Pure function (no DB access) per ADR 0022 §3.  PostgreSQL has a native
+    boolean, so ``boolean``/``bool`` map to :attr:`CanonicalType.BOOLEAN`
+    exactly — the one backend where the mapping's ``boolean`` field reconciles
+    without an advisory note.
+
+    Args:
+        data_type: The ``data_type`` string from ``information_schema.columns``
+            (e.g. ``"character varying"``, ``"integer"``, ``"timestamp with
+            time zone"``).
+
+    Returns:
+        The matching :class:`CanonicalType`; :attr:`CanonicalType.UNKNOWN`
+        for an unrecognised type string.
+    """
+    t = (data_type or "").strip().lower()
+
+    if t in {
+        "varchar",
+        "character varying",
+        "char",
+        "character",
+        "bpchar",
+        "text",
+    }:
+        return CanonicalType.STRING
+    if t in {"integer", "int", "int2", "int4", "int8", "bigint", "smallint"}:
+        return CanonicalType.INTEGER
+    if t in {"numeric", "decimal"}:
+        return CanonicalType.DECIMAL
+    if t in {"real", "double precision", "float8", "float4"}:
+        return CanonicalType.FLOAT
+    if t in {"boolean", "bool"}:
+        return CanonicalType.BOOLEAN
+    if t == "date":
+        return CanonicalType.DATE
+    if t.startswith("timestamp"):
+        return CanonicalType.TIMESTAMP
+    if t == "bytea":
+        return CanonicalType.BINARY
+    return CanonicalType.UNKNOWN
 
 
 class PostgreSQLAdapter(DatabaseAdapter):
@@ -229,6 +293,57 @@ class PostgreSQLAdapter(DatabaseAdapter):
             params={"table": table.lower(), "schema": effective_schema},
         )
         return int(df["count_"].iloc[0]) > 0
+
+    def get_column_metadata(
+        self, table: str, schema: Optional[str] = None
+    ) -> dict[str, ColumnMeta]:
+        """Return rich column metadata from ``information_schema.columns``.
+
+        Reads ``data_type``/``character_maximum_length``/``numeric_precision``/
+        ``numeric_scale``/``is_nullable`` and normalises each raw type to a
+        portable :class:`CanonicalType` via :func:`_normalize_postgres_type`.
+        ``is_nullable`` (``"YES"``/``"NO"``) is normalised to a real bool.
+
+        Args:
+            table: Table name (lowercased automatically for PostgreSQL).
+            schema: Optional schema name.  Defaults to ``public``.
+
+        Returns:
+            Mapping of column name to :class:`ColumnMeta` ordered by
+            ``ordinal_position``.  Empty dict if the table is not found.
+        """
+        effective_schema = schema or "public"
+        sql = (
+            "SELECT column_name, data_type, character_maximum_length, "
+            "numeric_precision, numeric_scale, is_nullable "
+            "FROM information_schema.columns "
+            "WHERE table_name = %(table)s AND table_schema = %(schema)s "
+            "ORDER BY ordinal_position"
+        )
+        try:
+            df = pd.read_sql(
+                sql,
+                self._connection,
+                params={"table": table.lower(), "schema": effective_schema},
+            )
+        except Exception:
+            return {}
+
+        result: dict[str, ColumnMeta] = {}
+        for _, row in df.iterrows():
+            name = row["column_name"]
+            raw_type = str(row["data_type"])
+            nullable = str(row["is_nullable"]).strip().upper() != "NO"
+            result[name] = ColumnMeta(
+                name=name,
+                canonical_type=_normalize_postgres_type(raw_type),
+                raw_type=raw_type,
+                nullable=nullable,
+                length=_pg_as_int(row["character_maximum_length"]),
+                precision=_pg_as_int(row["numeric_precision"]),
+                scale=_pg_as_int(row["numeric_scale"]),
+            )
+        return result
 
     # ------------------------------------------------------------------
     # Data export

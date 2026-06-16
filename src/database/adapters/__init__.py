@@ -18,10 +18,16 @@ The active adapter is selected via the ``DB_ADAPTER`` environment variable or
 explicitly by passing ``adapter_type`` to :func:`get_database_adapter`.
 """
 
-from src.database.adapters.base import DatabaseAdapter
+from src.database.adapters.base import (
+    CanonicalType,
+    ColumnMeta,
+    DatabaseAdapter,
+)
 from src.database.adapters.factory import get_database_adapter
 
 __all__ = [
+    "CanonicalType",
+    "ColumnMeta",
     "DatabaseAdapter",
     "get_database_adapter",
 ]

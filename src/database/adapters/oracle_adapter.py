@@ -13,11 +13,79 @@ from typing import Optional
 import oracledb
 import pandas as pd
 
-from src.database.adapters.base import DatabaseAdapter
+from src.database.adapters.base import CanonicalType, ColumnMeta, DatabaseAdapter
 
 # Default values kept in sync with src.config.db_config
 _DEFAULT_USER = "APP_INT"
 _DEFAULT_DSN = "localhost:1521/FREEPDB1"
+
+
+def _as_int(value) -> Optional[int]:
+    """Coerce a catalog cell to ``int`` or ``None``.
+
+    Catalog columns such as ``DATA_PRECISION`` arrive from pandas as ``None``,
+    ``NaN``, ``float``, or ``int`` depending on the driver.  This collapses all
+    "no value" variants to ``None`` and otherwise returns a plain ``int``.
+
+    Args:
+        value: A scalar catalog cell.
+
+    Returns:
+        The integer value, or ``None`` when the cell is null / NaN.
+    """
+    if value is None:
+        return None
+    try:
+        if pd.isna(value):
+            return None
+    except (TypeError, ValueError):
+        pass
+    return int(value)
+
+
+def _normalize_oracle_type(
+    data_type: str,
+    precision: Optional[int] = None,
+    scale: Optional[int] = None,
+) -> CanonicalType:
+    """Map an Oracle raw catalog type to a portable :class:`CanonicalType`.
+
+    Pure function (no DB access) so the full normalization matrix can be
+    unit-tested directly per ADR 0022 §3.  Follows the ADR's per-dialect
+    table, including the "no native boolean" rule: Oracle ``NUMBER(1)`` maps
+    to ``INTEGER`` and ``CHAR(1)`` maps to ``STRING`` — both boolean-compatible
+    via the dialect-neutral advisory rule, not a native boolean.
+
+    Args:
+        data_type: The ``DATA_TYPE`` string from ``ALL_TAB_COLUMNS`` (e.g.
+            ``"VARCHAR2"``, ``"NUMBER"``, ``"TIMESTAMP(6)"``).
+        precision: ``DATA_PRECISION`` for numeric types, or ``None``.
+        scale: ``DATA_SCALE`` for numeric types, or ``None``.
+
+    Returns:
+        The matching :class:`CanonicalType`; :attr:`CanonicalType.UNKNOWN`
+        for an unrecognised type string.
+    """
+    t = (data_type or "").strip().upper()
+
+    if t in {"VARCHAR2", "NVARCHAR2", "VARCHAR", "CHAR", "NCHAR", "CLOB", "NCLOB"}:
+        return CanonicalType.STRING
+    if t == "INTEGER":
+        return CanonicalType.INTEGER
+    if t == "NUMBER":
+        # NUMBER(p,0) -> INTEGER; NUMBER(p,s>0) or unspecified -> DECIMAL.
+        if scale is not None and int(scale) == 0:
+            return CanonicalType.INTEGER
+        return CanonicalType.DECIMAL
+    if t in {"FLOAT", "BINARY_FLOAT", "BINARY_DOUBLE"}:
+        return CanonicalType.FLOAT
+    if t == "DATE":
+        return CanonicalType.DATE
+    if t.startswith("TIMESTAMP"):
+        return CanonicalType.TIMESTAMP
+    if t in {"BLOB", "RAW", "LONG RAW"}:
+        return CanonicalType.BINARY
+    return CanonicalType.UNKNOWN
 
 
 class OracleAdapter(DatabaseAdapter):
@@ -192,6 +260,62 @@ class OracleAdapter(DatabaseAdapter):
         )
         df = pd.read_sql(sql, self._connection, params=params)
         return int(df["COUNT_"].iloc[0]) > 0
+
+    def get_column_metadata(
+        self, table: str, schema: Optional[str] = None
+    ) -> dict[str, ColumnMeta]:
+        """Return rich column metadata from ``ALL_TAB_COLUMNS``.
+
+        Reads the same catalog columns the legacy reconciliation engine read
+        (``DATA_TYPE``/``DATA_LENGTH``/``DATA_PRECISION``/``DATA_SCALE``/
+        ``NULLABLE``) and normalises each raw type to a portable
+        :class:`CanonicalType` via :func:`_normalize_oracle_type`.  Oracle's
+        ``'Y'``/``'N'`` nullability is normalised to a real bool.
+
+        Args:
+            table: Table name (uppercased automatically).
+            schema: Optional schema/owner name (uppercased).
+
+        Returns:
+            Mapping of column name to :class:`ColumnMeta` ordered by
+            ``COLUMN_ID``.  Empty dict if the table is not found.
+        """
+        owner_clause = ""
+        params: dict = {"table_name": table.upper()}
+        if schema:
+            owner_clause = " AND OWNER = :owner"
+            params["owner"] = schema.upper()
+
+        sql = (
+            "SELECT COLUMN_NAME, DATA_TYPE, DATA_LENGTH, DATA_PRECISION, "
+            "DATA_SCALE, NULLABLE FROM ALL_TAB_COLUMNS "
+            "WHERE TABLE_NAME = :table_name"
+            f"{owner_clause} "
+            "ORDER BY COLUMN_ID"
+        )
+        try:
+            df = pd.read_sql(sql, self._connection, params=params)
+        except Exception:
+            return {}
+
+        result: dict[str, ColumnMeta] = {}
+        for _, row in df.iterrows():
+            name = row["COLUMN_NAME"]
+            raw_type = str(row["DATA_TYPE"])
+            precision = _as_int(row["DATA_PRECISION"])
+            scale = _as_int(row["DATA_SCALE"])
+            length = _as_int(row["DATA_LENGTH"])
+            nullable = str(row["NULLABLE"]).strip().upper() != "N"
+            result[name] = ColumnMeta(
+                name=name,
+                canonical_type=_normalize_oracle_type(raw_type, precision, scale),
+                raw_type=raw_type,
+                nullable=nullable,
+                length=length,
+                precision=precision,
+                scale=scale,
+            )
+        return result
 
     # ------------------------------------------------------------------
     # Data export
