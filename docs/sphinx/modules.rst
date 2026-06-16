@@ -254,12 +254,20 @@ File Downloader
    :members:
    :undoc-members:
 
+.. automodule:: src.api.routers.reconcile
+   :members:
+   :undoc-members:
+
 .. automodule:: src.api.models.db_profile
    :members:
    :undoc-members:
 
 Services
 --------
+
+.. automodule:: src.services.reconcile_service
+   :members:
+   :undoc-members:
 
 .. automodule:: src.services.db_file_compare_service
    :members:

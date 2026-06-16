@@ -87,6 +87,10 @@ from src.mcp.compare_tools import (
     COMPARE_TWO_FILES_DESCRIPTION,
     compare_two_files_payload,
 )
+from src.mcp.reconcile_tools import (
+    RECONCILE_MAPPING_DESCRIPTION,
+    reconcile_mapping_payload,
+)
 from src.mcp.onboarding_tools import (
     INFER_MAPPING_FROM_SAMPLE_DESCRIPTION,
     ONBOARD_SOURCE_DRY_RUN_DESCRIPTION,
@@ -591,6 +595,33 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
             right_path=right_path,
             key_columns=key_columns,
             mapping_path=mapping_path,
+        )
+
+    # ------------------------------------------------------------------
+    # #407 — adapter-agnostic mapping-vs-table reconcile tool.
+    #
+    # ``reconcile_mapping`` wraps the shared reconcile service seam
+    # (:func:`src.services.reconcile_service.reconcile_mapping_service`),
+    # which the CLI (``valdo reconcile``) and the REST endpoint
+    # (``POST /api/v2/reconcile``) also call. Adapter-agnostic per ADR 0022:
+    # it reconciles against whichever backend DB_ADAPTER selects. Thin
+    # adapter only — business logic lives in the service layer.
+    # ------------------------------------------------------------------
+
+    @mcp_server.tool(
+        name="reconcile_mapping",
+        title="Reconcile a Valdo mapping against a database table",
+        description=RECONCILE_MAPPING_DESCRIPTION,
+    )
+    def _reconcile_mapping_tool(
+        mapping: str,
+        table: Optional[str] = None,
+        schema: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        return reconcile_mapping_payload(
+            mapping=mapping,
+            table=table,
+            schema=schema,
         )
 
     # ------------------------------------------------------------------

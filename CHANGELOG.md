@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - fix(parsers): FormatDetector routes .csv to CSV parser (comma) and .tsv to TSV (tab), not PipeDelimitedParser (S8-2, #393)
 
 ### Added
+- feat(reconcile): expose adapter-agnostic reconcile via a service seam, `POST /api/v2/reconcile`, the `reconcile_mapping` MCP tool, and a DB Compare UI panel (#407)
 - feat(db): DatabaseAdapter.get_column_metadata + CanonicalType type model (all 3 adapters), per ADR 0022 (S12-2, #403)
 - feat(devex): valdo-setup.sh --env int — INT scaffold (.env.int.example, config/int.json) + required-var validation + conditional migrate/smoke (S11-3, #401)
 - feat(devex): valdo-setup.sh --env full-stack brings up the docker-compose stack (preflight, wait-healthy, smoke) (S11-2, #400)

@@ -28,6 +28,7 @@ from src.api.routers.api_tester import router as api_tester_router
 from src.api.routers.webhook import router as webhook_router
 from src.api.routers.multi_record import router as multi_record_router
 from src.api.routers.onboarding import router as onboarding_router
+from src.api.routers.reconcile import router as reconcile_router
 from src.api.routers.mcp_auth import router as mcp_auth_router
 from src.mcp.server import build_mcp_server
 from src.utils.cleanup import cleanup_old_files
@@ -276,6 +277,16 @@ app.include_router(
     onboarding_router,
     prefix="/api/v2/onboarding",
     tags=["Onboarding"],
+    dependencies=[Depends(require_api_key)],
+)
+
+# #407 — adapter-agnostic mapping-vs-table reconciliation. Under /api/v2 with
+# the same auth posture as onboarding (session cookie or X-API-Key). Honours
+# DB_ADAPTER so it works on SQLite / PostgreSQL / Oracle.
+app.include_router(
+    reconcile_router,
+    prefix="/api/v2",
+    tags=["Reconcile"],
     dependencies=[Depends(require_api_key)],
 )
 

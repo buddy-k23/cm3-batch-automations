@@ -644,12 +644,16 @@ def test_get_violations_unknown_run_id_raises(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# 9. tools/list advertises all ten tools (post-EF-S5 + S7-4)
+# 9. tools/list advertises every registered tool (post-EF-S5 + S7-4 + #407)
 # ---------------------------------------------------------------------------
 
 
 def test_mcp_tools_list_has_ten_entries(monkeypatch):
-    """``tools/list`` advertises the ten tools landed across EF-S2+EF-S4+EF-S5+S7-4."""
+    """``tools/list`` advertises every registered tool (EF-S2..#407).
+
+    #407 added ``reconcile_mapping``, taking the surface from ten to eleven.
+    The expected list below is the TRUE registered surface.
+    """
     monkeypatch.setenv("VALDO_MCP_AUTH", "dev")
     app = _fresh_app()
 
@@ -668,6 +672,7 @@ def test_mcp_tools_list_has_ten_entries(monkeypatch):
         "list_recent_runs",
         "list_sources",
         "onboard_source_dry_run",
+        "reconcile_mapping",
         "upload_workbook_as_spec",
         "validate_file",
-    ], f"tools/list drifted from EF-S2+EF-S4+EF-S5+S7-4 baseline: {names!r}"
+    ], f"tools/list drifted from the registered tool surface: {names!r}"

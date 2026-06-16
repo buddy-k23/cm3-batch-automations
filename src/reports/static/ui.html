@@ -927,6 +927,47 @@
       </div>
     </div>
 
+    <!-- ================================================================ -->
+    <!-- #407 — Reconcile mapping vs table                                -->
+    <!-- Adapter-agnostic schema reconciliation: pick a mapping, point it -->
+    <!-- at a table, and see a field-level verdict (matches / mismatches  -->
+    <!-- / advisories). Calls POST /api/v2/reconcile.                     -->
+    <!-- ================================================================ -->
+    <div class="rec-section" id="reconcileSection">
+      <h3 class="rec-heading">Reconcile mapping vs table</h3>
+      <p class="rec-sub">
+        Validate a mapping's declared fields against an actual database table
+        on the selected adapter. Honours the DB Type above (Oracle / PostgreSQL / SQLite).
+      </p>
+
+      <div class="rec-form">
+        <div class="rec-field">
+          <label for="reconcileMappingSelect">Mapping</label>
+          <select id="reconcileMappingSelect" aria-label="Mapping to reconcile">
+            <option value="">&#x2014; select mapping &#x2014;</option>
+          </select>
+        </div>
+        <div class="rec-field">
+          <label for="reconcileTable">Table</label>
+          <input type="text" id="reconcileTable" placeholder="CUSTOMER"
+                 aria-label="Target table name (overrides the mapping target)">
+        </div>
+        <div class="rec-field">
+          <label for="reconcileSchema">Schema <span class="dbc-muted">(optional)</span></label>
+          <input type="text" id="reconcileSchema" placeholder="APP_INT"
+                 aria-label="Schema or owner (optional)">
+        </div>
+        <div class="rec-field rec-field-action">
+          <button class="btn btn-primary" id="btnReconcile" type="button"
+                  data-tooltip="Reconcile the selected mapping against the table">
+            &#x2696;&#xFE0F; Reconcile
+          </button>
+        </div>
+      </div>
+
+      <div id="reconcileResult" class="rec-result" aria-live="polite" style="display:none"></div>
+    </div>
+
   </div><!-- /#panel-dbcompare -->
 
   <!-- FILE DOWNLOADER PANEL -->

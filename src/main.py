@@ -347,63 +347,59 @@ def info():
 
 @cli.command()
 @click.option('--mapping', '-m', required=True, help='Mapping file to validate')
+@click.option('--table', '-t', help='Target table override (else uses mapping target.table_name)')
+@click.option('--schema', '-s', help='Schema / owner, prepended to the table')
 @click.option('--output', '-o', help='Write reconciliation report to file (.json for machine-readable output)')
 @click.option('--fail-on-warnings', is_flag=True, help='Return non-zero exit code if warnings are found')
-def reconcile(mapping, output, fail_on_warnings):
-    """Reconcile mapping document with database schema."""
+def reconcile(mapping, table, schema, output, fail_on_warnings):
+    """Reconcile mapping document with database schema.
+
+    Delegates to the shared reconcile service seam
+    (``src.services.reconcile_service``) — the same code path the REST
+    endpoint (``POST /api/v2/reconcile``) and the MCP ``reconcile_mapping``
+    tool use. Adapter-agnostic per ADR 0022 (DB_ADAPTER selects the backend).
+    """
     logger = setup_logger('valdo', log_to_file=False)
 
     try:
         import json
-        from src.database.adapters.factory import get_database_adapter
-        from src.database.reconciliation import SchemaReconciler
-        from src.config.loader import ConfigLoader
-        from src.config.mapping_parser import MappingParser
+        from src.services.reconcile_service import reconcile_mapping_service
 
-        # Load mapping
-        loader = ConfigLoader()
-        mapping_dict = loader.load_mapping(mapping)
+        verdict = reconcile_mapping_service(mapping, table=table, schema=schema)
 
-        parser = MappingParser()
-        mapping_doc = parser.parse(mapping_dict)
+        click.echo(f"\nReconciling mapping: {verdict['mapping_name']}")
+        click.echo(f"Target table: {verdict.get('table') or 'N/A'}")
 
-        # Reconcile with database (adapter selected via DB_ADAPTER: oracle/postgresql/sqlite)
-        adapter = get_database_adapter()
-        reconciler = SchemaReconciler(adapter)
-
-        click.echo(f"\nReconciling mapping: {mapping_doc.mapping_name}")
-        click.echo(f"Target table: {mapping_doc.target.get('table_name', 'N/A')}")
-
-        result = reconciler.reconcile_mapping(mapping_doc)
-
-        if result['valid']:
+        if verdict['valid']:
             click.echo(click.style('\n✓ Mapping is valid', fg='green'))
         else:
             click.echo(click.style('\n✗ Mapping validation failed', fg='red'))
-            for error in result['errors']:
+            for error in verdict['errors']:
                 click.echo(click.style(f"  ERROR: {error}", fg='red'))
 
-        if result['warnings']:
-            click.echo(click.style('\nWarnings:', fg='yellow'))
-            for warning in result['warnings']:
-                click.echo(click.style(f"  {warning}", fg='yellow'))
+        if verdict['mismatches']:
+            click.echo(click.style('\nType mismatches:', fg='yellow'))
+            for mismatch in verdict['mismatches']:
+                click.echo(click.style(f"  {mismatch}", fg='yellow'))
 
-        click.echo(f"\nMapped columns: {result.get('mapped_columns', 0)}")
-        click.echo(f"Database columns: {result.get('database_columns', 0)}")
+        if verdict['advisories']:
+            click.echo(click.style('\nAdvisories:', fg='cyan'))
+            for advisory in verdict['advisories']:
+                click.echo(click.style(f"  {advisory}", fg='cyan'))
+
+        click.echo(f"\nMapped columns: {verdict['summary']['mapped_columns']}")
+        click.echo(f"Database columns: {verdict['summary']['database_columns']}")
 
         if output:
-            if output.lower().endswith('.json'):
-                with open(output, 'w') as f:
-                    json.dump(result, f, indent=2)
-            else:
-                report = reconciler.generate_reconciliation_report(mapping_doc)
-                with open(output, 'w') as f:
-                    f.write(report)
+            with open(output, 'w') as f:
+                json.dump(verdict, f, indent=2)
             click.echo(f"Report written to: {output}")
 
-        if (not result['valid']) or (fail_on_warnings and result['warnings']):
+        if (not verdict['valid']) or (fail_on_warnings and verdict['summary']['warning_count']):
             sys.exit(1)
 
+    except SystemExit:
+        raise
     except Exception as e:
         logger.error(f"Error reconciling mapping: {e}")
         sys.exit(1)

@@ -948,6 +948,21 @@ async function loadMappings() {
           dbcSel.appendChild(opt);
         });
       }
+      // #407 \u2014 populate the Reconcile-mapping-vs-table select (same list).
+      var recSel = document.getElementById('reconcileMappingSelect');
+      if (recSel) {
+        while (recSel.firstChild) { recSel.removeChild(recSel.firstChild); }
+        var recPlaceholder = document.createElement('option');
+        recPlaceholder.value = '';
+        recPlaceholder.textContent = '\u2014 select mapping \u2014';
+        recSel.appendChild(recPlaceholder);
+        list.forEach(function(m) {
+          var opt = document.createElement('option');
+          opt.value = m.id;
+          opt.textContent = m.mapping_name + ' (' + m.format + ')';
+          recSel.appendChild(opt);
+        });
+      }
     }
   } catch (err) {
     while (sel.firstChild) { sel.removeChild(sel.firstChild); }
@@ -4700,6 +4715,122 @@ if (_dbcDlBtn) {
         btn.textContent = '\u2B07 Download Diff CSV';
       }
     }, 0);
+  });
+}
+
+// ===========================================================================
+// #407 \u2014 Reconcile mapping vs table (DB Compare tab)
+//
+// Thin client over POST /api/v2/reconcile. Picks the selected mapping +
+// table + schema and renders the structured field-level verdict (status
+// banner + counts + mismatch / advisory / error lists). The backend selects
+// the DB adapter from DB_ADAPTER; the panel surfaces whatever the server
+// resolved in the verdict's db_adapter field. Password is never handled
+// here \u2014 reconcile reads schema metadata via the server-side adapter config.
+// ===========================================================================
+
+/**
+ * Render a single titled list of verdict messages into a container.
+ *
+ * @param {string} title    Section heading (e.g. "Type mismatches").
+ * @param {string[]} items  Message strings.
+ * @param {string} kind     CSS suffix: 'mismatch' | 'advisory' | 'error'.
+ * @returns {string} HTML string (empty when items is empty).
+ */
+function _recRenderList(title, items, kind) {
+  if (!items || !items.length) { return ''; }
+  var lis = items.map(function(m) { return '<li>' + _escHtml(m) + '</li>'; }).join('');
+  return '<div class="rec-list-title">' + _escHtml(title) + '</div>' +
+         '<ul class="rec-list rec-list-' + kind + '">' + lis + '</ul>';
+}
+
+/**
+ * Render the reconcile verdict object into #reconcileResult.
+ *
+ * @param {Object} v  Verdict dict from POST /api/v2/reconcile.
+ */
+function _recRenderVerdict(v) {
+  var el = document.getElementById('reconcileResult');
+  if (!el) { return; }
+  var statusText = {
+    clean:      '\u2705 Clean \u2014 all mapped columns match',
+    advisories: '\u2139\ufe0f Advisories \u2014 compatible with informational notes',
+    mismatch:   '\u26a0\ufe0f Type mismatch \u2014 one or more columns conflict',
+    error:      '\u274c Error \u2014 missing table or required column'
+  }[v.status] || v.status;
+
+  var s = v.summary || {};
+  var html = '<div class="rec-verdict-banner rec-verdict-' + _escHtml(v.status) + '">' +
+             _escHtml(statusText) + '</div>';
+  html += '<div class="rec-counts">' +
+    '<span>Table: <b>' + _escHtml(v.table || '\u2014') + '</b></span>' +
+    '<span>Adapter: <b>' + _escHtml(v.db_adapter || '\u2014') + '</b></span>' +
+    '<span>Mapped: <b>' + (s.mapped_columns || 0) + '</b></span>' +
+    '<span>DB columns: <b>' + (s.database_columns || 0) + '</b></span>' +
+    '<span>Mismatches: <b>' + (s.mismatch_count || 0) + '</b></span>' +
+    '<span>Advisories: <b>' + (s.advisory_count || 0) + '</b></span>' +
+    '</div>';
+  html += _recRenderList('Errors', v.errors, 'error');
+  html += _recRenderList('Type mismatches', v.mismatches, 'mismatch');
+  html += _recRenderList('Advisories', v.advisories, 'advisory');
+  if (v.status === 'clean') {
+    html += '<div class="rec-list-title">All field types reconcile cleanly.</div>';
+  }
+  el.innerHTML = html;
+  el.style.display = '';
+}
+
+var _btnReconcile = document.getElementById('btnReconcile');
+if (_btnReconcile) {
+  _btnReconcile.addEventListener('click', async function() {
+    var btn = this;
+    var resultEl = document.getElementById('reconcileResult');
+    var mapping  = (document.getElementById('reconcileMappingSelect') || {}).value || '';
+    var table    = ((document.getElementById('reconcileTable')  || {}).value || '').trim();
+    var schema   = ((document.getElementById('reconcileSchema') || {}).value || '').trim();
+
+    if (!mapping) {
+      if (resultEl) {
+        resultEl.innerHTML = '<div class="rec-verdict-banner rec-verdict-error">Select a mapping first.</div>';
+        resultEl.style.display = '';
+      }
+      return;
+    }
+
+    btn.disabled = true;
+    var origText = btn.innerHTML;
+    btn.innerHTML = '\u23f3 Reconciling\u2026';
+    try {
+      var body = { mapping: mapping };
+      if (table)  { body.table  = table; }
+      if (schema) { body.schema = schema; }
+      var resp = await fetch('/api/v2/reconcile', {
+        method: 'POST',
+        headers: Object.assign({ 'Content-Type': 'application/json' }, _apiHeaders()),
+        credentials: 'include',
+        body: JSON.stringify(body)
+      });
+      var data = await resp.json();
+      if (!resp.ok) {
+        var msg = (data && data.detail) ? data.detail : ('HTTP ' + resp.status);
+        if (resultEl) {
+          resultEl.innerHTML = '<div class="rec-verdict-banner rec-verdict-error">' +
+            _escHtml(String(msg)) + '</div>';
+          resultEl.style.display = '';
+        }
+        return;
+      }
+      _recRenderVerdict(data);
+    } catch (err) {
+      if (resultEl) {
+        resultEl.innerHTML = '<div class="rec-verdict-banner rec-verdict-error">' +
+          _escHtml('Reconcile failed: ' + err) + '</div>';
+        resultEl.style.display = '';
+      }
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = origText;
+    }
   });
 }
 

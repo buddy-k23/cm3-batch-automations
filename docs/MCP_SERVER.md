@@ -17,7 +17,7 @@ see the `tools/list` response or
 
 ## Tools
 
-The MCP server exposes ten tools as of Sprint 7:
+The MCP server exposes eleven tools:
 
 - `list_sources`, `get_source_spec`, `list_recent_runs` — read-only
   (EF-S2)
@@ -26,6 +26,32 @@ The MCP server exposes ten tools as of Sprint 7:
 - `infer_mapping_from_sample`, `upload_workbook_as_spec`,
   `onboard_source_dry_run` — onboarding (EF-S5)
 - `compare_two_files` — ad-hoc file diff (S7-4)
+- `reconcile_mapping` — adapter-agnostic mapping-vs-table reconcile (#407)
+
+### Tool: `reconcile_mapping` (#407)
+
+Reconciles a Valdo mapping's declared fields against an actual database
+table on whichever backend `DB_ADAPTER` selects (`sqlite` | `postgresql` |
+`oracle`), per ADR 0022. It wraps the shared service seam
+[`src/services/reconcile_service.py::reconcile_mapping_service`](../src/services/reconcile_service.py)
+— the same code path the `valdo reconcile` CLI and the `POST /api/v2/reconcile`
+REST endpoint call.
+
+**Input parameters**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `mapping` | string | yes | Mapping path or bare mapping id (under `config/mappings/`). |
+| `table` | string | no | Target table override; defaults to the mapping's `target.table_name`. |
+| `schema` | string | no | Schema / owner, prepended to the table. |
+
+**Verdict shape** — `status` (`clean` \| `advisories` \| `mismatch` \| `error`),
+`valid`, `summary` counts, and the field-level `errors` (missing table /
+required column), `mismatches` (genuine type conflicts), and `advisories`
+(non-blocking notes, e.g. a boolean stored as integer on a backend with no
+native boolean) lists. A type conflict is reported in the verdict — it does
+NOT raise a tool error. Tool errors are reserved for caller-fixable problems
+(mapping not found, no resolvable table, bad adapter name).
 
 Each tool's input schema and description are surfaced via the standard
 MCP `tools/list` discovery call.

@@ -2584,3 +2584,58 @@
   color: var(--accent, #4a9eff);
   word-break: break-all;
 }
+
+/* ── #407 — Reconcile mapping vs table panel (DB Compare tab) ─────────── */
+.rec-section {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.rec-heading { font-size: 15px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px; }
+.rec-sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 14px; }
+.rec-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+.rec-field { display: flex; flex-direction: column; gap: 4px; min-width: 160px; }
+.rec-field label { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.rec-field input, .rec-field select {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 13px;
+}
+.rec-field-action { min-width: auto; }
+.rec-result { margin-top: 18px; }
+.rec-verdict-banner {
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+}
+.rec-verdict-clean      { background: rgba(39,174,96,0.14);  color: var(--pass); border-color: var(--pass); }
+.rec-verdict-advisories { background: rgba(243,156,18,0.14); color: var(--partial); border-color: var(--partial); }
+.rec-verdict-mismatch   { background: rgba(231,76,60,0.14);  color: var(--fail); border-color: var(--fail); }
+.rec-verdict-error      { background: rgba(231,76,60,0.20);  color: var(--fail); border-color: var(--fail); }
+.rec-counts { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 12px; font-size: 13px; color: var(--text-secondary); }
+.rec-counts b { color: var(--text-primary); }
+.rec-list { margin: 8px 0 14px; padding: 0; list-style: none; }
+.rec-list li {
+  padding: 7px 10px;
+  border-left: 3px solid var(--border);
+  background: var(--bg-secondary);
+  margin-bottom: 5px;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+.rec-list-mismatch li  { border-left-color: var(--fail); }
+.rec-list-advisory li  { border-left-color: var(--partial); }
+.rec-list-error li     { border-left-color: var(--fail); }
+.rec-list-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-secondary); margin-bottom: 6px; }

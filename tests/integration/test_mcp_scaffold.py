@@ -251,9 +251,9 @@ def test_mcp_capabilities_advertise_expected_registries(monkeypatch):
         "pick_etl_shape",
     ], f"prompts/list names drifted from EF-S6+S7-5 baseline: {prompt_names!r}"
 
-    # EF-S2 + EF-S4 + EF-S5 + S7-4 — exactly ten tools: three read-only,
-    # three action, three onboarding, one ad-hoc compare, no more, no
-    # less. The full input-schema shape of each tool is asserted in
+    # EF-S2 + EF-S4 + EF-S5 + S7-4 + #407 — eleven tools: three read-only,
+    # three action, three onboarding, one ad-hoc compare, one reconcile, no
+    # more, no less. The full input-schema shape of each tool is asserted in
     # ``test_mcp_read_tools.py`` (EF-S2), ``test_mcp_action_tools.py``
     # (EF-S4), ``test_mcp_onboarding_tools.py`` (EF-S5), and
     # ``test_mcp_compare_tool.py`` (S7-4); here we only pin the
@@ -269,9 +269,10 @@ def test_mcp_capabilities_advertise_expected_registries(monkeypatch):
         "list_recent_runs",
         "list_sources",
         "onboard_source_dry_run",
+        "reconcile_mapping",
         "upload_workbook_as_spec",
         "validate_file",
-    ], f"tools/list names drifted from EF-S2+EF-S4+EF-S5+S7-4 baseline: {tool_names!r}"
+    ], f"tools/list names drifted from the registered tool surface: {tool_names!r}"
 
     # EF-S3 + S7-2 + S7-3 — the static-URI resource baseline.
     # ``resources/list`` advertises only resources with a fully-qualified
