@@ -73,6 +73,16 @@ Automated batch file validation, comparison, and ETL testing tool with multi-dat
 | [Splunk Setup](docs/splunk-setup.md) | Audit log integration |
 | [Installation](docs/INSTALL.md) | Windows, Linux, VSCode setup |
 
+### For BAs / POs
+
+Start here if you're scoping a new source system or picking a template:
+
+| Guide | Description |
+|-------|-------------|
+| [Choose Your ETL Shape](docs/etl/CHOOSE_YOUR_SHAPE.md) | Decision tree — which template fits your data (file, DB, fixed-width, CSV, multi-record)? |
+| [Mapping Quickstart](docs/MAPPING_QUICKSTART.md) | 5-minute mapping primer |
+| [Functionality Matrix](docs/FUNCTIONALITY_MATRIX.md) | Feature-by-feature support reference |
+
 ## Quick Start
 
 For Java multi-step ETL regression orchestration, see:
