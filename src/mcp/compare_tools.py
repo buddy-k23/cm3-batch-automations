@@ -23,13 +23,13 @@ Auto-detection by extension (per the S7-4 AC):
 ============  =====================================================
 Extension     Behaviour
 ============  =====================================================
-``.csv``      ``pandas.read_csv(sep=",", dtype=str, ...)``.
-              Bypasses :class:`src.parsers.format_detector.FormatDetector`
-              because of the S6-2 routing bug — that detector still
-              routes ``.csv`` through ``PipeDelimitedParser`` with a
-              hardcoded ``sep="|"`` (tracked under issue S6-2). When
-              that bug is fixed, this tool can switch to the detector.
-``.tsv``      ``pandas.read_csv(sep="\\t", dtype=str, ...)``.
+``.csv``      ``pandas.read_csv(sep=",", dtype=str, header=0)`` via
+              :class:`src.parsers.format_detector.FormatDetector` ->
+              :class:`PipeDelimitedParser` (which infers ``sep=","``
+              from the ``.csv`` extension after the S8-2 routing fix).
+``.tsv``      ``pandas.read_csv(sep="\\t", dtype=str, header=0)`` via
+              the same detector route; the parser infers ``sep="\\t"``
+              from the ``.tsv`` extension.
 ``.txt``      :class:`FixedWidthParser` with column specs built from
               the mapping JSON. ``mapping_path`` is REQUIRED for
               ``.txt`` and a :class:`ToolError` is raised when it is
@@ -216,13 +216,12 @@ def _parse_file(
 
     The routing rules are:
 
-    * ``.csv`` -> ``pandas.read_csv`` with ``sep=","``. We deliberately
-      bypass :class:`src.parsers.format_detector.FormatDetector` because
-      of the S6-2 bug — that detector still funnels ``.csv`` files
-      through ``PipeDelimitedParser`` with a hardcoded ``sep="|"``, which
-      would silently corrupt every CSV passed to this tool. When the S6-2
-      fix lands, the bypass here can be retired.
-    * ``.tsv`` -> ``pandas.read_csv`` with ``sep="\\t"``.
+    * ``.csv`` / ``.tsv`` -> :class:`src.parsers.format_detector.FormatDetector`
+      routes to :class:`PipeDelimitedParser`, which infers the correct
+      separator (``,`` or ``\\t``) from the file extension after the S8-2
+      routing fix. The DataFrame is read with ``header=0`` because the
+      compare tool's contract assumes a header row supplies the column
+      names used by ``key_columns``.
     * ``.txt`` -> :class:`FixedWidthParser`; ``mapping_config`` must be
       provided or a :class:`ToolError` is raised.
 
@@ -247,36 +246,38 @@ def _parse_file(
         raise ToolError(f"File not found ({role}): {file_path!r}")
 
     suffix = path.suffix.lower()
-    if suffix in _CSV_EXTENSIONS:
-        # NOTE(S6-2): explicitly use pandas read_csv with comma separator
-        # rather than FormatDetector.get_parser_class(), which still
-        # routes .csv through PipeDelimitedParser. Remove this workaround
-        # once the S6-2 fix lands.
-        try:
-            return pd.read_csv(
-                file_path,
-                sep=",",
-                dtype=str,
-                keep_default_na=False,
-                header=0,
-            )
-        except (OSError, pd.errors.ParserError, pd.errors.EmptyDataError) as exc:
-            raise ToolError(
-                f"Failed to parse CSV ({role}) {file_path!r}: {exc}"
-            ) from exc
+    if suffix in _CSV_EXTENSIONS or suffix in _TSV_EXTENSIONS:
+        # Post-S8-2 (#393): FormatDetector now routes .csv / .tsv to
+        # PipeDelimitedParser with the correct delimiter inferred from
+        # the extension, retiring the S7-4 workaround that used a
+        # hardcoded ``pd.read_csv(sep=",")``. We still read with
+        # ``header=0`` here (rather than calling parser.parse()
+        # directly) because the MCP compare contract requires header-
+        # derived column names so ``key_columns`` lookup works, whereas
+        # PipeDelimitedParser.parse() reads with ``header=None`` for
+        # backwards compatibility with the validation pipeline.
+        from src.parsers.format_detector import FormatDetector
+        from src.parsers.pipe_delimited_parser import PipeDelimitedParser
 
-    if suffix in _TSV_EXTENSIONS:
+        parser_class = FormatDetector().get_parser_class(file_path)
+        if parser_class is not PipeDelimitedParser:
+            raise ToolError(
+                f"Expected delimited parser for {file_path!r}, got "
+                f"{parser_class.__name__}."
+            )
+        delimiter = PipeDelimitedParser._infer_delimiter(file_path)
         try:
             return pd.read_csv(
                 file_path,
-                sep="\t",
+                sep=delimiter,
                 dtype=str,
                 keep_default_na=False,
                 header=0,
             )
         except (OSError, pd.errors.ParserError, pd.errors.EmptyDataError) as exc:
+            fmt = "CSV" if suffix in _CSV_EXTENSIONS else "TSV"
             raise ToolError(
-                f"Failed to parse TSV ({role}) {file_path!r}: {exc}"
+                f"Failed to parse {fmt} ({role}) {file_path!r}: {exc}"
             ) from exc
 
     if suffix in _FIXED_WIDTH_EXTENSIONS:

@@ -164,17 +164,55 @@ class FormatDetector:
             return 0.6
         return 0.2
 
+    # Extension-driven routing table. Consulted before content sniffing so
+    # ``.csv`` / ``.tsv`` / ``.psv`` files route deterministically to a
+    # delimited parser with the correct separator, instead of being
+    # mis-routed through ``PipeDelimitedParser`` with ``sep="|"`` whenever
+    # the content sniffer's heuristic mis-fires (S8-2, #393). The detector
+    # still falls back to ``detect()`` for unknown extensions like ``.txt``
+    # — those can be pipe-delimited OR fixed-width and need content
+    # inspection to disambiguate.
+    _DELIMITED_EXTENSIONS = frozenset({".csv", ".tsv", ".psv"})
+
     def get_parser_class(self, file_path: str):
         """Get appropriate parser class for file.
-        
+
+        Routing order:
+
+        1. **Extension first** — ``.csv`` / ``.tsv`` / ``.psv`` route
+           directly to :class:`PipeDelimitedParser` (which infers the
+           correct delimiter from the extension via
+           :func:`PipeDelimitedParser._infer_delimiter`). This is the
+           authoritative route for these extensions because the content
+           sniffer cannot reliably tell a comma-CSV from a single-column
+           pipe file when the row count is small.
+        2. **Content sniffing** — for any other extension (chiefly
+           ``.txt`` / no extension), the detector inspects sample lines
+           to choose between pipe-delimited and fixed-width parsing.
+
         Args:
             file_path: Path to file
-            
+
         Returns:
-            Parser class (not instance)
+            Parser class (not instance). For delimited formats this is
+            always :class:`PipeDelimitedParser`; the per-format separator
+            is set by the parser at construction time based on the file's
+            extension.
+
+        Raises:
+            ValueError: When the file's content cannot be classified and
+                the extension is not in the routing table.
         """
         from .pipe_delimited_parser import PipeDelimitedParser
         from .fixed_width_parser import FixedWidthParser
+
+        # Extension-driven fast path. Treat known delimited extensions as
+        # authoritative — the parser itself maps the extension to the
+        # right separator (``.csv`` -> ``,``, ``.tsv`` -> ``\t``,
+        # ``.psv`` -> ``|``).
+        suffix = os.path.splitext(file_path)[1].lower()
+        if suffix in self._DELIMITED_EXTENSIONS:
+            return PipeDelimitedParser
 
         detection = self.detect(file_path)
         format_type = detection['format']
@@ -184,7 +222,12 @@ class FormatDetector:
         elif format_type == FileFormat.FIXED_WIDTH:
             return FixedWidthParser
         elif format_type in (FileFormat.CSV, FileFormat.TSV):
-            # Can use pipe delimited parser with different delimiter
+            # Content-sniffed CSV/TSV with an unusual extension — still
+            # delegate to PipeDelimitedParser, but in this branch the
+            # extension hint is absent so the parser will fall back to
+            # the historic pipe default. Callers that need a specific
+            # delimiter here should construct PipeDelimitedParser
+            # directly with the ``delimiter`` kwarg.
             return PipeDelimitedParser
         else:
             raise ValueError(

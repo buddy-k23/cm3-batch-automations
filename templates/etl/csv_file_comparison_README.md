@@ -27,9 +27,9 @@ valdo compare \
   --output reports/csv_compare.html
 ```
 
-**Exit code:** `0` on a successful run regardless of whether differences were found; non-zero only on a fatal error (file unreadable, mapping invalid, etc.). Use the comparison summary (printed to stdout) or the JSON / HTML report to decide whether the reconciliation passed. To gate a CI pipeline on differences, run `valdo compare` and apply a `--thresholds` config or chain it to a check on `rows_with_differences > 0` in the produced JSON.
+**Exit code:** `0` when no differences are found, or when differences are within `--thresholds` limits if a thresholds config is supplied; `1` when differences are found and no thresholds are configured (or when differences exceed configured thresholds); non-zero (≥2 or runtime error) on fatal errors (file unreadable, mapping invalid, etc.). Use the comparison summary (printed to stdout) or the JSON / HTML report for details. To gate a CI pipeline on a tolerance budget, supply `--thresholds path/to/thresholds.json`.
 
-> **Engine note.** Today the format detector routes both `.csv` and `.tsv` files through the pipe-delimited parser. The sample under `csv_file_comparison_sample/` is comma-separated and exercises the comparison engine directly (see `tests/unit/test_etl_templates.py`). For end-to-end CLI runs against comma-separated files, supply a mapping JSON or rename the files to use the pipe delimiter. Full comma-CSV routing is tracked as a follow-up.
+> **Engine note.** As of S8-2 (#393), the format detector routes `.csv` → comma, `.tsv` → tab, `.psv` → pipe by default. The sample under `csv_file_comparison_sample/` is comma-separated and runs end-to-end via the CLI without further configuration.
 
 ## What you get back
 
