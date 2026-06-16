@@ -3557,6 +3557,44 @@ volumes:
   reports:
 ```
 
+### MCP Run State Persistence
+
+The MCP server's `validate_file` tool returns a `run_id` the agent polls
+via `get_run_status` / `get_violations`. As of Sprint 6 (S6-1, #386),
+run state is persisted to the `APP_MCP_RUN_REGISTRY` table so polls
+keep working across FastAPI restarts and worker rotations.
+
+**Required for cross-restart durability:**
+
+1. Configure database access. The registry uses the same shared
+   SQLAlchemy engine as the rest of Valdo, so the standard env vars
+   apply:
+
+   - `DB_ADAPTER=oracle` (default) — set `ORACLE_USER`,
+     `ORACLE_PASSWORD`, and `ORACLE_DSN`
+   - `DB_ADAPTER=postgresql` — set `DB_USER`, `DB_PASSWORD`,
+     `DB_HOST`, `DB_PORT`, `DB_NAME`
+   - `DB_ADAPTER=sqlite` — set `DB_PATH`
+
+2. Apply the migration:
+
+   ```bash
+   alembic upgrade head
+   ```
+
+   The migration creates `APP_MCP_RUN_REGISTRY` and its supporting
+   indexes. It is idempotent (safe to re-run) and reversible
+   (`alembic downgrade 0003`).
+
+**Fallback behaviour:** When the database engine cannot be reached at
+startup (DNS / auth / missing table), the MCP server logs a `WARNING`
+and falls back to a process-local in-memory registry so the server
+boots cleanly. Runs started against the fallback registry will not
+survive a restart — grep startup logs for `MCP run registry:` to
+confirm which backend is in use. See
+[`docs/MCP_SERVER.md`](MCP_SERVER.md) for the full operational
+reference.
+
 ### Health Monitoring
 
 #### Health check

@@ -31,14 +31,16 @@ Synchronous-execution note (revisited in a follow-up MR):
     convert this to a true background worker once the worker-pool story
     lands.
 
-In-process run registry:
-    Runs are tracked in :data:`_RUNS`, a module-level dict mapping
-    ``run_id`` to a :class:`_RunRecord`. The registry is intentionally
-    process-local and lossy across restarts — older runs are surfaced via
-    the Oracle-backed ``run_history_service`` fallback in
-    :func:`get_run_status_payload`. Concurrent access is guarded by
-    :data:`_RUNS_LOCK` because FastMCP can dispatch tool calls from a
-    threadpool (each JSON-RPC request runs in its own worker).
+Run registry (S6-1, #386):
+    Runs are tracked by the adapter in
+    :mod:`src.mcp.run_registry`. The factory
+    :func:`~src.mcp.run_registry.make_run_registry` picks a database
+    backend (``APP_MCP_RUN_REGISTRY`` table) when the shared SQLAlchemy
+    engine is reachable, else falls back to a process-local in-memory
+    store with a logged WARNING. Database-backed records survive a
+    FastAPI restart; the in-memory fallback does not. EF-S2's
+    ``run_history_service`` fallback for older runs in
+    :func:`get_run_status_payload` is unchanged.
 
 Idempotency on ``validate_file``:
     A second call with the same ``(source, file_path)`` while the first
@@ -62,6 +64,7 @@ from typing import Any, Dict, List, Optional
 import yaml
 from mcp.server.fastmcp.exceptions import ToolError
 
+from src.mcp.run_registry import RunRecord, RunRegistry, make_run_registry
 from src.mcp.tools import _SOURCES_DIR, _discover_source_names, _relpath
 
 __all__ = [
@@ -105,73 +108,49 @@ _TERMINAL_STATUSES = frozenset({_STATUS_COMPLETED, _STATUS_FAILED})
 
 
 # ---------------------------------------------------------------------------
-# In-process run registry
+# Persistent run registry (S6-1, #386)
 # ---------------------------------------------------------------------------
+#
+# EF-S4 used a process-local dict here. S6-1 replaces that with the
+# :class:`~src.mcp.run_registry.RunRegistry` adapter so runs survive a
+# FastAPI restart. The factory picks a database backend when one is
+# reachable, else falls back to an in-memory dict (with a logged
+# WARNING) so the server never refuses to boot — see
+# ``src/mcp/run_registry.py`` for the resolution order.
+#
+# The registry is constructed lazily on first access so test fixtures
+# can monkeypatch the environment (``DB_ADAPTER``, ``ORACLE_DSN``)
+# before the first call. ``_reset_runs_for_tests`` drops the cached
+# instance so each test gets a fresh registry.
+
+# Backwards-compat alias — the legacy ``_RunRecord`` class is replaced
+# by :class:`~src.mcp.run_registry.RunRecord`. The slots-less dataclass
+# is API-compatible for every attribute access action_tools performed.
+_RunRecord = RunRecord
+
+# Lock guards lazy construction of the singleton registry only.
+# Per-record concurrency is handled inside each backend implementation.
+_REGISTRY_LOCK = threading.Lock()
+_REGISTRY: Optional[RunRegistry] = None
 
 
-class _RunRecord:
-    """In-memory record of a single validation run.
+def _get_registry() -> RunRegistry:
+    """Return the singleton :class:`RunRegistry`, constructing on first call.
 
-    The MCP layer does not need the full result dict in memory beyond
-    extracting the status + violation counts + violation list, but we
-    retain the source/file_path/file_type triple so :func:`_existing_run`
-    can short-circuit duplicate ``validate_file`` calls.
+    Constructing the registry on first call (rather than at import time)
+    lets test fixtures monkeypatch env vars before the database probe
+    runs. The singleton is held in :data:`_REGISTRY`; the registry
+    factory itself handles the database-vs-in-memory selection.
 
-    Attributes:
-        run_id: UUID4 string, also used as the dict key in :data:`_RUNS`.
-        source: Canonical source name (e.g. ``"SHAW"``).
-        file_path: Absolute or repo-relative path of the file being
-            validated.
-        file_type: Resolved file-type token from the source overlay (e.g.
-            ``"TRANERT"``) or ``None`` when the caller did not specify and
-            we inferred from filename.
-        status: One of ``queued`` / ``running`` / ``completed`` / ``failed``.
-        started_at: ISO-8601 UTC string captured at run construction.
-        finished_at: ISO-8601 UTC string set when status moves to a
-            terminal value; ``None`` otherwise.
-        violations: Flat list of canonicalised violation dicts (see
-            :func:`_canonicalise_violations`). Empty list until the run
-            completes.
-        error_message: Populated on ``failed`` with the exception text
-            from the underlying service call.
+    Returns:
+        The active :class:`RunRegistry` for this process.
     """
-
-    __slots__ = (
-        "run_id",
-        "source",
-        "file_path",
-        "file_type",
-        "status",
-        "started_at",
-        "finished_at",
-        "violations",
-        "error_message",
-    )
-
-    def __init__(
-        self,
-        run_id: str,
-        source: str,
-        file_path: str,
-        file_type: Optional[str],
-    ) -> None:
-        self.run_id = run_id
-        self.source = source
-        self.file_path = file_path
-        self.file_type = file_type
-        self.status = _STATUS_QUEUED
-        self.started_at = _utcnow_iso()
-        self.finished_at: Optional[str] = None
-        self.violations: List[Dict[str, Any]] = []
-        self.error_message: Optional[str] = None
-
-
-# Module-level dict + lock so FastMCP's threadpool dispatch is safe. We
-# accept the memory cost of holding all violations for every started run
-# because EF-S4 is dev-mode-only; EF-S7 / production deployment will swap
-# this out for a persistent store.
-_RUNS: Dict[str, _RunRecord] = {}
-_RUNS_LOCK = threading.Lock()
+    global _REGISTRY
+    if _REGISTRY is None:
+        with _REGISTRY_LOCK:
+            if _REGISTRY is None:
+                _REGISTRY = make_run_registry()
+    return _REGISTRY
 
 
 def _utcnow_iso() -> str:
@@ -184,7 +163,7 @@ def _utcnow_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f") + "Z"
 
 
-def _existing_run(source: str, file_path: str) -> Optional[_RunRecord]:
+def _existing_run(source: str, file_path: str) -> Optional[RunRecord]:
     """Return an in-flight run for *(source, file_path)*, else ``None``.
 
     Two runs are considered "the same" when their source and file_path
@@ -197,19 +176,10 @@ def _existing_run(source: str, file_path: str) -> Optional[_RunRecord]:
         file_path: File path as supplied by the caller (no normalisation).
 
     Returns:
-        The existing :class:`_RunRecord` when one is in a non-terminal
+        The existing :class:`RunRecord` when one is in a non-terminal
         state, else ``None``.
     """
-    with _RUNS_LOCK:
-        for record in _RUNS.values():
-            if record.source != source:
-                continue
-            if record.file_path != file_path:
-                continue
-            if record.status in _TERMINAL_STATUSES:
-                continue
-            return record
-    return None
+    return _get_registry().find_inflight(source, file_path)
 
 
 # ---------------------------------------------------------------------------
@@ -434,13 +404,20 @@ def _canonicalise_violations(result: Dict[str, Any]) -> List[Dict[str, Any]]:
 # ---------------------------------------------------------------------------
 
 
-def _run_validate_synchronously(record: _RunRecord, artefacts: Dict[str, Optional[str]]) -> None:
+def _run_validate_synchronously(record: RunRecord, artefacts: Dict[str, Optional[str]]) -> None:
     """Drive the validation service for *record* and update its state.
 
     Runs synchronously — see the module docstring for the rationale and
     the EF-S5 follow-up plan. Exceptions are caught and folded into the
     ``failed`` status; we never let an underlying service error propagate
     out of the MCP tool layer.
+
+    Each status transition (``queued`` → ``running`` → terminal) is
+    persisted to the registry so a concurrent ``get_run_status`` poll
+    from a different worker sees the latest state. This is the durability
+    contract S6-1 introduces — EF-S4's in-process dict was implicitly
+    visible to every coroutine in the same worker; the persistent
+    backend must be written through on every transition.
 
     Args:
         record: The freshly-constructed run record (status will be
@@ -451,7 +428,11 @@ def _run_validate_synchronously(record: _RunRecord, artefacts: Dict[str, Optiona
     # one tool call that needs it, not every MCP request.
     from src.services.validate_service import run_validate_service
 
+    registry = _get_registry()
+
     record.status = _STATUS_RUNNING
+    registry.put(record)
+
     try:
         result = run_validate_service(
             file=record.file_path,
@@ -465,11 +446,13 @@ def _run_validate_synchronously(record: _RunRecord, artefacts: Dict[str, Optiona
         record.status = _STATUS_FAILED
         record.finished_at = _utcnow_iso()
         record.error_message = str(exc)
+        registry.put(record)
         return
 
     record.violations = _canonicalise_violations(result if isinstance(result, dict) else {})
     record.status = _STATUS_COMPLETED
     record.finished_at = _utcnow_iso()
+    registry.put(record)
 
 
 def validate_file_payload(
@@ -524,14 +507,15 @@ def validate_file_payload(
         }
 
     run_id = uuid.uuid4().hex
-    record = _RunRecord(
+    record = RunRecord(
         run_id=run_id,
         source=source,
         file_path=file_path,
         file_type=artefacts.get("file_type") or (file_type.upper() if file_type else None),
+        status=_STATUS_QUEUED,
+        started_at=_utcnow_iso(),
     )
-    with _RUNS_LOCK:
-        _RUNS[run_id] = record
+    _get_registry().put(record)
 
     _run_validate_synchronously(record, artefacts)
 
@@ -541,30 +525,31 @@ def validate_file_payload(
     }
 
 
-def _lookup_run(run_id: str) -> _RunRecord:
-    """Return the in-process record for *run_id* or raise ToolError.
+def _lookup_run(run_id: str) -> RunRecord:
+    """Return the registry record for *run_id* or raise ToolError.
+
+    With S6-1's persistent backend, records survive a FastAPI restart
+    when the database backend is reachable. The legacy "previous
+    process lifetime" caveat now only applies when the registry has
+    fallen back to in-memory mode (logged at boot).
 
     Args:
         run_id: Identifier returned by :func:`validate_file_payload`.
 
     Returns:
-        The matching :class:`_RunRecord`.
+        The matching :class:`RunRecord`.
 
     Raises:
-        ToolError: When no record exists. Older runs that were started
-            in a previous process lifetime are surfaced via the
-            ``run_history_service`` fallback in
-            :func:`get_run_status_payload`; the violation list, however,
-            is only available while the in-process record survives.
+        ToolError: When no record exists in the registry.
     """
     if not isinstance(run_id, str) or not run_id:
         raise ToolError("run_id is required and must be a non-empty string")
-    with _RUNS_LOCK:
-        record = _RUNS.get(run_id)
+    record = _get_registry().get(run_id)
     if record is None:
         raise ToolError(
             f"Unknown run_id {run_id!r}. The run may have been started in a "
-            "previous process lifetime, or the id is wrong."
+            "previous process lifetime against an in-memory registry, or the "
+            "id is wrong."
         )
     return record
 
@@ -598,8 +583,7 @@ def get_run_status_payload(run_id: str) -> Dict[str, Any]:
     if not isinstance(run_id, str) or not run_id:
         raise ToolError("run_id is required and must be a non-empty string")
 
-    with _RUNS_LOCK:
-        record = _RUNS.get(run_id)
+    record = _get_registry().get(run_id)
 
     if record is not None:
         violation_count: Optional[int]
@@ -772,20 +756,36 @@ GET_VIOLATIONS_DESCRIPTION = (
 
 
 def _reset_runs_for_tests() -> None:
-    """Clear the in-process run registry.
+    """Drop the singleton registry and any persisted rows.
 
     Exposed so the integration tests can run in isolation without
-    accumulating state between cases. Production code MUST NOT call
-    this — it would silently drop polling state for in-flight runs.
+    accumulating state between cases. Two responsibilities:
+
+    1. Clear the cached registry singleton so the *next* call to
+       :func:`_get_registry` rebuilds it (picks up monkeypatched
+       env vars).
+    2. If a registry is currently constructed, clear its persisted
+       rows via the backend-specific ``clear`` helper so a subsequent
+       test starting with an explicit ``_get_registry`` call doesn't
+       see leftover state.
+
+    Production code MUST NOT call this — it would silently drop polling
+    state for in-flight runs.
     """
-    with _RUNS_LOCK:
-        _RUNS.clear()
+    global _REGISTRY
+    with _REGISTRY_LOCK:
+        if _REGISTRY is not None:
+            try:
+                # Both backends expose ``clear()`` even though it is not
+                # in the public protocol — it is test-only.
+                _REGISTRY.clear()  # type: ignore[attr-defined]
+            except Exception:  # noqa: BLE001 — defensive: tests must never block on cleanup.
+                pass
+        _REGISTRY = None
 
 
-# Re-export for symmetry with src.mcp.tools (which also exposes its
-# fetch helper). Marked private to discourage drift.
-_RUNS_REGISTRY = _RUNS
-
-# Keep ``time`` referenced so static analysers don't strip the import
-# (used by future EF-S5 timing instrumentation).
+# Keep ``time`` and ``threading`` referenced so static analysers don't
+# strip the imports (the registry singleton lock and EF-S5 follow-up
+# timing instrumentation both want them).
 _ = time
+_ = threading

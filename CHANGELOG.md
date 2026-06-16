@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- MCP run registry persisted to `APP_MCP_RUN_REGISTRY` so
+  `validate_file` / `get_run_status` / `get_violations` survive a
+  FastAPI restart (S6-1, #386). EF-S4's process-local dict is now an
+  in-memory fallback used only when the database backend is
+  unreachable at startup — the server never refuses to boot. New
+  Alembic migration `0004_app_mcp_run_registry` adds the table with
+  composite `(source, file_path, status)` and `status` indexes. See
+  `docs/MCP_SERVER.md` for the operational reference.
 - Manual TRANERT VALID fixture restructured for BA-spec compliance: now
   spans 3 accounts at 2 different banks (BK 040 x2 + BK 041 x1), with
   composite 18-char LN-NUM-ERT (blank + BK + BR + CUS + LN), per-account

@@ -1,0 +1,435 @@
+"""Unit tests for the MCP run registry (S6-1, #386).
+
+Covers both registry implementations:
+
+* :class:`~src.mcp.run_registry.InMemoryRunRegistry` — the legacy
+  process-local fallback.
+* :class:`~src.mcp.run_registry.DatabaseRunRegistry` — the persistent
+  backend wired up against a temporary SQLite engine for speed.
+
+The factory :func:`~src.mcp.run_registry.make_run_registry` is tested
+twice:
+
+1. With a working database engine + table (returns DatabaseRunRegistry)
+2. With a broken database backend (returns InMemoryRunRegistry,
+   logs a WARNING)
+
+We deliberately avoid Oracle here — Oracle is exercised in the
+integration suite by ``tests/manual/seed_db.py`` and the manual test
+plan. The unit tests should be hermetic.
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import tempfile
+from pathlib import Path
+from typing import Iterator
+
+import pytest
+from sqlalchemy import create_engine, text
+
+
+# ---------------------------------------------------------------------------
+# RunRecord roundtrip
+# ---------------------------------------------------------------------------
+
+
+def test_run_record_payload_roundtrip():
+    """RunRecord.to_payload + RunRecord.from_payload is lossless."""
+    from src.mcp.run_registry import RunRecord
+
+    original = RunRecord(
+        run_id="abc123",
+        source="SHAW",
+        file_path="/tmp/x.dat",
+        file_type="TRANERT",
+        status="completed",
+        started_at="2026-06-15T10:00:00.000000Z",
+        finished_at="2026-06-15T10:00:05.000000Z",
+        violations=[
+            {
+                "rule_id": "E001",
+                "field": "FOO",
+                "severity": "error",
+                "message": "bad",
+                "record_index": 1,
+                "actual_value": "x",
+            }
+        ],
+        error_message=None,
+    )
+
+    payload = original.to_payload()
+    rebuilt = RunRecord.from_payload(payload)
+
+    assert rebuilt.run_id == original.run_id
+    assert rebuilt.source == original.source
+    assert rebuilt.file_path == original.file_path
+    assert rebuilt.file_type == original.file_type
+    assert rebuilt.status == original.status
+    assert rebuilt.started_at == original.started_at
+    assert rebuilt.finished_at == original.finished_at
+    assert rebuilt.violations == original.violations
+    assert rebuilt.error_message == original.error_message
+
+
+def test_run_record_from_payload_rejects_bad_json():
+    """Garbage JSON raises ValueError."""
+    from src.mcp.run_registry import RunRecord
+
+    with pytest.raises(ValueError):
+        RunRecord.from_payload("not json")
+
+
+def test_run_record_from_payload_rejects_missing_keys():
+    """Missing required keys raise KeyError."""
+    from src.mcp.run_registry import RunRecord
+
+    with pytest.raises(KeyError):
+        RunRecord.from_payload('{"run_id": "x"}')
+
+
+# ---------------------------------------------------------------------------
+# InMemoryRunRegistry
+# ---------------------------------------------------------------------------
+
+
+def _mk_record(run_id: str, source: str = "SHAW", file_path: str = "/tmp/a.dat", status: str = "queued"):
+    """Build a minimal RunRecord for tests.
+
+    Args:
+        run_id: Identifier to set on the record.
+        source: Source name (default ``SHAW``).
+        file_path: File path (default ``/tmp/a.dat``).
+        status: Lifecycle status (default ``queued``).
+
+    Returns:
+        A fully-populated :class:`RunRecord`.
+    """
+    from src.mcp.run_registry import RunRecord
+
+    return RunRecord(
+        run_id=run_id,
+        source=source,
+        file_path=file_path,
+        file_type=None,
+        status=status,
+        started_at="2026-06-15T10:00:00.000000Z",
+    )
+
+
+def test_inmemory_put_get_roundtrip():
+    """put -> get returns the same record."""
+    from src.mcp.run_registry import InMemoryRunRegistry
+
+    reg = InMemoryRunRegistry()
+    rec = _mk_record("run-1")
+    reg.put(rec)
+
+    fetched = reg.get("run-1")
+    assert fetched is not None
+    assert fetched.run_id == "run-1"
+    assert fetched.source == "SHAW"
+
+
+def test_inmemory_get_missing_returns_none():
+    """get on an unknown run_id returns None."""
+    from src.mcp.run_registry import InMemoryRunRegistry
+
+    reg = InMemoryRunRegistry()
+    assert reg.get("does-not-exist") is None
+
+
+def test_inmemory_find_inflight_skips_terminal():
+    """find_inflight ignores records in terminal states."""
+    from src.mcp.run_registry import InMemoryRunRegistry
+
+    reg = InMemoryRunRegistry()
+    reg.put(_mk_record("done", status="completed"))
+    reg.put(_mk_record("live", status="running"))
+
+    found = reg.find_inflight("SHAW", "/tmp/a.dat")
+    assert found is not None
+    assert found.run_id == "live"
+
+
+def test_inmemory_find_inflight_match_requires_both_keys():
+    """find_inflight matches only when source AND file_path are both equal."""
+    from src.mcp.run_registry import InMemoryRunRegistry
+
+    reg = InMemoryRunRegistry()
+    reg.put(_mk_record("r1", source="SHAW", file_path="/tmp/a.dat", status="running"))
+    reg.put(_mk_record("r2", source="ENCORE", file_path="/tmp/a.dat", status="running"))
+    reg.put(_mk_record("r3", source="SHAW", file_path="/tmp/b.dat", status="running"))
+
+    assert reg.find_inflight("SHAW", "/tmp/a.dat").run_id == "r1"
+    assert reg.find_inflight("ENCORE", "/tmp/a.dat").run_id == "r2"
+    assert reg.find_inflight("SHAW", "/tmp/b.dat").run_id == "r3"
+    assert reg.find_inflight("DOES_NOT_EXIST", "/tmp/a.dat") is None
+
+
+def test_inmemory_clear_drops_all():
+    """clear empties the registry — used by test fixtures."""
+    from src.mcp.run_registry import InMemoryRunRegistry
+
+    reg = InMemoryRunRegistry()
+    reg.put(_mk_record("r1"))
+    reg.put(_mk_record("r2"))
+    reg.clear()
+
+    assert reg.get("r1") is None
+    assert reg.get("r2") is None
+
+
+# ---------------------------------------------------------------------------
+# DatabaseRunRegistry — SQLite for hermetic tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def sqlite_engine() -> Iterator:
+    """Return a fresh SQLAlchemy engine + ensure the table exists.
+
+    Builds an on-disk SQLite database in a temp dir so the
+    ``DatabaseRunRegistry`` can issue its cross-dialect upsert SQL
+    against a real connection. The directory is torn down after the test.
+
+    Yields:
+        Tuple of (engine, schema_prefix). schema_prefix is empty for
+        SQLite — see :func:`~src.database.db_url.get_valdo_schema`.
+    """
+    tmpdir = tempfile.mkdtemp(prefix="valdo_mcp_reg_")
+    db_path = Path(tmpdir) / "test.db"
+    engine = create_engine(f"sqlite:///{db_path}")
+
+    # Create the table directly — we don't want to depend on running
+    # Alembic in a unit test (Alembic upgrades are exercised in the
+    # integration suite).
+    with engine.begin() as conn:
+        conn.execute(text(
+            "CREATE TABLE APP_MCP_RUN_REGISTRY ("
+            "run_id TEXT PRIMARY KEY, "
+            "source TEXT NOT NULL, "
+            "file_path TEXT NOT NULL, "
+            "status TEXT NOT NULL, "
+            "started_at TIMESTAMP NOT NULL, "
+            "finished_at TIMESTAMP, "
+            "violation_count INTEGER, "
+            "payload TEXT NOT NULL, "
+            "created_ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
+        ))
+
+    # Force DB_ADAPTER=sqlite so the registry uses the INSERT OR REPLACE
+    # path. We restore the original on teardown.
+    old_adapter = os.environ.get("DB_ADAPTER")
+    os.environ["DB_ADAPTER"] = "sqlite"
+
+    try:
+        yield engine, ""
+    finally:
+        engine.dispose()
+        if old_adapter is None:
+            os.environ.pop("DB_ADAPTER", None)
+        else:
+            os.environ["DB_ADAPTER"] = old_adapter
+        # Cleanup
+        try:
+            db_path.unlink()
+        except OSError:
+            pass
+
+
+def test_db_registry_put_get_roundtrip(sqlite_engine):
+    """put -> get returns the same record from the SQLite backend."""
+    from src.mcp.run_registry import DatabaseRunRegistry
+
+    engine, schema = sqlite_engine
+    reg = DatabaseRunRegistry(engine=engine, schema_prefix=schema)
+
+    rec = _mk_record("db-run-1")
+    reg.put(rec)
+
+    fetched = reg.get("db-run-1")
+    assert fetched is not None
+    assert fetched.run_id == "db-run-1"
+    assert fetched.source == "SHAW"
+    assert fetched.status == "queued"
+
+
+def test_db_registry_put_upsert_overwrites(sqlite_engine):
+    """A second put with the same run_id replaces the previous payload."""
+    from src.mcp.run_registry import DatabaseRunRegistry
+
+    engine, schema = sqlite_engine
+    reg = DatabaseRunRegistry(engine=engine, schema_prefix=schema)
+
+    reg.put(_mk_record("dup-run", status="queued"))
+    reg.put(_mk_record("dup-run", status="completed"))
+
+    fetched = reg.get("dup-run")
+    assert fetched.status == "completed"
+
+
+def test_db_registry_get_missing_returns_none(sqlite_engine):
+    """get on an absent run_id returns None (no exception)."""
+    from src.mcp.run_registry import DatabaseRunRegistry
+
+    engine, schema = sqlite_engine
+    reg = DatabaseRunRegistry(engine=engine, schema_prefix=schema)
+
+    assert reg.get("does-not-exist") is None
+
+
+def test_db_registry_find_inflight_skips_terminal(sqlite_engine):
+    """find_inflight ignores terminal rows."""
+    from src.mcp.run_registry import DatabaseRunRegistry
+
+    engine, schema = sqlite_engine
+    reg = DatabaseRunRegistry(engine=engine, schema_prefix=schema)
+
+    reg.put(_mk_record("done", status="completed"))
+    reg.put(_mk_record("live", status="running"))
+
+    found = reg.find_inflight("SHAW", "/tmp/a.dat")
+    assert found is not None
+    assert found.run_id == "live"
+
+
+def test_db_registry_find_inflight_no_match(sqlite_engine):
+    """find_inflight returns None when nothing matches."""
+    from src.mcp.run_registry import DatabaseRunRegistry
+
+    engine, schema = sqlite_engine
+    reg = DatabaseRunRegistry(engine=engine, schema_prefix=schema)
+
+    assert reg.find_inflight("SHAW", "/tmp/x.dat") is None
+
+
+def test_db_registry_payload_carries_violations(sqlite_engine):
+    """Round-tripping a terminal record preserves the violations list."""
+    from src.mcp.run_registry import DatabaseRunRegistry, RunRecord
+
+    engine, schema = sqlite_engine
+    reg = DatabaseRunRegistry(engine=engine, schema_prefix=schema)
+
+    rec = RunRecord(
+        run_id="r-with-viols",
+        source="SHAW",
+        file_path="/tmp/a.dat",
+        file_type=None,
+        status="completed",
+        started_at="2026-06-15T10:00:00.000000Z",
+        finished_at="2026-06-15T10:00:01.000000Z",
+        violations=[
+            {"rule_id": "E1", "severity": "error", "message": "x"},
+            {"rule_id": "W1", "severity": "warning", "message": "y"},
+        ],
+    )
+    reg.put(rec)
+
+    fetched = reg.get("r-with-viols")
+    assert fetched.status == "completed"
+    assert len(fetched.violations) == 2
+    assert fetched.violations[0]["rule_id"] == "E1"
+
+
+def test_db_registry_clear_empties_table(sqlite_engine):
+    """clear() drops every row."""
+    from src.mcp.run_registry import DatabaseRunRegistry
+
+    engine, schema = sqlite_engine
+    reg = DatabaseRunRegistry(engine=engine, schema_prefix=schema)
+
+    reg.put(_mk_record("r1"))
+    reg.put(_mk_record("r2"))
+    reg.clear()
+
+    assert reg.get("r1") is None
+    assert reg.get("r2") is None
+
+
+# ---------------------------------------------------------------------------
+# Factory: make_run_registry
+# ---------------------------------------------------------------------------
+
+
+def test_factory_returns_inmemory_when_engine_construction_fails(monkeypatch, caplog):
+    """make_run_registry falls back to in-memory when the engine raises.
+
+    Simulated by monkeypatching ``get_engine`` to raise. The factory
+    must log a WARNING and return an :class:`InMemoryRunRegistry` rather
+    than propagating the error — refusing to boot would block the whole
+    MCP surface.
+    """
+    import src.database.engine as engine_mod
+    from src.mcp.run_registry import InMemoryRunRegistry, make_run_registry
+
+    def _raise():
+        raise RuntimeError("simulated DB outage")
+
+    monkeypatch.setattr(engine_mod, "get_engine", _raise)
+
+    with caplog.at_level(logging.WARNING, logger="src.mcp.run_registry"):
+        reg = make_run_registry()
+
+    assert isinstance(reg, InMemoryRunRegistry)
+    assert any("falling back to in-memory" in r.message for r in caplog.records), (
+        f"Expected fallback WARNING; got records: {[r.message for r in caplog.records]!r}"
+    )
+
+
+def test_factory_returns_inmemory_when_table_missing(monkeypatch, caplog):
+    """make_run_registry falls back when the engine works but the table is missing.
+
+    Construct an in-memory SQLite engine with no APP_MCP_RUN_REGISTRY
+    table, point ``get_engine`` at it, and verify the factory probes the
+    table, catches the missing-table error, and falls back to memory.
+    """
+    import src.database.engine as engine_mod
+    import src.database.db_url as db_url_mod
+    from src.mcp.run_registry import InMemoryRunRegistry, make_run_registry
+
+    # Build a SQLite engine with NO table.
+    bare_engine = create_engine("sqlite:///:memory:")
+    monkeypatch.setattr(engine_mod, "get_engine", lambda: bare_engine)
+    monkeypatch.setattr(db_url_mod, "get_valdo_schema", lambda: "")
+
+    with caplog.at_level(logging.WARNING, logger="src.mcp.run_registry"):
+        reg = make_run_registry()
+
+    assert isinstance(reg, InMemoryRunRegistry)
+    assert any("falling back to in-memory" in r.message for r in caplog.records)
+
+
+def test_factory_returns_database_when_table_present(monkeypatch, caplog):
+    """make_run_registry returns DatabaseRunRegistry when the probe succeeds."""
+    import src.database.engine as engine_mod
+    import src.database.db_url as db_url_mod
+    from src.mcp.run_registry import DatabaseRunRegistry, make_run_registry
+
+    engine = create_engine("sqlite:///:memory:")
+    with engine.begin() as conn:
+        conn.execute(text(
+            "CREATE TABLE APP_MCP_RUN_REGISTRY ("
+            "run_id TEXT PRIMARY KEY, "
+            "source TEXT, "
+            "file_path TEXT, "
+            "status TEXT, "
+            "started_at TIMESTAMP, "
+            "finished_at TIMESTAMP, "
+            "violation_count INTEGER, "
+            "payload TEXT, "
+            "created_ts TIMESTAMP)"
+        ))
+
+    monkeypatch.setattr(engine_mod, "get_engine", lambda: engine)
+    monkeypatch.setattr(db_url_mod, "get_valdo_schema", lambda: "")
+    monkeypatch.setenv("DB_ADAPTER", "sqlite")
+
+    with caplog.at_level(logging.INFO, logger="src.mcp.run_registry"):
+        reg = make_run_registry()
+
+    assert isinstance(reg, DatabaseRunRegistry)
+    assert any("using database backend" in r.message for r in caplog.records)
