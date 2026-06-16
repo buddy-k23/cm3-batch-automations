@@ -379,6 +379,10 @@ Pipeline
    :members:
    :undoc-members:
 
+.. automodule:: src.commands.audit_verify_command
+   :members:
+   :undoc-members:
+
 Transforms
 ----------
 

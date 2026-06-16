@@ -8,7 +8,15 @@ from pathlib import Path
 
 import pytest
 
-from src.utils.audit_logger import AuditLogger, file_hash, get_audit_logger, EVENT_TYPES
+from src.utils.audit_logger import (
+    AuditLogger,
+    AuditWriteError,
+    file_hash,
+    get_audit_logger,
+    verify_audit_log,
+    AuditVerificationResult,
+    EVENT_TYPES,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -245,3 +253,225 @@ class TestGetAuditLogger:
         a = get_audit_logger()
         b = get_audit_logger()
         assert a is b
+
+
+# ---------------------------------------------------------------------------
+# Tamper-evidence: sequence + hash chain (S13.5-1, #408)
+# ---------------------------------------------------------------------------
+
+
+class TestTamperEvidentFields:
+    """Each emitted record carries seq, prev_hash, hash, hash_alg."""
+
+    def test_genesis_record_seq_zero_prev_null(self, tmp_path: Path, monkeypatch):
+        """The first record has seq 0 and prev_hash None."""
+        monkeypatch.delenv("VALDO_AUDIT_HMAC_KEY", raising=False)
+        audit = AuditLogger(log_path=tmp_path / "audit.jsonl")
+        event = audit.emit("test_run_started", triggered_by="cli")
+        assert event["seq"] == 0
+        assert event["prev_hash"] is None
+        assert len(event["hash"]) == 64  # sha256 hex
+        assert event["hash_alg"] == "sha256"
+
+    def test_seq_increments_monotonically(self, tmp_path: Path, monkeypatch):
+        """Subsequent records increment seq by 1 and chain prev_hash."""
+        monkeypatch.delenv("VALDO_AUDIT_HMAC_KEY", raising=False)
+        audit = AuditLogger(log_path=tmp_path / "audit.jsonl")
+        e0 = audit.emit("test_run_started", triggered_by="cli")
+        e1 = audit.emit("test_run_completed", triggered_by="cli")
+        e2 = audit.emit("file_cleanup", triggered_by="cli")
+        assert [e0["seq"], e1["seq"], e2["seq"]] == [0, 1, 2]
+        assert e1["prev_hash"] == e0["hash"]
+        assert e2["prev_hash"] == e1["hash"]
+
+    def test_hash_excludes_hash_field_itself(self, tmp_path: Path, monkeypatch):
+        """The on-disk record's hash is recomputable from the rest of the payload."""
+        monkeypatch.delenv("VALDO_AUDIT_HMAC_KEY", raising=False)
+        audit = AuditLogger(log_path=tmp_path / "audit.jsonl")
+        audit.emit("test_run_started", triggered_by="cli")
+        result = verify_audit_log(tmp_path / "audit.jsonl")
+        assert result.ok is True
+        assert result.records_checked == 1
+
+
+class TestVerifierCleanLog:
+    """verify_audit_log accepts an untampered log."""
+
+    def test_clean_log_verifies(self, tmp_path: Path, monkeypatch):
+        monkeypatch.delenv("VALDO_AUDIT_HMAC_KEY", raising=False)
+        log = tmp_path / "audit.jsonl"
+        audit = AuditLogger(log_path=log)
+        for i in range(5):
+            audit.emit("test_run_started", triggered_by="cli", n=i)
+        result = verify_audit_log(log)
+        assert isinstance(result, AuditVerificationResult)
+        assert result.ok is True
+        assert result.records_checked == 5
+        assert result.error is None
+        assert result.bad_seq is None
+
+    def test_empty_log_verifies(self, tmp_path: Path):
+        log = tmp_path / "empty.jsonl"
+        log.write_text("")
+        result = verify_audit_log(log)
+        assert result.ok is True
+        assert result.records_checked == 0
+
+    def test_missing_log_reports_error(self, tmp_path: Path):
+        result = verify_audit_log(tmp_path / "nope.jsonl")
+        assert result.ok is False
+        assert result.error is not None
+
+
+class TestTamperDetection:
+    """Mutating, removing, or reordering a record flags exactly that seq."""
+
+    def _write_clean(self, log: Path) -> AuditLogger:
+        audit = AuditLogger(log_path=log)
+        for i in range(5):
+            audit.emit("test_run_started", triggered_by="cli", n=i)
+        return audit
+
+    def test_mutated_payload_detected(self, tmp_path: Path, monkeypatch):
+        """Changing a field in record seq=2 is detected at seq=2."""
+        monkeypatch.delenv("VALDO_AUDIT_HMAC_KEY", raising=False)
+        log = tmp_path / "audit.jsonl"
+        self._write_clean(log)
+        lines = log.read_text().splitlines()
+        rec = json.loads(lines[2])
+        rec["n"] = 999  # tamper, but leave hash unchanged
+        lines[2] = json.dumps(rec)
+        log.write_text("\n".join(lines) + "\n")
+
+        result = verify_audit_log(log)
+        assert result.ok is False
+        assert result.bad_seq == 2
+
+    def test_removed_record_detected(self, tmp_path: Path, monkeypatch):
+        """Deleting record seq=2 breaks the chain (gap / prev_hash mismatch)."""
+        monkeypatch.delenv("VALDO_AUDIT_HMAC_KEY", raising=False)
+        log = tmp_path / "audit.jsonl"
+        self._write_clean(log)
+        lines = log.read_text().splitlines()
+        del lines[2]
+        log.write_text("\n".join(lines) + "\n")
+
+        result = verify_audit_log(log)
+        assert result.ok is False
+        # After removing seq=2, the line now at index 2 has seq=3 -> gap at 2.
+        assert result.bad_seq == 2
+
+    def test_reordered_records_detected(self, tmp_path: Path, monkeypatch):
+        """Swapping two records breaks the prev_hash chain."""
+        monkeypatch.delenv("VALDO_AUDIT_HMAC_KEY", raising=False)
+        log = tmp_path / "audit.jsonl"
+        self._write_clean(log)
+        lines = log.read_text().splitlines()
+        lines[1], lines[2] = lines[2], lines[1]
+        log.write_text("\n".join(lines) + "\n")
+
+        result = verify_audit_log(log)
+        assert result.ok is False
+        assert result.bad_seq == 1
+
+
+class TestChainContinuityAcrossRestart:
+    """A new AuditLogger on the same path continues the chain."""
+
+    def test_restart_continues_chain(self, tmp_path: Path, monkeypatch):
+        monkeypatch.delenv("VALDO_AUDIT_HMAC_KEY", raising=False)
+        log = tmp_path / "audit.jsonl"
+        first = AuditLogger(log_path=log)
+        first.emit("test_run_started", triggered_by="cli")
+        first.emit("test_run_completed", triggered_by="cli")
+
+        # Simulate a process restart: brand-new instance, same path.
+        second = AuditLogger(log_path=log)
+        e = second.emit("file_cleanup", triggered_by="cli")
+        assert e["seq"] == 2  # continues from where first left off
+
+        result = verify_audit_log(log)
+        assert result.ok is True
+        assert result.records_checked == 3
+
+
+class TestHmacKeyed:
+    """HMAC-keyed integrity vs unkeyed SHA-256 fallback."""
+
+    def test_keyed_records_use_hmac_alg(self, tmp_path: Path, monkeypatch):
+        monkeypatch.setenv("VALDO_AUDIT_HMAC_KEY", "super-secret-key")
+        audit = AuditLogger(log_path=tmp_path / "audit.jsonl")
+        e = audit.emit("test_run_started", triggered_by="cli")
+        assert e["hash_alg"] == "hmac-sha256"
+
+    def test_keyed_log_verifies_with_correct_key(self, tmp_path: Path, monkeypatch):
+        monkeypatch.setenv("VALDO_AUDIT_HMAC_KEY", "correct-key")
+        log = tmp_path / "audit.jsonl"
+        audit = AuditLogger(log_path=log)
+        for i in range(3):
+            audit.emit("test_run_started", triggered_by="cli", n=i)
+        result = verify_audit_log(log, key="correct-key")
+        assert result.ok is True
+        assert result.records_checked == 3
+
+    def test_keyed_log_fails_with_wrong_key(self, tmp_path: Path, monkeypatch):
+        monkeypatch.setenv("VALDO_AUDIT_HMAC_KEY", "correct-key")
+        log = tmp_path / "audit.jsonl"
+        audit = AuditLogger(log_path=log)
+        audit.emit("test_run_started", triggered_by="cli")
+        result = verify_audit_log(log, key="WRONG-key")
+        assert result.ok is False
+        assert result.bad_seq == 0
+
+    def test_unkeyed_fallback_is_sha256(self, tmp_path: Path, monkeypatch):
+        monkeypatch.delenv("VALDO_AUDIT_HMAC_KEY", raising=False)
+        audit = AuditLogger(log_path=tmp_path / "audit.jsonl")
+        e = audit.emit("test_run_started", triggered_by="cli")
+        assert e["hash_alg"] == "sha256"
+
+    def test_verifier_autodetects_alg_per_record(self, tmp_path: Path, monkeypatch):
+        """A keyed log verifies even when caller passes key explicitly."""
+        monkeypatch.setenv("VALDO_AUDIT_HMAC_KEY", "k")
+        log = tmp_path / "audit.jsonl"
+        AuditLogger(log_path=log).emit("test_run_started", triggered_by="cli")
+        # hash_alg recorded on disk is hmac-sha256 -> verifier needs key.
+        result = verify_audit_log(log, key="k")
+        assert result.ok is True
+
+
+class TestWriteFailureRaises:
+    """emit no longer swallows the audit-FILE write error."""
+
+    def test_file_write_failure_raises_audit_write_error(
+        self, tmp_path: Path, monkeypatch
+    ):
+        monkeypatch.delenv("VALDO_AUDIT_HMAC_KEY", raising=False)
+        audit = AuditLogger(log_path=tmp_path / "audit.jsonl")
+
+        import builtins
+
+        real_open = builtins.open
+
+        def boom(path, *args, **kwargs):
+            if str(path).endswith("audit.jsonl") and "a" in (
+                args[0] if args else kwargs.get("mode", "")
+            ):
+                raise OSError("disk full")
+            return real_open(path, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "open", boom)
+        with pytest.raises(AuditWriteError):
+            audit.emit("test_run_started", triggered_by="cli")
+
+    def test_stdout_failure_does_not_raise(self, tmp_path: Path, monkeypatch):
+        """A failing stdout/echo write must NOT raise (best-effort only)."""
+        monkeypatch.delenv("VALDO_AUDIT_HMAC_KEY", raising=False)
+        audit = AuditLogger(log_path=tmp_path / "audit.jsonl", write_to_stdout=True)
+
+        def boom(*args, **kwargs):
+            raise OSError("broken pipe")
+
+        monkeypatch.setattr("builtins.print", boom)
+        # File write succeeds; stdout fails but is swallowed.
+        event = audit.emit("test_run_started", triggered_by="cli")
+        assert event["seq"] == 0

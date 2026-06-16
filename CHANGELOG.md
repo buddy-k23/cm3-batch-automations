@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- security(audit): tamper-evident audit records — HMAC/hash-chain + sequence; write failures no longer silent (S13.5-1, #408)
+
 ### Changed
 - feat(db): reconcile now runs on any backend (Oracle/Postgres/SQLite) via the adapter + canonical type matching, per ADR 0022 (S12-3, #404)
 - feat(mcp): async validate_file ON by default with live-worker-aware sync fallback (MCP_WORKERS, Alembic 0007); valdo-run-job-worker systemd unit; multi-worker claim safety proven (S10-2, #397)

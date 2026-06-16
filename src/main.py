@@ -1171,11 +1171,13 @@ def main():
     from src.commands.mcp_login import mcp_login
     from src.commands.mcp_revoke import mcp_revoke
     from src.commands.run_job_worker import run_job_worker
+    from src.commands.audit_verify_command import audit_verify
     cli.add_command(schedule)
     cli.add_command(onboard_source)
     cli.add_command(mcp_login)
     cli.add_command(mcp_revoke)
     cli.add_command(run_job_worker)
+    cli.add_command(audit_verify)
     cli()
 
 
