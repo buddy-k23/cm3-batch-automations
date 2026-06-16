@@ -41,6 +41,7 @@ from src.mcp.auth import (
     TokenError,
     mint_token,
 )
+from src.mcp.revocation import get_revocation_cache
 from src.utils.audit_logger import get_audit_logger
 
 logger = logging.getLogger(__name__)
@@ -175,4 +176,153 @@ async def mcp_login(request: Request, body: MCPLoginRequest) -> MCPLoginResponse
         expires_at=token["expires_at"],
         principal_dn=user.dn,
         role=role,
+    )
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v2/mcp/revoke — admin-only per-token revocation (S9-4, #389)
+# ---------------------------------------------------------------------------
+
+
+class MCPRevokeRequest(BaseModel):
+    """Request body for ``POST /api/v2/mcp/revoke``.
+
+    The caller authenticates with their *own* LDAP credentials in the
+    same request (the endpoint is admin-gated, not API-key-gated) and
+    supplies the ``token_id`` (the target token's ``jti``) to revoke plus
+    a free-text ``reason`` for the audit trail.
+    """
+
+    username: str = Field(..., min_length=1, max_length=256, description="Admin LDAP username")
+    password: str = Field(..., min_length=1, description="Admin LDAP password — never logged")
+    token_id: str = Field(
+        ...,
+        min_length=1,
+        max_length=64,
+        description="The jti of the token to revoke (from the target token's payload)",
+    )
+    reason: str = Field(
+        ...,
+        min_length=1,
+        max_length=500,
+        description="Why the token is being revoked (incident ref, 'laptop stolen', etc.)",
+    )
+
+
+class MCPRevokeResponse(BaseModel):
+    """Response body for ``POST /api/v2/mcp/revoke``."""
+
+    revoked: bool = Field(..., description="True when the jti is now on the blocklist")
+    token_id: str = Field(..., description="The revoked jti, echoed back")
+    revoked_by: str = Field(..., description="The admin DN that issued the revocation")
+
+
+@router.post("/revoke", response_model=MCPRevokeResponse, include_in_schema=True)
+async def mcp_revoke(request: Request, body: MCPRevokeRequest) -> MCPRevokeResponse:
+    """Revoke an MCP token by its ``jti`` — admin only (S9-4, #389).
+
+    Authorization model: the caller authenticates with their own LDAP
+    credentials against the same bridge as ``/api/v2/mcp/login``; their
+    LDAP groups are mapped to a Valdo role and the request is rejected
+    with **403** unless that role is ``admin`` (i.e. membership in the
+    ``valdo-admins`` group per ``auth.ldap.group_role_map``). On success
+    the ``jti`` is written to the ``MCP_REVOKED_TOKENS`` blocklist and the
+    in-process revocation cache is invalidated so the revocation takes
+    effect on this node immediately; other nodes converge within the
+    cache TTL (60s).
+
+    Args:
+        request: FastAPI request (used to read ``app.state.ui_config``).
+        body: Validated :class:`MCPRevokeRequest`.
+
+    Returns:
+        :class:`MCPRevokeResponse` confirming the revocation.
+
+    Raises:
+        HTTPException: 401 on bad credentials; 403 when the authenticated
+            caller is not an admin; 503 when LDAP is unreachable / not
+            configured or the blocklist table is unavailable.
+    """
+    cfg = (getattr(request.app.state, "ui_config", {}) or {}).get("auth", {})
+    ldap_cfg = cfg.get("ldap", {})
+    role_map = ldap_cfg.get("group_role_map", {"*": "tester"})
+
+    if not ldap_cfg:
+        logger.error("mcp_revoke_misconfigured reason=ldap_config_missing")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="LDAP auth is not configured on this server.",
+        )
+
+    client_ip = request.client.host if request.client else "unknown"
+    audit = get_audit_logger()
+
+    try:
+        user = ldap_authenticate(body.username, body.password, ldap_cfg)
+    except LdapAuthError as exc:
+        audit.emit(
+            "mcp_revoke_failure",
+            triggered_by="mcp_revoke",
+            username=body.username,
+            client_ip=client_ip,
+            token_id=body.token_id,
+            reason=f"auth:{exc}",
+        )
+        if str(exc) in {"ldap_unavailable", "ldap_service_account_not_configured"}:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="LDAP backend is unavailable.",
+            )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials",
+        )
+
+    role = map_groups_to_role(user.groups, role_map)
+    if role != "admin":
+        # Authenticated but not authorised. Distinct 403 (not 401) so the
+        # caller knows the credentials were accepted but the privilege was
+        # insufficient. SOX-relevant: log the denied attempt.
+        audit.emit(
+            "mcp_revoke_forbidden",
+            triggered_by="mcp_revoke",
+            sub=user.dn,
+            username=body.username,
+            role=role,
+            client_ip=client_ip,
+            token_id=body.token_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Token revocation requires the 'valdo-admins' (admin) role.",
+        )
+
+    try:
+        get_revocation_cache().revoke(
+            jti=body.token_id,
+            reason=body.reason,
+            revoked_by=user.dn,
+        )
+    except Exception as exc:  # noqa: BLE001 — surface a clear 503, never 500.
+        logger.error("mcp_revoke_persist_failed token_id_suffix=%s err=%s",
+                     body.token_id[-6:], exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Revocation blocklist is unavailable — token NOT revoked.",
+        )
+
+    audit.emit(
+        "mcp_revoke_success",
+        triggered_by="mcp_revoke",
+        sub=user.dn,
+        username=body.username,
+        role=role,
+        client_ip=client_ip,
+        token_id=body.token_id,
+        revoke_reason=body.reason,
+    )
+    return MCPRevokeResponse(
+        revoked=True,
+        token_id=body.token_id,
+        revoked_by=user.dn,
     )

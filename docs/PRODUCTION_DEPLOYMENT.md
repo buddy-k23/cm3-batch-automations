@@ -444,10 +444,126 @@ for deterministic unit tests; production uses `time.monotonic`.
 
 ## Token revocation (S9-4)
 
-> _Reserved for S9-4 (#389)._ Per-token (`jti`-based) revocation blocklist with
-> a 24h grace window, the `MCP_REVOKED_TOKENS` table (Alembic `0005`),
-> `POST /api/v2/mcp/revoke`, and the `valdo mcp-revoke` CLI. Revocation
-> procedure + cache-TTL behaviour documented here.
+EF-S7 MCP tokens are HMAC-signed and self-contained. Before S9-4 the only
+lever to kill a leaked token was rotating `VALDO_MCP_TOKEN_SIGNING_KEY` —
+which invalidates **every** outstanding token, innocent ones included. S9-4
+adds a **per-token revocation blocklist** so a single compromised token can be
+revoked without disrupting the fleet.
+
+### How it works
+
+Each minted token now carries an opaque **`jti`** (16 random bytes,
+hex-encoded — a JWT-style token id) bound into the HMAC signature. To revoke a
+token an admin submits its `jti` to `POST /api/v2/mcp/revoke`; the `jti` is
+written to the Oracle table **`MCP_REVOKED_TOKENS`** (created by Alembic
+migration `0005`). Token verification (`src/mcp/auth.py`) consults the
+blocklist **after** signature + expiry validation and rejects any token whose
+`jti` is listed.
+
+### The `jti` grace window (zero-downtime rollout)
+
+Tokens minted **before** S9-4 have no `jti`. To avoid breaking agents holding
+those tokens at deploy time, a no-`jti` token still validates during a
+**24-hour grace window**, then is rejected (forcing a `valdo mcp-login` that
+mints a revocable, `jti`-bearing token).
+
+The grace boundary is a single **epoch cutoff**: a no-`jti` token is accepted
+iff its `issued_at` is *strictly before* the cutoff. Resolution order:
+
+1. **`VALDO_MCP_JTI_GRACE_UNTIL`** (epoch seconds) — a deploy-time hard cutoff
+   you can pin. Set it to "now + grace" at rollout to make the boundary
+   explicit and auditable, e.g.:
+   ```bash
+   # Reject no-jti tokens 24h after this deploy:
+   echo "VALDO_MCP_JTI_GRACE_UNTIL=$(($(date +%s) + 86400))" | sudo tee -a /etc/valdo/.env
+   sudo systemctl restart valdo
+   ```
+2. **Unset** → a rolling default of **process-start + 24h**, computed once when
+   the app starts. A fresh deploy thus honours the no-`jti` tokens already in
+   the wild for 24h, then rejects them. (A malformed value falls back to this
+   safe default — it cannot silently disable the gate.)
+
+> `jti`-bearing tokens are never subject to the grace gate; only the absence of
+> a `jti` triggers it.
+
+### The revoke endpoint — `POST /api/v2/mcp/revoke`
+
+Admin-only. The caller authenticates with **their own** LDAP credentials in the
+request body (the endpoint is not API-key-gated); their LDAP groups are mapped
+to a Valdo role and the request is **rejected with 403** unless that role is
+`admin` — i.e. membership in the `valdo-admins` group per
+`auth.ldap.group_role_map`. Bad credentials → 401; LDAP/table unavailable →
+503.
+
+```bash
+curl -sk https://valdo.bank.internal/api/v2/mcp/revoke \
+  -H "Content-Type: application/json" \
+  -d '{"username":"alice","password":"<admin-pw>",
+       "token_id":"<the-jti-to-revoke>","reason":"laptop stolen — INC-12345"}'
+# → {"revoked": true, "token_id": "<jti>", "revoked_by": "CN=alice,..."}
+```
+
+Every attempt is audited (`mcp_revoke_success` / `mcp_revoke_forbidden` /
+`mcp_revoke_failure`) with the principal DN, client IP, `jti`, and reason — SOX
+attribution for who revoked what and why.
+
+### The `valdo mcp-revoke` CLI (SRE incident response)
+
+For runbook / incident use, the same revocation is available from the CLI:
+
+```bash
+valdo mcp-revoke <token_id> --reason "laptop stolen — INC-12345"
+valdo mcp-revoke <token_id> --server https://valdo.bank.internal --reason "leak"
+```
+
+It prompts for the operator's admin LDAP credentials (password is never echoed
+or logged), POSTs to `/api/v2/mcp/revoke`, and exits non-zero on failure
+(`3`=bad creds, `4`=not an admin/403, `5`=server/LDAP/table unavailable). The
+`token_id` is the `jti` from the target token's payload (the `jti` field in
+`~/.valdo/mcp-token`, or recovered from logs/audit).
+
+### Cache behaviour and latency (the <1ms hot path)
+
+The auth path checks the blocklist on **every** MCP call, so it is backed by an
+**in-memory cache with a 60-second TTL** (`src/mcp/revocation.py`):
+
+- A lookup within the TTL is answered from an in-process `set` — **no DB
+  round-trip**, sub-millisecond.
+- A lookup after the TTL reloads the whole blocklist with one `SELECT jti`.
+- A revocation issued on a node **invalidates that node's cache immediately**,
+  so the revoking node enforces it at once; **other nodes/workers converge
+  within the TTL (≤ 60s)**. Plan incident response around this bound — for an
+  instant fleet-wide kill, rotating the signing key remains the nuclear option.
+- **Fail-soft:** if the database is unreachable at lookup time the cache
+  retains its last snapshot (a already-cached revoked `jti` stays revoked) and
+  logs a WARNING rather than failing auth closed — signature + expiry still
+  gate the request. If the `MCP_REVOKED_TOKENS` table is absent entirely
+  (migration not yet applied) the blocklist is simply empty and revocation is a
+  no-op until `0005` is applied.
+
+### Incident-response flow
+
+1. **Identify** the compromised token's `jti` (from the agent's
+   `~/.valdo/mcp-token`, or the `mcp_login_success` audit event's correlation).
+2. **Revoke** via `valdo mcp-revoke <jti> --reason "<incident ref>"` (or the
+   endpoint). The revoking node enforces immediately.
+3. **Confirm** within 60s the token fails on all nodes (subsequent MCP calls
+   from it 401). Check the `mcp_revoke_success` audit event landed.
+4. **Re-issue** a fresh token to the legitimate user via `valdo mcp-login`.
+5. **Escalation:** if many tokens are compromised at once, rotate
+   `VALDO_MCP_TOKEN_SIGNING_KEY` (kills all tokens instantly, no TTL wait) and
+   force a fleet-wide re-login.
+
+### Migration
+
+Apply the blocklist table before enabling the feature:
+
+```bash
+cd /opt/valdo && valdo db-migrate --revision head   # applies 0005_mcp_revoked_tokens
+```
+
+`MCP_REVOKED_TOKENS`: `jti` (PK), `reason`, `revoked_by`, `revoked_at`. The
+migration is idempotent and cross-dialect (Oracle / PostgreSQL / SQLite).
 
 ---
 
@@ -466,3 +582,4 @@ for deterministic unit tests; production uses `time.monotonic`.
 | S9-1 (#387) | Architecture overview, TLS + nginx, forwarded-IP wiring |
 | S9-2 (#390) | Health probe — `/mcp/health` schema, 503 semantics, LB/K8s probe config |
 | S9-3 (#388) | Rate limiting — per-token/per-IP caps, env vars, 429/Retry-After, resource-exempt + get_run_status-elevated rules, in-memory-vs-Redis |
+| S9-4 (#389) | Token revocation — `jti` format + 24h grace window, `POST /api/v2/mcp/revoke` (admin-only), `valdo mcp-revoke` CLI, 60s-TTL blocklist cache, `MCP_REVOKED_TOKENS` (Alembic 0005), incident-response flow |

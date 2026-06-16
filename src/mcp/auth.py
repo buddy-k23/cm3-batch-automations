@@ -65,6 +65,7 @@ import hmac
 import json
 import logging
 import os
+import secrets
 import time
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -116,6 +117,74 @@ TOKEN_PATH_ENV_VAR = "VALDO_MCP_TOKEN_PATH"
 # TTL bounds for ``POST /api/v2/mcp/login`` and ``valdo mcp-login``.
 DEFAULT_TOKEN_TTL_HOURS = 12
 MAX_TOKEN_TTL_HOURS = 48
+
+# S9-4 (#389) — per-token revocation.
+#
+# Tokens minted from S9-4 onward carry an opaque ``jti`` (16 random bytes,
+# hex-encoded → 32 chars) so a single token can be revoked without
+# rotating the signing key. The ``jti`` is part of the signed payload.
+#
+# Backward-compatibility grace window: EF-S7 tokens minted *before* S9-4
+# have no ``jti``. Those still validate, but only while they are within a
+# 24-hour grace window — after that a missing ``jti`` is rejected, forcing
+# a re-login that mints a jti-bearing (and therefore revocable) token.
+#
+# The grace boundary is a single epoch cutoff. A no-jti token is accepted
+# iff its ``issued_at`` is STRICTLY BEFORE the cutoff. Resolution order:
+#   1. ``VALDO_MCP_JTI_GRACE_UNTIL`` env var (epoch seconds) — a deploy-time
+#      hard cutoff an operator can pin (e.g. "no-jti tokens die at 02:00").
+#   2. Unset → a rolling cutoff of ``process_start_time + 24h``, computed
+#      once at import. A fresh deploy thus accepts the no-jti tokens already
+#      in the wild for 24h, then rejects them.
+JTI_BYTES = 16
+JTI_GRACE_ENV_VAR = "VALDO_MCP_JTI_GRACE_UNTIL"
+JTI_GRACE_WINDOW_SECONDS = 24 * 3600
+
+# Process-start grace cutoff for the env-unset case, computed once so a
+# long-running process has a stable boundary (not a per-request sliding
+# window that would never expire).
+_PROCESS_START = int(time.time())
+_DEFAULT_GRACE_UNTIL = _PROCESS_START + JTI_GRACE_WINDOW_SECONDS
+
+
+def _jti_grace_until() -> int:
+    """Resolve the epoch cutoff after which no-jti tokens are rejected.
+
+    Reads :data:`JTI_GRACE_ENV_VAR` fresh on every call so an operator can
+    pin the boundary without an app restart. Falls back to the
+    process-start + 24h default when the env var is unset, empty, or
+    non-integer (a malformed value must not silently disable the gate —
+    it falls back to the safe rolling default).
+
+    Returns:
+        Epoch seconds. A no-jti token whose ``issued_at`` is strictly
+        before this value is still accepted; at or after it, rejected.
+    """
+    raw = os.environ.get(JTI_GRACE_ENV_VAR, "")
+    if raw:
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            logger.warning(
+                "%s=%r is not an integer epoch; falling back to the "
+                "process-start + 24h grace cutoff.",
+                JTI_GRACE_ENV_VAR,
+                raw,
+            )
+    return _DEFAULT_GRACE_UNTIL
+
+
+def generate_jti() -> str:
+    """Return a fresh opaque token id — 16 random bytes, hex-encoded.
+
+    Uses :func:`secrets.token_hex` (CSPRNG) so the value is unguessable.
+    The id is opaque: it carries no structure and is only ever compared
+    for equality against the revocation blocklist.
+
+    Returns:
+        A 32-character lowercase hex string.
+    """
+    return secrets.token_hex(JTI_BYTES)
 
 # Per-request context var that downstream MCP tool implementations can
 # read via :func:`current_user`. Populated by the middleware after the
@@ -170,6 +239,9 @@ class TokenPayload:
     role: str
     issued_at: int
     expires_at: int
+    # S9-4: opaque token id. Empty string for legacy EF-S7 tokens minted
+    # before the jti format change (accepted only within the grace window).
+    jti: str = ""
 
 
 class TokenError(Exception):
@@ -214,15 +286,37 @@ def _signature_payload(
     role: str,
     issued_at: int,
     expires_at: int,
+    jti: str = "",
 ) -> bytes:
     """Build the canonical signing input as UTF-8 bytes.
 
-    The five fields are joined with ``|`` (which cannot appear in an
+    The five core fields are joined with ``|`` (which cannot appear in an
     LDAP DN without escaping; even if it did, the join is unambiguous
     because the field order is fixed). Reordering or omitting fields
     invalidates the signature.
+
+    The S9-4 ``jti`` is appended as a sixth pipe-delimited field **only
+    when it is non-empty**. This is deliberate: a legacy EF-S7 token (no
+    jti) reproduces the *exact* original five-field signing input, so old
+    signatures remain valid without a key rotation. A new token's jti is
+    bound into the signature, so a thief cannot strip or swap the jti to
+    dodge revocation without invalidating the signature.
+
+    Args:
+        user: Short user identifier.
+        principal_dn: Full LDAP DN.
+        role: Valdo role.
+        issued_at: Issue epoch seconds.
+        expires_at: Expiry epoch seconds.
+        jti: Opaque token id, or empty string for legacy tokens.
+
+    Returns:
+        UTF-8 canonical signing input bytes.
     """
-    return f"{user}|{principal_dn}|{role}|{issued_at}|{expires_at}".encode("utf-8")
+    base = f"{user}|{principal_dn}|{role}|{issued_at}|{expires_at}"
+    if jti:
+        base = f"{base}|{jti}"
+    return base.encode("utf-8")
 
 
 def mint_token(
@@ -242,8 +336,10 @@ def mint_token(
 
     Returns:
         Dict with keys ``user``, ``principal_dn``, ``role``,
-        ``issued_at``, ``expires_at``, ``signature`` — directly
+        ``issued_at``, ``expires_at``, ``jti``, ``signature`` — directly
         JSON-serialisable. The caller writes this to ``~/.valdo/mcp-token``.
+        The ``jti`` (S9-4) is a fresh opaque 16-byte hex id bound into the
+        signature so the token can be individually revoked.
 
     Raises:
         TokenError: If the signing key is unconfigured.
@@ -255,9 +351,10 @@ def mint_token(
 
     issued_at = int(time.time())
     expires_at = issued_at + ttl_hours * 3600
+    jti = generate_jti()
     sig = hmac.new(
         _signing_key(),
-        _signature_payload(user, principal_dn, role, issued_at, expires_at),
+        _signature_payload(user, principal_dn, role, issued_at, expires_at, jti),
         hashlib.sha256,
     ).hexdigest()
     return {
@@ -266,6 +363,7 @@ def mint_token(
         "role": role,
         "issued_at": issued_at,
         "expires_at": expires_at,
+        "jti": jti,
         "signature": sig,
     }
 
@@ -283,8 +381,24 @@ def verify_token(payload: dict) -> TokenPayload:
 
     Raises:
         TokenError: If the payload is malformed, the signature is
-            invalid, or the token has expired.
+            invalid, the token has expired, a missing ``jti`` is outside
+            the 24h grace window, or the token's ``jti`` has been revoked.
+
+    Verification order (each gate runs only after the prior passes):
+        1. Required fields present + integer timestamps.
+        2. **HMAC signature** (constant-time compare) — nothing
+           token-derived is trusted until this passes, so a forged token
+           never reaches the DB/cache.
+        3. **Expiry**.
+        4. **jti grace gate** (S9-4) — a token *without* a jti is rejected
+           once it is outside the 24h grace window.
+        5. **Revocation blocklist** (S9-4) — a token *with* a jti is
+           rejected if that jti is on the blocklist. Backed by a 60s-TTL
+           in-memory cache so the lookup is sub-millisecond.
     """
+    # ``signature`` plus the five core fields are always required.
+    # ``jti`` is optional on the wire (legacy tokens lack it) and handled
+    # by the grace gate below.
     required = ("user", "principal_dn", "role", "issued_at", "expires_at", "signature")
     missing = [k for k in required if k not in payload]
     if missing:
@@ -296,6 +410,8 @@ def verify_token(payload: dict) -> TokenPayload:
     except (TypeError, ValueError) as exc:
         raise TokenError("Token timestamps are not integers") from exc
 
+    jti = str(payload.get("jti", "") or "")
+
     expected = hmac.new(
         _signing_key(),
         _signature_payload(
@@ -304,6 +420,7 @@ def verify_token(payload: dict) -> TokenPayload:
             str(payload["role"]),
             issued_at,
             expires_at,
+            jti,
         ),
         hashlib.sha256,
     ).hexdigest()
@@ -314,13 +431,59 @@ def verify_token(payload: dict) -> TokenPayload:
     if expires_at <= now:
         raise TokenError("Token has expired. Run 'valdo mcp-login' to mint a new one.")
 
+    # S9-4 grace gate: a token without a jti predates the revocation
+    # format. Accept it only while it is within the grace window — i.e.
+    # it was issued strictly before the grace cutoff. After that, force a
+    # re-login so the agent gets a revocable (jti-bearing) token.
+    if not jti:
+        cutoff = _jti_grace_until()
+        if issued_at >= cutoff:
+            raise TokenError(
+                "Token has no jti and the revocation grace window has "
+                "elapsed. Run 'valdo mcp-login' to mint a new token."
+            )
+    else:
+        # S9-4 blocklist check — only meaningful for jti-bearing tokens.
+        # Consults the 60s-TTL in-memory cache (DB-free on the hot path).
+        if _jti_is_revoked(jti):
+            raise TokenError(
+                "Token has been revoked. Run 'valdo mcp-login' to mint a "
+                "new token (contact an administrator if this is unexpected)."
+            )
+
     return TokenPayload(
         user=str(payload["user"]),
         principal_dn=str(payload["principal_dn"]),
         role=str(payload["role"]),
         issued_at=issued_at,
         expires_at=expires_at,
+        jti=jti,
     )
+
+
+def _jti_is_revoked(jti: str) -> bool:
+    """Return True if *jti* is on the revocation blocklist.
+
+    Thin indirection over :func:`src.mcp.revocation.get_revocation_cache`
+    so the import stays lazy (the revocation module pulls in the DB
+    engine; auth must stay importable in DB-less contexts such as the CLI
+    token loader). Fail-soft: any unexpected error is logged and treated
+    as "not revoked" — an infra blip must not lock out every agent, since
+    signature + expiry already gated the request.
+
+    Args:
+        jti: The opaque token id to check.
+
+    Returns:
+        True if revoked, False otherwise (including on lookup error).
+    """
+    try:
+        from src.mcp.revocation import get_revocation_cache
+
+        return get_revocation_cache().is_revoked(jti)
+    except Exception:  # noqa: BLE001 — fail-soft; never break auth on infra.
+        logger.warning("mcp_revocation_check_error jti_suffix=%s", jti[-6:])
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -771,6 +934,9 @@ __all__ = [
     "DEFAULT_TOKEN_PATH",
     "DEFAULT_TOKEN_TTL_HOURS",
     "MAX_TOKEN_TTL_HOURS",
+    "JTI_GRACE_ENV_VAR",
+    "JTI_GRACE_WINDOW_SECONDS",
+    "generate_jti",
     "MCPAuthMiddleware",
     "MCPPrincipal",
     "TokenError",

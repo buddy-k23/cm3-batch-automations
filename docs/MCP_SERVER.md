@@ -433,6 +433,46 @@ multi-worker caveat, and the per-token-runs-first attribution rule) lives in
 
 ---
 
+## Token revocation (S9-4, #389)
+
+MCP bearer tokens (EF-S7) are HMAC-signed and self-contained. S9-4 adds a
+**per-token revocation blocklist** so a single leaked token can be killed
+without rotating the signing key (which would invalidate every token).
+
+**New token field — `jti`.** Minted tokens now carry an opaque `jti` (16
+random bytes, hex-encoded) bound into the signature. It is the handle used to
+revoke one specific token. Legacy tokens without a `jti` still validate during
+a **24-hour grace window**, then are rejected (re-login mints a `jti`-bearing
+token).
+
+**New MCP-adjacent surface — `POST /api/v2/mcp/revoke`.** Admin-only
+(LDAPS group `valdo-admins`). Body:
+
+```json
+{"username": "<admin>", "password": "<admin-pw>",
+ "token_id": "<jti-to-revoke>", "reason": "laptop stolen — INC-12345"}
+```
+
+Responses: `200 {"revoked": true, "token_id": "...", "revoked_by": "CN=..."}`;
+`401` bad credentials; **`403`** authenticated but not an admin; `503` LDAP or
+the blocklist table unavailable. This sits alongside `POST /api/v2/mcp/login`
+on the FastAPI app (not inside the `/mcp/` JSON-RPC sub-app).
+
+**Enforcement on the auth path.** `src/mcp/auth.py` `verify_token` checks the
+blocklist **after** signature + expiry validation — a forged token never
+reaches the lookup. The check is backed by a **60-second in-memory cache** over
+the `MCP_REVOKED_TOKENS` Oracle table, so the hot-path lookup is
+sub-millisecond and DB-free within the TTL. A revocation is enforced on the
+issuing node immediately; other nodes converge within the TTL.
+
+CLI (`valdo mcp-revoke <token_id> --reason "..."`), the `jti` grace-window
+mechanism, cache/latency model, fail-soft behaviour, and the incident-response
+flow are documented in
+[`docs/PRODUCTION_DEPLOYMENT.md`](PRODUCTION_DEPLOYMENT.md), section
+"Token revocation (S9-4)".
+
+---
+
 ## Run state persistence (S6-1, #386)
 
 **Background.** EF-S4 introduced the `validate_file` tool, which starts

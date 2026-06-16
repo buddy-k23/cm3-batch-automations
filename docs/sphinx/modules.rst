@@ -465,6 +465,10 @@ MCP Server
    :members:
    :undoc-members:
 
+.. automodule:: src.mcp.revocation
+   :members:
+   :undoc-members:
+
 MCP Resources
 ~~~~~~~~~~~~~
 

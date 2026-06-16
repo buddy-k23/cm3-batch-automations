@@ -1036,7 +1036,40 @@ Review the draft, adjust field names and types as needed, then use it with
 | `watch` | Watch a directory for trigger files and run matching suites |
 | `list-runs` | List archived test suite runs |
 | `get-run` | Retrieve archived files for a specific run |
+| `mcp-login` | Mint a stdio MCP bearer token via LDAP credentials |
+| `mcp-revoke` | Revoke an MCP token by its `jti` (admin only) |
 | `info` | Display system info and dependency check |
+
+#### `mcp-revoke` — revoke a leaked MCP token (S9-4, #389)
+
+Incident-response lever for SREs. Adds an MCP bearer token's opaque `jti` to
+the server-side revocation blocklist so subsequent MCP calls from that token
+fail — without rotating the signing key (which would invalidate every token).
+
+```bash
+# Revoke one token by its jti (prompts for admin LDAP credentials):
+valdo mcp-revoke <token_id> --reason "laptop stolen — INC-12345"
+
+# Against a remote server:
+valdo mcp-revoke <token_id> --server https://valdo.bank.internal --reason "leak"
+```
+
+- **`<token_id>`** is the target token's `jti` — the `jti` field in the
+  holder's `~/.valdo/mcp-token`, or recovered from the `mcp_login_success`
+  audit event.
+- **`--reason`** (required) is recorded in the audit trail for SOX attribution.
+- The command POSTs to the **admin-only** `POST /api/v2/mcp/revoke` endpoint
+  (LDAPS group `valdo-admins`); a non-admin operator is rejected with HTTP 403.
+- It prompts for the operator's admin LDAP credentials (the password is never
+  echoed or logged) and exits non-zero on failure
+  (`3`=bad credentials, `4`=not an admin, `5`=server/LDAP/table unavailable).
+- The revoking node enforces the revocation immediately; other nodes converge
+  within the 60-second blocklist cache TTL.
+
+Full operational detail (the `jti` grace window for pre-S9-4 tokens, the cache
+model, fail-soft behaviour, and the end-to-end incident-response flow) is in
+[`docs/PRODUCTION_DEPLOYMENT.md`](PRODUCTION_DEPLOYMENT.md), section
+"Token revocation (S9-4)".
 
 ---
 
