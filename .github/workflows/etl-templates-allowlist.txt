@@ -1,0 +1,34 @@
+# ETL templates drift allowlist (S8-5, #384)
+#
+# One substring per non-blank, non-comment line. Failure lines reported by
+# `scripts/check_etl_templates.py` that contain ANY listed substring are
+# tolerated; everything else fails the CI guardrail.
+#
+# Failure lines emitted by the driver have one of the shapes:
+#   "  drift <template-path>: <reason>"          (Pydantic parse failure)
+#   "  drift <sample-path>: <reason>"            (sample command failure)
+#
+# CONVENTION: every entry MUST be accompanied by a comment immediately
+# above it explaining (a) which template + check it covers and (b) why
+# the failure is irreducible (link to an ADR / changelog entry / sprint
+# story). Adding a bare substring with no rationale is a review-block.
+#
+# A second escape hatch is available for in-line per-template suppression:
+# add the following comment as the FIRST line of the template YAML to skip
+# both the Pydantic parse and the sample run for that template:
+#
+#   # valdo-drift-allowed: <one-line justification>
+#
+# Use the inline form when the template itself is the carve-out (e.g. a
+# legitimate WIP scaffolding template living under templates/etl/). Use
+# this allowlist file when the failure surface is a known engine quirk
+# that crosses multiple templates.
+#
+# To remove an entry: ensure the underlying failure has actually been
+# fixed, run `scripts/check_etl_templates.sh` locally, and only then
+# delete the line.
+
+# (no allowlist entries yet -- every committed template under
+# templates/etl/ parses cleanly through SourceConfig and either ships a
+# build_sample.py that exits 0 or a left.csv/right.csv pair that `valdo
+# compare` round-trips with exit 0.)

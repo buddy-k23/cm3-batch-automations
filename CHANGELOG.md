@@ -7,7 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- fix(cli): valdo compare returns non-zero exit code on differences (S8-1, #392)
+- fix(parsers): FormatDetector routes .csv to CSV parser (comma) and .tsv to TSV (tab), not PipeDelimitedParser (S8-2, #393)
+
 ### Added
+- ci(templates): drift-check workflow for templates/etl/*.yml (S8-5, #384)
+- docs(adr): 0018 JSON parser design (S8-3, #377)
+- docs(adr): 0020 DB-to-DB disposition — kill-and-defer pilot_database_validations/ (S8-4, #379)
 - feat(templates): generic DB-to-file reconciliation template + sample (S7-1, #375)
 - feat(mcp): templates://etl/* resources (S7-2, #380)
 - feat(mcp): formats://supported resource enumerates Valdo formats (S7-3, #381)

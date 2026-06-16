@@ -1,0 +1,80 @@
+name: ETL templates drift check
+
+# S8-5 (Sprint 8, #384): fail the build if any committed BA-facing ETL
+# template under templates/etl/*.yml drifts from its Pydantic contract
+# (SourceConfig) or its paired sample's documented happy-path command.
+#
+# Analogue of EC-S11's workbook-drift-check.yml. The actual drift logic
+# lives in scripts/check_etl_templates.py so CI and local invocations
+# cannot diverge -- both invoke the same script via the wrapper at
+# scripts/check_etl_templates.sh.
+
+on:
+  pull_request:
+    branches:
+      - valdo-version-v4
+      - main
+    paths:
+      - "templates/etl/**"
+      - "src/parsers/**"
+      - "src/pipeline/etl_config.py"
+      - "src/comparators/**"
+      - "scripts/check_etl_templates.py"
+      - "scripts/check_etl_templates.sh"
+      - ".github/workflows/etl-templates-check.yml"
+      - ".github/workflows/etl-templates-allowlist.txt"
+  push:
+    branches:
+      - valdo-version-v4
+      - main
+    paths:
+      - "templates/etl/**"
+      - "src/parsers/**"
+      - "src/pipeline/etl_config.py"
+      - "src/comparators/**"
+      - "scripts/check_etl_templates.py"
+      - "scripts/check_etl_templates.sh"
+      - ".github/workflows/etl-templates-check.yml"
+      - ".github/workflows/etl-templates-allowlist.txt"
+
+jobs:
+  etl-templates-check:
+    name: ETL templates drift check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        # Editable install so `python -m src.main` resolves the CLI
+        # entry point the same way it does for local developers (the
+        # CSV-shape sample dispatch invokes `valdo compare` via
+        # `python -m src.main compare ...`). The DB-to-file sample
+        # exercises src.comparators.file_comparator directly through
+        # the sample's build_sample.py driver, which also needs the
+        # editable install. requirements.txt covers pandas / pydantic /
+        # pyyaml / oracledb; requirements-api.txt is added for parity
+        # with the workbook-drift workflow (src.main transitively
+        # imports the API surface).
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install -r requirements.txt
+          pip install -r requirements-api.txt
+
+      - name: Run ETL templates drift guardrail
+        # Same script the local developer runs. The script discovers
+        # every committed templates/etl/*.yml, validates each through
+        # SourceConfig, dispatches the documented sample command (when
+        # a paired <name>_sample/ directory exists), and filters
+        # failure lines against
+        # .github/workflows/etl-templates-allowlist.txt. Exits non-zero
+        # if any non-allowlisted failure line remains.
+        run: bash scripts/check_etl_templates.sh

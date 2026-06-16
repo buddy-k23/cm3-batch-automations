@@ -209,6 +209,12 @@ Valdo also supports **TSV** (tab-separated) files. It can auto-detect which
 format a file uses, but you can specify it explicitly if auto-detection gets it
 wrong.
 
+Auto-detection consults the file **extension** first — `.csv` routes to a
+comma-separated parser, `.tsv` routes to a tab-separated parser, `.psv` (or
+any unknown extension) routes to a pipe-delimited parser. Files with no
+extension (or `.txt` files) fall back to content sniffing, which decides
+between pipe-delimited and fixed-width based on the sample lines.
+
 ### What is a mapping?
 
 A mapping is a JSON file that acts as a blueprint for a batch file's structure.
@@ -721,6 +727,15 @@ valdo compare \
 | `--chunk-size` | 100000 | Rows per chunk |
 | `--use-chunked` | off | Chunked processing |
 | `--progress / --no-progress` | `--progress` | Show progress bar |
+
+**Exit codes (CI/CD gates):**
+
+| Code | Condition |
+|---|---|
+| `0` | Files match exactly, *or* differences are within the configured `--thresholds` |
+| `1` | At least one difference is detected (row missing in either file, or row-level field mismatch) and — when `--thresholds` is supplied — the threshold evaluator does not return `PASS` |
+
+A "difference" is any row in `only_in_file1`, `only_in_file2`, or `rows_with_differences`. Without `--thresholds`, any single difference fails the run so CI pipelines do not silently pass on broken comparisons.
 
 #### Common examples
 
@@ -2245,6 +2260,86 @@ if [ "$VALID" = "False" ]; then
   exit 1
 fi
 ```
+
+### Templates CI drift check
+
+Two GitHub Actions workflows guard the committed templates from drifting
+away from their Pydantic contracts or their documented worked examples.
+Both run on `pull_request` and `push` to `valdo-version-v4` and `main`,
+and both have a local-equivalent shell wrapper so CI and developer runs
+exercise the same code path.
+
+| Workflow | Local wrapper | What it guards |
+|---|---|---|
+| `.github/workflows/workbook-drift-check.yml` | `scripts/check_workbook_drift.sh` | Source-onboarding workbooks under `templates/*_onboarding.xlsx` (EC-S11) |
+| `.github/workflows/etl-templates-check.yml` | `scripts/check_etl_templates.sh` | BA-facing ETL templates under `templates/etl/*.yml` (S8-5) |
+
+For the ETL-templates check, each discovered `templates/etl/*.yml` is:
+
+1. **Parsed through `src.pipeline.etl_config.SourceConfig`.** A typo in a
+   required key (`source`, `schema_version`, `input_files[].file_type`,
+   `input_files[].glob`, `input_files[].mapping`,
+   `input_files[].target_staging_table`) fails the build before the
+   template can ship.
+2. **Sample-executed** if a paired `<name>_sample/` directory exists.
+   The driver dispatches the documented happy-path command:
+   * `build_sample.py` -> runs the script (used by
+     `fixed_width_single_record_sample/` and
+     `db_to_file_reconciliation_sample/`; the DB-to-file driver uses a
+     SQLite backend, so CI does not need Oracle network access).
+   * `left.csv` + `right.csv` + `mapping.json` -> runs
+     `valdo compare --keys CUSTOMER_ID ...` (used by
+     `csv_file_comparison_sample/`). Exit codes `0` (no diffs) and `1`
+     (documented diffs per S8-1) are both accepted; anything `>= 2` is
+     a fatal CLI crash and fails the build.
+   * No matching contract -> sample run is skipped with a notice; the
+     Pydantic parse still gates the template.
+
+#### Reading a CI failure
+
+The workflow's last step echoes a per-template block followed by a
+summary. Failure lines have the shape:
+
+```
+  drift templates/etl/<name>.yml: SourceConfig validation failed: ...
+  drift templates/etl/<name>_sample: build_sample.py exited 1; last line: ...
+```
+
+The trailing summary reports `tolerated drift lines`, `unexpected drift
+lines`, and `RESULT: PASS|FAIL`. Reproduce the same output locally with:
+
+```bash
+bash scripts/check_etl_templates.sh
+```
+
+#### Two escape hatches (R028B-style)
+
+When a failure is intentional and cannot be reduced by editing the
+template, two carve-out mechanisms mirror the EC-S11 workbook-drift
+convention:
+
+1. **Allowlist file**:
+   `.github/workflows/etl-templates-allowlist.txt` -- one substring per
+   line, with a comment immediately above each entry explaining the
+   carve-out. A failure line whose text contains ANY listed substring
+   is tolerated. Use this when the failure surface crosses multiple
+   templates.
+
+2. **Inline per-template carve-out**: add this YAML comment as the
+   FIRST non-blank line of the template file:
+
+   ```yaml
+   # valdo-drift-allowed: <one-line justification>
+   ```
+
+   The driver skips both the Pydantic parse and the sample run for
+   that template (with a `WARN: inline carve-out active` line in the
+   log). Use this when the template itself is the intended carve-out
+   (e.g. a WIP scaffolding template).
+
+In both cases, every carve-out is review-blocked without a comment
+explaining the justification -- bare entries are rejected on PR review
+per `etl-templates-allowlist.txt`'s header convention.
 
 ---
 
