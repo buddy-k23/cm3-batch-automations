@@ -180,7 +180,8 @@ valdo extract \
 - `-l, --limit`: Number of rows to extract
 - `--format`: Output format
 
-Reconcile mapping with database schema:
+Reconcile mapping with database schema (Oracle, PostgreSQL, or SQLite — the
+backend is selected via the `DB_ADAPTER` env var; ADR 0022, S12-3):
 
 ```bash
 valdo reconcile \

@@ -2650,7 +2650,20 @@ You must provide exactly one of `--table`, `--query`, or `--sql-file`.
 Schema reconciliation validates that your mapping document matches the actual
 database schema. It catches configuration errors early -- before you run a
 full comparison -- by checking that the tables, columns, types, and lengths
-in your mapping correspond to what exists in Oracle.
+in your mapping correspond to what exists in the target database.
+
+> **Backend-agnostic (ADR 0022, S12-3).** `reconcile` and `reconcile-all` now
+> run against **Oracle, PostgreSQL, or SQLite** — the backend is selected by
+> the `DB_ADAPTER` environment variable (`oracle` (default) / `postgresql` /
+> `sqlite`), the same factory the rest of the app uses. The engine reads
+> schema metadata through the database adapter and compares your mapping's
+> declared type against a **dialect-free canonical type** (e.g. STRING /
+> INTEGER / DECIMAL / DATE), so the *same* mapping reconciles identically on
+> every backend. Two cases are emitted as **informational advisories**, never
+> errors: a field declared `boolean` stored as a numeric/char flag on a backend
+> with no native boolean (Oracle `NUMBER(1)`, SQLite `INTEGER`), and a typeless
+> SQLite column whose type cannot be asserted (`UNKNOWN`). A genuine conflict
+> (e.g. mapping `string` vs a DB integer column) is still flagged.
 
 #### Checks Performed
 
@@ -2658,8 +2671,8 @@ in your mapping correspond to what exists in Oracle.
 |---|---|
 | Table exists | The target table specified in the mapping exists in the schema |
 | Columns exist | Every mapped column exists in the database table |
-| Types compatible | Mapping data types are compatible with the Oracle column types |
-| Length sufficient | Oracle column lengths can hold the data described by the mapping |
+| Types compatible | Mapping data types are compatible with the column's canonical type (dialect-free; boolean/UNKNOWN are advisories) |
+| Length sufficient | Column lengths can hold the data described by the mapping (skipped where the backend reports no length, e.g. SQLite) |
 
 #### CLI Usage
 

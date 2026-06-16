@@ -536,15 +536,16 @@ class ETLPipelineRunner:
         """
         from src.config.loader import ConfigLoader
         from src.config.mapping_parser import MappingParser
-        from src.database.connection import OracleConnection
+        from src.database.adapters.factory import get_database_adapter
         from src.database.reconciliation import SchemaReconciler
 
         loader = ConfigLoader()
         parser = MappingParser()
         mapping_dict = loader.load_mapping(step.mapping)
         mapping_doc = parser.parse(mapping_dict)
-        conn = OracleConnection.from_env()
-        reconciler = SchemaReconciler(conn)
+        # Adapter selected via DB_ADAPTER (oracle/postgresql/sqlite) per ADR 0022.
+        adapter = get_database_adapter()
+        reconciler = SchemaReconciler(adapter)
         return reconciler.reconcile_mapping(mapping_doc)
 
 

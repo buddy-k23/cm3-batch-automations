@@ -355,7 +355,7 @@ def reconcile(mapping, output, fail_on_warnings):
 
     try:
         import json
-        from src.database.connection import OracleConnection
+        from src.database.adapters.factory import get_database_adapter
         from src.database.reconciliation import SchemaReconciler
         from src.config.loader import ConfigLoader
         from src.config.mapping_parser import MappingParser
@@ -367,9 +367,9 @@ def reconcile(mapping, output, fail_on_warnings):
         parser = MappingParser()
         mapping_doc = parser.parse(mapping_dict)
 
-        # Reconcile with database
-        conn = OracleConnection.from_env()
-        reconciler = SchemaReconciler(conn)
+        # Reconcile with database (adapter selected via DB_ADAPTER: oracle/postgresql/sqlite)
+        adapter = get_database_adapter()
+        reconciler = SchemaReconciler(adapter)
 
         click.echo(f"\nReconciling mapping: {mapping_doc.mapping_name}")
         click.echo(f"Target table: {mapping_doc.target.get('table_name', 'N/A')}")
@@ -425,15 +425,16 @@ def reconcile_all(mappings_dir, pattern, output, baseline, fail_on_warnings, fai
     try:
         import json
         from pathlib import Path
-        from src.database.connection import OracleConnection
+        from src.database.adapters.factory import get_database_adapter
         from src.database.reconciliation import SchemaReconciler
         from src.config.loader import ConfigLoader
         from src.config.mapping_parser import MappingParser
 
         loader = ConfigLoader()
         parser = MappingParser()
-        conn = OracleConnection.from_env()
-        reconciler = SchemaReconciler(conn)
+        # Adapter selected via DB_ADAPTER (oracle/postgresql/sqlite).
+        adapter = get_database_adapter()
+        reconciler = SchemaReconciler(adapter)
 
         mapping_files = sorted(Path(mappings_dir).glob(pattern))
         if not mapping_files:
@@ -445,6 +446,9 @@ def reconcile_all(mappings_dir, pattern, output, baseline, fail_on_warnings, fai
         total_warnings = 0
         invalid_mappings = 0
 
+        # Open one connection for the whole batch (per-mapping reconcile is a
+        # no-op on the already-open adapter).
+        adapter.connect()
         for mapping_file in mapping_files:
             click.echo(f"\nReconciling: {mapping_file}")
             try:
@@ -483,6 +487,8 @@ def reconcile_all(mappings_dir, pattern, output, baseline, fail_on_warnings, fai
                     'error_count': 1,
                     'warning_count': 0,
                 })
+
+        adapter.disconnect()
 
         summary = {
             'total_mappings': len(mapping_files),
