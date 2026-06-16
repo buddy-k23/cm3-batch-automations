@@ -442,3 +442,157 @@ def _make_rule(check: str, **kwargs) -> dict:
         "severity": "error",
         **kwargs,
     }
+
+
+# ---------------------------------------------------------------------------
+# Test 8: full chunked-vs-single-pass parity matrix for EVERY check type
+# (S16-5 / issue #418 — guards the registry collapse refactor)
+# ---------------------------------------------------------------------------
+#
+# Each case exercises BOTH a violating group and a clean group so the verdict
+# (the set of flagged row_numbers) is non-trivial, and uses a small chunk size
+# so no single chunk holds a whole group — forcing the map-reduce path to be
+# genuinely exercised. The assertion is that the chunked verdict EQUALS the
+# single-pass verdict for the same DataFrame and rule, for all six checks.
+
+
+def _chunked_violations(rule: dict, df: pd.DataFrame, chunk_rows: int) -> list:
+    """Run the chunked map-reduce trio over ``df`` split into ``chunk_rows`` chunks.
+
+    Generalises :func:`_chunked_seq_violations` to any cross-row check — collect
+    a partial state per chunk, merge them, then evaluate the merged state.
+
+    Args:
+        rule: Any cross-row rule dict.
+        df: DataFrame to validate.
+        chunk_rows: Number of rows per chunk.
+
+    Returns:
+        List of :class:`~src.validators.rule_engine.RuleViolation` objects from
+        the merged-state evaluation.
+    """
+    validator = CrossRowValidator()
+    partials = [
+        validator.collect_partial_state(rule, df.iloc[i : i + chunk_rows])
+        for i in range(0, len(df), chunk_rows)
+    ]
+    merged = validator.merge_partial_states(rule, partials)
+    return validator.evaluate_merged_state(rule, merged)
+
+
+# (check_label, rule, dataframe, expected single-pass bad-row verdict)
+_PARITY_CASES = [
+    (
+        "unique",
+        _make_rule("unique", field="id"),
+        pd.DataFrame({"id": ["A", "B", "A", "C", "B", "D"]}),
+        # Rows 1&3 (A) and 2&5 (B) are duplicates; C, D are unique.
+        {1, 2, 3, 5},
+    ),
+    (
+        "unique_composite",
+        _make_rule("unique_composite", fields=["f1", "f2"]),
+        pd.DataFrame(
+            {
+                "f1": ["X", "Y", "X", "Z", "Y", "W"],
+                "f2": ["1", "1", "1", "2", "1", "3"],
+            }
+        ),
+        # (X,1) at rows 1&3 and (Y,1) at rows 2&5 collide; (Z,2),(W,3) unique.
+        {1, 2, 3, 5},
+    ),
+    (
+        "consistent",
+        _make_rule("consistent", key_field="acct", target_field="region"),
+        pd.DataFrame(
+            {
+                "acct": ["A1", "A2", "A1", "A2", "A3", "A3"],
+                "region": ["EAST", "WEST", "WEST", "WEST", "N", "N"],
+            }
+        ),
+        # A1 inconsistent (EAST/WEST) -> rows 1&3; A2 consistent; A3 consistent.
+        {1, 3},
+    ),
+    (
+        "sequential",
+        _make_rule("sequential", key_field="grp", sequence_field="seq"),
+        pd.DataFrame(
+            {
+                "grp": ["G", "G", "G", "G", "H", "H"],
+                "seq": [1, 2, 1, 2, 1, 2],
+            }
+        ),
+        # G has 4 rows but values {1,2} != {1,2,3,4}; H is a valid {1,2}.
+        {1, 2, 3, 4},
+    ),
+    (
+        "group_count",
+        _make_rule("group_count", key_field="grp", count_field="cnt"),
+        pd.DataFrame(
+            {
+                "grp": ["A", "A", "A", "B", "B"],
+                "cnt": [2, 2, 2, 2, 2],
+            }
+        ),
+        # A declares 2 but has 3 rows -> rows 1-3; B declares 2 and has 2 -> ok.
+        {1, 2, 3},
+    ),
+    (
+        "group_sum",
+        _make_rule("group_sum", key_field="grp", sum_field="amt", max_value=999),
+        pd.DataFrame(
+            {
+                "grp": ["X", "X", "X", "X", "Y", "Y"],
+                "amt": [100, 200, 300, 400, 10, 20],
+            }
+        ),
+        # X sums to 1000 > 999 -> rows 1-4; Y sums to 30 -> ok.
+        {1, 2, 3, 4},
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    "label,rule,df,expected",
+    _PARITY_CASES,
+    ids=[c[0] for c in _PARITY_CASES],
+)
+def test_chunked_matches_single_pass_for_every_check(label, rule, df, expected):
+    """Chunked map-reduce verdict must equal single-pass for ALL six checks.
+
+    This is the safety net for the S16-5 registry collapse (#418): the structural
+    refactor must not change observable behaviour, so for every check type the
+    set of flagged rows from the chunked trio must equal the single-pass set —
+    and both must equal the hand-derived expected verdict.
+    """
+    single = CrossRowValidator().validate(rule, df)
+    chunked = _chunked_violations(rule, df, _PARITY_CHUNK_ROWS)
+
+    assert _verdict(single) == expected, f"single-pass {label} verdict mismatch"
+    assert _verdict(chunked) == _verdict(single), f"chunked {label} drifted from single-pass"
+
+
+# ---------------------------------------------------------------------------
+# Test 9: the chunked path routes unknown checks through ONE source of truth
+# ---------------------------------------------------------------------------
+
+
+def test_chunked_unknown_check_handled_consistently():
+    """An unknown check type yields empty partial state / no violations.
+
+    After the registry collapse the three chunked entry points dispatch over the
+    same registry as single-pass; an unrecognised check has no strategy, so the
+    collect/merge/evaluate trio degrades to empty/no-op rather than diverging.
+    This asserts the collapse: chunked has no per-check logic the registry lacks.
+    """
+    validator = CrossRowValidator()
+    rule = _make_rule("not_a_real_check", field="id")
+    df = pd.DataFrame({"id": ["A", "A"]})
+
+    partial = validator.collect_partial_state(rule, df)
+    merged = validator.merge_partial_states(rule, [partial])
+    violations = validator.evaluate_merged_state(rule, merged)
+
+    assert partial == {}
+    assert merged == {}
+    assert violations == []

@@ -15,13 +15,41 @@ from __future__ import annotations
 
 import logging
 import warnings
-from typing import List
+from dataclasses import dataclass
+from typing import Callable, List
 
 import pandas as pd
 
 from src.validators.rule_engine import RuleViolation
 
 _logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class _ChunkStrategy:
+    """Map-reduce strategy for one cross-row check type (issue #418).
+
+    Bundles the three chunked-validation behaviours for a single check so they
+    live in ONE place, keyed by the same check string as the single-pass
+    :data:`CrossRowValidator._DISPATCH` registry. The three public map-reduce
+    methods (:meth:`~CrossRowValidator.collect_partial_state`,
+    :meth:`~CrossRowValidator.merge_partial_states`,
+    :meth:`~CrossRowValidator.evaluate_merged_state`) look up the strategy for
+    ``rule['check']`` and delegate, so chunked and single-pass cannot drift.
+
+    Attributes:
+        collect: ``(validator, rule, df) -> partial_state_dict`` — the *map*
+            step; extract partial cross-row state from one chunk.
+        merge: ``(validator, rule, non_empty_states) -> merged_state_dict`` —
+            the *reduce* step; combine partial states from all chunks. Receives
+            only the already-filtered non-empty states.
+        evaluate: ``(validator, rule, merged_state) -> [RuleViolation, ...]`` —
+            the *evaluate* step; derive violations from the merged state.
+    """
+
+    collect: Callable[["CrossRowValidator", dict, pd.DataFrame], dict]
+    merge: Callable[["CrossRowValidator", dict, list], dict]
+    evaluate: Callable[["CrossRowValidator", dict, dict], List[RuleViolation]]
 
 
 class CrossRowValidator:
@@ -456,6 +484,13 @@ class CrossRowValidator:
         cross-row violations that span multiple chunks.  Call once per chunk
         and pass all returned dicts to :meth:`merge_partial_states`.
 
+        Thin dispatcher (issue #418): looks up the :class:`_ChunkStrategy` for
+        ``rule['check']`` in :data:`_CHUNK_STRATEGIES` — the same per-check
+        source of truth keyed off the single-pass :data:`_DISPATCH` registry —
+        and delegates to its ``collect`` callable. An unknown or unset check has
+        no strategy and yields ``{}`` (no-op), matching the historical
+        fall-through behaviour of the chunked path.
+
         Args:
             rule: Rule configuration dict with at least ``id`` and ``check``.
             df: The chunk DataFrame (should already be scoped by any ``when``
@@ -479,110 +514,25 @@ class CrossRowValidator:
             - ``group_sum``:
               ``{"sums": {key: float}, "rows": {key: [(idx, val)]}}``
 
-            Returns ``{}`` when the DataFrame is empty or required columns are
-            missing.
+            Returns ``{}`` when the DataFrame is empty, required columns are
+            missing, or the check type has no registered strategy.
         """
-        check = rule.get("check", "")
         if df.empty:
             return {}
-
-        if check == "unique":
-            field = rule.get("field", "")
-            if field not in df.columns:
-                return {}
-            seen: dict = {}
-            for idx, val in df[field].items():
-                if pd.isna(val):
-                    continue
-                key = str(val)
-                seen.setdefault(key, []).append(int(idx))
-            return {"seen": seen}
-
-        if check == "unique_composite":
-            fields = rule.get("fields", [])
-            if any(f not in df.columns for f in fields):
-                return {}
-            seen = {}
-            for idx, row in df[fields].iterrows():
-                key = str(tuple(str(v) for v in row))
-                seen.setdefault(key, []).append(int(idx))
-            return {"seen": seen}
-
-        if check == "consistent":
-            key_field = rule.get("key_field", "")
-            target_field = rule.get("target_field", "")
-            if key_field not in df.columns or target_field not in df.columns:
-                return {}
-            groups: dict = {}
-            rows: dict = {}
-            for idx, row in df[[key_field, target_field]].iterrows():
-                k = str(row[key_field])
-                v = str(row[target_field]) if not pd.isna(row[target_field]) else None
-                if v is not None:
-                    groups.setdefault(k, set()).add(v)
-                rows.setdefault(k, []).append((int(idx), str(row[target_field])))
-            return {"groups": {k: list(v) for k, v in groups.items()}, "rows": rows}
-
-        if check == "sequential":
-            key_field = rule.get("key_field", "")
-            seq_field = rule.get("sequence_field", "")
-            if key_field not in df.columns or seq_field not in df.columns:
-                return {}
-            groups: dict = {}
-            rows: dict = {}
-            numeric_seq = pd.to_numeric(df[seq_field], errors="coerce")
-            for idx, row in df[[key_field]].iterrows():
-                k = str(row[key_field])
-                sv = numeric_seq.loc[idx]
-                if not pd.isna(sv):
-                    groups.setdefault(k, set()).add(int(sv))
-                rows.setdefault(k, []).append(int(idx))
-            return {"groups": {k: list(v) for k, v in groups.items()}, "rows": rows}
-
-        if check == "group_count":
-            key_field = rule.get("key_field", "")
-            count_field = rule.get("count_field", "")
-            if key_field not in df.columns or count_field not in df.columns:
-                return {}
-            counts: dict = {}
-            declared: dict = {}
-            rows: dict = {}
-            for idx, row in df[[key_field, count_field]].iterrows():
-                k = str(row[key_field])
-                counts[k] = counts.get(k, 0) + 1
-                rows.setdefault(k, []).append(int(idx))
-                dc = pd.to_numeric(
-                    pd.Series([row[count_field]]), errors="coerce"
-                ).iloc[0]
-                if not pd.isna(dc) and k not in declared:
-                    declared[k] = int(dc)
-            return {"counts": counts, "declared": declared, "rows": rows}
-
-        if check == "group_sum":
-            key_field = rule.get("key_field", "")
-            sum_field = rule.get("sum_field", "")
-            if key_field not in df.columns or sum_field not in df.columns:
-                return {}
-            sums: dict = {}
-            rows: dict = {}
-            numeric_sum = pd.to_numeric(df[sum_field], errors="coerce")
-            for idx, row in df[[key_field]].iterrows():
-                k = str(row[key_field])
-                v = numeric_sum.loc[idx]
-                if not pd.isna(v):
-                    sums[k] = sums.get(k, 0.0) + float(v)
-                rows.setdefault(k, []).append(
-                    (int(idx), float(v) if not pd.isna(v) else 0.0)
-                )
-            return {"sums": sums, "rows": rows}
-
-        return {}
+        strategy = self._CHUNK_STRATEGIES.get(rule.get("check", ""))
+        if strategy is None:
+            return {}
+        return strategy.collect(self, rule, df)
 
     def merge_partial_states(self, rule: dict, states: list) -> dict:
         """Merge partial states from multiple chunks into a single merged state.
 
         This is the *reduce* step of the map-reduce approach.  Pass the list
         of dicts returned by :meth:`collect_partial_state` for each chunk.
+
+        Thin dispatcher (issue #418): filters empty states, then delegates to
+        the registered :class:`_ChunkStrategy`'s ``merge`` callable for
+        ``rule['check']``. An unknown check yields ``{}``.
 
         Args:
             rule: Rule configuration dict (same dict used in
@@ -593,83 +543,28 @@ class CrossRowValidator:
         Returns:
             Merged state dict in the same format as a single partial state
             (see :meth:`collect_partial_state` for structure documentation).
-            Returns ``{}`` when all input states are empty.
+            Returns ``{}`` when all input states are empty or the check type has
+            no registered strategy.
         """
-        check = rule.get("check", "")
         non_empty = [s for s in states if s]
         if not non_empty:
             return {}
-
-        if check in {"unique", "unique_composite"}:
-            merged_seen: dict = {}
-            for state in non_empty:
-                for key, idxs in state.get("seen", {}).items():
-                    merged_seen.setdefault(key, []).extend(idxs)
-            return {"seen": merged_seen}
-
-        if check == "consistent":
-            merged_groups: dict = {}
-            merged_rows: dict = {}
-            for state in non_empty:
-                for k, vals in state.get("groups", {}).items():
-                    merged_groups.setdefault(k, set()).update(vals)
-                for k, row_list in state.get("rows", {}).items():
-                    merged_rows.setdefault(k, []).extend(row_list)
-            return {
-                "groups": {k: list(v) for k, v in merged_groups.items()},
-                "rows": merged_rows,
-            }
-
-        if check == "sequential":
-            merged_groups: dict = {}
-            merged_rows: dict = {}
-            for state in non_empty:
-                for k, vals in state.get("groups", {}).items():
-                    merged_groups.setdefault(k, set()).update(vals)
-                for k, idxs in state.get("rows", {}).items():
-                    merged_rows.setdefault(k, []).extend(idxs)
-            return {
-                "groups": {k: list(v) for k, v in merged_groups.items()},
-                "rows": merged_rows,
-            }
-
-        if check == "group_count":
-            merged_counts: dict = {}
-            merged_declared: dict = {}
-            merged_rows: dict = {}
-            for state in non_empty:
-                for k, c in state.get("counts", {}).items():
-                    merged_counts[k] = merged_counts.get(k, 0) + c
-                for k, d in state.get("declared", {}).items():
-                    if k not in merged_declared:
-                        merged_declared[k] = d
-                for k, idxs in state.get("rows", {}).items():
-                    merged_rows.setdefault(k, []).extend(idxs)
-            return {
-                "counts": merged_counts,
-                "declared": merged_declared,
-                "rows": merged_rows,
-            }
-
-        if check == "group_sum":
-            merged_sums: dict = {}
-            merged_rows: dict = {}
-            for state in non_empty:
-                for k, s in state.get("sums", {}).items():
-                    merged_sums[k] = merged_sums.get(k, 0.0) + s
-                for k, row_list in state.get("rows", {}).items():
-                    merged_rows.setdefault(k, []).extend(row_list)
-            return {"sums": merged_sums, "rows": merged_rows}
-
-        return {}
+        strategy = self._CHUNK_STRATEGIES.get(rule.get("check", ""))
+        if strategy is None:
+            return {}
+        return strategy.merge(self, rule, non_empty)
 
     def evaluate_merged_state(self, rule: dict, merged_state: dict) -> List[RuleViolation]:
         """Evaluate merged cross-chunk state and return violations.
 
         This is the *evaluate* step after :meth:`merge_partial_states`.  It
-        applies the same business-logic checks as the per-chunk handlers but
+        applies the same business-logic checks as the single-pass handlers but
         operates on the globally merged state, ensuring violations that span
         chunk boundaries are detected.
+
+        Thin dispatcher (issue #418): delegates to the registered
+        :class:`_ChunkStrategy`'s ``evaluate`` callable for ``rule['check']``.
+        An empty merged state or unknown check yields no violations.
 
         Args:
             rule: Rule configuration dict (same dict used throughout the
@@ -678,129 +573,357 @@ class CrossRowValidator:
 
         Returns:
             List of :class:`~src.validators.rule_engine.RuleViolation` objects.
-            Empty list when no violations are found or ``merged_state`` is empty.
+            Empty list when no violations are found, ``merged_state`` is empty,
+            or the check type has no registered strategy.
         """
-        check = rule.get("check", "")
-        description = rule.get("description", rule.get("name", ""))
-        violations: List[RuleViolation] = []
-
         if not merged_state:
-            return violations
+            return []
+        strategy = self._CHUNK_STRATEGIES.get(rule.get("check", ""))
+        if strategy is None:
+            return []
+        return strategy.evaluate(self, rule, merged_state)
 
-        if check in {"unique", "unique_composite"}:
-            field = rule.get("field", "") or ", ".join(rule.get("fields", []))
-            for key, idxs in merged_state.get("seen", {}).items():
-                if len(idxs) > 1:
-                    for idx in idxs:
-                        violations.append(
-                            self._make_violation(
-                                rule,
-                                idx,
-                                field,
-                                key,
-                                f"{description}: duplicate value '{key}' in field '{field}'",
-                            )
+    # ------------------------------------------------------------------
+    # Per-check chunked strategy implementations (issue #418)
+    #
+    # Each ``_collect_* / _merge_* / _evaluate_*`` trio is the map / reduce /
+    # evaluate logic for ONE check, registered together in
+    # :data:`_CHUNK_STRATEGIES` below. The dispatchers above never branch on
+    # the check type — adding or changing a check is a single registry entry,
+    # so the chunked path can never drift from single-pass.
+    # ------------------------------------------------------------------
+
+    # --- unique / unique_composite (share the same merge + evaluate) ---
+
+    def _collect_unique(self, rule: dict, df: pd.DataFrame) -> dict:
+        field = rule.get("field", "")
+        if field not in df.columns:
+            return {}
+        seen: dict = {}
+        for idx, val in df[field].items():
+            if pd.isna(val):
+                continue
+            key = str(val)
+            seen.setdefault(key, []).append(int(idx))
+        return {"seen": seen}
+
+    def _collect_unique_composite(self, rule: dict, df: pd.DataFrame) -> dict:
+        fields = rule.get("fields", [])
+        if any(f not in df.columns for f in fields):
+            return {}
+        seen: dict = {}
+        for idx, row in df[fields].iterrows():
+            key = str(tuple(str(v) for v in row))
+            seen.setdefault(key, []).append(int(idx))
+        return {"seen": seen}
+
+    def _merge_seen(self, rule: dict, non_empty: list) -> dict:
+        merged_seen: dict = {}
+        for state in non_empty:
+            for key, idxs in state.get("seen", {}).items():
+                merged_seen.setdefault(key, []).extend(idxs)
+        return {"seen": merged_seen}
+
+    def _evaluate_seen(self, rule: dict, merged_state: dict) -> List[RuleViolation]:
+        description = rule.get("description", rule.get("name", ""))
+        field = rule.get("field", "") or ", ".join(rule.get("fields", []))
+        violations: List[RuleViolation] = []
+        for key, idxs in merged_state.get("seen", {}).items():
+            if len(idxs) > 1:
+                for idx in idxs:
+                    violations.append(
+                        self._make_violation(
+                            rule,
+                            idx,
+                            field,
+                            key,
+                            f"{description}: duplicate value '{key}' in field '{field}'",
                         )
-
-        elif check == "consistent":
-            key_field = rule.get("key_field", "")
-            target_field = rule.get("target_field", "")
-            for k, vals in merged_state.get("groups", {}).items():
-                if len(vals) > 1:
-                    for idx, val in merged_state.get("rows", {}).get(k, []):
-                        violations.append(
-                            self._make_violation(
-                                rule,
-                                idx,
-                                target_field,
-                                val,
-                                f"{description}: '{target_field}' is inconsistent "
-                                f"within '{key_field}'='{k}' group",
-                            )
-                        )
-
-        elif check == "sequential":
-            key_field = rule.get("key_field", "")
-            seq_field = rule.get("sequence_field", "")
-            # Honour the configurable run (start/step) exactly as the
-            # single-pass path does (see :meth:`_check_sequential`), so the
-            # chunked verdict matches single-pass for non-default rules. (#413)
-            try:
-                start = int(rule.get("start", 1))
-                step = int(rule.get("step", 1))
-            except (TypeError, ValueError) as exc:
-                raise ValueError(
-                    f"cross_row rule '{rule.get('id')}' (check=sequential): "
-                    f"'start'/'step' must be integers, got "
-                    f"start={rule.get('start')!r}, step={rule.get('step')!r}"
-                ) from exc
-            if step == 0:
-                raise ValueError(
-                    f"cross_row rule '{rule.get('id')}' (check=sequential): "
-                    f"'step' must be a non-zero integer"
-                )
-            run_desc = (
-                "sequential"
-                if start == 1 and step == 1
-                else f"the run starting {start} step {step}"
-            )
-            for k, seq_vals in merged_state.get("groups", {}).items():
-                n = len(merged_state.get("rows", {}).get(k, []))
-                expected = {start + step * i for i in range(n)}
-                if set(seq_vals) != expected:
-                    for idx in merged_state.get("rows", {}).get(k, []):
-                        violations.append(
-                            self._make_violation(
-                                rule,
-                                idx,
-                                seq_field,
-                                None,
-                                f"{description}: '{seq_field}' is not {run_desc} "
-                                f"within '{key_field}'='{k}' group",
-                            )
-                        )
-
-        elif check == "group_count":
-            key_field = rule.get("key_field", "")
-            count_field = rule.get("count_field", "")
-            for k, actual in merged_state.get("counts", {}).items():
-                declared = merged_state.get("declared", {}).get(k)
-                if declared is not None and actual != declared:
-                    for idx in merged_state.get("rows", {}).get(k, []):
-                        violations.append(
-                            self._make_violation(
-                                rule,
-                                idx,
-                                count_field,
-                                actual,
-                                f"{description}: expected {declared} rows for "
-                                f"'{key_field}'='{k}' but found {actual}",
-                            )
-                        )
-
-        elif check == "group_sum":
-            key_field = rule.get("key_field", "")
-            sum_field = rule.get("sum_field", "")
-            min_value = rule.get("min_value")
-            max_value = rule.get("max_value")
-            for k, total in merged_state.get("sums", {}).items():
-                out_of_bounds = (
-                    min_value is not None and total < min_value
-                ) or (
-                    max_value is not None and total > max_value
-                )
-                if out_of_bounds:
-                    for idx, val in merged_state.get("rows", {}).get(k, []):
-                        violations.append(
-                            self._make_violation(
-                                rule,
-                                idx,
-                                sum_field,
-                                val,
-                                f"{description}: sum of '{sum_field}' for "
-                                f"'{key_field}'='{k}' is {total} "
-                                f"(allowed: {min_value} to {max_value})",
-                            )
-                        )
-
+                    )
         return violations
+
+    # --- consistent ---
+
+    def _collect_consistent(self, rule: dict, df: pd.DataFrame) -> dict:
+        key_field = rule.get("key_field", "")
+        target_field = rule.get("target_field", "")
+        if key_field not in df.columns or target_field not in df.columns:
+            return {}
+        groups: dict = {}
+        rows: dict = {}
+        for idx, row in df[[key_field, target_field]].iterrows():
+            k = str(row[key_field])
+            v = str(row[target_field]) if not pd.isna(row[target_field]) else None
+            if v is not None:
+                groups.setdefault(k, set()).add(v)
+            rows.setdefault(k, []).append((int(idx), str(row[target_field])))
+        return {"groups": {k: list(v) for k, v in groups.items()}, "rows": rows}
+
+    def _merge_consistent(self, rule: dict, non_empty: list) -> dict:
+        merged_groups: dict = {}
+        merged_rows: dict = {}
+        for state in non_empty:
+            for k, vals in state.get("groups", {}).items():
+                merged_groups.setdefault(k, set()).update(vals)
+            for k, row_list in state.get("rows", {}).items():
+                merged_rows.setdefault(k, []).extend(row_list)
+        return {
+            "groups": {k: list(v) for k, v in merged_groups.items()},
+            "rows": merged_rows,
+        }
+
+    def _evaluate_consistent(self, rule: dict, merged_state: dict) -> List[RuleViolation]:
+        description = rule.get("description", rule.get("name", ""))
+        key_field = rule.get("key_field", "")
+        target_field = rule.get("target_field", "")
+        violations: List[RuleViolation] = []
+        for k, vals in merged_state.get("groups", {}).items():
+            if len(vals) > 1:
+                for idx, val in merged_state.get("rows", {}).get(k, []):
+                    violations.append(
+                        self._make_violation(
+                            rule,
+                            idx,
+                            target_field,
+                            val,
+                            f"{description}: '{target_field}' is inconsistent "
+                            f"within '{key_field}'='{k}' group",
+                        )
+                    )
+        return violations
+
+    # --- sequential ---
+
+    def _collect_sequential(self, rule: dict, df: pd.DataFrame) -> dict:
+        key_field = rule.get("key_field", "")
+        seq_field = rule.get("sequence_field", "")
+        if key_field not in df.columns or seq_field not in df.columns:
+            return {}
+        groups: dict = {}
+        rows: dict = {}
+        numeric_seq = pd.to_numeric(df[seq_field], errors="coerce")
+        for idx, row in df[[key_field]].iterrows():
+            k = str(row[key_field])
+            sv = numeric_seq.loc[idx]
+            if not pd.isna(sv):
+                groups.setdefault(k, set()).add(int(sv))
+            rows.setdefault(k, []).append(int(idx))
+        return {"groups": {k: list(v) for k, v in groups.items()}, "rows": rows}
+
+    def _merge_sequential(self, rule: dict, non_empty: list) -> dict:
+        merged_groups: dict = {}
+        merged_rows: dict = {}
+        for state in non_empty:
+            for k, vals in state.get("groups", {}).items():
+                merged_groups.setdefault(k, set()).update(vals)
+            for k, idxs in state.get("rows", {}).items():
+                merged_rows.setdefault(k, []).extend(idxs)
+        return {
+            "groups": {k: list(v) for k, v in merged_groups.items()},
+            "rows": merged_rows,
+        }
+
+    def _evaluate_sequential(self, rule: dict, merged_state: dict) -> List[RuleViolation]:
+        description = rule.get("description", rule.get("name", ""))
+        key_field = rule.get("key_field", "")
+        seq_field = rule.get("sequence_field", "")
+        # Honour the configurable run (start/step) exactly as the single-pass
+        # path does (see :meth:`_check_sequential`), so the chunked verdict
+        # matches single-pass for non-default rules. (#413)
+        try:
+            start = int(rule.get("start", 1))
+            step = int(rule.get("step", 1))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"cross_row rule '{rule.get('id')}' (check=sequential): "
+                f"'start'/'step' must be integers, got "
+                f"start={rule.get('start')!r}, step={rule.get('step')!r}"
+            ) from exc
+        if step == 0:
+            raise ValueError(
+                f"cross_row rule '{rule.get('id')}' (check=sequential): "
+                f"'step' must be a non-zero integer"
+            )
+        run_desc = (
+            "sequential"
+            if start == 1 and step == 1
+            else f"the run starting {start} step {step}"
+        )
+        violations: List[RuleViolation] = []
+        for k, seq_vals in merged_state.get("groups", {}).items():
+            n = len(merged_state.get("rows", {}).get(k, []))
+            expected = {start + step * i for i in range(n)}
+            if set(seq_vals) != expected:
+                for idx in merged_state.get("rows", {}).get(k, []):
+                    violations.append(
+                        self._make_violation(
+                            rule,
+                            idx,
+                            seq_field,
+                            None,
+                            f"{description}: '{seq_field}' is not {run_desc} "
+                            f"within '{key_field}'='{k}' group",
+                        )
+                    )
+        return violations
+
+    # --- group_count ---
+
+    def _collect_group_count(self, rule: dict, df: pd.DataFrame) -> dict:
+        key_field = rule.get("key_field", "")
+        count_field = rule.get("count_field", "")
+        if key_field not in df.columns or count_field not in df.columns:
+            return {}
+        counts: dict = {}
+        declared: dict = {}
+        rows: dict = {}
+        for idx, row in df[[key_field, count_field]].iterrows():
+            k = str(row[key_field])
+            counts[k] = counts.get(k, 0) + 1
+            rows.setdefault(k, []).append(int(idx))
+            dc = pd.to_numeric(
+                pd.Series([row[count_field]]), errors="coerce"
+            ).iloc[0]
+            if not pd.isna(dc) and k not in declared:
+                declared[k] = int(dc)
+        return {"counts": counts, "declared": declared, "rows": rows}
+
+    def _merge_group_count(self, rule: dict, non_empty: list) -> dict:
+        merged_counts: dict = {}
+        merged_declared: dict = {}
+        merged_rows: dict = {}
+        for state in non_empty:
+            for k, c in state.get("counts", {}).items():
+                merged_counts[k] = merged_counts.get(k, 0) + c
+            for k, d in state.get("declared", {}).items():
+                if k not in merged_declared:
+                    merged_declared[k] = d
+            for k, idxs in state.get("rows", {}).items():
+                merged_rows.setdefault(k, []).extend(idxs)
+        return {
+            "counts": merged_counts,
+            "declared": merged_declared,
+            "rows": merged_rows,
+        }
+
+    def _evaluate_group_count(self, rule: dict, merged_state: dict) -> List[RuleViolation]:
+        description = rule.get("description", rule.get("name", ""))
+        key_field = rule.get("key_field", "")
+        count_field = rule.get("count_field", "")
+        violations: List[RuleViolation] = []
+        for k, actual in merged_state.get("counts", {}).items():
+            declared = merged_state.get("declared", {}).get(k)
+            if declared is not None and actual != declared:
+                for idx in merged_state.get("rows", {}).get(k, []):
+                    violations.append(
+                        self._make_violation(
+                            rule,
+                            idx,
+                            count_field,
+                            actual,
+                            f"{description}: expected {declared} rows for "
+                            f"'{key_field}'='{k}' but found {actual}",
+                        )
+                    )
+        return violations
+
+    # --- group_sum ---
+
+    def _collect_group_sum(self, rule: dict, df: pd.DataFrame) -> dict:
+        key_field = rule.get("key_field", "")
+        sum_field = rule.get("sum_field", "")
+        if key_field not in df.columns or sum_field not in df.columns:
+            return {}
+        sums: dict = {}
+        rows: dict = {}
+        numeric_sum = pd.to_numeric(df[sum_field], errors="coerce")
+        for idx, row in df[[key_field]].iterrows():
+            k = str(row[key_field])
+            v = numeric_sum.loc[idx]
+            if not pd.isna(v):
+                sums[k] = sums.get(k, 0.0) + float(v)
+            rows.setdefault(k, []).append(
+                (int(idx), float(v) if not pd.isna(v) else 0.0)
+            )
+        return {"sums": sums, "rows": rows}
+
+    def _merge_group_sum(self, rule: dict, non_empty: list) -> dict:
+        merged_sums: dict = {}
+        merged_rows: dict = {}
+        for state in non_empty:
+            for k, s in state.get("sums", {}).items():
+                merged_sums[k] = merged_sums.get(k, 0.0) + s
+            for k, row_list in state.get("rows", {}).items():
+                merged_rows.setdefault(k, []).extend(row_list)
+        return {"sums": merged_sums, "rows": merged_rows}
+
+    def _evaluate_group_sum(self, rule: dict, merged_state: dict) -> List[RuleViolation]:
+        description = rule.get("description", rule.get("name", ""))
+        key_field = rule.get("key_field", "")
+        sum_field = rule.get("sum_field", "")
+        min_value = rule.get("min_value")
+        max_value = rule.get("max_value")
+        violations: List[RuleViolation] = []
+        for k, total in merged_state.get("sums", {}).items():
+            out_of_bounds = (
+                min_value is not None and total < min_value
+            ) or (
+                max_value is not None and total > max_value
+            )
+            if out_of_bounds:
+                for idx, val in merged_state.get("rows", {}).get(k, []):
+                    violations.append(
+                        self._make_violation(
+                            rule,
+                            idx,
+                            sum_field,
+                            val,
+                        f"{description}: sum of '{sum_field}' for "
+                            f"'{key_field}'='{k}' is {total} "
+                            f"(allowed: {min_value} to {max_value})",
+                        )
+                    )
+        return violations
+
+    # ------------------------------------------------------------------
+    # Chunked map-reduce registry (issue #418)
+    #
+    # ONE strategy per check, keyed by the SAME check string as the
+    # single-pass :data:`_DISPATCH` registry above. The three public
+    # map-reduce methods are pure dispatchers over this table, so single-pass
+    # and chunked share one source of truth per check and cannot diverge.
+    # ``unique`` and ``unique_composite`` differ only in their collect step;
+    # they share ``_merge_seen`` / ``_evaluate_seen``.
+    # ------------------------------------------------------------------
+    _CHUNK_STRATEGIES: dict[str, _ChunkStrategy] = {
+        "unique": _ChunkStrategy(
+            collect=_collect_unique,
+            merge=_merge_seen,
+            evaluate=_evaluate_seen,
+        ),
+        "unique_composite": _ChunkStrategy(
+            collect=_collect_unique_composite,
+            merge=_merge_seen,
+            evaluate=_evaluate_seen,
+        ),
+        "consistent": _ChunkStrategy(
+            collect=_collect_consistent,
+            merge=_merge_consistent,
+            evaluate=_evaluate_consistent,
+        ),
+        "sequential": _ChunkStrategy(
+            collect=_collect_sequential,
+            merge=_merge_sequential,
+            evaluate=_evaluate_sequential,
+        ),
+        "group_count": _ChunkStrategy(
+            collect=_collect_group_count,
+            merge=_merge_group_count,
+            evaluate=_evaluate_group_count,
+        ),
+        "group_sum": _ChunkStrategy(
+            collect=_collect_group_sum,
+            merge=_merge_group_sum,
+            evaluate=_evaluate_group_sum,
+        ),
+    }
