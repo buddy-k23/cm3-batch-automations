@@ -606,15 +606,20 @@ def reconcile_all(mappings_dir, pattern, output, baseline, fail_on_warnings, fai
 @click.option('--limit', '-l', type=int, help='Limit number of rows (only for --table)')
 @click.option('--delimiter', '-d', default='|', help='Output delimiter (default: |)')
 def extract(table, query, sql_file, output, limit, delimiter):
-    """Extract data from Oracle database to file.
-    
+    """Extract data from a database to a flat file.
+
+    Backend-agnostic (ADR 0022 §4): the active database is selected by the
+    ``DB_ADAPTER`` environment variable (``oracle`` | ``postgresql`` |
+    ``sqlite``) via the adapter factory, so the same command runs against any
+    supported backend rather than Oracle only.
+
     Supports three modes:
     1. Table extraction: --table TABLENAME
     2. Direct query: --query "SELECT ..."
     3. SQL file: --sql-file path/to/query.sql
     """
     logger = setup_logger('valdo', log_to_file=False)
-    
+
     # Validate input options
     options_provided = sum([bool(table), bool(query), bool(sql_file)])
     if options_provided == 0:
@@ -623,46 +628,45 @@ def extract(table, query, sql_file, output, limit, delimiter):
     elif options_provided > 1:
         click.echo(click.style('Error: Only one of --table, --query, or --sql-file can be specified', fg='red'))
         sys.exit(1)
-    
+
     try:
-        from src.database.connection import OracleConnection
+        from src.database.adapters.factory import get_database_adapter
         from src.database.extractor import DataExtractor
-        
-        conn = OracleConnection.from_env()
-        extractor = DataExtractor(conn)
-        
-        # Determine extraction mode
-        if sql_file:
-            # Read SQL from file
-            with open(sql_file, 'r') as f:
-                sql_query = f.read().strip()
-            click.echo(f"\nExecuting SQL from file: {sql_file}")
-            stats = extractor.extract_to_file(output_file=output, query=sql_query, delimiter=delimiter)
-            click.echo(f"Extracted {stats['total_rows']} rows to {output}")
-            click.echo(f"Chunks written: {stats['chunks_written']}")
-            
-        elif query:
-            # Use provided SQL query
-            click.echo(f"\nExecuting custom query")
-            stats = extractor.extract_to_file(output_file=output, query=query, delimiter=delimiter)
-            click.echo(f"Extracted {stats['total_rows']} rows to {output}")
-            click.echo(f"Chunks written: {stats['chunks_written']}")
-            
-        else:
-            # Table extraction
-            click.echo(f"\nExtracting from table: {table}")
-            
-            if limit:
-                df = extractor.extract_table(table, limit=limit)
-                df.to_csv(output, sep=delimiter, index=False, header=False)
-                click.echo(f"Extracted {len(df)} rows to {output}")
-            else:
-                stats = extractor.extract_to_file(table_name=table, output_file=output, delimiter=delimiter)
+
+        # Resolve the backend from DB_ADAPTER and connect for the command's
+        # lifetime; the context manager guarantees disconnect on exit/error.
+        with get_database_adapter() as adapter:
+            extractor = DataExtractor(adapter)
+
+            # Determine extraction mode
+            if sql_file:
+                # Read SQL from file
+                with open(sql_file, 'r') as f:
+                    sql_query = f.read().strip()
+                click.echo(f"\nExecuting SQL from file: {sql_file}")
+                stats = extractor.extract_to_file(output_file=output, query=sql_query, delimiter=delimiter)
                 click.echo(f"Extracted {stats['total_rows']} rows to {output}")
-                click.echo(f"Chunks written: {stats['chunks_written']}")
-        
+
+            elif query:
+                # Use provided SQL query
+                click.echo(f"\nExecuting custom query")
+                stats = extractor.extract_to_file(output_file=output, query=query, delimiter=delimiter)
+                click.echo(f"Extracted {stats['total_rows']} rows to {output}")
+
+            else:
+                # Table extraction
+                click.echo(f"\nExtracting from table: {table}")
+
+                if limit:
+                    df = extractor.extract_table(table, limit=limit)
+                    df.to_csv(output, sep=delimiter, index=False, header=False)
+                    click.echo(f"Extracted {len(df)} rows to {output}")
+                else:
+                    stats = extractor.extract_to_file(table_name=table, output_file=output, delimiter=delimiter)
+                    click.echo(f"Extracted {stats['total_rows']} rows to {output}")
+
         click.echo(click.style('✓ Extraction complete', fg='green'))
-        
+
     except Exception as e:
         logger.error(f"Error extracting data: {e}")
         sys.exit(1)

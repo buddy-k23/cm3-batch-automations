@@ -205,7 +205,11 @@ class DatabaseAdapter(ABC):
 
     @abstractmethod
     def extract_to_file(
-        self, query: str, output_path: str, delimiter: str = "|"
+        self,
+        query: str,
+        output_path: str,
+        delimiter: str = "|",
+        params: Optional[dict] = None,
     ) -> int:
         """Execute *query* and write results to a delimited text file.
 
@@ -218,6 +222,10 @@ class DatabaseAdapter(ABC):
             output_path: Absolute path of the output file to create (or
                 overwrite).
             delimiter: Column separator.  Defaults to ``"|"``.
+            params: Optional named bind parameters for *query* (driver-specific
+                placeholder format).  Bound, never concatenated — added in
+                S15-1 (#405) so parameterised query extraction is supported on
+                every backend.
 
         Returns:
             The total number of data rows written (excluding the header).
@@ -225,6 +233,32 @@ class DatabaseAdapter(ABC):
         Raises:
             RuntimeError: If the query or file write fails.
         """
+
+    # ------------------------------------------------------------------
+    # Dialect helpers
+    # ------------------------------------------------------------------
+
+    def limit_clause(self, param_name: str = "row_limit") -> str:
+        """Return a dialect-appropriate, *bound* row-limit clause (ADR 0022 §4).
+
+        The returned clause references a bind placeholder named *param_name*
+        rather than interpolating the limit value, preserving the S13.5-4
+        hardening (the row limit is always bound, never concatenated).  The
+        default implementation emits the ANSI/SQLite/PostgreSQL ``LIMIT``
+        form with a named (``:name``) placeholder; adapters whose driver uses
+        a different placeholder style or limit syntax (e.g. Oracle's
+        ``FETCH FIRST … ROWS ONLY``, PostgreSQL's ``%(name)s`` pyformat)
+        override this.
+
+        Args:
+            param_name: The bind-parameter name the caller will populate with
+                the (validated, positive-integer) row limit.
+
+        Returns:
+            A SQL fragment beginning with a leading space, suitable for
+            appending to a ``SELECT … FROM table`` statement.
+        """
+        return f" LIMIT :{param_name}"
 
     # ------------------------------------------------------------------
     # Context manager

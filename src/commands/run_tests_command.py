@@ -124,21 +124,31 @@ def _run_oracle_vs_file_test(
 
     t0 = time.time()
     try:
-        from src.database.connection import OracleConnection
+        from src.database.adapters.factory import get_database_adapter
         from src.database.extractor import DataExtractor
 
         query = test.oracle_query or ""
         if Path(query.strip()).suffix == ".sql" and Path(query.strip()).exists():
             query = Path(query.strip()).read_text()
 
-        conn = OracleConnection.from_env()
-        extractor = DataExtractor(conn)
+        # The Oracle gate is selected by the ORACLE_* env check above, so use
+        # the oracle adapter explicitly.  The previous call passed ``query``
+        # positionally into ``table_name`` and an unsupported ``params=`` kwarg
+        # (the latent S15-1/#405 signature bug); route via the adapter and bind
+        # ``oracle_params`` through the now-supported ``query=``/``params=``
+        # full-statement entry point.
+        oracle_params = test.oracle_params or {}
         temp_file = (
             Path(output_dir)
             / f"oracle_{run_id}_{test.name.replace(' ', '_')[:20]}.csv"
         )
-        oracle_params = test.oracle_params or {}
-        extractor.extract_to_file(query, str(temp_file), params=oracle_params)
+        with get_database_adapter("oracle") as adapter:
+            extractor = DataExtractor(adapter)
+            extractor.extract_to_file(
+                query=query,
+                output_file=str(temp_file),
+                params=oracle_params,
+            )
 
         keys_str = ",".join(test.key_columns) if test.key_columns else None
 

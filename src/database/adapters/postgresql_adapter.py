@@ -349,8 +349,27 @@ class PostgreSQLAdapter(DatabaseAdapter):
     # Data export
     # ------------------------------------------------------------------
 
+    def limit_clause(self, param_name: str = "row_limit") -> str:
+        """Return PostgreSQL's bound ``LIMIT`` clause in psycopg2 pyformat.
+
+        Uses the ``%(name)s`` pyformat placeholder psycopg2 expects (ADR 0022
+        §4) so the row limit is bound rather than concatenated, preserving the
+        S13.5-4 hardening.
+
+        Args:
+            param_name: The bind-parameter name for the row limit.
+
+        Returns:
+            A leading-space SQL fragment, e.g. ``" LIMIT %(row_limit)s"``.
+        """
+        return f" LIMIT %({param_name})s"
+
     def extract_to_file(
-        self, query: str, output_path: str, delimiter: str = "|"
+        self,
+        query: str,
+        output_path: str,
+        delimiter: str = "|",
+        params: Optional[dict] = None,
     ) -> int:
         """Execute *query* and stream results to a delimited text file.
 
@@ -362,6 +381,8 @@ class PostgreSQLAdapter(DatabaseAdapter):
             query: SELECT statement to execute.
             output_path: Path to the output file.
             delimiter: Column separator.  Defaults to ``"|"``.
+            params: Optional named bind parameters (psycopg2 ``%(name)s``
+                pyformat).  Bound, never concatenated.
 
         Returns:
             Total number of data rows written.
@@ -374,7 +395,7 @@ class PostgreSQLAdapter(DatabaseAdapter):
 
         try:
             cursor = self._connection.cursor()
-            cursor.execute(query)
+            cursor.execute(query, params or None)
             col_names = [desc[0] for desc in cursor.description] if cursor.description else []
 
             with open(output_path, "w", encoding="utf-8") as fh:

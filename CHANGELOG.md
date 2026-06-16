@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - security(db): parameterize extractor SQL — bind limit, allow-list identifiers, validate where (S13.5-4, #410)
 
 ### Changed
+- feat(db): extract runs on any backend (Oracle/Postgres/SQLite) via the adapter; fix extract_to_file(params) signature (S15-1, #405)
 - ci: unit-test + coverage gate is now blocking; the ~27 env-bound failures triaged to xfail/skip with reasons (S14-5, #416)
 - deploy: standardize on Python 3.11 across RPM + Docker; document canonical nginx->gunicorn prod topology (S14-2, #417)
 - feat(db): reconcile now runs on any backend (Oracle/Postgres/SQLite) via the adapter + canonical type matching, per ADR 0022 (S12-3, #404)

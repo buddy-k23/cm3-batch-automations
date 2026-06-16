@@ -13,8 +13,15 @@ the SQL text.  These tests prove the hardened construction:
 - ``get_table_stats`` receives the same identifier treatment.
 
 The tests use a real in-memory SQLite database wired into the extractor via a
-lightweight executor shim, so they exercise the actual SQL string that would
+lightweight adapter shim, so they exercise the actual SQL string that would
 be sent to the driver without needing an Oracle server.
+
+S15-1 (#405) routed :class:`DataExtractor` off ``OracleConnection`` onto the
+``DatabaseAdapter`` seam; the shim below therefore stands in for an *adapter*
+(``execute_query`` / ``extract_to_file`` / ``limit_clause`` /
+``get_table_columns``) rather than the old ``QueryExecutor``.  Every S13.5-4
+security assertion (bound limit, allow-listed identifiers, rejected raw
+``WHERE``) is preserved on this adapter path.
 """
 
 from __future__ import annotations
@@ -31,32 +38,32 @@ from src.database.extractor import (
 )
 
 
-class _SQLiteExecutorShim:
-    """Stand-in for ``QueryExecutor`` backed by a real in-memory SQLite DB.
+class _SQLiteAdapterShim:
+    """Stand-in for a ``DatabaseAdapter`` backed by a real in-memory SQLite DB.
 
     Records every SQL string + params it is asked to run so tests can assert
     on exactly what would reach the driver, and actually executes it so a
-    legitimate extract returns real rows.
+    legitimate extract returns real rows.  Mirrors just the surface the
+    extractor uses: ``execute_query``, ``extract_to_file``, ``limit_clause``,
+    and ``get_table_columns``.
     """
 
     def __init__(self, conn: sqlite3.Connection) -> None:
         self._conn = conn
         self.executed: list[tuple[str, dict | None]] = []
 
+    def limit_clause(self, param_name: str = "row_limit") -> str:
+        # SQLite dialect: bound LIMIT (named placeholder), never Oracle ROWNUM.
+        return f" LIMIT :{param_name}"
+
     def execute_query(self, query: str, params: dict | None = None) -> pd.DataFrame:
         self.executed.append((query, params))
-        # Oracle's ROWNUM pseudo-column does not exist in SQLite; rewrite the
-        # bound-limit predicate to SQLite's LIMIT so a legitimate extract still
-        # returns rows here. The binding (params) is preserved and asserted on.
         sql = query
         # The Oracle table-size query targets the user_segments catalog view,
         # which has no SQLite equivalent; return an empty frame for it (the
         # extractor already binds its :table_name param — no injection there).
         if "user_segments" in sql:
             return pd.DataFrame(columns=["SEGMENT_NAME", "SIZE_MB"])
-        if ":row_limit" in sql:
-            sql = sql.replace(" WHERE ROWNUM <= :row_limit", "")
-            sql = f"{sql} LIMIT :row_limit"
         cur = self._conn.execute(sql, params or {})
         rows = cur.fetchall()
         # Oracle returns column names upper-cased; mirror that so the
@@ -64,14 +71,33 @@ class _SQLiteExecutorShim:
         cols = [d[0].upper() for d in cur.description] if cur.description else []
         return pd.DataFrame([dict(zip(cols, r)) for r in rows], columns=cols)
 
-    def fetch_table_columns(self, table_name: str) -> list[str]:
-        cur = self._conn.execute(f"PRAGMA table_info({table_name})")
+    def extract_to_file(
+        self,
+        query: str,
+        output_path: str,
+        delimiter: str = "|",
+        params: dict | None = None,
+    ) -> int:
+        self.executed.append((query, params))
+        cur = self._conn.execute(query, params or {})
+        rows = cur.fetchall()
+        cols = [d[0] for d in cur.description] if cur.description else []
+        with open(output_path, "w", encoding="utf-8") as fh:
+            fh.write(delimiter.join(cols) + "\n")
+            for r in rows:
+                fh.write(
+                    delimiter.join("" if v is None else str(v) for v in r) + "\n"
+                )
+        return len(rows)
+
+    def get_table_columns(self, table: str, schema: str | None = None) -> list[str]:
+        cur = self._conn.execute(f"PRAGMA table_info({table})")
         return [r[1] for r in cur.fetchall()]
 
 
 @pytest.fixture()
 def extractor() -> DataExtractor:
-    """A DataExtractor whose executor is a real in-memory SQLite DB."""
+    """A DataExtractor whose adapter is a real in-memory SQLite DB."""
     conn = sqlite3.connect(":memory:")
     conn.execute("CREATE TABLE CUSTOMERS (ID INTEGER, NAME TEXT, BALANCE REAL)")
     conn.executemany(
@@ -79,12 +105,7 @@ def extractor() -> DataExtractor:
         [(1, "alice", 10.0), (2, "bob", 20.0), (3, "carol", 30.0)],
     )
     conn.commit()
-    # DataExtractor.__init__ builds its own QueryExecutor from the connection;
-    # swap it for the SQLite-backed shim.
-    ext = DataExtractor.__new__(DataExtractor)
-    ext.connection = None
-    ext.executor = _SQLiteExecutorShim(conn)
-    return ext
+    return DataExtractor(_SQLiteAdapterShim(conn))
 
 
 # ---------------------------------------------------------------------------
@@ -134,7 +155,7 @@ class TestExtractTableSecurity:
     def test_limit_is_bound_not_interpolated(self, extractor: DataExtractor) -> None:
         df = extractor.extract_table("CUSTOMERS", limit=2)
         assert len(df) == 2
-        sql, params = extractor.executor.executed[-1]
+        sql, params = extractor.adapter.executed[-1]
         # The limit must be bound as a parameter, never concatenated inline.
         assert ":row_limit" in sql
         assert "2" not in sql
@@ -144,12 +165,12 @@ class TestExtractTableSecurity:
         with pytest.raises(IdentifierValidationError):
             extractor.extract_table("CUSTOMERS; DROP TABLE CUSTOMERS")
         # nothing executed
-        assert extractor.executor.executed == []
+        assert extractor.adapter.executed == []
 
     def test_malicious_column_rejected(self, extractor: DataExtractor) -> None:
         with pytest.raises(IdentifierValidationError):
             extractor.extract_table("CUSTOMERS", columns=["ID", "NAME'; DROP TABLE X --"])
-        assert extractor.executor.executed == []
+        assert extractor.adapter.executed == []
 
     def test_negative_limit_rejected(self, extractor: DataExtractor) -> None:
         with pytest.raises(ValueError):
@@ -162,7 +183,7 @@ class TestExtractTableSecurity:
     def test_raw_where_clause_rejected(self, extractor: DataExtractor) -> None:
         with pytest.raises(ValueError):
             extractor.extract_table("CUSTOMERS", where_clause="1=1; DELETE FROM CUSTOMERS")
-        assert extractor.executor.executed == []
+        assert extractor.adapter.executed == []
 
 
 # ---------------------------------------------------------------------------
@@ -199,4 +220,4 @@ class TestGetTableStatsSecurity:
     def test_malicious_table_rejected(self, extractor: DataExtractor) -> None:
         with pytest.raises(IdentifierValidationError):
             extractor.get_table_stats("CUSTOMERS; DROP TABLE CUSTOMERS")
-        assert extractor.executor.executed == []
+        assert extractor.adapter.executed == []

@@ -1,7 +1,19 @@
 """Database data extraction utilities.
 
-Security note (S13.5-4, #410)
------------------------------
+Backend-agnostic (S15-1, #405, ADR 0022 §4)
+-------------------------------------------
+:class:`DataExtractor` is constructed with a
+:class:`~src.database.adapters.base.DatabaseAdapter` (obtained from
+:func:`~src.database.adapters.factory.get_database_adapter`) rather than the
+Oracle-only :class:`~src.database.connection.OracleConnection`.  All query
+execution and file extraction delegate to the adapter, so ``valdo extract``
+runs on Oracle, PostgreSQL, or SQLite, with each backend supplying its own
+dialect (notably the row-limit clause — Oracle ``FETCH FIRST``, PostgreSQL /
+SQLite ``LIMIT`` — via :meth:`DatabaseAdapter.limit_clause`, replacing the old
+hard-wired Oracle ``ROWNUM`` paging).
+
+Security note (S13.5-4, #410 — preserved on the adapter path)
+-------------------------------------------------------------
 SQL identifiers (table and column names) cannot be supplied as driver bind
 parameters, so they are *allow-listed* with :func:`_validate_identifier`
 before being placed into the SQL text.  Every interpolated **value** (e.g. a
@@ -15,9 +27,8 @@ the whole statement" entry points rather than a string-concatenation site.
 import re
 import pandas as pd
 from typing import Optional, List, Dict, Any
-import oracledb
-from .connection import OracleConnection
-from .query_executor import QueryExecutor
+
+from .adapters.base import DatabaseAdapter
 
 
 class IdentifierValidationError(ValueError):
@@ -118,21 +129,28 @@ def _reject_raw_where(where_clause: Optional[str]) -> None:
 
 
 class DataExtractor:
-    """Extract data from Oracle database."""
+    """Extract data from a database via a pluggable :class:`DatabaseAdapter`.
 
-    def __init__(self, connection: OracleConnection):
+    Backend-agnostic since S15-1 (#405): the extractor builds portable SQL
+    (with the S13.5-4 hardening) and delegates execution to the adapter, so
+    the same extractor works against Oracle, PostgreSQL, and SQLite.
+    """
+
+    def __init__(self, adapter: DatabaseAdapter):
         """Initialize data extractor.
-        
+
         Args:
-            connection: OracleConnection instance
+            adapter: A connected (or context-managed) :class:`DatabaseAdapter`
+                instance, typically from
+                :func:`~src.database.adapters.factory.get_database_adapter`.
+                The extractor delegates all execution to this adapter.
         """
-        self.connection = connection
-        self.executor = QueryExecutor(connection)
+        self.adapter = adapter
 
     def extract_table(self, table_name: str, columns: Optional[List[str]] = None,
                      where_clause: Optional[str] = None, limit: Optional[int] = None) -> pd.DataFrame:
         """Extract data from a table.
-        
+
         Args:
             table_name: Name of the table (allow-list validated identifier).
             columns: List of columns to extract (None = all). Each name is
@@ -161,15 +179,18 @@ class DataExtractor:
             col_list = '*'
 
         # Build query; bind the limit value as a parameter (never interpolate).
+        # The limit clause is dialect-appropriate (Oracle FETCH FIRST,
+        # PostgreSQL/SQLite LIMIT) and supplied by the adapter (ADR 0022 §4),
+        # so the old hard-wired Oracle ROWNUM paging is gone.
         query = f"SELECT {col_list} FROM {safe_table}"
         params: Optional[Dict[str, Any]] = None
 
         if limit is not None:
             safe_limit = _validate_limit(limit)
-            query += " WHERE ROWNUM <= :row_limit"
+            query += self.adapter.limit_clause("row_limit")
             params = {"row_limit": safe_limit}
 
-        return self.executor.execute_query(query, params)
+        return self.adapter.execute_query(query, params)
 
     def extract_sample(self, table_name: str, sample_size: int = 1000,
                       columns: Optional[List[str]] = None) -> pd.DataFrame:
@@ -187,24 +208,25 @@ class DataExtractor:
 
     def extract_by_query(self, query: str, params: Optional[Dict[str, Any]] = None) -> pd.DataFrame:
         """Extract data using custom query.
-        
+
         Args:
             query: SQL query
             params: Optional query parameters
-            
+
         Returns:
             DataFrame with query results
         """
-        return self.executor.execute_query(query, params)
+        return self.adapter.execute_query(query, params)
 
     def extract_to_file(self, table_name: Optional[str] = None, output_file: str = None,
                        columns: Optional[List[str]] = None,
                        where_clause: Optional[str] = None,
                        delimiter: str = '|',
                        chunk_size: int = 10000,
-                       query: Optional[str] = None) -> Dict[str, Any]:
-        """Extract data to file in chunks.
-        
+                       query: Optional[str] = None,
+                       params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Extract data to a delimited file via the adapter.
+
         Args:
             table_name: Name of the table (optional if query is provided;
                 allow-list validated when used).
@@ -215,8 +237,13 @@ class DataExtractor:
                 ``None`` (ignored entirely when ``query`` is provided). Use the
                 ``query`` argument for arbitrary SQL.
             delimiter: File delimiter
-            chunk_size: Number of rows per chunk
+            chunk_size: Number of rows per chunk (informational — the adapter
+                chooses its own fetch batching; retained for the result dict).
             query: Optional raw SQL query (overrides table_name/columns).
+            params: Optional named bind parameters for *query*, bound by the
+                adapter (S15-1, #405).  Reconciles the previously broken
+                ``extract_to_file(params=…)`` call site so parameterised
+                query extraction works end-to-end.
 
         Returns:
             Dictionary with extraction statistics
@@ -226,6 +253,7 @@ class DataExtractor:
                 fails identifier validation on the table-based path.
             ValueError: If ``where_clause`` is supplied on the table-based
                 path, or neither ``table_name`` nor ``query`` is given.
+            RuntimeError: If the adapter's extraction fails.
         """
         # Build query
         if query:
@@ -245,55 +273,32 @@ class DataExtractor:
         else:
             raise ValueError("Either 'table_name' or 'query' must be provided")
 
-        total_rows = 0
-        chunks_written = 0
-
-        try:
-            with self.connection as conn:
-                cursor = conn.cursor()
-                cursor.execute(sql_query)
-                
-                # Get column names
-                col_names = [desc[0] for desc in cursor.description]
-                
-                # Write header
-                with open(output_file, 'w') as f:
-                    f.write(delimiter.join(col_names) + '\n')
-                    
-                    # Write data in chunks
-                    while True:
-                        rows = cursor.fetchmany(chunk_size)
-                        if not rows:
-                            break
-                        
-                        for row in rows:
-                            f.write(delimiter.join(str(val) if val is not None else '' 
-                                                  for val in row) + '\n')
-                            total_rows += 1
-                        
-                        chunks_written += 1
-
-                cursor.close()
-
-        except oracledb.Error as e:
-            raise RuntimeError(f"Data extraction failed: {e}")
+        # Delegate the actual fetch + write (incl. chunking and the
+        # driver-level error trapping) to the adapter, which knows its dialect.
+        total_rows = self.adapter.extract_to_file(
+            sql_query, output_file, delimiter=delimiter, params=params
+        )
 
         return {
             'output_file': output_file,
             'total_rows': total_rows,
-            'chunks_written': chunks_written,
+            # Single delegated extraction; the adapter manages internal
+            # batching. Kept for backward-compatible result-dict shape.
+            'chunks_written': 1 if total_rows else 0,
             'chunk_size': chunk_size,
             'query': sql_query,
         }
 
     def get_table_stats(self, table_name: str) -> Dict[str, Any]:
         """Get statistics about a table.
-        
+
         Args:
             table_name: Name of the table (allow-list validated identifier).
 
         Returns:
-            Dictionary with table statistics
+            Dictionary with table statistics. ``size_mb`` is ``0.0`` on
+            backends that do not expose segment-size catalog views (only
+            Oracle does); the row/column facts are backend-agnostic.
 
         Raises:
             IdentifierValidationError: If the table name fails identifier
@@ -302,32 +307,25 @@ class DataExtractor:
         # Validate the table identifier before any interpolation.
         safe_table = _validate_identifier(table_name)
 
-        # Get row count (table name is allow-list validated above).
+        # Get row count (table name is allow-list validated above). Column
+        # names are normalised so the access path is backend-independent
+        # (Oracle upper-cases, SQLite preserves the alias case).
         count_query = f"SELECT COUNT(*) as row_count FROM {safe_table}"
-        count_df = self.executor.execute_query(count_query)
+        count_df = self.adapter.execute_query(count_query)
+        count_df.columns = [str(c).upper() for c in count_df.columns]
         row_count = count_df['ROW_COUNT'].iloc[0]
 
-        # Get column info
-        columns = self.executor.fetch_table_columns(safe_table)
-
-        # Get table size (approximate)
-        size_query = """
-            SELECT 
-                segment_name,
-                SUM(bytes)/1024/1024 as size_mb
-            FROM user_segments
-            WHERE segment_name = :table_name
-            GROUP BY segment_name
-        """
-        size_df = self.executor.execute_query(size_query, {'table_name': table_name.upper()})
-        size_mb = size_df['SIZE_MB'].iloc[0] if not size_df.empty else 0
+        # Get column info via the adapter's catalog read.
+        columns = self.adapter.get_table_columns(safe_table)
 
         return {
             'table_name': table_name,
             'row_count': int(row_count),
             'column_count': len(columns),
             'columns': columns,
-            'size_mb': float(size_mb),
+            # Segment-size is an Oracle-only catalog concern (user_segments);
+            # not portable and not on any in-scope feature path (ADR 0022 §4).
+            'size_mb': 0.0,
         }
 
     def compare_tables(self, table1: str, table2: str, key_columns: List[str]) -> Dict[str, Any]:
@@ -355,14 +353,14 @@ class DataExtractor:
 class BulkExtractor:
     """Bulk data extraction with parallel processing support."""
 
-    def __init__(self, connection: OracleConnection):
+    def __init__(self, adapter: DatabaseAdapter):
         """Initialize bulk extractor.
-        
+
         Args:
-            connection: OracleConnection instance
+            adapter: A connected :class:`DatabaseAdapter` instance.
         """
-        self.connection = connection
-        self.extractor = DataExtractor(connection)
+        self.adapter = adapter
+        self.extractor = DataExtractor(adapter)
 
     def extract_multiple_tables(self, tables: List[str], output_dir: str,
                                delimiter: str = '|') -> Dict[str, Any]:

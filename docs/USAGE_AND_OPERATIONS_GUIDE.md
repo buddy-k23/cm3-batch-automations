@@ -2573,8 +2573,17 @@ unmatched rows.
 
 ### 8.3 Data Extraction (`extract`)
 
-The `extract` command pulls data from Oracle and writes it to a flat file.
+The `extract` command pulls data from a database and writes it to a flat file.
 It supports three modes: table extraction, inline SQL query, and SQL file.
+
+> **Backend-agnostic (ADR 0022, S15-1):** `extract` now runs against whichever
+> backend the `DB_ADAPTER` environment variable selects (`oracle` (default) /
+> `postgresql` / `sqlite`) via the shared adapter factory — it is no longer
+> Oracle-locked. The row-limit clause (`--limit`) is rendered in the active
+> dialect automatically (Oracle `FETCH FIRST … ROWS ONLY`, PostgreSQL/SQLite
+> `LIMIT …`), and the limit value is always **bound** as a parameter, never
+> concatenated. Identifier allow-listing and the no-raw-`WHERE` rule (S13.5-4)
+> apply on every backend.
 
 #### Extract a Table
 
@@ -2616,8 +2625,9 @@ valdo extract \
 ```
 
 **Note:** `--limit` only works with `--table` mode, not with `--query` or
-`--sql-file`. For SQL-based extraction, add `FETCH FIRST N ROWS ONLY` to
-your query.
+`--sql-file`. For SQL-based extraction, add your backend's row-limit clause
+to the query yourself (Oracle `FETCH FIRST N ROWS ONLY`; PostgreSQL/SQLite
+`LIMIT N`).
 
 #### Choosing a Delimiter
 

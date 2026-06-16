@@ -321,8 +321,29 @@ class OracleAdapter(DatabaseAdapter):
     # Data export
     # ------------------------------------------------------------------
 
+    def limit_clause(self, param_name: str = "row_limit") -> str:
+        """Return Oracle's bound ``FETCH FIRST … ROWS ONLY`` limit clause.
+
+        Replaces the legacy Oracle ``WHERE ROWNUM <= …`` paging (ADR 0022 §4)
+        with the modern ``FETCH FIRST`` form while keeping the row limit bound
+        as an ``oracledb`` named parameter (``:name``) rather than
+        concatenated — preserving the S13.5-4 hardening.
+
+        Args:
+            param_name: The bind-parameter name for the row limit.
+
+        Returns:
+            A leading-space SQL fragment, e.g. ``" FETCH FIRST :row_limit
+            ROWS ONLY"``.
+        """
+        return f" FETCH FIRST :{param_name} ROWS ONLY"
+
     def extract_to_file(
-        self, query: str, output_path: str, delimiter: str = "|"
+        self,
+        query: str,
+        output_path: str,
+        delimiter: str = "|",
+        params: Optional[dict] = None,
     ) -> int:
         """Execute *query* and write results to a pipe-delimited text file.
 
@@ -332,6 +353,8 @@ class OracleAdapter(DatabaseAdapter):
             query: SELECT statement to execute.
             output_path: Path of the output file (created or overwritten).
             delimiter: Column separator string.  Defaults to ``"|"``.
+            params: Optional named bind parameters (``oracledb`` ``:name``
+                style).  Bound, never concatenated.
 
         Returns:
             Total number of data rows written (not counting the header).
@@ -344,7 +367,7 @@ class OracleAdapter(DatabaseAdapter):
 
         try:
             cursor = self._connection.cursor()
-            cursor.execute(query)
+            cursor.execute(query, params or {})
             col_names = [desc[0] for desc in cursor.description]
 
             with open(output_path, "w", encoding="utf-8") as fh:

@@ -272,7 +272,11 @@ class SQLiteAdapter(DatabaseAdapter):
     # ------------------------------------------------------------------
 
     def extract_to_file(
-        self, query: str, output_path: str, delimiter: str = "|"
+        self,
+        query: str,
+        output_path: str,
+        delimiter: str = "|",
+        params: Optional[dict] = None,
     ) -> int:
         """Execute *query* and write results to a delimited text file.
 
@@ -281,6 +285,8 @@ class SQLiteAdapter(DatabaseAdapter):
             output_path: Path of the output file to write (created or
                 overwritten).
             delimiter: Column separator.  Defaults to ``"|"``.
+            params: Optional named bind parameters (``sqlite3`` ``:name``
+                style).  Bound, never concatenated.
 
         Returns:
             Total number of data rows written (excluding the header line).
@@ -289,7 +295,7 @@ class SQLiteAdapter(DatabaseAdapter):
             RuntimeError: If the query fails.
         """
         try:
-            cursor = self._connection.execute(query)
+            cursor = self._connection.execute(query, params or {})
             col_names = [desc[0] for desc in cursor.description] if cursor.description else []
             rows = cursor.fetchall()
         except sqlite3.Error as exc:

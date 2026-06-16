@@ -247,6 +247,44 @@ class TestSQLiteAdapter:
 
         assert row_count == 0
 
+    def test_extract_to_file_binds_params(self) -> None:
+        """extract_to_file accepts and binds named params (S15-1, #405)."""
+        adapter = self._make_adapter()
+        adapter.connect()
+        adapter._connection.execute("CREATE TABLE nums (n INTEGER)")
+        adapter._connection.executemany(
+            "INSERT INTO nums VALUES (?)", [(1,), (2,), (3,), (4,)]
+        )
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".txt", delete=False
+        ) as fh:
+            output_path = fh.name
+
+        try:
+            row_count = adapter.extract_to_file(
+                "SELECT n FROM nums WHERE n >= :floor",
+                output_path,
+                params={"floor": 3},
+            )
+            lines = Path(output_path).read_text(encoding="utf-8").splitlines()
+        finally:
+            Path(output_path).unlink(missing_ok=True)
+
+        adapter.disconnect()
+
+        assert row_count == 2
+        assert lines[0] == "n"
+        assert set(lines[1:]) == {"3", "4"}
+
+    def test_limit_clause_uses_named_bind(self) -> None:
+        """SQLite limit_clause yields a bound LIMIT (not Oracle ROWNUM)."""
+        adapter = self._make_adapter()
+        clause = adapter.limit_clause("row_limit")
+        assert "ROWNUM" not in clause.upper()
+        assert "LIMIT" in clause.upper()
+        assert ":row_limit" in clause
+
     def test_file_path_database(self) -> None:
         """SQLiteAdapter works with a file-based database path."""
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as fh:
@@ -284,6 +322,15 @@ class TestOracleAdapter:
         assert adapter.username == "TESTUSER"
         assert adapter.password == "secret"
         assert adapter.dsn == "host:1521/svc"
+
+    def test_limit_clause_uses_fetch_first_not_rownum(self) -> None:
+        """Oracle limit_clause yields a bound FETCH FIRST (not ROWNUM)."""
+        from src.database.adapters.oracle_adapter import OracleAdapter
+
+        clause = OracleAdapter(password="x").limit_clause("row_limit")
+        assert "ROWNUM" not in clause.upper()
+        assert "FETCH FIRST" in clause.upper()
+        assert ":row_limit" in clause
 
     def test_connect_calls_oracledb(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """connect() delegates to oracledb.connect with correct credentials."""
@@ -412,6 +459,15 @@ class TestPostgreSQLAdapter:
         assert adapter.database == "mydb"
         assert adapter.username == "pguser"
         assert adapter.password == "pgpass"
+
+    def test_limit_clause_uses_pyformat_bind(self) -> None:
+        """Postgres limit_clause yields a bound LIMIT in psycopg2 pyformat."""
+        from src.database.adapters.postgresql_adapter import PostgreSQLAdapter
+
+        clause = PostgreSQLAdapter().limit_clause("row_limit")
+        assert "ROWNUM" not in clause.upper()
+        assert "LIMIT" in clause.upper()
+        assert "%(row_limit)s" in clause
 
     def test_connect_calls_psycopg2(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """connect() delegates to psycopg2.connect with correct keyword args."""
