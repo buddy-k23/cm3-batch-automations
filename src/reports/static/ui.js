@@ -3293,7 +3293,7 @@ async function atSaveRequest() {
 async function atNewSuite() {
   var name = prompt('Suite name:');
   if (!name) return;
-  var base = document.getElementById('atBaseUrl').value.trim() || 'https://127.0.0.1:8000';
+  var base = document.getElementById('atBaseUrl').value.trim() || 'http://127.0.0.1:8000';
   await fetch('/api/v1/api-tester/suites', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},

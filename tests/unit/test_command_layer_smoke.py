@@ -1,9 +1,23 @@
 from pathlib import Path
 import json
 
+import pytest
+
 from src.commands.parse_command import run_parse_command
 from src.commands.compare_command import run_compare_command
 from src.commands.validate_command import run_validate_command
+
+_ROOT = Path(__file__).resolve().parents[2]
+
+# S14-5 (#416): every smoke test here parses the canonical sample files under
+# data/samples/. The data/ tree is gitignored (.gitignore), so those fixtures
+# are absent in a clean checkout / CI runner. Skip when missing rather than
+# mask a real failure — self-heals if the samples are ever committed.
+pytestmark = pytest.mark.skipif(
+    not (_ROOT / "data/samples/customers.txt").exists(),
+    reason="env-bound: data/samples sample fixtures are gitignored and absent "
+    "in a clean checkout (S14-5, #416)",
+)
 
 
 class _Logger:

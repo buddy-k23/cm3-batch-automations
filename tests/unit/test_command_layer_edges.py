@@ -18,6 +18,24 @@ class _Logger:
 
 ROOT = Path(__file__).resolve().parents[2]
 
+# S14-5 (#416): some edge tests actually parse the canonical sample fixtures
+# under data/samples/ and data/files/manifest_scenarios/. The data/ tree is
+# gitignored (.gitignore), so those fixtures are absent in a clean checkout /
+# CI runner. Tests that assert an error/exit path before opening the file pass
+# regardless; only the ones that read fixture content are skipped when the
+# fixture is missing — rather than mask a real failure. Self-heals if the
+# samples are ever committed.
+_needs_sample = pytest.mark.skipif(
+    not (ROOT / "data/samples/customers.txt").exists(),
+    reason="env-bound: data/samples/customers.txt sample fixture is gitignored "
+    "and absent in a clean checkout (S14-5, #416)",
+)
+_needs_manifest_scenario = pytest.mark.skipif(
+    not (ROOT / "data/files/manifest_scenarios/scenario_01_all_valid.txt").exists(),
+    reason="env-bound: data/files/manifest_scenarios sample fixture is gitignored "
+    "and absent in a clean checkout (S14-5, #416)",
+)
+
 
 def test_parse_command_unknown_format_exits():
     with pytest.raises(SystemExit):
@@ -32,6 +50,7 @@ def test_parse_command_unknown_format_exits():
         )
 
 
+@_needs_sample
 def test_parse_command_chunked_stdout_path():
     # Exercises chunked parse without output file.
     run_parse_command(
@@ -45,6 +64,7 @@ def test_parse_command_chunked_stdout_path():
     )
 
 
+@_needs_manifest_scenario
 def test_parse_command_fixed_with_mapping_chunked(tmp_path):
     out_file = tmp_path / "fixed_chunked.csv"
     run_parse_command(
@@ -76,6 +96,7 @@ def test_compare_command_chunked_without_keys_exits():
         )
 
 
+@_needs_sample
 def test_compare_command_non_chunked_with_header_fallback(tmp_path):
     out_file = tmp_path / "cmp.html"
     run_compare_command(
@@ -115,6 +136,7 @@ def test_compare_command_with_invalid_threshold_source_exits(tmp_path):
         )
 
 
+@_needs_sample
 def test_validate_command_unsupported_extension_no_file(tmp_path):
     out_file = tmp_path / "validation.unsupported"
     run_validate_command(
@@ -131,6 +153,7 @@ def test_validate_command_unsupported_extension_no_file(tmp_path):
     assert not out_file.exists()
 
 
+@_needs_sample
 def test_validate_command_chunked_html_output(tmp_path):
     out_file = tmp_path / "validation_chunked.html"
     run_validate_command(
@@ -195,6 +218,7 @@ def test_validate_command_chunked_missing_fixed_width_length_exits(tmp_path):
     assert "missing required 'length'" in str(exc_info.value)
 
 
+@_needs_sample
 def test_validate_command_json_payload_written(tmp_path):
     out_file = tmp_path / "validation.json"
     run_validate_command(

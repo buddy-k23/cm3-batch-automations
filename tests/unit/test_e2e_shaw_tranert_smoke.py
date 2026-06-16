@@ -74,10 +74,16 @@ class TestClassifyAllowed:
 
     def test_create_table_schema_qualified_mixed_case_schema(self) -> None:
         # Oracle is case-insensitive for unquoted identifiers; the
-        # classifier uppercases both schema and object.
+        # classifier uppercases both schema and object. NOTE (S14-5, #416):
+        # the mixed-case spelling of the harness schema APP_INT is "App_Int"
+        # (the underscore is a literal identifier char). The previous example
+        # "AppInt" was a genuinely different identifier — it uppercases to
+        # APPINT, not APP_INT — so the classifier correctly refused it. That
+        # refusal is correct security behaviour, so the test example is fixed
+        # (not the classifier).
         c1 = classify_statement("CREATE TABLE APP_INT.LKP_VALDO_SHAW_FOO (X NUMBER)")
         assert c1.is_safe is True
-        c2 = classify_statement("CREATE TABLE AppInt.LKP_VALDO_SHAW_FOO (X NUMBER)")
+        c2 = classify_statement("CREATE TABLE App_Int.LKP_VALDO_SHAW_FOO (X NUMBER)")
         assert c2.is_safe is True
 
     def test_create_or_replace_view_helper_prefix(self) -> None:

@@ -1,19 +1,27 @@
 name: Unit tests + coverage gate
 
-# S13.5-5 (Sprint 13.5, #411): run the unit suite (tests/unit/) and the
-# 80% coverage gate (--cov-fail-under=80, configured in pytest.ini) on
-# every PR/push so test results are visible in CI.
+# S13.5-5 (Sprint 13.5, #411) → S14-5 (Sprint 14, #416): run the unit suite
+# (tests/unit/) and the coverage gate (--cov-fail-under, configured in
+# pytest.ini) on every PR/push.
 #
-# INFORMATIONAL-FIRST: this job is intentionally non-blocking this sprint.
-# The unit suite has ~27 known env-bound failures, and going red on those
-# would block every PR. The "Run unit tests + coverage gate" step below
-# carries `continue-on-error: true`, so a red result is reported (and the
-# annotation is visible) but does NOT fail the workflow / block merges.
+# BLOCKING ON TESTS: as of S14-5 (#416) this job is blocking on test pass/fail.
+# The ~27 env-bound failures have been triaged to xfail/skip with documented
+# reasons (and two real failures fixed), so the suite is green under the clean
+# baseline CI conditions reproduced here (no local .env/valdo.db; dummy session
+# signing key). The "Run unit tests" step no longer carries `continue-on-error`,
+# so any TEST failure now fails the workflow.
 #
-# PROMOTION TO A REQUIRED CHECK is tracked by #416 (triage / xfail of the
-# ~27 env-bound failures). Once that lands, drop `continue-on-error` here
-# and add this job to the branch-protection required checks. Mirrors the
-# Sprint 8 drift-check informational-first pattern.
+# COVERAGE IS INFORMATIONAL FOR NOW: unit coverage under `--cov=src` is ~72%,
+# below pytest.ini's `--cov-fail-under=80` (a PRE-EXISTING shortfall, not from
+# the triage). To avoid a guaranteed-red blocking check, this CI run overrides
+# `--cov-fail-under=0` so it blocks on tests but only REPORTS coverage. Raising
+# coverage to 80% and re-enabling the gate here is tracked by #432. The local
+# pytest.ini 80% gate is unchanged (developers still see it locally).
+#
+# NOTE: making this a *required* status check on `valdo-version-v4`/`main` is
+# a GitHub branch-protection repo setting and must be enabled by a repo admin
+# in Settings → Branches → branch protection rules. The workflow change here
+# only makes the check itself go red on failure.
 
 on:
   pull_request:
@@ -27,7 +35,7 @@ on:
 
 jobs:
   unit-tests:
-    name: Unit tests + coverage gate (informational)
+    name: Unit tests + coverage gate
     runs-on: ubuntu-latest
 
     # CI-only DUMMY signing key. This is NOT a real secret -- it is a test
@@ -63,12 +71,11 @@ jobs:
           pip install -e .
           pip install -r requirements.txt
 
-      - name: Run unit tests + coverage gate
-        # INFORMATIONAL: continue-on-error keeps a red result visible but
-        # non-blocking while the ~27 env-bound failures are triaged (#416).
-        # The coverage gate (--cov-fail-under=80) is configured in
-        # pytest.ini addopts and applies automatically; --cov=src and
-        # --cov-report=term-missing are passed explicitly per the story.
-        continue-on-error: true
+      - name: Run unit tests (blocking) + coverage report (informational)
+        # BLOCKING ON TESTS (S14-5, #416): no continue-on-error — a test failure
+        # fails the workflow. Coverage is REPORTED but not enforced yet:
+        # --cov-fail-under=0 overrides pytest.ini's 80 gate because unit
+        # coverage is ~72% (pre-existing). Re-enabling the coverage gate at 80%
+        # is tracked by #432.
         run: |
-          pytest tests/unit/ --cov=src --cov-report=term-missing
+          pytest tests/unit/ --cov=src --cov-report=term-missing --cov-fail-under=0

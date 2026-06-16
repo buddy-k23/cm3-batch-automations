@@ -17,6 +17,7 @@ are rejected with HTTP 400.
 from __future__ import annotations
 
 import io
+import sys
 from pathlib import Path
 
 import pytest
@@ -46,7 +47,26 @@ HARD_REJECT_NAMES = [
 # to a clean basename inside UPLOADS_DIR rather than rejecting outright.
 SANITISED_NAMES = [
     ("../etc/passwd", "passwd"),
-    ("..\\..\\windows\\system32\\foo", "foo"),
+    # S14-5 (#416): backslash separators are only stripped by Path.name on
+    # Windows. On POSIX (Linux CI / macOS dev) pathlib uses PurePosixPath, for
+    # which "\\" is an ordinary filename character — so the whole string is one
+    # basename. That is NOT a security gap on POSIX: the candidate still
+    # resolves *inside* UPLOADS_DIR (it never escapes), the relative_to() guard
+    # passes, and the literal-backslash file simply lands in uploads. This
+    # assertion only holds on a Windows interpreter. xfail(strict=False) so it
+    # auto-passes if the suite ever runs on Windows.
+    pytest.param(
+        "..\\..\\windows\\system32\\foo",
+        "foo",
+        marks=pytest.mark.xfail(
+            sys.platform != "win32",
+            reason="OS-path: backslash is a path separator only on Windows; on "
+            "POSIX it is a literal filename char, so Path.name keeps the whole "
+            "string. Sanitiser still contains the file inside UPLOADS_DIR — no "
+            "traversal (S14-5, #416)",
+            strict=False,
+        ),
+    ),
     ("/etc/passwd", "passwd"),
     ("subdir/escape.txt", "escape.txt"),
 ]
