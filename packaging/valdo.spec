@@ -1,6 +1,6 @@
 Name:           valdo
 Version:        0.1.0
-Release:        1%{?dist}
+Release:        4%{?dist}
 Summary:        Valdo - File parsing and validation tool
 
 License:        Proprietary
@@ -75,8 +75,24 @@ WorkingDirectory=/opt/valdo
 Environment="PATH=/usr/local/bin:/usr/bin:/bin"
 Environment="ORACLE_HOME=/opt/oracle/instantclient_19_23"
 Environment="LD_LIBRARY_PATH=/opt/oracle/instantclient_19_23"
+# S14-1 (#412): worker count for the gunicorn pool below. Default 1 — the MCP
+# per-process rate-limit + token revocation state is still IN-MEMORY, so >1
+# worker would give each worker its OWN counters/revocation set (a request that
+# revokes a token on worker A would still be honored on worker B, and rate
+# limits would multiply by the worker count). Stay at 1 until the shared
+# rate-limit/revocation backend lands (#419/#420). Override in /etc/valdo/.env
+# (VALDO_WORKERS=...) ONLY once that backend is in place. See SPRINT_14_KICKOFF.
+Environment="VALDO_WORKERS=1"
 EnvironmentFile=-/etc/valdo/.env
-ExecStart=/usr/bin/python3.9 -m src.main
+# S14-1 (#412): serve the app — gunicorn manages a pool of UvicornWorker (ASGI)
+# processes binding 127.0.0.1:8000, the upstream nginx proxies to (see
+# /etc/nginx/conf.d/valdo.conf.sample -> "upstream valdo_mcp"). Loopback bind so
+# only nginx, not the network, can reach the app. Previously this ran the CLI
+# (`-m src.main`), which printed help and bound nothing — nginx had no upstream.
+ExecStart=/usr/bin/python3.9 -m gunicorn src.api.main:app \
+    -k uvicorn.workers.UvicornWorker \
+    --bind 127.0.0.1:8000 \
+    --workers ${VALDO_WORKERS}
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal
@@ -253,6 +269,16 @@ fi
 %attr(0755,root,root) %{_bindir}/valdo
 
 %changelog
+* Mon Jun 16 2026 Development Team <dev@example.com> - 0.1.0-4
+- S14-1 (#412): valdo.service now SERVES the app instead of running the CLI.
+  ExecStart launches gunicorn with the uvicorn.workers.UvicornWorker class on
+  127.0.0.1:8000 (the nginx "upstream valdo_mcp"); previously `-m src.main`
+  printed CLI help and bound nothing. Worker count via VALDO_WORKERS (default 1
+  — in-memory MCP rate-limit/revocation is per-process; raise only after the
+  shared backend #419/#420 lands). gunicorn added to requirements.txt (installed
+  by %post). Unit hardening (User=valdo, EnvironmentFile, NoNewPrivileges,
+  PrivateTmp, Restart=on-failure) unchanged.
+
 * Tue Jun 16 2026 Development Team <dev@example.com> - 0.1.0-3
 - S10-2 (#397): ship the background validation worker as its own systemd unit
   (valdo-run-job-worker.service) — continuous poll/claim/run/reap with

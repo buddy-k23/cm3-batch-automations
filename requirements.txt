@@ -30,6 +30,9 @@ pyyaml>=6.0
 # API Framework (optional - for REST API)
 fastapi>=0.109.0
 uvicorn[standard]>=0.27.0
+# Production process manager (S14-1, #412): the RPM valdo.service runs gunicorn
+# with the uvicorn.workers.UvicornWorker class to serve src.api.main:app on :8000.
+gunicorn>=21.2.0
 python-multipart>=0.0.6
 aiofiles>=23.2.1
 pydantic>=2.5.0
