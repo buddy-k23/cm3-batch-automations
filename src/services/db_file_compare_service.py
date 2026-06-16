@@ -1,7 +1,7 @@
 """Service for DB extract → file comparison workflow.
 
 Orchestrates three steps:
-1. Extract data from Oracle using a SQL query or table name.
+1. Extract data from the configured database using a SQL query or table name.
 2. Write the extracted DataFrame to a temp pipe-delimited file.
 3. Compare that file against an actual batch file using the standard
    run_compare_service pipeline.
@@ -9,6 +9,15 @@ Orchestrates three steps:
 The result dict always contains two top-level keys:
 - ``workflow`` — metadata about the extraction step.
 - ``compare`` — the raw output from run_compare_service.
+
+Backend-agnostic (S15-2, #405, ADR 0022 §5)
+-------------------------------------------
+The DB side is built via
+:func:`~src.database.adapters.factory.get_database_adapter`, so ``db-compare``
+honours the ``DB_ADAPTER`` environment variable (``oracle`` / ``postgresql`` /
+``sqlite``) and any per-request ``connection_override`` — it no longer falls
+back to the Oracle-only ``OracleConnection.from_env()``.  Oracle remains fully
+supported, now as ``DB_ADAPTER=oracle`` routed through the same factory.
 """
 
 from __future__ import annotations
@@ -19,7 +28,7 @@ from typing import Any
 
 import pandas as pd
 
-from src.database.connection import OracleConnection
+from src.database.adapters.factory import get_database_adapter
 from src.database.extractor import DataExtractor
 from src.services.compare_service import run_compare_service
 from src.transforms.transform_orchestrator import TransformEngine
@@ -43,6 +52,80 @@ def _is_sql_query(query_or_table: str) -> bool:
     """
     tokens = set(query_or_table.lower().split())
     return bool(tokens & _SQL_KEYWORDS)
+
+
+def _build_adapter(connection_override: dict[str, Any] | None):
+    """Build a (not-yet-connected) database adapter for the DB side.
+
+    Routes the DB side of ``db-compare`` through the
+    :func:`~src.database.adapters.factory.get_database_adapter` factory so the
+    configured ``DB_ADAPTER`` is honoured (ADR 0022 §5).  When
+    *connection_override* is supplied (the API named-connection / profile path)
+    its ``db_adapter`` selects the backend and its credentials are forwarded to
+    the concrete adapter's constructor; otherwise the env-configured adapter is
+    returned unchanged.
+
+    Credentials in *connection_override* are passed straight to the adapter
+    constructor and are never logged here.
+
+    Args:
+        connection_override: Optional dict with a ``db_adapter`` key and
+            backend-specific connection values (see :func:`compare_db_to_file`).
+            When ``None`` (or empty), the env-configured adapter is used.
+
+    Returns:
+        A concrete, **not-yet-connected**
+        :class:`~src.database.adapters.base.DatabaseAdapter` instance.
+
+    Raises:
+        ValueError: If ``db_adapter`` is an unrecognised adapter name.
+    """
+    override = connection_override or {}
+    adapter_type = override.get("db_adapter")  # None → env DB_ADAPTER
+
+    # No override credentials: env-configured adapter (DB_ADAPTER / ORACLE_*/
+    # DB_* / DB_PATH env vars resolve inside the adapter constructors).
+    has_conn_values = any(
+        override.get(k) is not None
+        for k in ("db_host", "db_user", "db_password", "db_port", "db_name", "db_path")
+    )
+    if not has_conn_values:
+        return get_database_adapter(adapter_type)
+
+    # Override carries explicit connection values — construct the concrete
+    # adapter directly so the per-request credentials are honoured.
+    resolved = adapter_type or "oracle"
+
+    if resolved == "oracle":
+        from src.database.adapters.oracle_adapter import OracleAdapter
+
+        return OracleAdapter(
+            username=override.get("db_user"),
+            password=override.get("db_password"),
+            dsn=override.get("db_host"),
+        )
+    if resolved == "postgresql":
+        from src.database.adapters.postgresql_adapter import PostgreSQLAdapter
+
+        return PostgreSQLAdapter(
+            host=override.get("db_host"),
+            port=override.get("db_port"),
+            database=override.get("db_name"),
+            username=override.get("db_user"),
+            password=override.get("db_password"),
+        )
+    if resolved == "sqlite":
+        from src.database.adapters.sqlite_adapter import SQLiteAdapter
+
+        # SQLite is file-based: accept an explicit db_path, else treat the
+        # generic db_host/db_name slot as the path (the API maps a profile's
+        # dsn into db_host).
+        db_path = override.get("db_path") or override.get("db_host") or override.get("db_name")
+        return SQLiteAdapter(db_path=db_path)
+
+    # Unknown adapter name with override values — defer to the factory so the
+    # single source of truth raises the standard ValueError.
+    return get_database_adapter(resolved)
 
 
 def _df_to_temp_file(df: pd.DataFrame, delimiter: str = "|") -> str:
@@ -114,12 +197,14 @@ def compare_db_to_file(
     apply_transforms: bool = False,
     connection_override: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Extract data from Oracle, format it, and compare against an actual batch file.
+    """Extract data from the configured database, format it, and compare against a file.
 
     Workflow:
     1. Validate inputs (actual_file must exist).
-    2. Connect to Oracle via environment variables (or a direct override) and
-       extract data using either a SQL query or a table name.
+    2. Build the database adapter via
+       :func:`~src.database.adapters.factory.get_database_adapter` (honouring
+       ``DB_ADAPTER`` and any *connection_override*), connect, and extract data
+       using either a SQL query or a table name.
     3. Optionally apply field-level transforms to each DB row via
        :class:`~src.transforms.transform_orchestrator.TransformEngine`.
     4. Write the (possibly transformed) rows to a temporary pipe-delimited file.
@@ -129,7 +214,7 @@ def compare_db_to_file(
     7. Return a unified result dict with ``workflow`` and ``compare`` sections.
 
     Args:
-        query_or_table: A SQL SELECT statement or a bare Oracle table name.
+        query_or_table: A SQL SELECT statement or a bare table name.
         mapping_config: Parsed mapping JSON dict (must contain a ``fields``
             list with ``name`` entries).
         actual_file: Path to the actual batch file to compare against.
@@ -142,12 +227,18 @@ def compare_db_to_file(
             :class:`~src.transforms.transform_orchestrator.TransformEngine`
             before comparison, applying the field-level transforms defined in
             *mapping_config*.  Defaults to ``False`` (no transformation).
-        connection_override: Optional dict with keys ``db_host``, ``db_user``,
-            ``db_password``, ``db_schema`` (accepted but not forwarded —
-            Oracle schema equals the username in this adapter), ``db_adapter``.
-            When provided and ``db_adapter`` is ``"oracle"``, builds a direct
-            Oracle connection from these values instead of reading from env vars.
-            Non-Oracle adapters fall back to :meth:`~OracleConnection.from_env`.
+        connection_override: Optional dict describing a per-request connection
+            (the API named-connection / profile path).  ``db_adapter`` selects
+            the backend (``"oracle"`` / ``"postgresql"`` / ``"sqlite"``); the
+            remaining keys carry backend-specific connection values — Oracle
+            uses ``db_host`` (DSN), ``db_user``, ``db_password``; PostgreSQL
+            uses ``db_host``, ``db_port``, ``db_name``, ``db_user``,
+            ``db_password``; SQLite uses ``db_path`` (or falls back to
+            ``db_host``).  ``db_schema`` is accepted but not forwarded.  When
+            ``None``, or when no connection values are supplied, the
+            env-configured adapter (``DB_ADAPTER`` and the corresponding env
+            vars) is used.  Credentials are passed straight to the adapter and
+            are never logged.
 
     Returns:
         Dict with two top-level keys:
@@ -157,9 +248,9 @@ def compare_db_to_file(
 
     Raises:
         FileNotFoundError: When *actual_file* does not exist on disk.
-        RuntimeError: When Oracle extraction fails (propagated from
-            DataExtractor).
-        ValueError: When mapping_config contains no ``fields`` list.
+        RuntimeError: When DB extraction fails (propagated from DataExtractor).
+        ValueError: When mapping_config contains no ``fields`` list, or
+            ``connection_override['db_adapter']`` is an unrecognised adapter.
     """
     # --- Input validation ---------------------------------------------------
     actual_path = Path(actual_file)
@@ -178,21 +269,18 @@ def compare_db_to_file(
     keys_str = ",".join(key_columns_list) if key_columns_list else None
 
     # --- DB Extraction -------------------------------------------------------
-    _adapter = (connection_override or {}).get("db_adapter", "oracle")
-    if connection_override and _adapter == "oracle":
-        connection = OracleConnection(
-            username=connection_override["db_user"],
-            password=connection_override["db_password"],
-            dsn=connection_override["db_host"],
-        )
-    else:
-        connection = OracleConnection.from_env()
-    extractor = DataExtractor(connection)
+    # Build the adapter via the factory so DB_ADAPTER (and any per-request
+    # connection_override) is honoured — no Oracle-only fallback (ADR 0022 §5).
+    # The adapter is used as a context manager so connect/disconnect bracket the
+    # extraction on every backend.
+    adapter = _build_adapter(connection_override)
+    with adapter:
+        extractor = DataExtractor(adapter)
 
-    if _is_sql_query(query_or_table):
-        df = extractor.extract_by_query(query_or_table)
-    else:
-        df = extractor.extract_table(query_or_table)
+        if _is_sql_query(query_or_table):
+            df = extractor.extract_by_query(query_or_table)
+        else:
+            df = extractor.extract_table(query_or_table)
 
     db_rows_extracted = len(df)
 

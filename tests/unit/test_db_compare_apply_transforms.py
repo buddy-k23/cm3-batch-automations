@@ -34,10 +34,10 @@ class TestCompareDbToFileApplyTransforms:
     @patch("src.services.db_file_compare_service.run_compare_service")
     @patch("src.services.db_file_compare_service._df_to_temp_file")
     @patch("src.services.db_file_compare_service.DataExtractor")
-    @patch("src.services.db_file_compare_service.OracleConnection")
+    @patch("src.services.db_file_compare_service.get_database_adapter")
     @patch("src.services.db_file_compare_service.Path")
     def test_apply_transforms_false_by_default(
-        self, mock_path, mock_conn, mock_extractor_cls, mock_df_to_temp, mock_compare
+        self, mock_path, mock_get_adapter, mock_extractor_cls, mock_df_to_temp, mock_compare
     ):
         """apply_transforms defaults to False — TransformEngine not invoked."""
         import pandas as pd
@@ -61,10 +61,10 @@ class TestCompareDbToFileApplyTransforms:
     @patch("src.services.db_file_compare_service.run_compare_service")
     @patch("src.services.db_file_compare_service._df_to_temp_file")
     @patch("src.services.db_file_compare_service.DataExtractor")
-    @patch("src.services.db_file_compare_service.OracleConnection")
+    @patch("src.services.db_file_compare_service.get_database_adapter")
     @patch("src.services.db_file_compare_service.Path")
     def test_apply_transforms_true_calls_engine(
-        self, mock_path, mock_conn, mock_extractor_cls, mock_df_to_temp, mock_compare
+        self, mock_path, mock_get_adapter, mock_extractor_cls, mock_df_to_temp, mock_compare
     ):
         """apply_transforms=True causes TransformEngine to be constructed and applied."""
         import pandas as pd
@@ -95,10 +95,10 @@ class TestCompareDbToFileApplyTransforms:
     @patch("src.services.db_file_compare_service.run_compare_service")
     @patch("src.services.db_file_compare_service._df_to_temp_file")
     @patch("src.services.db_file_compare_service.DataExtractor")
-    @patch("src.services.db_file_compare_service.OracleConnection")
+    @patch("src.services.db_file_compare_service.get_database_adapter")
     @patch("src.services.db_file_compare_service.Path")
     def test_apply_transforms_result_written_to_temp_file(
-        self, mock_path, mock_conn, mock_extractor_cls, mock_df_to_temp, mock_compare
+        self, mock_path, mock_get_adapter, mock_extractor_cls, mock_df_to_temp, mock_compare
     ):
         """Transformed rows (not raw DB rows) are written to the temp file."""
         import pandas as pd

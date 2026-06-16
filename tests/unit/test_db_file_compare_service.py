@@ -67,8 +67,8 @@ class TestCompareDbToFile:
 
         with (
             patch(
-                "src.services.db_file_compare_service.OracleConnection"
-            ) as mock_conn_cls,
+                "src.services.db_file_compare_service.get_database_adapter"
+            ) as mock_get_adapter,
             patch(
                 "src.services.db_file_compare_service.DataExtractor"
             ) as mock_extractor_cls,
@@ -79,7 +79,7 @@ class TestCompareDbToFile:
             mock_extractor = MagicMock()
             mock_extractor.extract_by_query.return_value = mock_df
             mock_extractor_cls.return_value = mock_extractor
-            mock_conn_cls.from_env.return_value = MagicMock()
+            mock_get_adapter.return_value = MagicMock()
 
             mock_compare.return_value = {
                 "structure_compatible": True,
@@ -111,7 +111,7 @@ class TestCompareDbToFile:
         mapping_cfg = _make_mapping([{"name": "ID"}, {"name": "NAME"}, {"name": "AMOUNT"}])
 
         with (
-            patch("src.services.db_file_compare_service.OracleConnection") as mock_conn_cls,
+            patch("src.services.db_file_compare_service.get_database_adapter") as mock_get_adapter,
             patch("src.services.db_file_compare_service.DataExtractor") as mock_extractor_cls,
             patch("src.services.db_file_compare_service.run_compare_service") as mock_compare,
             patch("src.services.db_file_compare_service.tempfile") as _mock_tf,
@@ -119,7 +119,7 @@ class TestCompareDbToFile:
             mock_extractor = MagicMock()
             mock_extractor.extract_by_query.return_value = _sample_df()
             mock_extractor_cls.return_value = mock_extractor
-            mock_conn_cls.from_env.return_value = MagicMock()
+            mock_get_adapter.return_value = MagicMock()
             mock_compare.return_value = {
                 "structure_compatible": True,
                 "total_rows_file1": 2,
@@ -149,14 +149,14 @@ class TestCompareDbToFile:
         mapping_cfg = _make_mapping([{"name": "ID"}, {"name": "NAME"}, {"name": "AMOUNT"}])
 
         with (
-            patch("src.services.db_file_compare_service.OracleConnection") as mock_conn_cls,
+            patch("src.services.db_file_compare_service.get_database_adapter") as mock_get_adapter,
             patch("src.services.db_file_compare_service.DataExtractor") as mock_extractor_cls,
             patch("src.services.db_file_compare_service.run_compare_service") as mock_compare,
         ):
             mock_extractor = MagicMock()
             mock_extractor.extract_table.return_value = _sample_df()
             mock_extractor_cls.return_value = mock_extractor
-            mock_conn_cls.from_env.return_value = MagicMock()
+            mock_get_adapter.return_value = MagicMock()
             mock_compare.return_value = {
                 "structure_compatible": True,
                 "total_rows_file1": 2,
@@ -186,13 +186,13 @@ class TestCompareDbToFile:
         mapping_cfg = _make_mapping([{"name": "ID"}])
 
         with (
-            patch("src.services.db_file_compare_service.OracleConnection") as mock_conn_cls,
+            patch("src.services.db_file_compare_service.get_database_adapter") as mock_get_adapter,
             patch("src.services.db_file_compare_service.DataExtractor") as mock_extractor_cls,
         ):
             mock_extractor = MagicMock()
             mock_extractor.extract_by_query.side_effect = RuntimeError("ORA-01017: invalid credentials")
             mock_extractor_cls.return_value = mock_extractor
-            mock_conn_cls.from_env.return_value = MagicMock()
+            mock_get_adapter.return_value = MagicMock()
 
             with pytest.raises(RuntimeError, match="ORA-01017"):
                 compare_db_to_file(
@@ -230,14 +230,14 @@ class TestCompareDbToFile:
         mapping_cfg = _make_mapping([{"name": "ID"}, {"name": "NAME"}, {"name": "AMOUNT"}])
 
         with (
-            patch("src.services.db_file_compare_service.OracleConnection") as mock_conn_cls,
+            patch("src.services.db_file_compare_service.get_database_adapter") as mock_get_adapter,
             patch("src.services.db_file_compare_service.DataExtractor") as mock_extractor_cls,
             patch("src.services.db_file_compare_service.run_compare_service") as mock_compare,
         ):
             mock_extractor = MagicMock()
             mock_extractor.extract_by_query.return_value = _sample_df()
             mock_extractor_cls.return_value = mock_extractor
-            mock_conn_cls.from_env.return_value = MagicMock()
+            mock_get_adapter.return_value = MagicMock()
             mock_compare.return_value = {
                 "structure_compatible": True,
                 "total_rows_file1": 2,
@@ -270,14 +270,14 @@ class TestCompareDbToFile:
         mapping_cfg = _make_mapping([{"name": "ID"}, {"name": "NAME"}, {"name": "AMOUNT"}])
 
         with (
-            patch("src.services.db_file_compare_service.OracleConnection") as mock_conn_cls,
+            patch("src.services.db_file_compare_service.get_database_adapter") as mock_get_adapter,
             patch("src.services.db_file_compare_service.DataExtractor") as mock_extractor_cls,
             patch("src.services.db_file_compare_service.run_compare_service") as mock_compare,
         ):
             mock_extractor = MagicMock()
             mock_extractor.extract_by_query.return_value = _sample_df()
             mock_extractor_cls.return_value = mock_extractor
-            mock_conn_cls.from_env.return_value = MagicMock()
+            mock_get_adapter.return_value = MagicMock()
             mock_compare.return_value = {
                 "structure_compatible": True,
                 "total_rows_file1": 2,
@@ -307,14 +307,14 @@ class TestCompareDbToFile:
         mapping_cfg = _make_mapping([{"name": "ID"}, {"name": "NAME"}, {"name": "AMOUNT"}])
 
         with (
-            patch("src.services.db_file_compare_service.OracleConnection") as mock_conn_cls,
+            patch("src.services.db_file_compare_service.get_database_adapter") as mock_get_adapter,
             patch("src.services.db_file_compare_service.DataExtractor") as mock_extractor_cls,
             patch("src.services.db_file_compare_service.run_compare_service") as mock_compare,
         ):
             mock_extractor = MagicMock()
             mock_extractor.extract_by_query.return_value = _sample_df()
             mock_extractor_cls.return_value = mock_extractor
-            mock_conn_cls.from_env.return_value = MagicMock()
+            mock_get_adapter.return_value = MagicMock()
             mock_compare.return_value = {
                 "structure_compatible": True,
                 "total_rows_file1": 2,

@@ -182,7 +182,7 @@ class TestTransformDetailsInResult:
         import pandas as pd
         from unittest.mock import patch, MagicMock
 
-        with patch("src.services.db_file_compare_service.OracleConnection"), \
+        with patch("src.services.db_file_compare_service.get_database_adapter"), \
              patch("src.services.db_file_compare_service.DataExtractor") as mock_ext, \
              patch("src.services.db_file_compare_service._df_to_temp_file") as mock_tmp, \
              patch("src.services.db_file_compare_service.run_compare_service") as mock_cmp, \
@@ -207,7 +207,7 @@ class TestTransformDetailsInResult:
         import pandas as pd
         from unittest.mock import patch
 
-        with patch("src.services.db_file_compare_service.OracleConnection"), \
+        with patch("src.services.db_file_compare_service.get_database_adapter"), \
              patch("src.services.db_file_compare_service.DataExtractor") as mock_ext, \
              patch("src.services.db_file_compare_service._df_to_temp_file") as mock_tmp, \
              patch("src.services.db_file_compare_service.run_compare_service") as mock_cmp, \
