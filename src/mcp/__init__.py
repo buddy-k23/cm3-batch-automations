@@ -13,6 +13,9 @@ Stories landed:
 * EF-S3 — ``taxonomy://violations`` and ``taxonomy://rules`` resources.
 * EF-S4 — action tools (``validate_file``, ``get_run_status``,
   ``get_violations``); see :mod:`src.mcp.action_tools`.
+* S7-2 — ``templates://etl/list``, ``templates://etl/<shape>``, and
+  ``templates://etl/<shape>/sample`` resources backed by
+  :mod:`src.mcp.resources.etl_templates`.
 
 Stories pending: EF-S6 (prompt templates), EF-S7 (real LDAPS + X-API-Key
 auth bridge).

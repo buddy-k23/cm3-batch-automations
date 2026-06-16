@@ -441,3 +441,29 @@ Reporting & Utilities
 .. automodule:: src.utils.config_validator
    :members:
    :undoc-members:
+
+MCP Server
+----------
+
+.. automodule:: src.mcp.server
+   :members:
+   :undoc-members:
+
+.. automodule:: src.mcp.taxonomy
+   :members:
+   :undoc-members:
+
+.. automodule:: src.mcp.compare_tools
+   :members:
+   :undoc-members:
+
+MCP Resources
+~~~~~~~~~~~~~
+
+.. automodule:: src.mcp.resources.etl_templates
+   :members:
+   :undoc-members:
+
+.. automodule:: src.mcp.resources.formats
+   :members:
+   :undoc-members:
