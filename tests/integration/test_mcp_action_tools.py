@@ -644,12 +644,12 @@ def test_get_violations_unknown_run_id_raises(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# 9. tools/list advertises all nine tools (post-EF-S5)
+# 9. tools/list advertises all ten tools (post-EF-S5 + S7-4)
 # ---------------------------------------------------------------------------
 
 
-def test_mcp_tools_list_has_nine_entries(monkeypatch):
-    """``tools/list`` advertises the nine tools landed across EF-S2+EF-S4+EF-S5."""
+def test_mcp_tools_list_has_ten_entries(monkeypatch):
+    """``tools/list`` advertises the ten tools landed across EF-S2+EF-S4+EF-S5+S7-4."""
     monkeypatch.setenv("VALDO_MCP_AUTH", "dev")
     app = _fresh_app()
 
@@ -660,6 +660,7 @@ def test_mcp_tools_list_has_nine_entries(monkeypatch):
     tools = (body.get("result") or {}).get("tools") or []
     names = sorted(t["name"] for t in tools)
     assert names == [
+        "compare_two_files",
         "get_run_status",
         "get_source_spec",
         "get_violations",
@@ -669,4 +670,4 @@ def test_mcp_tools_list_has_nine_entries(monkeypatch):
         "onboard_source_dry_run",
         "upload_workbook_as_spec",
         "validate_file",
-    ], f"tools/list drifted from EF-S2+EF-S4+EF-S5 baseline: {names!r}"
+    ], f"tools/list drifted from EF-S2+EF-S4+EF-S5+S7-4 baseline: {names!r}"
