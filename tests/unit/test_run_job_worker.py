@@ -127,9 +127,9 @@ def test_drain_once_engine_failure_marks_failed(monkeypatch, stub_artefacts):
     assert "engine exploded" in (rec.error_message or "")
 
 
-def test_async_flag_enqueues_only_then_worker_drains(monkeypatch, stub_engine, tmp_path):
-    """With the async flag ON, validate_file enqueues (no inline engine call);
-    the worker then drains the queued job to completion."""
+def test_async_on_live_worker_enqueues_fast(monkeypatch, stub_engine, tmp_path):
+    """Async ON AND a live worker registered -> validate_file enqueues (no inline
+    engine call); the worker then drains the queued job to completion."""
     import src.mcp.action_tools as at
     from src.commands.run_job_worker import drain_once
 
@@ -137,8 +137,10 @@ def test_async_flag_enqueues_only_then_worker_drains(monkeypatch, stub_engine, t
     reg = InMemoryRunRegistry()
     monkeypatch.setattr(at, "_get_registry", lambda: reg)
 
-    # Async branch ON for this test (sprint default is OFF).
+    # Async branch ON (now the default; pinned explicitly for clarity).
     monkeypatch.setenv("VALDO_MCP_ASYNC_VALIDATE", "1")
+    # A worker has checked in recently -> the fast enqueue path is safe.
+    reg.register_worker("worker-1", host="test")
 
     # Stub artefact resolution on action_tools so we need no real overlay.
     monkeypatch.setattr(
@@ -176,14 +178,18 @@ def test_async_flag_enqueues_only_then_worker_drains(monkeypatch, stub_engine, t
     assert at.get_run_status_payload(run_id)["status"] == "completed"
 
 
-def test_sync_flag_default_runs_inline(monkeypatch, stub_engine, tmp_path):
-    """With the flag OFF (sprint default), validate_file runs the engine inline
-    and the record is already terminal on return (legacy behaviour)."""
+def test_async_on_no_live_worker_runs_inline(monkeypatch, stub_engine, tmp_path):
+    """Async ON but NO live worker -> validate_file falls back to a synchronous
+    inline run so the validation always completes (no stranding)."""
     import src.mcp.action_tools as at
 
     reg = InMemoryRunRegistry()
     monkeypatch.setattr(at, "_get_registry", lambda: reg)
-    monkeypatch.delenv("VALDO_MCP_ASYNC_VALIDATE", raising=False)
+
+    # Async flag ON (the new default) but no worker has registered/heartbeated.
+    monkeypatch.setenv("VALDO_MCP_ASYNC_VALIDATE", "1")
+    assert reg.has_live_worker(within_seconds=60) is False
+
     monkeypatch.setattr(
         at,
         "_resolve_artefacts",
@@ -195,8 +201,61 @@ def test_sync_flag_default_runs_inline(monkeypatch, stub_engine, tmp_path):
 
     out = at.validate_file_payload(source="SHAW", file_path=str(data_file))
 
-    assert stub_engine["count"] == 1, "sync default must run the engine inline"
+    # No worker draining -> the inline fallback ran the engine and the record
+    # is already terminal on return rather than stranded in 'queued'.
+    assert stub_engine["count"] == 1, "no-live-worker fallback must run inline"
     assert at.get_run_status_payload(out["run_id"])["status"] == "completed"
+
+
+def test_async_off_always_inline(monkeypatch, stub_engine, tmp_path):
+    """Async OFF -> validate_file runs the engine inline and the record is
+    already terminal on return, regardless of worker presence (legacy path)."""
+    import src.mcp.action_tools as at
+
+    reg = InMemoryRunRegistry()
+    monkeypatch.setattr(at, "_get_registry", lambda: reg)
+    # Explicitly OFF (default is now ON, so we pin it).
+    monkeypatch.setenv("VALDO_MCP_ASYNC_VALIDATE", "0")
+    # Even with a live worker, async OFF must run inline.
+    reg.register_worker("worker-1")
+    monkeypatch.setattr(
+        at,
+        "_resolve_artefacts",
+        lambda source, file_path, file_type: {"mapping": None, "rules": None, "file_type": file_type},
+    )
+
+    data_file = tmp_path / "f.dat"
+    data_file.write_text("row\n")
+
+    out = at.validate_file_payload(source="SHAW", file_path=str(data_file))
+
+    assert stub_engine["count"] == 1, "async OFF must run the engine inline"
+    assert at.get_run_status_payload(out["run_id"])["status"] == "completed"
+
+
+def test_async_default_is_on(monkeypatch, stub_engine, tmp_path):
+    """With the flag UNSET, the new default is ON: a live worker -> fast enqueue."""
+    import src.mcp.action_tools as at
+
+    reg = InMemoryRunRegistry()
+    monkeypatch.setattr(at, "_get_registry", lambda: reg)
+    # Flag unset entirely -> exercises the default.
+    monkeypatch.delenv("VALDO_MCP_ASYNC_VALIDATE", raising=False)
+    reg.register_worker("worker-1")
+    monkeypatch.setattr(
+        at,
+        "_resolve_artefacts",
+        lambda source, file_path, file_type: {"mapping": None, "rules": None, "file_type": file_type},
+    )
+
+    data_file = tmp_path / "f.dat"
+    data_file.write_text("row\n")
+
+    out = at.validate_file_payload(source="SHAW", file_path=str(data_file))
+
+    # Default ON + live worker => enqueued, NOT run inline.
+    assert stub_engine["count"] == 0, "unset flag should default to async ON"
+    assert at.get_run_status_payload(out["run_id"])["status"] == "queued"
 
 
 # ---------------------------------------------------------------------------

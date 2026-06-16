@@ -579,24 +579,32 @@ Indexes:
 
 ---
 
-## Background validation worker (S9-5, #391 — ADR 0021)
+## Background validation worker (S9-5/S10 — ADR 0021)
 
 **Contract change.** `validate_file` no longer necessarily runs the engine
 inside the MCP request. Per **ADR 0021** (Option A — the run registry table
-*is* the job queue), when the `VALDO_MCP_ASYNC_VALIDATE` flag is enabled the
-tool writes the durable `queued` row and **returns within 100ms**; a separate
-`valdo run-job-worker` process claims the row (`queued` → `running` via an
-atomic guarded `UPDATE`) and runs the validation out of band. The
-agent-visible contract is unchanged — you still get a `run_id` back and poll
-`get_run_status` / `get_violations` — but the run now genuinely transitions
-`queued` → `running` → terminal rather than being terminal by the time you
-hold the id.
+*is* the job queue), the tool always writes the durable `queued` row, then
+decides how to run it. A separate `valdo run-job-worker` process claims the
+row (`queued` → `running` via an atomic guarded `UPDATE`) and runs the
+validation out of band. The agent-visible contract is unchanged — you still
+get a `run_id` back and poll `get_run_status` / `get_violations` — but the run
+now genuinely transitions `queued` → `running` → terminal rather than being
+terminal by the time you hold the id.
 
-**Default this sprint:** the flag is **off**, so `validate_file` keeps the
-legacy synchronous behaviour (runs inline, returns terminal). The flag and the
-`run-job-worker --once` skeleton ship in S9-5; the production continuous worker
-loop and the stuck-`running` reaper are a fast-follow. The new atomic
-`claim_next()` primitive on the run registry is what makes the dequeue safe for
-multiple workers. See
+**Async-by-default with a live-worker fallback (S10-2, #397).**
+`VALDO_MCP_ASYNC_VALIDATE` is now **ON by default**. To avoid ever stranding a
+run where no worker is deployed, `validate_file` is **liveness-aware**: it
+consults the dedicated `MCP_WORKERS` table (Alembic 0007) and
+
+* if a worker has heartbeated within the liveness window
+  (`VALDO_MCP_WORKER_LIVENESS_SECONDS`, default 60s) → **enqueues only** and
+  returns within ~100ms; the worker runs it;
+* if **no** worker is live → falls back to a **synchronous inline run** so the
+  call always completes.
+
+Set `VALDO_MCP_ASYNC_VALIDATE=0` to force the legacy always-inline path. The
+atomic `claim_next()` primitive makes the dequeue safe for multiple workers
+(proven under concurrency in S10-2). See
 [`docs/PRODUCTION_DEPLOYMENT.md`](PRODUCTION_DEPLOYMENT.md) §"Background job
-worker" for deployment, the systemd unit, and the manual stuck-run reset.
+worker" for the systemd unit (`valdo-run-job-worker.service`, shipped in the
+RPM), the liveness marker, and the end-to-end async flow.

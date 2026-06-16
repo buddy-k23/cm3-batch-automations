@@ -108,31 +108,76 @@ _STATUS_FAILED = "failed"
 _TERMINAL_STATUSES = frozenset({_STATUS_COMPLETED, _STATUS_FAILED})
 
 # Background-job feature gate (S9-5, ADR 0021). When truthy, ``validate_file``
-# ENQUEUES the run (writes ``queued`` and returns) instead of driving the
-# engine inline; the ``valdo run-job-worker`` process picks the row up. The
-# flag defaults OFF this sprint so the legacy synchronous path remains the
-# safe fallback when no worker is deployed — the follow-up flips the default
-# on once the worker is the supported path. See ADR 0021 §1.
+# may ENQUEUE the run (write ``queued`` and return) instead of driving the
+# engine inline; the ``valdo run-job-worker`` process picks the row up.
+#
+# Default flipped ON in S10-2 (#397): the worker runtime is now production-real
+# and the systemd unit ships in the RPM. To avoid stranding a run where no
+# worker is deployed (e.g. local dev), the enqueue path is gated on a *live
+# worker* check (see :func:`validate_file_payload`): if async is enabled but no
+# worker has heartbeated recently, ``validate_file`` falls back to a synchronous
+# inline run so the call always completes. Set the flag to a falsey value to
+# force the legacy always-inline behaviour.
 _ASYNC_VALIDATE_FLAG = "VALDO_MCP_ASYNC_VALIDATE"
+
+# Worker-liveness window (S10-2). ``validate_file`` treats a worker as "live"
+# (and therefore takes the fast enqueue path) when it has heartbeated within
+# this many seconds. The default (60s) is comfortably larger than the worker's
+# default poll interval (2s) so a busy/looping worker always stays "live"
+# between iterations. Overridable via ``VALDO_MCP_WORKER_LIVENESS_SECONDS``.
+_WORKER_LIVENESS_FLAG = "VALDO_MCP_WORKER_LIVENESS_SECONDS"
+_DEFAULT_WORKER_LIVENESS_SECONDS = 60.0
+
+# Truthy/falsey tokens for parsing boolean env flags.
+_TRUTHY = {"1", "true", "yes", "on"}
+_FALSEY = {"0", "false", "no", "off"}
 
 
 def _async_validate_enabled() -> bool:
-    """Return whether ``validate_file`` should enqueue instead of run inline.
+    """Return whether ``validate_file`` should prefer the enqueue path.
 
     Reads :data:`_ASYNC_VALIDATE_FLAG` at call time (not import time) so a
-    deployment / test can toggle it without reimporting the module. Truthy
-    values are ``1``, ``true``, ``yes``, ``on`` (case-insensitive); anything
-    else — including unset — keeps the synchronous default.
+    deployment / test can toggle it without reimporting the module.
+
+    Default flipped ON in S10-2 (#397): unset is treated as enabled. Falsey
+    values (``0``, ``false``, ``no``, ``off``) force the legacy always-inline
+    path; any other explicit value is treated as enabled. Even when enabled,
+    the enqueue path only runs when a live worker is present — see
+    :func:`validate_file_payload` — so an unset flag with no worker still
+    completes synchronously.
 
     Returns:
         ``True`` when the async/enqueue path is enabled, else ``False``.
     """
-    return os.getenv(_ASYNC_VALIDATE_FLAG, "").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
+    raw = os.getenv(_ASYNC_VALIDATE_FLAG)
+    if raw is None or raw.strip() == "":
+        return True  # S10-2: ON by default.
+    return raw.strip().lower() not in _FALSEY
+
+
+def _worker_liveness_seconds() -> float:
+    """Return the worker-liveness window in seconds (S10-2).
+
+    Reads :data:`_WORKER_LIVENESS_FLAG` at call time. Falls back to
+    :data:`_DEFAULT_WORKER_LIVENESS_SECONDS` when unset or unparseable.
+
+    Returns:
+        The liveness window in seconds.
+    """
+    raw = os.getenv(_WORKER_LIVENESS_FLAG)
+    if raw is None or raw.strip() == "":
+        return _DEFAULT_WORKER_LIVENESS_SECONDS
+    try:
+        value = float(raw.strip())
+    except ValueError:
+        logger.warning(
+            "%s=%r is not a number; using default %.0fs",
+            _WORKER_LIVENESS_FLAG,
+            raw,
+            _DEFAULT_WORKER_LIVENESS_SECONDS,
+        )
+        return _DEFAULT_WORKER_LIVENESS_SECONDS
+    return value if value > 0 else _DEFAULT_WORKER_LIVENESS_SECONDS
 
 
 # ---------------------------------------------------------------------------
@@ -535,6 +580,7 @@ def validate_file_payload(
         }
 
     run_id = uuid.uuid4().hex
+    registry = _get_registry()
     record = RunRecord(
         run_id=run_id,
         source=source,
@@ -543,15 +589,24 @@ def validate_file_payload(
         status=_STATUS_QUEUED,
         started_at=_utcnow_iso(),
     )
-    _get_registry().put(record)
+    # Always write the durable ``queued`` row first so a polling agent (and the
+    # worker) can see the run regardless of which execution path we take.
+    registry.put(record)
 
-    # ADR 0021: when the async flag is ON, ENQUEUE only — the durable
-    # ``queued`` row above is the work item; ``valdo run-job-worker`` claims
-    # and runs it out of band, so this call returns within 100ms (no engine
-    # work). When OFF (the sprint default), keep the legacy behaviour and
-    # drive the validation inline so nothing breaks where no worker is
-    # deployed.
-    if not _async_validate_enabled():
+    # ADR 0021 / S10-2 liveness-aware dispatch:
+    #
+    # * async enabled (the default) AND a worker has heartbeated within the
+    #   liveness window -> ENQUEUE only. The durable ``queued`` row is the work
+    #   item; ``valdo run-job-worker`` claims and runs it out of band, so this
+    #   call returns within ~100ms with no engine work.
+    # * async disabled, OR async enabled but NO live worker is draining the
+    #   queue -> run the validation INLINE so the call always completes. This is
+    #   what makes flipping the default ON safe in environments (local dev) with
+    #   no worker deployed — nothing is ever stranded in ``queued``.
+    enqueue = _async_validate_enabled() and registry.has_live_worker(
+        _worker_liveness_seconds()
+    )
+    if not enqueue:
         _run_validate_synchronously(record, artefacts)
 
     return {

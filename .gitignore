@@ -152,3 +152,7 @@ tests/manual/*.db-journal
 templates/etl/db_to_file_reconciliation_sample/sample.db
 templates/etl/db_to_file_reconciliation_sample/*.db-journal
 
+
+# local dev SQLite database (default DB_PATH)
+/valdo.db
+/*.db

@@ -59,7 +59,7 @@ import logging
 import os
 import threading
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Protocol
 
 logger = logging.getLogger(__name__)
@@ -252,10 +252,59 @@ class RunRegistry(Protocol):
             The number of rows reclaimed.
         """
 
+    def register_worker(self, worker_id: str, host: Optional[str] = None) -> None:
+        """Upsert a worker-liveness marker, refreshing its heartbeat (S10-2).
+
+        A background worker calls this on start and on every poll iteration
+        (and once in ``--once`` mode). The row records that this worker
+        process is alive and draining the queue. The marker lives in a
+        dedicated ``MCP_WORKERS`` table (database backend) — NOT a sentinel
+        row in the SOX-audited run registry — so the run-registry audit trail
+        stays free of non-run rows. See ADR 0021 + Alembic 0007.
+
+        Args:
+            worker_id: Stable per-process identifier (e.g. ``"<host>:<pid>"``).
+            host: Optional hostname for observability.
+        """
+
+    def has_live_worker(self, within_seconds: float) -> bool:
+        """Return whether ANY worker has heartbeated within *within_seconds* (S10-2).
+
+        Answers the question "is SOME worker draining the queue right now?" —
+        used by ``validate_file`` to decide between the fast enqueue path
+        (a live worker will pick the row up) and the synchronous inline
+        fallback (no live worker, so run it now rather than strand it).
+
+        Args:
+            within_seconds: Liveness window. A worker is considered live when
+                its ``last_heartbeat_at`` is at least as recent as
+                ``now - within_seconds``.
+
+        Returns:
+            ``True`` if at least one worker is live, else ``False``.
+        """
+
 
 # ---------------------------------------------------------------------------
 # In-memory backend (always available)
 # ---------------------------------------------------------------------------
+
+
+@dataclass
+class _WorkerMarker:
+    """In-memory worker-liveness record (in-memory backend only).
+
+    Attributes:
+        worker_id: Stable per-process identifier.
+        host: Optional hostname.
+        started_at: ISO-8601 UTC string captured at first registration.
+        last_heartbeat_at: ISO-8601 UTC string refreshed on each register.
+    """
+
+    worker_id: str
+    host: Optional[str]
+    started_at: str
+    last_heartbeat_at: str
 
 
 class InMemoryRunRegistry:
@@ -270,6 +319,7 @@ class InMemoryRunRegistry:
     def __init__(self) -> None:
         """Initialise an empty registry with a fresh lock."""
         self._runs: Dict[str, RunRecord] = {}
+        self._workers: Dict[str, _WorkerMarker] = {}
         self._lock = threading.Lock()
 
     def put(self, record: RunRecord) -> None:
@@ -391,10 +441,49 @@ class InMemoryRunRegistry:
                 reclaimed += 1
         return reclaimed
 
+    def register_worker(self, worker_id: str, host: Optional[str] = None) -> None:
+        """Upsert an in-memory worker-liveness marker (S10-2).
+
+        Refreshes ``last_heartbeat_at`` to now; preserves ``started_at`` on
+        re-registration so the marker reflects the real process start.
+
+        Args:
+            worker_id: Stable per-process identifier.
+            host: Optional hostname for observability.
+        """
+        now = _utcnow_iso()
+        with self._lock:
+            existing = self._workers.get(worker_id)
+            started = existing.started_at if existing is not None else now
+            self._workers[worker_id] = _WorkerMarker(
+                worker_id=worker_id,
+                host=host,
+                started_at=started,
+                last_heartbeat_at=now,
+            )
+
+    def has_live_worker(self, within_seconds: float) -> bool:
+        """Return True if any worker heartbeated within *within_seconds* (S10-2).
+
+        Args:
+            within_seconds: Liveness window in seconds.
+
+        Returns:
+            ``True`` when at least one marker's heartbeat is fresh enough.
+        """
+        cutoff = datetime.now(timezone.utc) - timedelta(seconds=within_seconds)
+        with self._lock:
+            for marker in self._workers.values():
+                hb = _parse_iso(marker.last_heartbeat_at)
+                if hb is not None and hb >= cutoff:
+                    return True
+        return False
+
     def clear(self) -> None:
         """Drop every record. Test-only — production code MUST NOT call."""
         with self._lock:
             self._runs.clear()
+            self._workers.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -403,6 +492,7 @@ class InMemoryRunRegistry:
 
 
 _TABLE_NAME = "APP_MCP_RUN_REGISTRY"
+_WORKERS_TABLE_NAME = "MCP_WORKERS"
 
 
 def _qualified(schema_prefix: str, table: str) -> str:
@@ -453,6 +543,7 @@ class DatabaseRunRegistry:
         """
         self._engine = engine
         self._table = _qualified(schema_prefix, _TABLE_NAME)
+        self._workers_table = _qualified(schema_prefix, _WORKERS_TABLE_NAME)
 
     def _probe(self) -> None:
         """Verify the backing table exists.
@@ -852,12 +943,116 @@ class DatabaseRunRegistry:
                 reclaimed += 1
         return reclaimed
 
+    def register_worker(self, worker_id: str, host: Optional[str] = None) -> None:
+        """Upsert a worker-liveness row in ``MCP_WORKERS`` (S10-2, ADR 0021).
+
+        Refreshes ``last_heartbeat_at`` to now. On SQLite uses
+        ``INSERT OR REPLACE``; on Oracle/PostgreSQL a SELECT-then-INSERT/UPDATE
+        (the same strategy ``put`` uses). ``started_at`` is preserved on an
+        UPDATE so the marker reflects the real process start. All values are
+        parameterised; only the already-validated, schema-qualified table
+        identifier is interpolated (consistent with every other method here).
+
+        Args:
+            worker_id: Stable per-process identifier (e.g. ``"<host>:<pid>"``).
+            host: Optional hostname for observability.
+        """
+        from sqlalchemy import text
+
+        adapter = os.getenv("DB_ADAPTER", "oracle").lower()
+        now_dt = datetime.now(timezone.utc)
+        params = {"worker_id": worker_id, "host": host, "now": now_dt}
+
+        with self._engine.begin() as conn:
+            if adapter == "sqlite":
+                # Preserve started_at when the row already exists; otherwise
+                # seed it with ``now``. A correlated subquery keeps this a
+                # single statement.
+                conn.execute(
+                    text(
+                        f"INSERT OR REPLACE INTO {self._workers_table} "
+                        "(worker_id, host, started_at, last_heartbeat_at) VALUES "
+                        "(:worker_id, :host, "
+                        " COALESCE((SELECT started_at FROM "
+                        f"   {self._workers_table} WHERE worker_id = :worker_id), :now), "
+                        " :now)"
+                    ),
+                    params,
+                )
+                return
+
+            existing = conn.execute(
+                text(
+                    f"SELECT worker_id FROM {self._workers_table} "
+                    "WHERE worker_id = :worker_id"
+                ),
+                {"worker_id": worker_id},
+            ).fetchone()
+            if existing is None:
+                conn.execute(
+                    text(
+                        f"INSERT INTO {self._workers_table} "
+                        "(worker_id, host, started_at, last_heartbeat_at) VALUES "
+                        "(:worker_id, :host, :now, :now)"
+                    ),
+                    params,
+                )
+            else:
+                conn.execute(
+                    text(
+                        f"UPDATE {self._workers_table} SET "
+                        " host = :host, last_heartbeat_at = :now "
+                        "WHERE worker_id = :worker_id"
+                    ),
+                    params,
+                )
+
+    def has_live_worker(self, within_seconds: float) -> bool:
+        """Return True if any worker heartbeated within *within_seconds* (S10-2).
+
+        Issues a single parameterised ``SELECT ... WHERE last_heartbeat_at >=
+        :cutoff`` bounded to existence. A missing table is treated as "no live
+        worker" (fail-safe: ``validate_file`` then runs inline) rather than
+        raising, so a database that has not yet applied Alembic 0007 still
+        completes validations.
+
+        Args:
+            within_seconds: Liveness window in seconds.
+
+        Returns:
+            ``True`` when at least one worker row is fresh enough.
+        """
+        from sqlalchemy import text
+
+        cutoff = datetime.now(timezone.utc) - timedelta(seconds=within_seconds)
+        try:
+            with self._engine.connect() as conn:
+                row = conn.execute(
+                    text(
+                        f"SELECT 1 FROM {self._workers_table} "
+                        "WHERE last_heartbeat_at >= :cutoff"
+                    ),
+                    {"cutoff": cutoff},
+                ).fetchone()
+        except Exception as exc:  # noqa: BLE001 — missing table -> no live worker.
+            logger.warning(
+                "MCP_WORKERS liveness query failed; treating as no live "
+                "worker (validate_file will run inline): %s",
+                exc,
+            )
+            return False
+        return row is not None
+
     def clear(self) -> None:
         """Delete every row. Test-only — production code MUST NOT call."""
         from sqlalchemy import text
 
         with self._engine.begin() as conn:
             conn.execute(text(f"DELETE FROM {self._table}"))
+            try:
+                conn.execute(text(f"DELETE FROM {self._workers_table}"))
+            except Exception:  # noqa: BLE001 — workers table may be absent in older fixtures.
+                pass
 
 
 # ---------------------------------------------------------------------------

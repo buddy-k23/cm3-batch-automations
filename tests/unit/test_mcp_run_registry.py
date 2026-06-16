@@ -222,6 +222,14 @@ def sqlite_engine() -> Iterator:
             "attempt_count INTEGER DEFAULT 0, "
             "created_ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
         ))
+        # S10-2 (#397): dedicated worker-liveness table (Alembic 0007).
+        conn.execute(text(
+            "CREATE TABLE MCP_WORKERS ("
+            "worker_id TEXT PRIMARY KEY, "
+            "host TEXT, "
+            "started_at TIMESTAMP NOT NULL, "
+            "last_heartbeat_at TIMESTAMP NOT NULL)"
+        ))
 
     # Force DB_ADAPTER=sqlite so the registry uses the INSERT OR REPLACE
     # path. We restore the original on teardown.
@@ -881,3 +889,125 @@ def test_db_reap_null_heartbeat_old_start_reclaimed(sqlite_engine):
 
     assert reg.reap_stuck(stale_before=stale_before, now=now) == 1
     assert reg.get("nullhb").status == "queued"
+
+
+# ---------------------------------------------------------------------------
+# Worker liveness: register_worker / has_live_worker (S10-2, #397)
+# ---------------------------------------------------------------------------
+#
+# A dedicated MCP_WORKERS table (Alembic 0007) tracks each worker process's
+# last heartbeat. ``validate_file`` consults ``has_live_worker(window)`` to
+# decide whether ANY worker is draining the queue — if so it enqueues fast;
+# if not it falls back to a synchronous inline run so nothing is stranded.
+
+
+def test_inmemory_register_worker_then_live():
+    """A freshly-registered worker is reported live within the window."""
+    from src.mcp.run_registry import InMemoryRunRegistry
+
+    reg = InMemoryRunRegistry()
+    assert reg.has_live_worker(within_seconds=60) is False
+
+    reg.register_worker("worker-1", host="box-a")
+
+    assert reg.has_live_worker(within_seconds=60) is True
+
+
+def test_inmemory_register_worker_refreshes_heartbeat():
+    """A second register_worker call refreshes the heartbeat (upsert, no dup)."""
+    from src.mcp.run_registry import InMemoryRunRegistry
+
+    reg = InMemoryRunRegistry()
+    reg.register_worker("worker-1")
+    reg.register_worker("worker-1")  # idempotent upsert
+
+    assert reg.has_live_worker(within_seconds=60) is True
+
+
+def test_inmemory_has_live_worker_stale_is_dead():
+    """A worker whose heartbeat is older than the window is NOT live."""
+    from datetime import datetime, timedelta, timezone
+
+    from src.mcp.run_registry import InMemoryRunRegistry
+
+    reg = InMemoryRunRegistry()
+    reg.register_worker("worker-1")
+
+    # Backdate the worker's heartbeat well outside the window.
+    stale = datetime.now(timezone.utc) - timedelta(seconds=600)
+    reg._workers["worker-1"].last_heartbeat_at = _iso(stale)
+
+    assert reg.has_live_worker(within_seconds=60) is False
+
+
+def test_inmemory_has_live_worker_any_live_returns_true():
+    """has_live_worker is True if ANY worker is live, even when others are stale."""
+    from datetime import datetime, timedelta, timezone
+
+    from src.mcp.run_registry import InMemoryRunRegistry
+
+    reg = InMemoryRunRegistry()
+    reg.register_worker("dead")
+    reg.register_worker("alive")
+
+    stale = datetime.now(timezone.utc) - timedelta(seconds=600)
+    reg._workers["dead"].last_heartbeat_at = _iso(stale)
+
+    assert reg.has_live_worker(within_seconds=60) is True
+
+
+def test_db_register_worker_then_live(sqlite_engine):
+    """SQLite backend: a registered worker is reported live within the window."""
+    from src.mcp.run_registry import DatabaseRunRegistry
+
+    engine, schema = sqlite_engine
+    reg = DatabaseRunRegistry(engine=engine, schema_prefix=schema)
+
+    assert reg.has_live_worker(within_seconds=60) is False
+
+    reg.register_worker("worker-1", host="box-a")
+
+    assert reg.has_live_worker(within_seconds=60) is True
+
+
+def test_db_register_worker_upsert_no_duplicate(sqlite_engine):
+    """SQLite backend: re-registering the same worker_id upserts (one row)."""
+    from sqlalchemy import text as _text
+
+    from src.mcp.run_registry import DatabaseRunRegistry
+
+    engine, schema = sqlite_engine
+    reg = DatabaseRunRegistry(engine=engine, schema_prefix=schema)
+
+    reg.register_worker("worker-1", host="box-a")
+    reg.register_worker("worker-1", host="box-a")
+
+    with engine.connect() as conn:
+        count = conn.execute(
+            _text("SELECT COUNT(*) FROM MCP_WORKERS WHERE worker_id = 'worker-1'")
+        ).scalar()
+    assert count == 1
+    assert reg.has_live_worker(within_seconds=60) is True
+
+
+def test_db_has_live_worker_stale_is_dead(sqlite_engine):
+    """SQLite backend: a worker with a stale heartbeat is not live."""
+    from datetime import datetime, timedelta, timezone
+
+    from sqlalchemy import text as _text
+
+    from src.mcp.run_registry import DatabaseRunRegistry
+
+    engine, schema = sqlite_engine
+    reg = DatabaseRunRegistry(engine=engine, schema_prefix=schema)
+    reg.register_worker("worker-1")
+
+    # Backdate the heartbeat directly so it falls outside any reasonable window.
+    stale = datetime.now(timezone.utc) - timedelta(seconds=600)
+    with engine.begin() as conn:
+        conn.execute(
+            _text("UPDATE MCP_WORKERS SET last_heartbeat_at = :hb WHERE worker_id = 'worker-1'"),
+            {"hb": stale},
+        )
+
+    assert reg.has_live_worker(within_seconds=60) is False

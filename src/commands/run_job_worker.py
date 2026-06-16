@@ -46,7 +46,9 @@ Lifecycle semantics (ADR 0021 §4)
 from __future__ import annotations
 
 import logging
+import os
 import signal
+import socket
 import sys
 import threading
 import time
@@ -98,6 +100,20 @@ class _ShutdownFlag:
 def _utcnow() -> datetime:
     """Return the current time as a timezone-aware UTC datetime."""
     return datetime.now(timezone.utc)
+
+
+def _worker_identity() -> tuple[str, str]:
+    """Return a stable ``(worker_id, host)`` for this worker process (S10-2).
+
+    The worker id is ``"<hostname>:<pid>"`` — stable for the life of the
+    process and unique per host/process so two workers on the same or
+    different hosts never collide in the ``MCP_WORKERS`` liveness table.
+
+    Returns:
+        Tuple of ``(worker_id, host)``.
+    """
+    host = socket.gethostname()
+    return f"{host}:{os.getpid()}", host
 
 
 def drain_once(registry: RunRegistry, heartbeat_interval: float = 30.0) -> int:
@@ -267,11 +283,24 @@ def run_worker_loop(
     stuck_after = poll_interval * reap_multiple
     drained_total = 0
     consecutive_empties = 0
+    worker_id, host = _worker_identity()
 
     while True:
         if flag.is_set():
             logger.info("run-job-worker: shutdown requested; stopping loop.")
             break
+
+        # Refresh this worker's liveness marker every iteration so
+        # ``validate_file`` sees a live worker and takes the fast enqueue
+        # path (S10-2). A failure here must never kill the loop.
+        try:
+            registry.register_worker(worker_id, host=host)
+        except Exception:  # noqa: BLE001 — liveness is best-effort.
+            logger.warning(
+                "run-job-worker: worker-liveness registration failed; "
+                "continuing.",
+                exc_info=True,
+            )
 
         if max_runs and drained_total >= max_runs:
             logger.info("run-job-worker: reached --max-runs=%d; stopping.", max_runs)
@@ -345,6 +374,16 @@ def run_job_worker(
       claimed, and the process exits 0.
     """
     registry = make_run_registry()
+    worker_id, host = _worker_identity()
+    # Register this worker's liveness marker on start so ``validate_file`` can
+    # see a worker is draining the queue and take the fast enqueue path (S10-2).
+    try:
+        registry.register_worker(worker_id, host=host)
+    except Exception:  # noqa: BLE001 — liveness is best-effort.
+        logger.warning(
+            "run-job-worker: initial worker-liveness registration failed.",
+            exc_info=True,
+        )
 
     if once:
         drained = drain_once(registry, heartbeat_interval=poll_interval)

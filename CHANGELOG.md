@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- feat(mcp): async validate_file ON by default with live-worker-aware sync fallback (MCP_WORKERS, Alembic 0007); valdo-run-job-worker systemd unit; multi-worker claim safety proven (S10-2, #397)
+
 ### Removed
 - chore(repo): remove pilot_database_validations/ prototype per ADR 0020 — kill-and-defer, no DB-to-DB capability lost (S8.5-2, #394)
 

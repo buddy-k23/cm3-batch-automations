@@ -579,22 +579,63 @@ runs the validation. No new runtime dependency — the queue is the database
 table the run registry already persists.
 
 > **S9-5 shipped the seam** (`valdo run-job-worker --once` + the `claim_next`
-> atomic dequeue + the async feature flag). **S10-1 ships the production
+> atomic dequeue + the async feature flag). **S10-1 shipped the production
 > runtime**: the continuous poll loop with capped backoff, in-flight
 > heartbeats, graceful `SIGTERM`/`SIGINT` shutdown, and the stuck-`running`
-> reaper (Alembic 0006 adds `last_heartbeat_at` + `attempt_count`). The async
-> flag still defaults **OFF** this sprint — S10-2 flips it. See below.
+> reaper (Alembic 0006 adds `last_heartbeat_at` + `attempt_count`). **S10-2
+> ships the cutover**: the RPM-packaged `valdo-run-job-worker.service` unit,
+> the `MCP_WORKERS` liveness marker (Alembic 0007), and **flips the async flag
+> ON by default** — made safe by a synchronous fallback (below). See below.
 
 ### The async feature flag (`VALDO_MCP_ASYNC_VALIDATE`)
 
+**Default flipped ON in S10-2 (#397).** `validate_file` always writes the
+durable `queued` row first, then chooses its execution path based on whether a
+worker is live:
+
 | Value | Behaviour |
 |---|---|
-| unset / `0` / `false` (**default this sprint**) | `validate_file` runs the engine **synchronously inline** (legacy behaviour). Safe when no worker is deployed. |
-| `1` / `true` / `yes` / `on` | `validate_file` **enqueues only** and returns immediately; a `run-job-worker` must be draining the queue or runs sit `queued` forever. |
+| unset / `1` / `true` / `yes` / `on` (**default**) | **Liveness-aware.** If a `run-job-worker` has heartbeated within the liveness window, `validate_file` **enqueues only** and returns within ~100ms (the worker runs it out of band). If **no** worker is live, `validate_file` falls back to a **synchronous inline run** so the call always completes — nothing is stranded in `queued`. |
+| `0` / `false` / `no` / `off` | **Always synchronous inline** (legacy behaviour), regardless of worker presence. |
 
-**Deploy order matters:** deploy and start the `run-job-worker` systemd unit
-**before** setting `VALDO_MCP_ASYNC_VALIDATE=1` on the gunicorn unit. Enabling
-async with no worker present leaves validations stuck in `queued`.
+This makes the ON-by-default flip safe in environments with no worker (local
+dev, a host where the worker unit is stopped): the call self-heals to inline.
+**Deploy order no longer strands runs** — but for the fast async path to engage
+you must have the `valdo-run-job-worker` unit running (it ships in the RPM and
+is enabled in `%post`; start it after configuring `/etc/valdo/.env`).
+
+### Worker liveness marker (`MCP_WORKERS`, Alembic 0007)
+
+The liveness signal lives in a **dedicated** `MCP_WORKERS` table — **not** a
+sentinel row in `APP_MCP_RUN_REGISTRY` (a SOX-audited table of *runs*, kept
+free of non-run rows). Each worker upserts a row (`worker_id`, `host`,
+`started_at`, `last_heartbeat_at`) on start and on every poll iteration.
+`validate_file` answers "is ANY worker draining the queue?" with a single
+`SELECT ... WHERE last_heartbeat_at >= now - window` (any live worker → enqueue).
+
+| Var | Default | Meaning |
+|---|---|---|
+| `VALDO_MCP_WORKER_LIVENESS_SECONDS` | `60` | Liveness window. A worker counts as live if it heartbeated within this many seconds. Comfortably larger than the worker's default `--poll-interval` (2s) so a busy/looping worker never flickers "dead" between iterations. |
+
+The table also enables future worker observability (count / which-host).
+
+### End-to-end async flow (enqueue → drain → status)
+
+1. Agent calls `validate_file(source, file_path)`. The MCP server writes a
+   `queued` row to `APP_MCP_RUN_REGISTRY`, checks `MCP_WORKERS` for a live
+   worker, sees one, and returns `{run_id, started_at}` within ~100ms.
+2. `valdo-run-job-worker` polls, `claim_next()` atomically flips the row
+   `queued → running` (guarded `UPDATE`, so two workers never grab it), and
+   runs the engine while a daemon thread heartbeats the run every poll.
+3. On completion the worker writes the terminal `completed`/`failed` record.
+4. The agent polls `get_run_status` (sees `queued` → `running` → terminal) and
+   pages `get_violations`.
+
+**10M-row flow.** A multi-hour 10M-row validation is exactly why this exists:
+the engine runs on the worker (not tying up a gunicorn request), and the
+in-flight heartbeat thread keeps `last_heartbeat_at` fresh so the reaper never
+falsely reclaims it. If the worker crashes mid-run, the row stops heartbeating
+and the reaper requeues it (`attempt_count++`) for another worker.
 
 ### Draining the queue
 
@@ -637,8 +678,11 @@ reset is needed anymore.
 ### systemd unit (separate from the gunicorn service)
 
 The worker runs as its **own** systemd unit, distinct from `valdo.service`
-(the gunicorn MCP server). Example `valdo-job-worker.service` for continuous
-mode (the `--once` cron form above needs no long-running unit):
+(the gunicorn MCP server). **S10-2 ships this unit in the RPM** as
+`valdo-run-job-worker.service` (enabled in `%post`, disabled/stopped in
+`%preun`); start it with `sudo systemctl start valdo-run-job-worker` once
+`/etc/valdo/.env` is configured. The reference unit body below matches the
+packaged one (the `--once` cron form needs no long-running unit):
 
 ```ini
 [Unit]
@@ -662,8 +706,10 @@ Restart=on-failure
 WantedBy=multi-user.target
 ```
 
-> The RPM-packaged unit file is **out of scope** for S10-1 (deferred to
-> S10-2); the unit above is the reference for a manual install.
+> **S10-2 (#397) ships this unit in the RPM** (`valdo-run-job-worker.service`);
+> the body above is the reference for a manual install and matches the packaged
+> unit (`After=network.target valdo.service`, `Restart=on-failure`,
+> `NoNewPrivileges`/`PrivateTmp`, `TimeoutStopSec=120`).
 
 ### Lifecycle guarantees
 
@@ -700,3 +746,4 @@ WantedBy=multi-user.target
 | S9-4 (#389) | Token revocation — `jti` format + 24h grace window, `POST /api/v2/mcp/revoke` (admin-only), `valdo mcp-revoke` CLI, 60s-TTL blocklist cache, `MCP_REVOKED_TOKENS` (Alembic 0005), incident-response flow |
 | S9-5 (#391) | Background job worker (skeleton) — ADR 0021 run-registry-as-queue, `VALDO_MCP_ASYNC_VALIDATE` flag (default off), `valdo run-job-worker --once`, separate systemd unit, atomic `claim_next`, restart-pickup, manual stuck-run reset (reaper is fast-follow) |
 | S10-1 (#397) | Background-worker **runtime** — continuous poll loop (`--poll-interval`/`--max-runs`/`--reap-multiple`) with capped backoff, in-flight heartbeat thread, graceful `SIGTERM`/`SIGINT` shutdown, stuck-`running` reaper (`last_heartbeat_at`/`attempt_count`, Alembic 0006). Async flag still off (S10-2 flips it); RPM unit deferred to S10-2 |
+| S10-2 (#397) | Background-worker **cutover** — async flag flipped **ON by default** with a live-worker-aware synchronous fallback; `MCP_WORKERS` liveness marker (Alembic 0007); RPM-packaged `valdo-run-job-worker.service`; multi-worker no-double-claim proven under concurrency. Sections: async flag (revised), worker liveness, end-to-end async flow (+10M-row) |
