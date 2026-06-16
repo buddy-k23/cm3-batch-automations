@@ -46,8 +46,9 @@ See **docs/RHEL_DEPLOYMENT.md** for complete instructions.
 
 **Quick Summary:**
 ```bash
-# Install system dependencies
-sudo yum install -y python39 python39-devel gcc make wget unzip libaio
+# Install system dependencies (python3.11 — the canonical Valdo runtime,
+# from the RHEL 8/9 AppStream repo; see docs/PRODUCTION_DEPLOYMENT.md)
+sudo yum install -y python3.11 python3.11-devel gcc make wget unzip libaio
 
 # Install Oracle Instant Client
 # (See RHEL_DEPLOYMENT.md for details)
@@ -61,7 +62,7 @@ sudo chown valdo:valdo /opt/valdo
 sudo su - valdo
 cd /opt/valdo
 git clone <repo-url> .
-python3.9 -m venv venv
+python3.11 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
@@ -408,7 +409,7 @@ gunicorn src.api.main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8
 
 ### Pre-Deployment
 - [ ] RHEL 8.9 server provisioned
-- [ ] Python 3.9+ installed
+- [ ] Python 3.11 installed (canonical runtime — `dnf install python3.11`)
 - [ ] Oracle Instant Client installed
 - [ ] Application user created
 - [ ] Firewall rules configured

@@ -1,6 +1,6 @@
 Name:           valdo
 Version:        0.1.0
-Release:        4%{?dist}
+Release:        5%{?dist}
 Summary:        Valdo - File parsing and validation tool
 
 License:        Proprietary
@@ -8,8 +8,13 @@ URL:            https://gitlab.com/your-org/valdo
 Source0:        %{name}-%{version}.tar.gz
 
 BuildArch:      noarch
-Requires:       python39 >= 3.9.0
-Requires:       python39-pip
+# S14-2 (#417): standardize on Python 3.11 across RPM + Docker. python3.11 is
+# an AppStream package on RHEL 8 (`dnf install python3.11`) and RHEL 9, giving
+# /usr/bin/python3.11. This matches the Docker base (python:3.11-slim) and the
+# repo's .venv311 — one canonical runtime so RPM and container deploys behave
+# identically. (setup.py keeps python_requires>=3.11 as the supported floor.)
+Requires:       python3.11 >= 3.11.0
+Requires:       python3.11-pip
 
 %description
 Automated file parsing, validation, and comparison tool for valdo batch
@@ -89,7 +94,7 @@ EnvironmentFile=-/etc/valdo/.env
 # /etc/nginx/conf.d/valdo.conf.sample -> "upstream valdo_mcp"). Loopback bind so
 # only nginx, not the network, can reach the app. Previously this ran the CLI
 # (`-m src.main`), which printed help and bound nothing — nginx had no upstream.
-ExecStart=/usr/bin/python3.9 -m gunicorn src.api.main:app \
+ExecStart=/usr/bin/python3.11 -m gunicorn src.api.main:app \
     -k uvicorn.workers.UvicornWorker \
     --bind 127.0.0.1:8000 \
     --workers ${VALDO_WORKERS}
@@ -130,7 +135,7 @@ Environment="PATH=/usr/local/bin:/usr/bin:/bin"
 Environment="ORACLE_HOME=/opt/oracle/instantclient_19_23"
 Environment="LD_LIBRARY_PATH=/opt/oracle/instantclient_19_23"
 EnvironmentFile=-/etc/valdo/.env
-ExecStart=/usr/bin/python3.9 -m src.main run-job-worker --poll-interval 2 --reap-multiple 10
+ExecStart=/usr/bin/python3.11 -m src.main run-job-worker --poll-interval 2 --reap-multiple 10
 Restart=on-failure
 RestartSec=10
 # systemd sends SIGTERM on stop; the worker finishes its in-flight job and
@@ -159,7 +164,7 @@ cd /opt/valdo
 [ -f /etc/valdo/.env ] && source /etc/valdo/.env
 export ORACLE_HOME=${ORACLE_HOME:-/opt/oracle/instantclient_19_23}
 export LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-$ORACLE_HOME}
-exec /usr/bin/python3.9 -m src.main "$@"
+exec /usr/bin/python3.11 -m src.main "$@"
 EOF
 chmod +x %{buildroot}%{_bindir}/valdo
 
@@ -174,7 +179,7 @@ exit 0
 %post
 # Install Python dependencies
 cd /opt/valdo
-/usr/bin/python3.9 -m pip install --quiet --user -r requirements.txt 2>/dev/null || true
+/usr/bin/python3.11 -m pip install --quiet --user -r requirements.txt 2>/dev/null || true
 
 # Set permissions
 chown -R valdo:valdo /opt/valdo
@@ -269,6 +274,17 @@ fi
 %attr(0755,root,root) %{_bindir}/valdo
 
 %changelog
+* Mon Jun 16 2026 Development Team <dev@example.com> - 0.1.0-5
+- S14-2 (#417): standardize the Python baseline on 3.11 across RPM + Docker.
+  BuildRequires/Requires now python3.11 / python3.11-pip (was python39); all
+  python3.9 invocations (the gunicorn ExecStart from S14-1, the
+  run-job-worker ExecStart, the /usr/bin/valdo wrapper, and the %post pip
+  install) now call /usr/bin/python3.11. python3.11 is an AppStream package on
+  RHEL 8/9, matching the Docker base (python:3.11-slim) — one canonical runtime
+  so RPM and container deploys behave identically. ExecStart command shape from
+  S14-1 is unchanged (only the interpreter version). Canonical nginx->gunicorn
+  prod topology documented in docs/PRODUCTION_DEPLOYMENT.md.
+
 * Mon Jun 16 2026 Development Team <dev@example.com> - 0.1.0-4
 - S14-1 (#412): valdo.service now SERVES the app instead of running the CLI.
   ExecStart launches gunicorn with the uvicorn.workers.UvicornWorker class on

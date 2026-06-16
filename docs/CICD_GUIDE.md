@@ -176,7 +176,7 @@ Edit `.gitlab-ci.yml`:
 ```yaml
 my_new_job:
   stage: test
-  image: python:3.9
+  image: python:3.11
   script:
     - echo "Running my job"
     - python my_script.py

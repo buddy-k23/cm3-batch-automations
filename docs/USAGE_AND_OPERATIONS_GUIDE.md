@@ -33,7 +33,7 @@ across CLI, Web UI, REST API, and CI/CD environments.
 
 | Requirement | Notes |
 |---|---|
-| Python 3.9+ | 3.11 recommended |
+| Python 3.11 | Canonical runtime across RPM + Docker (S14-2) |
 | pip | Any recent version |
 | Oracle database (optional) | Required only for `db-compare`, `extract`, `reconcile` commands |
 | Docker (optional) | For containerised deployment |

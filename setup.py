@@ -20,11 +20,11 @@ setup(
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.9",
-        "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
     ],
-    python_requires=">=3.9",
+    # S14-2 (#417): one canonical runtime — 3.11 across RPM (python3.11
+    # AppStream), Docker (python:3.11-slim), and the .venv311 dev venv.
+    python_requires=">=3.11",
     package_data={
         "src.reports": ["static/*.js"],
     },

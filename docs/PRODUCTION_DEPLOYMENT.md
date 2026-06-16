@@ -26,18 +26,160 @@ and validations decoupled from the request path.
    ┌─────────────────────────┐   :443 TLS termination, security headers,
    │  nginx 1.20+ (RHEL)     │   gzip, X-Forwarded-* injection
    │  /etc/nginx/conf.d/     │
-   │      valdo.conf         │
+   │      valdo.conf         │   upstream valdo_mcp -> 127.0.0.1:8000
    └───────────┬─────────────┘
                │  HTTP, loopback, X-Forwarded-For = real client
                ▼
-   ┌─────────────────────────┐   uvicorn/gunicorn → src.api.main:app
-   │  Valdo app 127.0.0.1:8000│   ProxyHeadersMiddleware recovers real IP
-   │  (systemd: valdo.service)│   MCP sub-app mounted at /mcp
-   └───────────┬─────────────┘
-               │  JDBC / oracledb thin
+   ┌─────────────────────────┐   gunicorn (master) -k UvicornWorker
+   │  Valdo app 127.0.0.1:8000│   binds 127.0.0.1:8000, --workers $VALDO_WORKERS
+   │  (systemd: valdo.service)│   -> N x src.api.main:app  (MCP at /mcp)
+   └───────────┬─────────────┘   ProxyHeadersMiddleware recovers real IP
+               │  oracledb thin
                ▼
-        Oracle (run history, etc.)
+        Oracle (run history, etc.)   <- also drained by
+        valdo-run-job-worker.service    (background validation worker)
 ```
+
+The full canonical topology — the gunicorn worker pool, both systemd units,
+env sourcing, and the single-worker caveat — is in **"Canonical production
+topology (S14-2)"** below.
+
+---
+
+## Canonical production topology (S14-2)
+
+This is the single supported single-host production shape for Valdo. RPM and
+Docker now run the **same Python runtime (3.11)** and the same app
+(`src.api.main:app`); the only difference is the packaging. Read this first —
+the S9-x sections below configure pieces of it (TLS, health probe, rate limit,
+revocation, the background worker).
+
+### Python baseline — 3.11 everywhere (S14-2, #417)
+
+One canonical runtime across both deploy targets, so behaviour is identical:
+
+| Target | Interpreter | Source |
+|---|---|---|
+| RPM (RHEL 8/9) | `/usr/bin/python3.11` | `python3.11` AppStream pkg (`dnf install python3.11`) — `Requires: python3.11` in `packaging/valdo.spec` |
+| Docker | `python3.11` | `python:3.11-slim` base (`Dockerfile`) |
+| Dev | `.venv311` | repo virtualenv |
+
+`setup.py` pins `python_requires>=3.11` to match. The RPM's
+`valdo.service` ExecStart, the `valdo-run-job-worker.service` ExecStart, the
+`/usr/bin/valdo` CLI wrapper, and the `%post` dependency install all invoke
+`/usr/bin/python3.11`. (Older docs — `RHEL_DEPLOYMENT.md`, `DEPLOYMENT_OPTIONS.md`,
+`PEX_DEPLOYMENT.md` — describe alternative non-RPM install paths and may still
+reference 3.9; for the **canonical RPM/Docker topology this document is
+authoritative**: use 3.11.)
+
+### The request path: nginx → gunicorn pool → FastAPI/MCP app
+
+```
+   Agent / BA client
+        │ HTTPS :443
+        ▼
+  ┌──────────────────────────────────────────────┐
+  │ nginx (TLS termination, security headers,     │   /etc/nginx/conf.d/valdo.conf
+  │ gzip, X-Forwarded-* injection)                │   (RPM ships valdo.conf.sample)
+  │   upstream valdo_mcp { server 127.0.0.1:8000; }│
+  └───────────────────┬──────────────────────────┘
+                      │ HTTP over loopback (X-Forwarded-For = real client)
+                      ▼
+  ┌──────────────────────────────────────────────┐
+  │ gunicorn master  (systemd: valdo.service)     │   ExecStart:
+  │   bind 127.0.0.1:8000                          │   python3.11 -m gunicorn
+  │   -k uvicorn.workers.UvicornWorker             │     src.api.main:app
+  │   --workers ${VALDO_WORKERS}   (default 1)     │     -k uvicorn.workers.UvicornWorker
+  │   ┌──────────┐ ┌──────────┐ ┌──────────┐       │     --bind 127.0.0.1:8000
+  │   │ worker 1 │ │ worker 2 │ │ worker N │  ...  │     --workers ${VALDO_WORKERS}
+  │   │ src.api. │ │  (only   │ │  (only   │       │
+  │   │ main:app │ │  if >1)  │ │  if >1)  │       │   MCP sub-app mounted at /mcp
+  │   └──────────┘ └──────────┘ └──────────┘       │
+  └───────────────────┬──────────────────────────┘
+                      │ oracledb thin
+                      ▼
+                   Oracle  (run history, MCP registry/worker/revocation tables)
+                      ▲
+                      │ claims queued runs out of band
+  ┌──────────────────────────────────────────────┐
+  │ valdo-run-job-worker.service                  │   ExecStart:
+  │   (background validation worker, ADR 0021)    │   python3.11 -m src.main
+  │   polls APP_MCP_RUN_REGISTRY, runs the engine │     run-job-worker
+  │   off the request path; heartbeats MCP_WORKERS│     --poll-interval 2
+  └──────────────────────────────────────────────┘     --reap-multiple 10
+```
+
+The nginx upstream (`upstream valdo_mcp { server 127.0.0.1:8000; }` in
+`packaging/nginx/valdo.conf`) and the gunicorn bind (`--bind 127.0.0.1:8000`
+in `valdo.service`) are deliberately the **same loopback address:port** — they
+are two ends of one hop. The worker *pool* sits behind that single socket:
+gunicorn's master owns `127.0.0.1:8000` and load-balances accepted connections
+across its `VALDO_WORKERS` workers, so adding workers never changes the nginx
+upstream. If you move the app off loopback (separate app host), change BOTH the
+gunicorn `--bind` and the nginx `upstream` server line together.
+
+### The two systemd units
+
+Both ship in the RPM and run as the unprivileged `valdo` user with
+`NoNewPrivileges`/`PrivateTmp` and `Restart=on-failure`:
+
+| Unit | Role | Binds | Sourced from |
+|---|---|---|---|
+| `valdo.service` | gunicorn pool serving the FastAPI + MCP app — the nginx upstream | `127.0.0.1:8000` | `EnvironmentFile=-/etc/valdo/.env` |
+| `valdo-run-job-worker.service` | drains long validations off the request path (`After=…valdo.service`) | none (DB poller) | `EnvironmentFile=-/etc/valdo/.env` |
+
+Manage them:
+
+```bash
+sudo systemctl enable --now valdo
+sudo systemctl enable --now valdo-run-job-worker     # after /etc/valdo/.env is set
+sudo systemctl status valdo valdo-run-job-worker
+```
+
+### Where TLS / auth / DB / env come from
+
+Nothing host-specific is baked into the artefacts (Architecture Principle #5).
+Configuration enters at two well-defined seams:
+
+| Concern | Where it lives | Notes |
+|---|---|---|
+| **TLS material** (cert + key) | nginx: `ssl_certificate` / `ssl_certificate_key` in `/etc/nginx/conf.d/valdo.conf` | From the bank PKI team. TLS terminates at nginx; the app speaks plain HTTP on loopback. See "TLS + nginx (S9-1)". |
+| **App auth** (MCP token signing key, LDAP, trusted proxies, allowed hosts) | `/etc/valdo/.env` (`EnvironmentFile` for `valdo.service`) | `VALDO_MCP_TOKEN_SIGNING_KEY`, `VALDO_MCP_TRUSTED_PROXIES`, `VALDO_MCP_ALLOWED_HOSTS`, rate-limit caps. Never enable the dev-auth bypass in INT/prod. |
+| **DB** (Oracle DSN / creds, or adapter) | `/etc/valdo/.env` | `ORACLE_USER` / `ORACLE_PASSWORD` / `ORACLE_DSN`, or `DB_ADAPTER`. `chmod 600`. |
+| **Worker count** | `/etc/valdo/.env` → `VALDO_WORKERS` | Default 1 — see the caveat below. |
+
+`/etc/valdo/.env` is read by **both** units, is `chmod 600`, and is
+`%config(noreplace)` so RPM upgrades never clobber operator edits.
+
+### The single-worker caveat (and how to scale later)
+
+**`VALDO_WORKERS` defaults to 1, and you must keep it at 1 today.** The MCP
+**rate-limit counters** (`src/mcp/rate_limit.py`) and the **token-revocation
+blocklist cache** (`src/mcp/revocation.py`) are still **in-process / in-memory**.
+With N gunicorn workers each worker holds its *own* copy, so:
+
+- **Rate limits multiply by N** — the effective cap becomes up to `N ×` the
+  configured per-token / per-IP value (each worker meters independently).
+- **Revocation is not instant fleet-wide** — a `jti` revoked on the worker that
+  served the revoke request is enforced there immediately, but the other
+  workers only converge when their 60 s revocation-cache TTL next reloads from
+  `MCP_REVOKED_TOKENS`. (Signature + expiry still gate every worker; the gap is
+  only the per-token blocklist freshness.)
+
+Neither is a correctness hazard at **1 worker** (one in-memory copy = one source
+of truth). This matches the S13.5 single-worker guidance and the "Rate
+limiting" / "Token revocation" sections below.
+
+**To scale workers safely:** wait for the shared rate-limit/revocation backend
+(**#419 / #420** — a Redis or DB-backed store behind the existing
+`RateLimitBackend` protocol and the revocation cache). Once that lands, all
+workers share one set of counters and one revocation view, and you can raise
+`VALDO_WORKERS` (a common starting point is `2 × CPU cores + 1`) by setting it
+in `/etc/valdo/.env` and `sudo systemctl restart valdo` — no nginx change
+needed (the pool stays behind the single `127.0.0.1:8000` upstream). Until then,
+if you genuinely need more throughput before #419/#420, the only safe stop-gap
+is to divide the configured rate-limit caps by `N` and accept the ≤60 s
+revocation-convergence window across workers.
 
 ---
 
@@ -756,3 +898,4 @@ WantedBy=multi-user.target
 | S9-5 (#391) | Background job worker (skeleton) — ADR 0021 run-registry-as-queue, `VALDO_MCP_ASYNC_VALIDATE` flag (default off), `valdo run-job-worker --once`, separate systemd unit, atomic `claim_next`, restart-pickup, manual stuck-run reset (reaper is fast-follow) |
 | S10-1 (#397) | Background-worker **runtime** — continuous poll loop (`--poll-interval`/`--max-runs`/`--reap-multiple`) with capped backoff, in-flight heartbeat thread, graceful `SIGTERM`/`SIGINT` shutdown, stuck-`running` reaper (`last_heartbeat_at`/`attempt_count`, Alembic 0006). Async flag still off (S10-2 flips it); RPM unit deferred to S10-2 |
 | S10-2 (#397) | Background-worker **cutover** — async flag flipped **ON by default** with a live-worker-aware synchronous fallback; `MCP_WORKERS` liveness marker (Alembic 0007); RPM-packaged `valdo-run-job-worker.service`; multi-worker no-double-claim proven under concurrency. Sections: async flag (revised), worker liveness, end-to-end async flow (+10M-row) |
+| S14-2 (#417) | **Canonical production topology** — standardized Python 3.11 across RPM + Docker (`python3.11` AppStream / `python:3.11-slim` / `.venv311`); documented the nginx → gunicorn worker pool → FastAPI/MCP app chain (nginx upstream = gunicorn `--bind`, consistent), both systemd units, env/TLS/auth/DB sourcing, and the single-worker caveat + how to scale after #419/#420. Section: "Canonical production topology (S14-2)" |

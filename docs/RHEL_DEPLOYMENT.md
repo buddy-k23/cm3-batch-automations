@@ -3,7 +3,8 @@
 ## Prerequisites
 
 - RHEL 8.9 server with root or sudo access
-- Python 3.9 or higher
+- Python 3.11 (the canonical Valdo runtime — see
+  docs/PRODUCTION_DEPLOYMENT.md, "Canonical production topology (S14-2)")
 - Internet connectivity for downloading Oracle Instant Client
 
 ## Installation Steps
@@ -14,8 +15,9 @@
 # Update system
 sudo yum update -y
 
-# Install Python 3.9 and development tools
-sudo yum install -y python39 python39-devel python39-pip
+# Install Python 3.11 and development tools (python3.11 ships in the
+# RHEL 8/9 AppStream repository — the canonical Valdo runtime)
+sudo yum install -y python3.11 python3.11-devel python3.11-pip
 
 # Install required system libraries
 sudo yum install -y gcc make wget unzip libaio
@@ -68,7 +70,7 @@ cd /opt/valdo
 git clone <repository-url> .
 
 # Create virtual environment
-python3.9 -m venv venv
+python3.11 -m venv venv
 source venv/bin/activate
 
 # Upgrade pip

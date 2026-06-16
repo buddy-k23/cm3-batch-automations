@@ -6,7 +6,8 @@ This guide explains how to deploy Valdo as a PEX (Python EXecutable) file on RHE
 
 ## Prerequisites
 
-- RHEL 8.9 with Python 3.9+
+- RHEL 8.9 with Python 3.11 (the canonical Valdo runtime — `dnf install
+  python3.11`; see docs/PRODUCTION_DEPLOYMENT.md)
 - Oracle Instant Client 19.23 installed on the system
 - PEX tool installed
 
@@ -73,7 +74,7 @@ pex . \
   --requirement requirements.txt \
   --entry-point src.main:main \
   --output-file dist/valdo.pex \
-  --python-shebang="/usr/bin/env python3.9" \
+  --python-shebang="/usr/bin/env python3.11" \
   --inherit-path=prefer
 ```
 
@@ -237,7 +238,7 @@ sudo systemctl start valdo.service
 head -1 /opt/valdo/valdo.pex
 
 # Verify Python version
-python3.9 --version
+python3.11 --version
 
 # Check permissions
 ls -la /opt/valdo/valdo.pex
@@ -253,7 +254,7 @@ ls -la /opt/oracle/instantclient_19_23
 ldconfig -p | grep oracle
 
 # Test cx_Oracle
-python3.9 -c "import cx_Oracle; print(cx_Oracle.clientversion())"
+python3.11 -c "import cx_Oracle; print(cx_Oracle.clientversion())"
 ```
 
 ### Import Errors
@@ -275,7 +276,7 @@ pip install shiv
 
 shiv -c valdo \
   -o dist/valdo.pyz \
-  -p "/usr/bin/env python3.9" \
+  -p "/usr/bin/env python3.11" \
   --site-packages /opt/oracle/instantclient_19_23 \
   .
 ```
