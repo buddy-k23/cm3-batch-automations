@@ -98,20 +98,30 @@ def run_validate_service(
             field_specs = _build_fixed_width_specs(mapping_config)
             parser = FixedWidthParser(file, field_specs)
         else:
-            # When the mapping declares no header row, supply field names so the
-            # parser assigns them directly instead of producing integer indices.
+            # has_header drives whether the parser consumes the first line as a
+            # header. Default True to align with the chunked path (which defaults
+            # has_header=True), but respect an explicit SourceConfig.has_header.
             mapping_has_header = bool(
                 (mapping_config or {}).get("source", {}).get("has_header", True)
             )
+            # Supply field names so schema validation works regardless of header
+            # presence: with a header pandas skips the header line but uses these
+            # names; without one they become the column names directly.
             col_names = (
                 [f["name"] for f in mapping_config.get("fields", []) if "name" in f]
-                if (mapping_config and not mapping_has_header)
+                if mapping_config
                 else None
-            )
+            ) or None
             try:
-                parser = parser_class(file, columns=col_names)
+                parser = parser_class(
+                    file, columns=col_names, has_header=mapping_has_header
+                )
             except TypeError:
-                parser = parser_class(file)
+                # Parsers that predate the has_header kwarg (e.g. fixed-width).
+                try:
+                    parser = parser_class(file, columns=col_names)
+                except TypeError:
+                    parser = parser_class(file)
 
         validator = EnhancedFileValidator(parser, mapping_config, rules)
         result = validator.validate(
@@ -125,7 +135,17 @@ def run_validate_service(
     # Normalise counts so callers always get integers.
     result.setdefault("error_count", len(result.get("errors", [])))
     result.setdefault("warning_count", len(result.get("warnings", [])))
-    result.setdefault("total_rows", result.get("row_count", 0))
+    # Prefer the parsed data-row count from the validator's quality metrics so a
+    # header'd file reports the same total_rows as the chunked path (the header
+    # is excluded from the parsed DataFrame). Falls back to row_count, then to a
+    # raw line count only when nothing else is available (S14-4, #414).
+    if "total_rows" not in result:
+        quality_total = (result.get("quality_metrics") or {}).get("total_rows")
+        result["total_rows"] = (
+            quality_total
+            if quality_total is not None
+            else result.get("row_count", 0)
+        )
 
     # If total_rows is still 0 (validator exited early), count non-empty lines.
     if not result.get("total_rows"):

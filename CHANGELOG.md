@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - chore(repo): remove pilot_database_validations/ prototype per ADR 0020 — kill-and-defer, no DB-to-DB capability lost (S8.5-2, #394)
 
 ### Fixed
+- fix(parsers): non-chunked delimited parser honors has_header (parity with chunked path) (S14-4, #414)
 - fix(validators): chunked 'sequential' cross-row check honors configurable start/step (parity with single-pass) (S14-3, #413)
 - fix(deploy): RPM valdo.service serves the app via gunicorn (uvicorn worker) on :8000 instead of running the CLI (S14-1, #412)
 - fix(cli): valdo compare returns non-zero exit code on differences (S8-1, #392)

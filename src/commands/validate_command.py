@@ -265,6 +265,13 @@ def run_validate_command(
         else:
             raise
 
+    # has_header drives whether the delimited parser consumes the first line as
+    # a header. Default True to align with the chunked path (which defaults
+    # has_header=True); respect an explicit SourceConfig.has_header when set.
+    has_header = bool(
+        (mapping_config or {}).get('source', {}).get('has_header', True)
+    )
+
     if mapping_config and parser_class == FixedWidthParser:
         field_specs = _build_fixed_width_field_specs(mapping_config.get('fields', []))
         parser = FixedWidthParser(file, field_specs)
@@ -273,7 +280,7 @@ def run_validate_command(
         from src.parsers.pipe_delimited_parser import PipeDelimitedParser
         if parser_class == PipeDelimitedParser:
             columns = [f['name'] for f in mapping_config['fields']]
-            parser = PipeDelimitedParser(file, columns=columns)
+            parser = PipeDelimitedParser(file, columns=columns, has_header=has_header)
         else:
             parser = parser_class(file)
     else:

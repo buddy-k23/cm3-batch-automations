@@ -35,6 +35,7 @@ class PipeDelimitedParser(BaseParser):
         file_path: str,
         columns: Optional[List[str]] = None,
         delimiter: Optional[str] = None,
+        has_header: bool = False,
     ):
         """Initialize delimited-file parser.
 
@@ -48,10 +49,20 @@ class PipeDelimitedParser(BaseParser):
                 ``.csv`` -> ``,``, ``.tsv`` -> ``\\t``, ``.psv`` / ``.txt``
                 or any other extension -> ``|``. Pass an explicit value to
                 override extension-based inference.
+            has_header: Whether the file's first line is a header row. When
+                ``True`` the first line is consumed as the header (used for
+                column names, or skipped when explicit ``columns`` are given)
+                and data rows are numbered from 1 — the header line is NOT
+                counted, matching :class:`~src.parsers.chunked_parser.ChunkedFileParser`.
+                When ``False`` (the historic default) the first line is data
+                (``header=None``). Defaults to ``False`` for backward
+                compatibility with existing callers; the validate path
+                overrides this from ``SourceConfig.has_header``.
         """
         super().__init__(file_path)
         self.columns = columns
         self.delimiter = delimiter if delimiter is not None else self._infer_delimiter(file_path)
+        self.has_header = has_header
 
     @staticmethod
     def _infer_delimiter(file_path: str) -> str:
@@ -76,24 +87,35 @@ class PipeDelimitedParser(BaseParser):
         Returns:
             DataFrame with columns matching those provided at construction
             (or auto-detected), plus a leading ``__source_row__`` column
-            containing the 1-indexed source file line number for each record.
-            Because this parser reads with ``header=None``, row 1 in the file
-            becomes ``__source_row__ == 1``.
+            containing the 1-indexed row number for each record.
+
+            ``__source_row__`` numbers *data* rows starting at 1. When
+            ``has_header`` is ``False`` (default) the first file line is data,
+            so ``__source_row__ == 1`` is file line 1. When ``has_header`` is
+            ``True`` the header line is consumed and NOT counted, so the first
+            data row (file line 2) is ``__source_row__ == 1`` — this matches
+            the chunked parser's convention so the two paths agree (S14-4, #414).
 
         Raises:
             ValueError: If the file cannot be parsed.
         """
         try:
+            # header=0 tells pandas the first line is a header (consumed and not
+            # treated as data); header=None means the first line is data. When
+            # explicit ``columns`` are supplied with header=0, pandas still skips
+            # the header line but uses the provided names.
+            header = 0 if self.has_header else None
             df = pd.read_csv(
                 self.file_path,
                 sep=self.delimiter,
                 names=self.columns,
-                header=None,
+                header=header,
                 dtype=str,
                 keep_default_na=False,
             )
-            # Insert 1-indexed physical line numbers as the first column.
-            # The parser reads with header=None, so data starts at file line 1.
+            # Insert 1-indexed data-row numbers as the first column. Data rows
+            # are numbered from 1; with a header the header line is excluded,
+            # matching ChunkedFileParser (S14-4, #414).
             df.insert(0, '__source_row__', range(1, len(df) + 1))
             return df
         except EmptyDataError:
