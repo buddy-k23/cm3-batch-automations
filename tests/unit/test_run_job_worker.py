@@ -11,8 +11,10 @@ Covers the thin background-job skeleton defined by ADR 0021:
 4. ``validate_file_payload`` with ``VALDO_MCP_ASYNC_VALIDATE`` ON ENQUEUES
    only — the record is left ``queued`` and the engine is NOT called
    inline — then the worker drains it to ``completed``.
-5. The stuck-``running`` reaper is a documented stub this sprint and must
-   raise ``NotImplementedError`` (the implementation is the fast-follow).
+5. The S10-1 runtime: the continuous poll loop (fake clock + fake sleep),
+   graceful shutdown via an injected flag, the stuck-``running`` reaper
+   (delegating to ``registry.reap_stuck``), and — crucially — the during-run
+   heartbeat thread that keeps a long job from being falsely reaped.
 
 These run entirely against the in-memory registry with a stubbed
 ``run_validate_service`` so they are hermetic and require no database.
@@ -197,14 +199,239 @@ def test_sync_flag_default_runs_inline(monkeypatch, stub_engine, tmp_path):
     assert at.get_run_status_payload(out["run_id"])["status"] == "completed"
 
 
-def test_reaper_is_a_documented_stub():
-    """The stuck-running reaper is intentionally unimplemented this sprint.
+# ---------------------------------------------------------------------------
+# Stuck-running reaper (S10-1, #397 — now implemented, delegates to registry)
+# ---------------------------------------------------------------------------
 
-    ADR 0021 defines the contract but defers the implementation to the
-    fast-follow (M). The skeleton ships the hook raising NotImplementedError
-    so a premature call fails loudly rather than silently no-op'ing.
-    """
+
+def test_reap_stuck_running_delegates_to_registry(monkeypatch):
+    """reap_stuck_running computes stale_before = now - threshold and delegates."""
+    from datetime import datetime, timezone
+
     from src.commands.run_job_worker import reap_stuck_running
 
-    with pytest.raises(NotImplementedError):
-        reap_stuck_running(InMemoryRunRegistry(), stuck_after_seconds=3600)
+    captured = {}
+
+    class _FakeReg:
+        def reap_stuck(self, stale_before, now):
+            captured["stale_before"] = stale_before
+            captured["now"] = now
+            return 3
+
+    fixed_now = datetime(2026, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+    count = reap_stuck_running(
+        _FakeReg(), stuck_after_seconds=600, now_fn=lambda: fixed_now
+    )
+
+    assert count == 3
+    assert captured["now"] == fixed_now
+    # stale_before is 600s before now.
+    assert (captured["now"] - captured["stale_before"]).total_seconds() == 600
+
+
+def test_reap_stuck_running_reclaims_stale_leaves_fresh():
+    """End-to-end against in-memory: stale running reclaimed, fresh left alone."""
+    from datetime import datetime, timedelta, timezone
+
+    from src.commands.run_job_worker import reap_stuck_running
+
+    now = datetime(2026, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+
+    def _iso(dt):
+        return dt.strftime("%Y-%m-%dT%H:%M:%S.%f") + "Z"
+
+    reg = InMemoryRunRegistry()
+    reg.put(RunRecord(
+        run_id="dead", source="S", file_path="/a", file_type=None,
+        status="running", started_at=_iso(now - timedelta(hours=1)),
+        last_heartbeat_at=_iso(now - timedelta(seconds=600)),
+    ))
+    reg.put(RunRecord(
+        run_id="alive", source="S", file_path="/b", file_type=None,
+        status="running", started_at=_iso(now - timedelta(hours=1)),
+        last_heartbeat_at=_iso(now - timedelta(seconds=2)),
+    ))
+
+    reclaimed = reap_stuck_running(reg, stuck_after_seconds=300, now_fn=lambda: now)
+
+    assert reclaimed == 1
+    assert reg.get("dead").status == "queued"
+    assert reg.get("alive").status == "running"
+
+
+# ---------------------------------------------------------------------------
+# During-run heartbeat thread: a long job is NOT falsely reaped (THE REFINEMENT)
+# ---------------------------------------------------------------------------
+
+
+def test_long_job_with_heartbeat_thread_is_not_reaped(stub_artefacts, monkeypatch):
+    """A synchronous job longer than the reaper threshold survives, because the
+    background heartbeat thread keeps last_heartbeat_at fresh; meanwhile a dead
+    worker (no thread) with a stale heartbeat IS reaped."""
+    import threading
+    from datetime import datetime, timedelta, timezone
+
+    import src.services.validate_service as svc
+    from src.commands.run_job_worker import drain_once, reap_stuck_running
+
+    reg = InMemoryRunRegistry()
+
+    # Engine body that blocks until released — simulates a long validation.
+    release = threading.Event()
+    started = threading.Event()
+
+    def _slow(**kwargs):
+        started.set()
+        release.wait(timeout=5)
+        return {"valid": True, "errors": [], "warnings": [], "info": [], "total_rows": 1}
+
+    monkeypatch.setattr(svc, "run_validate_service", _slow)
+
+    # A dead-worker row: running, stale heartbeat, no live thread.
+    def _iso(dt):
+        return dt.strftime("%Y-%m-%dT%H:%M:%S.%f") + "Z"
+
+    base = datetime(2026, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+    reg.put(RunRecord(
+        run_id="dead", source="S", file_path="/dead", file_type=None,
+        status="running", started_at=_iso(base - timedelta(hours=1)),
+        last_heartbeat_at=_iso(base - timedelta(seconds=600)),
+    ))
+
+    # The live long-running job.
+    reg.put(RunRecord(
+        run_id="live", source="SHAW", file_path="/tmp/a.dat", file_type=None,
+        status="queued", started_at=_iso(base),
+    ))
+
+    # Run drain_once in a background thread with a fast heartbeat interval so
+    # the during-run heartbeat thread stamps last_heartbeat_at while _slow blocks.
+    worker = threading.Thread(
+        target=drain_once, kwargs={"registry": reg, "heartbeat_interval": 0.05}
+    )
+    worker.start()
+    assert started.wait(timeout=5), "engine body never started"
+
+    # Let at least one heartbeat fire while the job is mid-flight.
+    time.sleep(0.2)
+
+    # Now run the reaper with a threshold that WOULD reclaim a row whose
+    # heartbeat is older than 0.1s. The dead row (stale) must be reaped; the
+    # live row (fresh heartbeat from the thread) must survive.
+    now = datetime.now(timezone.utc)
+    reclaimed = reap_stuck_running(reg, stuck_after_seconds=0.1, now_fn=lambda: now)
+
+    assert reg.get("live").status == "running", "live job falsely reaped despite heartbeat"
+    assert reg.get("dead").status == "queued", "dead worker row should be reaped"
+    assert reclaimed == 1
+
+    # Let the job finish cleanly and the heartbeat thread stop.
+    release.set()
+    worker.join(timeout=5)
+    assert not worker.is_alive()
+    assert reg.get("live").status == "completed"
+
+
+# ---------------------------------------------------------------------------
+# Poll loop: fake clock + fake sleep
+# ---------------------------------------------------------------------------
+
+
+def test_poll_loop_drains_then_exits_on_max_runs(stub_engine, stub_artefacts):
+    """run_worker_loop drains N jobs then stops at --max-runs."""
+    from src.commands.run_job_worker import run_worker_loop
+
+    reg = InMemoryRunRegistry()
+    for i in range(3):
+        reg.put(_queued_record(f"job-{i}", file_path=f"/tmp/{i}.dat"))
+
+    sleeps = []
+
+    class _Shutdown:
+        def is_set(self):
+            return False
+
+    drained = run_worker_loop(
+        reg,
+        poll_interval=1.0,
+        max_runs=2,
+        reap_multiple=10,
+        sleep_fn=sleeps.append,
+        shutdown=_Shutdown(),
+    )
+
+    assert drained == 2
+    # Two jobs drained back-to-back -> no idle sleep needed.
+    assert sleeps == []
+    # One job left queued.
+    queued = [r for r in [reg.get(f"job-{i}") for i in range(3)] if r.status == "queued"]
+    assert len(queued) == 1
+
+
+def test_poll_loop_empty_queue_sleeps_then_stops(stub_engine, stub_artefacts, monkeypatch):
+    """An empty queue runs the reaper, sleeps with backoff, and we can stop it."""
+    import src.commands.run_job_worker as worker_mod
+    from src.commands.run_job_worker import run_worker_loop
+
+    reg = InMemoryRunRegistry()  # empty -> always idle
+
+    sleeps = []
+
+    # Stop after a few idle cycles by flipping the shutdown flag.
+    class _Shutdown:
+        def __init__(self):
+            self.calls = 0
+
+        def is_set(self):
+            self.calls += 1
+            # First check (top of loop) returns False a few times, then True.
+            return self.calls > 3
+
+    # Capture reaper invocations.
+    reaped = {"count": 0}
+    monkeypatch.setattr(
+        worker_mod, "reap_stuck_running",
+        lambda registry, stuck_after_seconds: reaped.__setitem__("count", reaped["count"] + 1) or 0,
+    )
+
+    drained = run_worker_loop(
+        reg,
+        poll_interval=2.0,
+        max_runs=0,
+        reap_multiple=10,
+        sleep_fn=sleeps.append,
+        shutdown=_Shutdown(),
+    )
+
+    assert drained == 0
+    # Idle cycles slept at least once and the reaper ran on idle.
+    assert len(sleeps) >= 1
+    assert reaped["count"] >= 1
+    # Backoff grows: each idle sleep is >= the previous (capped).
+    assert all(b >= a for a, b in zip(sleeps, sleeps[1:]))
+
+
+def test_poll_loop_graceful_shutdown_before_claiming(stub_engine, stub_artefacts):
+    """Shutdown set before the first claim -> loop exits 0 without draining."""
+    from src.commands.run_job_worker import run_worker_loop
+
+    reg = InMemoryRunRegistry()
+    reg.put(_queued_record("untouched"))
+
+    class _Shutdown:
+        def is_set(self):
+            return True  # already shutting down
+
+    drained = run_worker_loop(
+        reg,
+        poll_interval=1.0,
+        max_runs=0,
+        reap_multiple=10,
+        sleep_fn=lambda s: None,
+        shutdown=_Shutdown(),
+    )
+
+    assert drained == 0
+    assert stub_engine["count"] == 0
+    # The queued row persists for the next worker.
+    assert reg.get("untouched").status == "queued"

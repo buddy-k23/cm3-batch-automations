@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - fix(parsers): FormatDetector routes .csv to CSV parser (comma) and .tsv to TSV (tab), not PipeDelimitedParser (S8-2, #393)
 
 ### Added
+- feat(mcp): background-worker runtime — poll loop, graceful shutdown, heartbeat + stuck-run reaper (Alembic 0006) (S10-1, #397)
 - feat(mcp): background-job skeleton — run-registry claim_next + valdo run-job-worker --once + async-validate flag, per ADR 0021 (S9-5, #391)
 - feat(mcp): jti-based per-token revocation blocklist + POST /api/v2/mcp/revoke + 24h grace (S9-4, #389)
 - feat(mcp): per-token (30/min) + per-IP (60/min) rate limiting on /mcp/ with 429 + Retry-After (S9-3, #388)

@@ -101,6 +101,13 @@ class RunRecord:
         violations: Flat list of canonicalised violation dicts.
         error_message: Populated on ``failed`` with the exception text
             from the underlying engine call.
+        last_heartbeat_at: ISO-8601 UTC string refreshed by the worker
+            while a run is in flight (S10-1). The stuck-run reaper uses it
+            to tell a live long validation apart from a dead worker. ``None``
+            until the run is claimed/heartbeated.
+        attempt_count: Number of times this run has been (re)queued. Started
+            at 0; incremented by the reaper each time it reclaims a stuck
+            ``running`` row back to ``queued`` (S10-1).
     """
 
     run_id: str
@@ -112,6 +119,8 @@ class RunRecord:
     finished_at: Optional[str] = None
     violations: List[Dict[str, Any]] = field(default_factory=list)
     error_message: Optional[str] = None
+    last_heartbeat_at: Optional[str] = None
+    attempt_count: int = 0
 
     def to_payload(self) -> str:
         """Serialise the record to a JSON string for CLOB storage.
@@ -132,6 +141,8 @@ class RunRecord:
                 "finished_at": self.finished_at,
                 "violations": self.violations,
                 "error_message": self.error_message,
+                "last_heartbeat_at": self.last_heartbeat_at,
+                "attempt_count": self.attempt_count,
             }
         )
 
@@ -160,6 +171,8 @@ class RunRecord:
             finished_at=data.get("finished_at"),
             violations=list(data.get("violations") or []),
             error_message=data.get("error_message"),
+            last_heartbeat_at=data.get("last_heartbeat_at"),
+            attempt_count=int(data.get("attempt_count") or 0),
         )
 
 
@@ -205,8 +218,38 @@ class RunRegistry(Protocol):
 
         Returns:
             The claimed :class:`RunRecord` (now in ``running`` state with
-            its ``started_at`` refreshed to the claim time), or ``None``
-            when no ``queued`` row is available.
+            its ``started_at`` refreshed to the claim time and an initial
+            ``last_heartbeat_at`` stamped), or ``None`` when no ``queued``
+            row is available.
+        """
+
+    def heartbeat(self, run_id: str) -> None:
+        """Refresh ``last_heartbeat_at`` for *run_id* to "now" (S10-1).
+
+        Called periodically by the worker while a run is in flight so the
+        stuck-run reaper can distinguish a live long validation from a
+        dead worker. A no-op when *run_id* is absent.
+        """
+
+    def reap_stuck(self, stale_before: datetime, now: datetime) -> int:
+        """Reclaim stuck ``running`` rows back to ``queued`` (S10-1, ADR 0021).
+
+        A ``running`` row is "stuck" when either:
+
+        * its ``last_heartbeat_at`` is older than *stale_before*, or
+        * it has no heartbeat AND its ``started_at`` is older than
+          *stale_before* (a worker that died before its first heartbeat).
+
+        Each reclaimed row is flipped back to ``queued``, its
+        ``attempt_count`` is incremented, and its heartbeat is cleared.
+
+        Args:
+            stale_before: Heartbeat/started-at cutoff; rows older than this
+                are reclaimed.
+            now: Current time (injected for deterministic testing).
+
+        Returns:
+            The number of rows reclaimed.
         """
 
 
@@ -298,7 +341,55 @@ class InMemoryRunRegistry:
                 return None
             oldest = min(queued, key=lambda r: r.started_at)
             oldest.status = "running"
+            # Stamp an initial heartbeat at claim time (S10-1) so a freshly
+            # claimed run is never immediately eligible for reaping.
+            oldest.last_heartbeat_at = _utcnow_iso()
             return oldest
+
+    def heartbeat(self, run_id: str) -> None:
+        """Refresh ``last_heartbeat_at`` on the in-memory record (S10-1).
+
+        Args:
+            run_id: Identifier of the run to heartbeat. Absent ids are a
+                no-op (the run may have already completed).
+        """
+        with self._lock:
+            record = self._runs.get(run_id)
+            if record is not None:
+                record.last_heartbeat_at = _utcnow_iso()
+
+    def reap_stuck(self, stale_before: datetime, now: datetime) -> int:
+        """Reclaim stuck ``running`` records to ``queued`` (S10-1, ADR 0021).
+
+        See :meth:`RunRegistry.reap_stuck`. Performed under the registry
+        lock so the scan-and-flip is atomic with respect to ``claim_next``.
+
+        Args:
+            stale_before: Heartbeat/started-at cutoff.
+            now: Current time (unused beyond symmetry with the DB backend;
+                kept for an identical signature).
+
+        Returns:
+            Number of records reclaimed.
+        """
+        reclaimed = 0
+        with self._lock:
+            for record in self._runs.values():
+                if record.status != "running":
+                    continue
+                hb = _parse_iso(record.last_heartbeat_at)
+                if hb is not None:
+                    stuck = hb < stale_before
+                else:
+                    started = _parse_iso(record.started_at)
+                    stuck = started is not None and started < stale_before
+                if not stuck:
+                    continue
+                record.status = "queued"
+                record.attempt_count += 1
+                record.last_heartbeat_at = None
+                reclaimed += 1
+        return reclaimed
 
     def clear(self) -> None:
         """Drop every record. Test-only — production code MUST NOT call."""
@@ -404,6 +495,9 @@ class DatabaseRunRegistry:
         # written by a different process still round-trips cleanly.
         started_dt = _parse_iso(record.started_at)
         finished_dt = _parse_iso(record.finished_at) if record.finished_at else None
+        heartbeat_dt = (
+            _parse_iso(record.last_heartbeat_at) if record.last_heartbeat_at else None
+        )
 
         params = {
             "run_id": record.run_id,
@@ -416,6 +510,8 @@ class DatabaseRunRegistry:
             if record.status in _TERMINAL_STATUSES
             else None,
             "payload": payload,
+            "last_heartbeat_at": heartbeat_dt,
+            "attempt_count": record.attempt_count,
         }
 
         with self._engine.begin() as conn:
@@ -424,9 +520,11 @@ class DatabaseRunRegistry:
                     text(
                         f"INSERT OR REPLACE INTO {self._table} "
                         "(run_id, source, file_path, status, started_at, "
-                        " finished_at, violation_count, payload) VALUES "
+                        " finished_at, violation_count, payload, "
+                        " last_heartbeat_at, attempt_count) VALUES "
                         "(:run_id, :source, :file_path, :status, :started_at, "
-                        " :finished_at, :violation_count, :payload)"
+                        " :finished_at, :violation_count, :payload, "
+                        " :last_heartbeat_at, :attempt_count)"
                     ),
                     params,
                 )
@@ -444,9 +542,11 @@ class DatabaseRunRegistry:
                     text(
                         f"INSERT INTO {self._table} "
                         "(run_id, source, file_path, status, started_at, "
-                        " finished_at, violation_count, payload) VALUES "
+                        " finished_at, violation_count, payload, "
+                        " last_heartbeat_at, attempt_count) VALUES "
                         "(:run_id, :source, :file_path, :status, :started_at, "
-                        " :finished_at, :violation_count, :payload)"
+                        " :finished_at, :violation_count, :payload, "
+                        " :last_heartbeat_at, :attempt_count)"
                     ),
                     params,
                 )
@@ -460,7 +560,9 @@ class DatabaseRunRegistry:
                         " started_at = :started_at, "
                         " finished_at = :finished_at, "
                         " violation_count = :violation_count, "
-                        " payload = :payload "
+                        " payload = :payload, "
+                        " last_heartbeat_at = :last_heartbeat_at, "
+                        " attempt_count = :attempt_count "
                         "WHERE run_id = :run_id"
                     ),
                     params,
@@ -584,7 +686,8 @@ class DatabaseRunRegistry:
                     text(
                         f"UPDATE {self._table} SET "
                         " status = 'running', "
-                        " started_at = :started_at "
+                        " started_at = :started_at, "
+                        " last_heartbeat_at = :started_at "
                         "WHERE run_id = :run_id AND status = 'queued'"
                     ),
                     {"run_id": candidate_id, "started_at": now_dt},
@@ -617,6 +720,9 @@ class DatabaseRunRegistry:
                     record.started_at = (
                         now_dt.strftime("%Y-%m-%dT%H:%M:%S.%f") + "Z"
                     )
+                    # Stamp the initial heartbeat (S10-1) in the payload too,
+                    # matching the ``last_heartbeat_at`` column set above.
+                    record.last_heartbeat_at = record.started_at
                     # Keep the persisted ``payload`` JSON consistent with
                     # the searchable ``status`` column we just flipped.
                     conn.execute(
@@ -630,6 +736,122 @@ class DatabaseRunRegistry:
 
         return None
 
+    def heartbeat(self, run_id: str) -> None:
+        """Refresh ``last_heartbeat_at`` for *run_id* (S10-1, ADR 0021).
+
+        Issues a single parameterised
+        ``UPDATE ... SET last_heartbeat_at=:now WHERE run_id=:id``. Both the
+        searchable column and the payload JSON are kept consistent so a
+        ``get`` after a heartbeat reflects the fresh timestamp. Unknown ids
+        match zero rows (a harmless no-op).
+
+        Args:
+            run_id: Identifier of the in-flight run to heartbeat.
+        """
+        from sqlalchemy import text
+
+        now_dt = datetime.now(timezone.utc)
+        now_iso = now_dt.strftime("%Y-%m-%dT%H:%M:%S.%f") + "Z"
+
+        with self._engine.begin() as conn:
+            updated = conn.execute(
+                text(
+                    f"UPDATE {self._table} SET last_heartbeat_at = :now "
+                    "WHERE run_id = :run_id"
+                ),
+                {"now": now_dt, "run_id": run_id},
+            )
+            if updated.rowcount != 1:
+                return
+            # Keep the payload JSON in step with the column.
+            payload_row = conn.execute(
+                text(f"SELECT payload FROM {self._table} WHERE run_id = :run_id"),
+                {"run_id": run_id},
+            ).fetchone()
+            if payload_row is None:
+                return
+            try:
+                record = RunRecord.from_payload(payload_row[0])
+            except (ValueError, KeyError, TypeError):
+                return
+            record.last_heartbeat_at = now_iso
+            conn.execute(
+                text(
+                    f"UPDATE {self._table} SET payload = :payload "
+                    "WHERE run_id = :run_id"
+                ),
+                {"payload": record.to_payload(), "run_id": run_id},
+            )
+
+    def reap_stuck(self, stale_before: datetime, now: datetime) -> int:
+        """Reclaim stuck ``running`` rows back to ``queued`` (S10-1, ADR 0021).
+
+        Selects ``running`` rows whose ``last_heartbeat_at`` is older than
+        *stale_before*, OR whose heartbeat is NULL and whose ``started_at``
+        is older than *stale_before*. Each is reset to ``queued``, has its
+        ``attempt_count`` incremented, and its heartbeat cleared — both in
+        the searchable columns and the payload JSON. All SQL is
+        parameterised (only the already-validated table identifier is
+        interpolated, consistent with every other method here).
+
+        Args:
+            stale_before: Heartbeat/started-at cutoff.
+            now: Current time (unused in the SQL but kept for an identical
+                signature to the in-memory backend and future auditing).
+
+        Returns:
+            Number of rows reclaimed.
+        """
+        from sqlalchemy import text
+
+        with self._engine.begin() as conn:
+            rows = conn.execute(
+                text(
+                    f"SELECT run_id, payload FROM {self._table} "
+                    "WHERE status = 'running' "
+                    "  AND ( "
+                    "        (last_heartbeat_at IS NOT NULL "
+                    "         AND last_heartbeat_at < :stale_before) "
+                    "     OR (last_heartbeat_at IS NULL "
+                    "         AND started_at < :stale_before) "
+                    "      )"
+                ),
+                {"stale_before": stale_before},
+            ).fetchall()
+
+            reclaimed = 0
+            for run_id, payload in rows:
+                try:
+                    record = RunRecord.from_payload(payload)
+                except (ValueError, KeyError, TypeError) as exc:
+                    logger.warning(
+                        "APP_MCP_RUN_REGISTRY reap payload for run_id=%s is "
+                        "corrupt; skipping: %s",
+                        run_id,
+                        exc,
+                    )
+                    continue
+                record.status = "queued"
+                record.attempt_count += 1
+                record.last_heartbeat_at = None
+                conn.execute(
+                    text(
+                        f"UPDATE {self._table} SET "
+                        " status = 'queued', "
+                        " attempt_count = :attempt_count, "
+                        " last_heartbeat_at = NULL, "
+                        " payload = :payload "
+                        "WHERE run_id = :run_id"
+                    ),
+                    {
+                        "attempt_count": record.attempt_count,
+                        "payload": record.to_payload(),
+                        "run_id": run_id,
+                    },
+                )
+                reclaimed += 1
+        return reclaimed
+
     def clear(self) -> None:
         """Delete every row. Test-only — production code MUST NOT call."""
         from sqlalchemy import text
@@ -641,6 +863,18 @@ class DatabaseRunRegistry:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _utcnow_iso() -> str:
+    """Return the current UTC time as the registry's ISO-8601 string.
+
+    Matches the ``%Y-%m-%dT%H:%M:%S.%fZ`` format used by ``claim_next`` and
+    ``action_tools`` so heartbeat timestamps sort and round-trip cleanly.
+
+    Returns:
+        ISO-8601 UTC string with a trailing ``Z``.
+    """
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f") + "Z"
 
 
 def _parse_iso(value: Optional[str]) -> Optional[datetime]:

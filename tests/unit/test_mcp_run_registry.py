@@ -218,6 +218,8 @@ def sqlite_engine() -> Iterator:
             "finished_at TIMESTAMP, "
             "violation_count INTEGER, "
             "payload TEXT NOT NULL, "
+            "last_heartbeat_at TIMESTAMP, "
+            "attempt_count INTEGER DEFAULT 0, "
             "created_ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
         ))
 
@@ -594,3 +596,288 @@ def test_db_claim_next_two_queued_yields_two_distinct(sqlite_engine):
     claimed_ids = {first.run_id, second.run_id}
     assert claimed_ids == {"j1", "j2"}, f"expected both jobs, got {claimed_ids!r}"
     assert third is None
+
+
+# ---------------------------------------------------------------------------
+# RunRecord round-trip with the S10-1 heartbeat/attempt fields
+# ---------------------------------------------------------------------------
+
+
+def test_run_record_roundtrip_with_heartbeat_and_attempt():
+    """to_payload/from_payload preserve last_heartbeat_at + attempt_count."""
+    from src.mcp.run_registry import RunRecord
+
+    original = RunRecord(
+        run_id="hb-1",
+        source="SHAW",
+        file_path="/tmp/x.dat",
+        file_type=None,
+        status="running",
+        started_at="2026-06-15T10:00:00.000000Z",
+        last_heartbeat_at="2026-06-15T10:00:30.000000Z",
+        attempt_count=2,
+    )
+
+    rebuilt = RunRecord.from_payload(original.to_payload())
+
+    assert rebuilt.last_heartbeat_at == "2026-06-15T10:00:30.000000Z"
+    assert rebuilt.attempt_count == 2
+
+
+def test_run_record_roundtrip_defaults_for_legacy_payload():
+    """A payload from before S10-1 (no new keys) round-trips with defaults."""
+    from src.mcp.run_registry import RunRecord
+
+    legacy = (
+        '{"run_id": "old", "source": "S", "file_path": "/tmp/a", '
+        '"file_type": null, "status": "queued", '
+        '"started_at": "2026-06-15T10:00:00.000000Z"}'
+    )
+    rebuilt = RunRecord.from_payload(legacy)
+
+    assert rebuilt.last_heartbeat_at is None
+    assert rebuilt.attempt_count == 0
+
+
+# ---------------------------------------------------------------------------
+# heartbeat — refresh last_heartbeat_at (S10-1, #397, ADR 0021)
+# ---------------------------------------------------------------------------
+
+
+def test_inmemory_heartbeat_updates_last_heartbeat_at():
+    """heartbeat sets last_heartbeat_at on the in-memory record."""
+    from src.mcp.run_registry import InMemoryRunRegistry, RunRecord
+
+    reg = InMemoryRunRegistry()
+    reg.put(RunRecord(
+        run_id="hb", source="S", file_path="/tmp/a", file_type=None,
+        status="running", started_at="2026-06-15T10:00:00.000000Z",
+    ))
+    assert reg.get("hb").last_heartbeat_at is None
+
+    reg.heartbeat("hb")
+
+    assert reg.get("hb").last_heartbeat_at is not None
+
+
+def test_inmemory_heartbeat_unknown_run_is_noop():
+    """heartbeat on an unknown run_id does not raise."""
+    from src.mcp.run_registry import InMemoryRunRegistry
+
+    reg = InMemoryRunRegistry()
+    reg.heartbeat("nope")  # must not raise
+
+
+def test_db_heartbeat_updates_last_heartbeat_at(sqlite_engine):
+    """heartbeat refreshes last_heartbeat_at in the SQLite backend."""
+    from src.mcp.run_registry import DatabaseRunRegistry, RunRecord
+
+    engine, schema = sqlite_engine
+    reg = DatabaseRunRegistry(engine=engine, schema_prefix=schema)
+    reg.put(RunRecord(
+        run_id="hb", source="S", file_path="/tmp/a", file_type=None,
+        status="running", started_at="2026-06-15T10:00:00.000000Z",
+    ))
+
+    reg.heartbeat("hb")
+
+    fetched = reg.get("hb")
+    assert fetched.last_heartbeat_at is not None
+
+
+def test_db_claim_next_sets_initial_heartbeat(sqlite_engine):
+    """claim_next stamps an initial heartbeat at claim time."""
+    from src.mcp.run_registry import DatabaseRunRegistry, RunRecord
+
+    engine, schema = sqlite_engine
+    reg = DatabaseRunRegistry(engine=engine, schema_prefix=schema)
+    reg.put(RunRecord(
+        run_id="c1", source="S", file_path="/tmp/a", file_type=None,
+        status="queued", started_at="2026-06-15T10:00:00.000000Z",
+    ))
+
+    claimed = reg.claim_next()
+    assert claimed is not None
+    assert claimed.last_heartbeat_at is not None
+    assert reg.get("c1").last_heartbeat_at is not None
+
+
+# ---------------------------------------------------------------------------
+# reap_stuck — reclaim stale running rows back to queued (S10-1, #397)
+# ---------------------------------------------------------------------------
+
+from datetime import datetime, timedelta, timezone  # noqa: E402
+
+
+def _iso(dt: datetime) -> str:
+    """Render a datetime as the registry's ISO-8601 UTC string."""
+    return dt.strftime("%Y-%m-%dT%H:%M:%S.%f") + "Z"
+
+
+def test_inmemory_reap_stale_heartbeat_requeues_and_increments():
+    """A running row with a stale heartbeat is reclaimed to queued, attempt++."""
+    from src.mcp.run_registry import InMemoryRunRegistry, RunRecord
+
+    now = datetime(2026, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+    stale_before = now - timedelta(seconds=300)
+
+    reg = InMemoryRunRegistry()
+    reg.put(RunRecord(
+        run_id="stale", source="S", file_path="/tmp/a", file_type=None,
+        status="running", started_at=_iso(now - timedelta(hours=1)),
+        last_heartbeat_at=_iso(now - timedelta(seconds=600)),
+        attempt_count=0,
+    ))
+
+    reclaimed = reg.reap_stuck(stale_before=stale_before, now=now)
+
+    assert reclaimed == 1
+    rec = reg.get("stale")
+    assert rec.status == "queued"
+    assert rec.attempt_count == 1
+    assert rec.last_heartbeat_at is None
+
+
+def test_inmemory_reap_fresh_heartbeat_left_running():
+    """A running row with a fresh heartbeat is NOT reaped (long job survives)."""
+    from src.mcp.run_registry import InMemoryRunRegistry, RunRecord
+
+    now = datetime(2026, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+    stale_before = now - timedelta(seconds=300)
+
+    reg = InMemoryRunRegistry()
+    reg.put(RunRecord(
+        run_id="fresh", source="S", file_path="/tmp/a", file_type=None,
+        status="running", started_at=_iso(now - timedelta(hours=1)),
+        last_heartbeat_at=_iso(now - timedelta(seconds=5)),
+    ))
+
+    reclaimed = reg.reap_stuck(stale_before=stale_before, now=now)
+
+    assert reclaimed == 0
+    assert reg.get("fresh").status == "running"
+
+
+def test_inmemory_reap_null_heartbeat_old_start_reclaimed():
+    """A running row with NULL heartbeat and an old started_at is reclaimed."""
+    from src.mcp.run_registry import InMemoryRunRegistry, RunRecord
+
+    now = datetime(2026, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+    stale_before = now - timedelta(seconds=300)
+
+    reg = InMemoryRunRegistry()
+    reg.put(RunRecord(
+        run_id="nullhb", source="S", file_path="/tmp/a", file_type=None,
+        status="running", started_at=_iso(now - timedelta(seconds=600)),
+        last_heartbeat_at=None,
+    ))
+
+    reclaimed = reg.reap_stuck(stale_before=stale_before, now=now)
+
+    assert reclaimed == 1
+    assert reg.get("nullhb").status == "queued"
+
+
+def test_inmemory_reap_null_heartbeat_fresh_start_left_running():
+    """NULL heartbeat but a recent started_at is NOT reaped."""
+    from src.mcp.run_registry import InMemoryRunRegistry, RunRecord
+
+    now = datetime(2026, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+    stale_before = now - timedelta(seconds=300)
+
+    reg = InMemoryRunRegistry()
+    reg.put(RunRecord(
+        run_id="nullfresh", source="S", file_path="/tmp/a", file_type=None,
+        status="running", started_at=_iso(now - timedelta(seconds=10)),
+        last_heartbeat_at=None,
+    ))
+
+    reclaimed = reg.reap_stuck(stale_before=stale_before, now=now)
+
+    assert reclaimed == 0
+    assert reg.get("nullfresh").status == "running"
+
+
+def test_inmemory_reap_ignores_terminal_and_queued():
+    """reap_stuck only touches running rows."""
+    from src.mcp.run_registry import InMemoryRunRegistry, RunRecord
+
+    now = datetime(2026, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+    stale_before = now - timedelta(seconds=300)
+    old = _iso(now - timedelta(hours=1))
+
+    reg = InMemoryRunRegistry()
+    reg.put(RunRecord(run_id="q", source="S", file_path="/a", file_type=None,
+                      status="queued", started_at=old))
+    reg.put(RunRecord(run_id="c", source="S", file_path="/b", file_type=None,
+                      status="completed", started_at=old))
+
+    assert reg.reap_stuck(stale_before=stale_before, now=now) == 0
+    assert reg.get("q").status == "queued"
+    assert reg.get("c").status == "completed"
+
+
+def test_db_reap_stale_heartbeat_requeues_and_increments(sqlite_engine):
+    """SQLite backend: stale-heartbeat running row reclaimed, attempt++."""
+    from src.mcp.run_registry import DatabaseRunRegistry, RunRecord
+
+    engine, schema = sqlite_engine
+    reg = DatabaseRunRegistry(engine=engine, schema_prefix=schema)
+
+    now = datetime(2026, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+    stale_before = now - timedelta(seconds=300)
+
+    reg.put(RunRecord(
+        run_id="stale", source="S", file_path="/tmp/a", file_type=None,
+        status="running", started_at=_iso(now - timedelta(hours=1)),
+        last_heartbeat_at=_iso(now - timedelta(seconds=600)),
+        attempt_count=1,
+    ))
+
+    reclaimed = reg.reap_stuck(stale_before=stale_before, now=now)
+
+    assert reclaimed == 1
+    rec = reg.get("stale")
+    assert rec.status == "queued"
+    assert rec.attempt_count == 2
+    assert rec.last_heartbeat_at is None
+
+
+def test_db_reap_fresh_heartbeat_left_running(sqlite_engine):
+    """SQLite backend: fresh-heartbeat row survives (long job not reaped)."""
+    from src.mcp.run_registry import DatabaseRunRegistry, RunRecord
+
+    engine, schema = sqlite_engine
+    reg = DatabaseRunRegistry(engine=engine, schema_prefix=schema)
+
+    now = datetime(2026, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+    stale_before = now - timedelta(seconds=300)
+
+    reg.put(RunRecord(
+        run_id="fresh", source="S", file_path="/tmp/a", file_type=None,
+        status="running", started_at=_iso(now - timedelta(hours=1)),
+        last_heartbeat_at=_iso(now - timedelta(seconds=5)),
+    ))
+
+    assert reg.reap_stuck(stale_before=stale_before, now=now) == 0
+    assert reg.get("fresh").status == "running"
+
+
+def test_db_reap_null_heartbeat_old_start_reclaimed(sqlite_engine):
+    """SQLite backend: NULL heartbeat + old start is reclaimed."""
+    from src.mcp.run_registry import DatabaseRunRegistry, RunRecord
+
+    engine, schema = sqlite_engine
+    reg = DatabaseRunRegistry(engine=engine, schema_prefix=schema)
+
+    now = datetime(2026, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+    stale_before = now - timedelta(seconds=300)
+
+    reg.put(RunRecord(
+        run_id="nullhb", source="S", file_path="/tmp/a", file_type=None,
+        status="running", started_at=_iso(now - timedelta(seconds=600)),
+        last_heartbeat_at=None,
+    ))
+
+    assert reg.reap_stuck(stale_before=stale_before, now=now) == 1
+    assert reg.get("nullhb").status == "queued"

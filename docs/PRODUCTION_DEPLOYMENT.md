@@ -567,7 +567,7 @@ migration is idempotent and cross-dialect (Oracle / PostgreSQL / SQLite).
 
 ---
 
-## Background job worker (S9-5)
+## Background job worker (S9-5 seam, S10-1 runtime)
 
 Per **ADR 0021** (`docs/adr/0021-mcp-background-jobs.md`, Option A), long
 validations are decoupled from the MCP request path: instead of running the
@@ -578,10 +578,12 @@ separate **`valdo run-job-worker`** process claims that row out of band and
 runs the validation. No new runtime dependency — the queue is the database
 table the run registry already persists.
 
-> **This sprint ships the SKELETON** (`valdo run-job-worker --once` +
-> the `claim_next` atomic dequeue + the async feature flag). The production
-> continuous poll loop, backoff, metrics, and the stuck-`running` reaper are a
-> fast-follow (M). The async flag therefore defaults **OFF** — see below.
+> **S9-5 shipped the seam** (`valdo run-job-worker --once` + the `claim_next`
+> atomic dequeue + the async feature flag). **S10-1 ships the production
+> runtime**: the continuous poll loop with capped backoff, in-flight
+> heartbeats, graceful `SIGTERM`/`SIGINT` shutdown, and the stuck-`running`
+> reaper (Alembic 0006 adds `last_heartbeat_at` + `attempt_count`). The async
+> flag still defaults **OFF** this sprint — S10-2 flips it. See below.
 
 ### The async feature flag (`VALDO_MCP_ASYNC_VALIDATE`)
 
@@ -597,21 +599,46 @@ async with no worker present leaves validations stuck in `queued`.
 ### Draining the queue
 
 ```bash
+# Continuous mode (production default): poll, claim, run, reap, back off.
+# Heartbeats keep in-flight runs fresh; SIGTERM/SIGINT stop gracefully.
+cd /opt/valdo && valdo run-job-worker \
+  --poll-interval 2 --reap-multiple 10
+
 # One drain-and-exit cycle — claim a single queued job, run it, exit.
-# Use for cron / manual backlog draining / CI. (--once is the only mode
-# wired this sprint; the continuous loop is the fast-follow.)
+# Use for cron / manual backlog draining / CI.
 cd /opt/valdo && valdo run-job-worker --once
 ```
 
-A cron entry (`* * * * * cd /opt/valdo && valdo run-job-worker --once`) is a
-valid stop-gap until the continuous worker lands.
+**Knobs:**
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--poll-interval` | `2.0` | Seconds to sleep when the queue is empty; also the in-flight heartbeat cadence. |
+| `--max-runs` | `0` | Stop after N jobs (`0` = unbounded). Useful for drain-then-recycle. |
+| `--reap-multiple` | `10` | Reaper threshold = `poll-interval * reap-multiple`. A `running` row whose heartbeat is older than this is reclaimed. Set so the threshold comfortably exceeds the worst-case validation time (≈2×+). |
+
+A cron entry (`* * * * * cd /opt/valdo && valdo run-job-worker --once`) remains
+a valid lightweight stop-gap; the continuous unit below is the production form.
+
+### Heartbeat + stuck-run reaper
+
+While a job runs, the worker spawns a daemon **heartbeat thread** that calls
+`registry.heartbeat(run_id)` every `--poll-interval` seconds until the job
+returns. This means even a multi-hour 10M-row validation keeps a fresh
+`last_heartbeat_at` and is **never** falsely reclaimed by another worker.
+
+On every idle poll the worker runs the **reaper**: any `running` row whose
+`last_heartbeat_at` is older than `poll-interval * reap-multiple` (or whose
+heartbeat is NULL and whose `started_at` is that old — a worker that died
+before its first beat) is reset to `queued` and its `attempt_count` is
+incremented, so the backlog self-heals after a worker crash. No manual SQL
+reset is needed anymore.
 
 ### systemd unit (separate from the gunicorn service)
 
 The worker runs as its **own** systemd unit, distinct from `valdo.service`
-(the gunicorn MCP server). Example `valdo-job-worker.service` for the
-continuous mode the fast-follow ships (the `--once` cron form above needs no
-long-running unit):
+(the gunicorn MCP server). Example `valdo-job-worker.service` for continuous
+mode (the `--once` cron form above needs no long-running unit):
 
 ```ini
 [Unit]
@@ -623,17 +650,20 @@ Type=simple
 User=valdo
 WorkingDirectory=/opt/valdo
 EnvironmentFile=/etc/valdo/valdo.env
-# Continuous mode is the fast-follow; --once shown here for the skeleton.
-ExecStart=/opt/valdo/.venv/bin/valdo run-job-worker --once
-# TimeoutStopSec MUST exceed the worst-case single-file validation time so a
-# graceful stop is never SIGKILL'd mid-run (which would strand a row in
-# 'running' until the reaper — see below).
+ExecStart=/opt/valdo/.venv/bin/valdo run-job-worker --poll-interval 2 --reap-multiple 10
+# systemd sends SIGTERM on stop; the worker finishes its in-flight job and
+# exits 0. TimeoutStopSec MUST exceed the worst-case single-file validation
+# time so a graceful stop is never SIGKILL'd mid-run (which would strand a row
+# in 'running' until the reaper reclaims it).
 TimeoutStopSec=120
 Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target
 ```
+
+> The RPM-packaged unit file is **out of scope** for S10-1 (deferred to
+> S10-2); the unit above is the reference for a manual install.
 
 ### Lifecycle guarantees
 
@@ -645,17 +675,18 @@ WantedBy=multi-user.target
   registry's guarded `UPDATE ... SET status='running' WHERE status='queued'`,
   so two workers never grab the same job — a different worker either claims a
   different `queued` row or gets nothing.
-- **Graceful shutdown (fast-follow).** The continuous worker will trap
-  `SIGTERM`/`SIGINT`, finish its current run, and exit without claiming new
-  work. Set `TimeoutStopSec` above the worst-case validation time.
-- **Stuck-`running` reaper (fast-follow — manual until then).** If a worker
-  dies mid-run, its row stays `running`. The reaper (deferred to the follow-up
-  M) will reset rows whose `started_at` is older than ≈2× the max validation
-  time back to `queued`. **Until it lands, reset a stuck row manually:**
-  ```sql
-  UPDATE APP_MCP_RUN_REGISTRY SET status='queued'
-  WHERE run_id = :stuck_run_id AND status='running';
-  ```
+- **Graceful shutdown (works today).** The continuous worker traps
+  `SIGTERM`/`SIGINT`, finishes its current run, claims no new work, and exits
+  0. Set `TimeoutStopSec` above the worst-case validation time.
+- **Heartbeat keeps long jobs alive (works today).** A daemon thread
+  heartbeats the in-flight run every `--poll-interval` seconds, so even
+  multi-hour validations are never reaped while genuinely running.
+- **Stuck-`running` reaper (works today).** If a worker dies mid-run its row
+  stops heartbeating; once `last_heartbeat_at` is older than
+  `poll-interval * reap-multiple` the reaper resets it to `queued` and
+  increments `attempt_count`. The backlog self-heals — no manual SQL reset
+  required. (A manual reset is still valid as a last resort:
+  `UPDATE APP_MCP_RUN_REGISTRY SET status='queued' WHERE run_id=:id AND status='running';`)
 
 ---
 
@@ -668,3 +699,4 @@ WantedBy=multi-user.target
 | S9-3 (#388) | Rate limiting — per-token/per-IP caps, env vars, 429/Retry-After, resource-exempt + get_run_status-elevated rules, in-memory-vs-Redis |
 | S9-4 (#389) | Token revocation — `jti` format + 24h grace window, `POST /api/v2/mcp/revoke` (admin-only), `valdo mcp-revoke` CLI, 60s-TTL blocklist cache, `MCP_REVOKED_TOKENS` (Alembic 0005), incident-response flow |
 | S9-5 (#391) | Background job worker (skeleton) — ADR 0021 run-registry-as-queue, `VALDO_MCP_ASYNC_VALIDATE` flag (default off), `valdo run-job-worker --once`, separate systemd unit, atomic `claim_next`, restart-pickup, manual stuck-run reset (reaper is fast-follow) |
+| S10-1 (#397) | Background-worker **runtime** — continuous poll loop (`--poll-interval`/`--max-runs`/`--reap-multiple`) with capped backoff, in-flight heartbeat thread, graceful `SIGTERM`/`SIGINT` shutdown, stuck-`running` reaper (`last_heartbeat_at`/`attempt_count`, Alembic 0006). Async flag still off (S10-2 flips it); RPM unit deferred to S10-2 |
