@@ -47,8 +47,28 @@ from pathlib import Path
 from typing import Any, Dict, Iterator, List, Tuple
 
 import yaml
-from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+    status,
+)
 from fastapi.responses import StreamingResponse
+
+from src.api.auth import AuthContext, verify_session_or_api_key
+from src.utils.audit_logger import audit_mutation
+
+
+def _onboarding_actor(ctx: AuthContext) -> str:
+    """Return a non-secret actor identity for the audit trail (S13.5-2)."""
+    if ctx.auth_kind == "ldap" and ctx.subject:
+        return ctx.subject
+    return f"apikey:{ctx.key_id}"
 
 logger = logging.getLogger(__name__)
 
@@ -1084,6 +1104,7 @@ async def open_merge_request(
             "valdo-onboarding/<source>-<timestamp>."
         ),
     ),
+    ctx: AuthContext = Depends(verify_session_or_api_key),
 ) -> Dict[str, Any]:
     """Branch + commit + push + open a PR via the ``gh`` CLI.
 
@@ -1181,7 +1202,7 @@ async def open_merge_request(
         source_code = workbook.source.source_code
         resolved_branch = branch_name or _default_branch_name(source_code)
         repo_root = Path.cwd()
-        return _open_mr_pipeline(
+        result = _open_mr_pipeline(
             plans,
             source_code=source_code,
             mr_title=mr_title,
@@ -1189,6 +1210,20 @@ async def open_merge_request(
             branch_name=resolved_branch,
             repo_root=repo_root,
         )
+        # S13.5-2 (#415): a successful open-MR writes the source spec +
+        # mapping/rules artefacts and pushes a branch — a SOX-relevant
+        # config mutation. Audit it after the pipeline returns so a failed
+        # push (which raises before this point) records nothing.
+        audit_mutation(
+            resource_type="source_spec",
+            resource_id=source_code,
+            action="create",
+            actor=_onboarding_actor(ctx),
+            triggered_by="api",
+            branch_name=resolved_branch,
+            pr_url=result.get("pr_url"),
+        )
+        return result
     finally:
         try:
             if tmp_path.exists():

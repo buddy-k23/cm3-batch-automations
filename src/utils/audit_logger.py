@@ -83,8 +83,32 @@ EVENT_TYPES = frozenset(
         "file_cleanup",
         "auth_failure",
         "suite_step_completed",
+        # S13.5-2 (#415) — auth-failure + config-mutation coverage.
+        # ``auth_failure`` already existed (API-key path); these add the
+        # config/mapping/rule/masking mutation event plus the MCP/LDAP
+        # auth-flow events that were emitted ad hoc before this story so
+        # they no longer trip the "unknown event type" warning.
+        "config_mutation",
+        "ldap_login_failure",
+        "ldap_login_success",
+        "ldap_logout",
+        "mcp_login_failure",
+        "mcp_login_success",
+        "mcp_revoke_failure",
+        "mcp_revoke_forbidden",
+        "mcp_revoke_success",
     }
 )
+
+# Recognised resource types for config_mutation events (S13.5-2). Kept as a
+# set so callers can validate against it, but emit() does not reject unknown
+# values — the audit record is informational, not a gate.
+MUTATION_RESOURCE_TYPES = frozenset(
+    {"mapping", "rules", "masking", "source_spec"}
+)
+
+# Recognised mutation actions.
+MUTATION_ACTIONS = frozenset({"create", "update", "delete"})
 
 
 # ---------------------------------------------------------------------------
@@ -553,3 +577,122 @@ def get_audit_logger() -> AuditLogger:
     if _default_logger is None:
         _default_logger = AuditLogger()
     return _default_logger
+
+
+# ---------------------------------------------------------------------------
+# Convenience emitters (S13.5-2, #415)
+# ---------------------------------------------------------------------------
+
+
+def audit_mutation(
+    *,
+    resource_type: str,
+    resource_id: str,
+    action: str,
+    actor: str,
+    triggered_by: str = "api",
+    outcome: str = "success",
+    correlation_id: Optional[str] = None,
+    **extra: Any,
+) -> dict[str, Any]:
+    """Emit a ``config_mutation`` audit event for a config/mapping/rule/masking change.
+
+    This is the single cohesive sink for the SOX-relevant mutation events
+    (S13.5-2, #415) so the many operator-facing entry points
+    (mapping/rules/masking upload, source-spec promotion) do not each
+    hand-roll an :meth:`AuditLogger.emit` call with drifting field names.
+
+    The record joins the tamper-evident chain via the shared
+    :func:`get_audit_logger` instance (S13.5-1), so it carries ``seq``,
+    ``prev_hash``, ``hash`` and ``hash_alg`` like every other event.
+
+    Args:
+        resource_type: What was changed — one of
+            :data:`MUTATION_RESOURCE_TYPES` (``mapping`` | ``rules`` |
+            ``masking`` | ``source_spec``). Not enforced; an unrecognised
+            value is still recorded.
+        resource_id: The resource's identifier/name (e.g. the mapping id).
+        action: The mutation verb — one of :data:`MUTATION_ACTIONS`
+            (``create`` | ``update`` | ``delete``).
+        actor: The authenticated principal that performed the change
+            (e.g. ``apikey:abc123`` or an LDAP user/DN). NEVER pass a raw
+            secret/key value here.
+        triggered_by: Surface that drove the change (``api`` | ``mcp`` |
+            ``cli``). Defaults to ``api``.
+        outcome: ``success`` (default) or ``failure``.
+        correlation_id: Optional request/run correlation id for lineage.
+        **extra: Additional non-secret fields merged into the event.
+
+    Returns:
+        The complete event dict that was written.
+
+    Raises:
+        AuditWriteError: If the audit-file write fails (fail-closed —
+            handle at the request boundary, do not surface a bare
+            traceback to the client).
+    """
+    payload: dict[str, Any] = {
+        "resource_type": resource_type,
+        "resource_id": resource_id,
+        "action": action,
+        "actor": actor,
+        "triggered_by": triggered_by,
+        "outcome": outcome,
+    }
+    if correlation_id is not None:
+        payload["correlation_id"] = correlation_id
+    payload.update(extra)
+    return get_audit_logger().emit("config_mutation", **payload)
+
+
+def audit_auth_failure(
+    *,
+    auth_kind: str,
+    reason: str,
+    client_ip: str = "unknown",
+    principal: Optional[str] = None,
+    triggered_by: str = "api",
+    **extra: Any,
+) -> dict[str, Any]:
+    """Emit an ``auth_failure`` audit event (``outcome="failure"``).
+
+    Cohesive sink for the auth-failure coverage (S13.5-2, #415). The
+    secret/token value is NEVER an argument — callers pass the attempted
+    *principal* (e.g. a key-id suffix or username) if known, never the raw
+    credential.
+
+    Fail-closed (S13.5-1): a genuine audit-write outage raises
+    :class:`AuditWriteError`. Callers MUST emit the failure event *before*
+    raising the 401/403 so the security event is on the chain, but must
+    still surface the original auth error to the client (see the API-key
+    and MCP auth sites for the documented ordering).
+
+    Args:
+        auth_kind: How the caller tried to authenticate (``api_key`` |
+            ``mcp_api_key`` | ``mcp_bearer`` | ``ldap`` | ``session``).
+        reason: Short machine reason (``missing_api_key`` |
+            ``invalid_api_key`` | ...). Never the credential value.
+        client_ip: Proxy-corrected client IP (S9-1). Defaults to
+            ``"unknown"`` when the request has no client.
+        principal: Attempted identity if known (username, key-id suffix);
+            ``None`` when unknown. Never a secret.
+        triggered_by: Surface (``api`` | ``mcp`` | ``web_ui``).
+        **extra: Additional non-secret fields merged into the event.
+
+    Returns:
+        The complete event dict that was written.
+
+    Raises:
+        AuditWriteError: If the audit-file write fails.
+    """
+    payload: dict[str, Any] = {
+        "outcome": "failure",
+        "auth_kind": auth_kind,
+        "reason": reason,
+        "client_ip": client_ip,
+        "triggered_by": triggered_by,
+    }
+    if principal is not None:
+        payload["principal"] = principal
+    payload.update(extra)
+    return get_audit_logger().emit("auth_failure", **payload)

@@ -215,8 +215,13 @@ class TestEventTypes:
     """Tests for the EVENT_TYPES constant."""
 
     def test_known_event_types(self):
-        """All documented event types are present."""
-        expected = {
+        """All documented event types are present.
+
+        S13.5-2 (#415) added the config-mutation + auth-flow event types;
+        the original set must remain a subset so the older callers still
+        emit recognised types.
+        """
+        original = {
             "test_run_started",
             "test_run_completed",
             "file_uploaded",
@@ -224,7 +229,18 @@ class TestEventTypes:
             "auth_failure",
             "suite_step_completed",
         }
-        assert EVENT_TYPES == expected
+        s13_5_2 = {
+            "config_mutation",
+            "ldap_login_failure",
+            "ldap_login_success",
+            "ldap_logout",
+            "mcp_login_failure",
+            "mcp_login_success",
+            "mcp_revoke_failure",
+            "mcp_revoke_forbidden",
+            "mcp_revoke_success",
+        }
+        assert EVENT_TYPES == original | s13_5_2
 
 
 # ---------------------------------------------------------------------------

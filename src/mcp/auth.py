@@ -839,6 +839,18 @@ class MCPAuthMiddleware(BaseHTTPMiddleware):
                 break
 
         if principal is None:
+            # S13.5-2 (#415): audit the MCP auth failure before returning
+            # the 401. This covers the X-API-Key + bearer-token failure
+            # paths that previously fell through to a bare 401 with no
+            # audit record (the LDAP /mcp/login path already audits via
+            # mcp_login_failure). We do NOT log any credential value — only
+            # whether a header/cookie was present, plus the proxy-corrected
+            # client IP (S9-1). Fail-closed (S13.5-1): if the audit write
+            # itself fails the AuditWriteError is caught and logged so a
+            # genuine audit outage is visible, but the original 401 still
+            # reaches the client (an audit hiccup must not turn an
+            # unauthenticated request into an authenticated one).
+            self._audit_mcp_auth_failure(request)
             return JSONResponse(
                 status_code=401,
                 content={"error": "MCP auth required"},
@@ -852,6 +864,47 @@ class MCPAuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
         finally:
             _current_user_ctx.reset(token)
+
+    def _audit_mcp_auth_failure(self, request: Request) -> None:
+        """Emit an auth_failure audit event for a rejected MCP request.
+
+        Records the proxy-corrected client IP (S9-1) and which credential
+        forms were *presented* (booleans only — never the values) so a SOC
+        analyst can tell a no-credential probe from a bad-credential
+        attempt without any secret landing in the log.
+
+        Fail-closed handling (S13.5-2 + S13.5-1): the audit write can raise
+        :class:`AuditWriteError`. Unlike the request-handler sites (which
+        let it bubble to a 500), the auth middleware MUST still return its
+        401 — turning an audit-file outage into a path that *fails open*
+        would be a worse security outcome than a missing audit line. We
+        therefore catch the error, log it loudly for ops to alert on, and
+        proceed to the 401. The loud ERROR log is the visibility signal.
+        """
+        from src.utils.audit_logger import AuditWriteError, audit_auth_failure
+
+        client_ip = client_ip_of(request)
+        had_api_key = bool(request.headers.get("x-api-key"))
+        had_bearer = bool(
+            (request.headers.get("authorization") or "").lower().startswith("bearer ")
+        )
+        try:
+            audit_auth_failure(
+                auth_kind="mcp",
+                reason="no_valid_credential",
+                client_ip=client_ip,
+                triggered_by="mcp",
+                presented_api_key=had_api_key,
+                presented_bearer=had_bearer,
+                path=request.url.path,
+            )
+        except AuditWriteError:
+            # Visible (ERROR) but non-fatal here: the 401 must still stand.
+            logger.error(
+                "mcp_auth_failure_audit_write_failed path=%s client_ip=%s",
+                request.url.path,
+                client_ip,
+            )
 
     async def _enforce_rate_limit(
         self,

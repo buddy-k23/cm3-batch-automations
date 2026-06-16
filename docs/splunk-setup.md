@@ -61,8 +61,11 @@ Every audit event contains at minimum:
 | `test_run_completed`   | Run finished (includes result summary)   |
 | `file_uploaded`        | File uploaded via API                    |
 | `file_cleanup`         | Stale files removed by cleanup job       |
-| `auth_failure`         | API key authentication failed            |
+| `auth_failure`         | API-key or MCP authentication failed (`outcome=failure`) |
 | `suite_step_completed` | Pipeline suite step finished             |
+| `config_mutation`      | Mapping/rules/masking/source-spec created/updated/deleted |
+| `mcp_login_failure`    | MCP `/login` LDAP bind failed            |
+| `mcp_login_success`    | MCP token minted for an authenticated user |
 
 ## Sample Splunk Searches
 

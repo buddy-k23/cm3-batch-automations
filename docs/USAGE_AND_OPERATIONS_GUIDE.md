@@ -3844,7 +3844,33 @@ Each line in the audit log is a self-contained JSON object:
 ```
 
 Recognised event types: `test_run_started`, `test_run_completed`,
-`file_uploaded`, `file_cleanup`, `auth_failure`, `suite_step_completed`.
+`file_uploaded`, `file_cleanup`, `auth_failure`, `suite_step_completed`,
+`config_mutation`, `ldap_login_failure`, `ldap_login_success`, `ldap_logout`,
+`mcp_login_failure`, `mcp_login_success`, `mcp_revoke_failure`,
+`mcp_revoke_forbidden`, `mcp_revoke_success`.
+
+**Auth-failure + mutation coverage (S13.5-2, #415).** Every authentication
+failure is audited with `outcome="failure"` and the proxy-corrected client
+IP, never the attempted credential value:
+
+- API-key failures (missing/invalid `X-API-Key`) emit `auth_failure` with
+  `auth_kind="api_key"` and `reason` of `missing_api_key` / `invalid_api_key`.
+  The event is written *before* the 401/403 is returned; a genuine audit
+  outage surfaces as a 500 (fail-closed) rather than silently dropping the
+  record, but on the normal path the original auth error still reaches the
+  client.
+- MCP HTTP requests that present no valid credential emit `auth_failure`
+  with `auth_kind="mcp"` (booleans note which credential forms were
+  presented). The MCP auth middleware keeps returning its 401 even if the
+  audit write fails — failing open would be a worse security outcome — and
+  logs the write failure at ERROR for ops alerting.
+
+Config/mapping/rule/source-spec mutations through the operator-facing
+API/MCP entry points (mapping upload + delete, rules upload, onboarding
+open-MR, MCP `upload_workbook_as_spec`) emit a `config_mutation` event
+carrying `actor`, `resource_type`, `resource_id`, `action`
+(`create`/`update`/`delete`) and `outcome`. These records join the same
+tamper-evident hash chain as every other event (S13.5-1).
 
 #### Splunk Integration
 

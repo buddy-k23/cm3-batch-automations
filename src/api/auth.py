@@ -74,15 +74,55 @@ def verify_api_key(
             detail="Server is not configured with API keys.",
         )
 
+    # S9-1 (#387): request.client.host is already proxy-corrected by
+    # ProxyHeadersMiddleware (trusted X-Forwarded-For), so this is the REAL
+    # client IP for the SOX auth-failure trail — not nginx's address.
+    client_ip = request.client.host if request.client else "unknown"
+
     if not x_api_key:
+        # S13.5-2 (#415): audit the failure FIRST, then raise the 401.
+        # Ordering rationale (fail-closed, S13.5-1): if the audit write
+        # itself fails it raises AuditWriteError, which the API error
+        # handler turns into a 500 — a genuine audit outage is therefore
+        # visible rather than silently swallowed. On the normal path the
+        # event is recorded and the original 401 still reaches the client
+        # (the audit emit never masks the auth error). No secret is logged.
+        _audit_auth_failure(
+            auth_kind="api_key", reason="missing_api_key", client_ip=client_ip
+        )
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing X-API-Key")
 
     role = keys.get(x_api_key)
     if role is None:
         logger.warning("api_auth_failed path=%s reason=invalid_api_key", request.url.path)
+        # Audit before raising the 403; the attempted key VALUE is never
+        # logged (we record nothing key-derived for a failed lookup —
+        # x_api_key[-6:] could leak entropy of a real near-miss key).
+        _audit_auth_failure(
+            auth_kind="api_key", reason="invalid_api_key", client_ip=client_ip
+        )
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid API key")
 
     return AuthContext(key_id=x_api_key[-6:], role=role)
+
+
+def _audit_auth_failure(*, auth_kind: str, reason: str, client_ip: str) -> None:
+    """Emit an auth_failure audit event (S13.5-2, #415).
+
+    Thin indirection over :func:`src.utils.audit_logger.audit_auth_failure`
+    with a lazy import so this module stays importable in contexts that do
+    not pull in the audit logger. The audit write is fail-closed
+    (AuditWriteError propagates) — see the call sites for the documented
+    ordering vs. raising the 401/403.
+    """
+    from src.utils.audit_logger import audit_auth_failure
+
+    audit_auth_failure(
+        auth_kind=auth_kind,
+        reason=reason,
+        client_ip=client_ip,
+        triggered_by="api",
+    )
 
 
 ROLE_ORDER = {"tester": 10, "mapping_owner": 20, "admin": 30}

@@ -292,6 +292,23 @@ def upload_workbook_as_spec_payload(
     except Exception:  # pragma: no cover — workbook already opened twice above
         sheet_count = 0
 
+    # S13.5-2 (#415): staging a draft workbook as the source spec is an
+    # operator-facing config mutation via the MCP surface. Audit it after
+    # the copy succeeds, attributing it to the authenticated MCP principal
+    # (set by the auth middleware / stdio token loader). No secret is
+    # logged — only the principal's short handle.
+    from src.mcp.auth import current_user
+    from src.utils.audit_logger import audit_mutation
+
+    principal = current_user()
+    audit_mutation(
+        resource_type="source_spec",
+        resource_id=resolved_code,
+        action="create",
+        actor=principal.user if principal else "mcp",
+        triggered_by="mcp",
+    )
+
     return {
         "sandbox_path": str(sandbox_path),
         "source_code": resolved_code,

@@ -10,9 +10,17 @@ from fastapi.responses import FileResponse
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from src.api.auth import require_role
+from src.api.auth import AuthContext, require_role
 from src.config.ba_rules_template_converter import BARulesTemplateConverter
 from src.config.rules_template_converter import RulesTemplateConverter
+from src.utils.audit_logger import audit_mutation
+
+
+def _actor_of(ctx: AuthContext) -> str:
+    """Return a non-secret actor identity for the audit trail (S13.5-2)."""
+    if ctx.auth_kind == "ldap" and ctx.subject:
+        return ctx.subject
+    return f"apikey:{ctx.key_id}"
 
 router = APIRouter()
 
@@ -46,7 +54,7 @@ async def list_rules():
 
 @router.post("/upload")
 async def upload_rules_template(
-    _=Depends(require_role("mapping_owner")),
+    ctx: AuthContext = Depends(require_role("mapping_owner")),
     file: UploadFile = File(...),
     rules_name: str = Query(None, description="Name for the rules config"),
     rules_type: Literal["ba_friendly", "technical"] = Query("ba_friendly", description="ba_friendly or technical"),
@@ -90,6 +98,16 @@ async def upload_rules_template(
 
         output_path = RULES_DIR / f"{rules_id}.json"
         converter.save(str(output_path))
+
+        # S13.5-2 (#415): audit the rules-config mutation after save.
+        audit_mutation(
+            resource_type="rules",
+            resource_id=rules_id,
+            action="create",
+            actor=_actor_of(ctx),
+            triggered_by="api",
+            rules_type=rules_type,
+        )
 
         # Read back generated JSON for preview
         rules_content = None

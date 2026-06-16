@@ -6,6 +6,7 @@ from pathlib import Path
 from fastapi import UploadFile, HTTPException
 
 
+from src.api.auth import AuthContext
 from src.api.models.mapping import MappingCreate, SourceConfig, FieldSpec
 from src.api.routers.files import detect_format, parse_file, compare_files
 from src.api.routers.mappings import (
@@ -14,6 +15,10 @@ from src.api.routers.mappings import (
     validate_mapping,
     delete_mapping,
 )
+
+# S13.5-2 (#415): delete_mapping now takes an AuthContext (for the audit
+# actor). Direct (non-TestClient) calls must supply one explicitly.
+_TEST_CTX = AuthContext(key_id="testkey", role="mapping_owner")
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -97,7 +102,7 @@ def test_mappings_router_list_get_validate_delete_direct():
         )
         assert validation.valid is True
 
-        deleted = asyncio.run(delete_mapping(mapping_id))
+        deleted = asyncio.run(delete_mapping(mapping_id, ctx=_TEST_CTX))
         assert deleted["success"] is True
     finally:
         if mapping_path.exists():

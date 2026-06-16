@@ -11,7 +11,7 @@ import shutil
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from src.api.auth import require_role
+from src.api.auth import AuthContext, require_role
 from src.api.models.mapping import (
     MappingCreate,
     MappingResponse,
@@ -21,6 +21,18 @@ from src.api.models.mapping import (
 )
 from src.config.template_converter import TemplateConverter
 from src.config.universal_mapping_parser import UniversalMappingParser
+from src.utils.audit_logger import audit_mutation
+
+
+def _actor_of(ctx: AuthContext) -> str:
+    """Return a non-secret actor identity for the audit trail (S13.5-2).
+
+    Uses the LDAP subject when present, else a ``apikey:<suffix>`` handle
+    built from the already-truncated key id. Never the raw key value.
+    """
+    if ctx.auth_kind == "ldap" and ctx.subject:
+        return ctx.subject
+    return f"apikey:{ctx.key_id}"
 
 router = APIRouter()
 
@@ -34,7 +46,7 @@ UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 @router.post("/upload", response_model=UploadResponse)
 async def upload_template(
-    _=Depends(require_role("mapping_owner")),
+    ctx: AuthContext = Depends(require_role("mapping_owner")),
     file: UploadFile = File(...),
     mapping_name: str = Query(None, description="Name for the mapping"),
     file_format: str = Query(None, description="File format: fixed_width, pipe_delimited, csv, tsv")
@@ -88,6 +100,16 @@ async def upload_template(
             import json as _json
             with open(output_path) as _f:
                 mapping_content = _json.load(_f)
+
+        # S13.5-2 (#415): audit the mutation. Emitted after a successful
+        # save so a failed conversion does not record a phantom change.
+        audit_mutation(
+            resource_type="mapping",
+            resource_id=mapping_id,
+            action="create",
+            actor=_actor_of(ctx),
+            triggered_by="api",
+        )
 
         conversion_warnings = mapping.get("warnings", [])
         message = f"Template converted successfully. Mapping saved as '{mapping_id}'"
@@ -203,19 +225,30 @@ async def validate_mapping(mapping: MappingCreate):
 
 
 @router.delete("/{mapping_id}")
-async def delete_mapping(mapping_id: str, _=Depends(require_role("mapping_owner"))):
+async def delete_mapping(
+    mapping_id: str,
+    ctx: AuthContext = Depends(require_role("mapping_owner")),
+):
     """
     Delete mapping by ID.
-    
+
     Permanently removes the mapping file.
     """
     mapping_file = MAPPINGS_DIR / f"{mapping_id}.json"
-    
+
     if not mapping_file.exists():
         raise HTTPException(status_code=404, detail=f"Mapping '{mapping_id}' not found")
-    
+
     try:
         mapping_file.unlink()
+        # S13.5-2 (#415): audit the delete after the unlink succeeds.
+        audit_mutation(
+            resource_type="mapping",
+            resource_id=mapping_id,
+            action="delete",
+            actor=_actor_of(ctx),
+            triggered_by="api",
+        )
         return {"success": True, "message": f"Mapping '{mapping_id}' deleted successfully"}
     
     except Exception as e:
