@@ -329,6 +329,10 @@ Services
    :members:
    :undoc-members:
 
+.. automodule:: src.services.onboarding_vcs_service
+   :members:
+   :undoc-members:
+
 Contracts & Adapters
 --------------------
 
