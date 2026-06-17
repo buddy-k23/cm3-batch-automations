@@ -118,6 +118,10 @@ from src.mcp.etl_pipeline_tools import (
     RUN_ETL_PIPELINE_DESCRIPTION,
     run_etl_pipeline_payload,
 )
+from src.mcp.export_tools import (
+    EXPORT_FAILED_ROWS_DESCRIPTION,
+    export_failed_rows_payload,
+)
 from src.mcp.onboarding_tools import (
     INFER_MAPPING_FROM_SAMPLE_DESCRIPTION,
     ONBOARD_SOURCE_DRY_RUN_DESCRIPTION,
@@ -869,6 +873,41 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
             config=config,
             run_date=run_date,
             params=params,
+        )
+
+    # ------------------------------------------------------------------
+    # S22-3 (#440) — export-failed-rows tool.
+    #
+    # ``export_failed_rows`` wraps the existing Valdo validate + error-extract
+    # path (:func:`src.services.validate_service.run_validate_service` +
+    # :func:`src.services.error_extractor.extract_error_rows`), the same code path
+    # the ``valdo validate --export-errors`` CLI flag and the
+    # ``POST /api/v1/files/export-errors`` REST endpoint drive. Thin adapter only
+    # — validation, failed-row collection, and the original-format write-back live
+    # in the service layer. CRITICAL PII posture: the response carries ONLY the
+    # export-file path + the counts (failed/total/valid) — NEVER the raw
+    # failed-row values, which exist solely in the on-disk export file. The input
+    # file is never modified; a clean file (zero failed rows) is a RESULT.
+    # ------------------------------------------------------------------
+
+    @mcp_server.tool(
+        name="export_failed_rows",
+        title="Export a file's failed validation rows",
+        description=EXPORT_FAILED_ROWS_DESCRIPTION,
+    )
+    def _export_failed_rows_tool(
+        file: str,
+        mapping: str,
+        output: str,
+        rules: Optional[str] = None,
+        use_chunked: bool = False,
+    ) -> Dict[str, Any]:
+        return export_failed_rows_payload(
+            file=file,
+            mapping=mapping,
+            output=output,
+            rules=rules,
+            use_chunked=use_chunked,
         )
 
     # ------------------------------------------------------------------

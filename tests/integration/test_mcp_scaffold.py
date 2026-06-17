@@ -275,6 +275,7 @@ def test_mcp_capabilities_advertise_expected_registries(monkeypatch):
         "compare_two_files",
         "db_compare",
         "detect_drift",
+        "export_failed_rows",
         "extract_table",
         "get_run_status",
         "get_source_spec",

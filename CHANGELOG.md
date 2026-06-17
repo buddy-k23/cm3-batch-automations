@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- feat(mcp): export_failed_rows tool — export invalid rows over MCP (S22-3, #440)
 - feat(mcp): run_etl_pipeline tool — run a multi-gate ETL pipeline over MCP (S22-2, #439)
 - feat(mcp): parse_file tool — parse/inspect a file over MCP (S22-1, #438)
 - feat(mcp): extract_table tool — DB extract to file over MCP (adapter-based; S13.5-4 SQL hardening preserved) (S21-5, #437)

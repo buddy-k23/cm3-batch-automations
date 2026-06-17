@@ -34,6 +34,7 @@ The MCP server exposes seventeen tools:
 - `extract_table` — adapter-agnostic DB extract (table or query) to a flat file (S21-5)
 - `parse_file` — parse/inspect a batch file, returning a bounded preview (S22-1)
 - `run_etl_pipeline` — run a multi-gate ETL validation pipeline from a YAML config (S22-2)
+- `export_failed_rows` — validate a file and export only the failed rows to a file (S22-3)
 
 ### Tool: `reconcile_mapping` (#407)
 
@@ -268,6 +269,39 @@ tool error** — inspect `status` to decide what to do next. The response carrie
 secrets. Tool errors are reserved for caller-fixable problems: a missing/blank
 `config`, a config file that does not exist, malformed pipeline YAML, or an
 unexpected runner failure.
+
+### Tool: `export_failed_rows` (S22-3)
+
+Validates a batch file against a mapping and exports **only the rows that failed
+validation** to an output file, in the file's original format (delimited files
+keep their header row; fixed-width files get the raw failed lines) — so an agent
+can produce a remediation file without loading the failed rows into its context.
+It wraps the existing Valdo validate + error-extract path
+([`src/services/validate_service.py::run_validate_service`](../src/services/validate_service.py)
++ [`src/services/error_extractor.py::extract_error_rows`](../src/services/error_extractor.py))
+— the same code path the `valdo validate --export-errors` CLI flag and the
+`POST /api/v1/files/export-errors` REST endpoint drive. The input file is never
+modified.
+
+**Input parameters**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `file` | string | yes | Path to the batch file to validate. Never modified. |
+| `mapping` | string | yes | Path to the mapping JSON the file is validated against. |
+| `output` | string | yes | Destination path for the exported failed rows. Parent dirs are created automatically. |
+| `rules` | string | no | Path to a rules-config JSON applied during validation. |
+| `use_chunked` | bool | no | Route validation through the memory-efficient chunked validator (delimited files only). Defaults to `false`. |
+
+**Result shape** — `output_path` (the export file written), `failed_row_count`
+(rows written), `total_rows`, `valid_rows`, and `valid` (overall flag).
+**CRITICAL PII posture:** the response carries **only** the path and the counts —
+it **never** includes the raw failed-row values or field contents (those live
+solely in the on-disk export file). A clean file (zero failed rows) is a **result,
+not an error** — inspect `failed_row_count`. Tool errors are reserved for
+caller-fixable problems: a missing/blank `file`, `mapping`, or `output`, an input
+file or mapping file that cannot be found or parsed, or an unexpected
+validation/extraction failure.
 
 ### Tool: `compare_two_files` (S7-4)
 
