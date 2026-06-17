@@ -815,6 +815,25 @@ valdo db-compare \
 | `--output-format` | `json` | Output format: `json` or `html` |
 | `--output, -o` | | File path for the report |
 
+The output follows the consistent output contract: an `--output` path ending in
+`.html` (or `--output-format html`) writes a real HTML comparison report,
+rendered with the same renderer as `valdo compare`; any other extension writes
+machine JSON. Example:
+
+```bash
+valdo db-compare \
+  --query-or-table "SELECT * FROM SHAW_SRC_P327" \
+  --mapping config/mappings/p327_mapping.json \
+  --actual-file data/batch/p327_output.txt \
+  --key-columns "ACCOUNT_NUM" \
+  --output db_compare_report.html
+```
+
+The REST endpoint `POST /api/v1/files/db-compare` mirrors this: passing
+`output_format=html` renders the report into the uploads directory and returns a
+`report_url` (e.g. `/uploads/dbcompare_<file>.html`), just like `/compare` and
+`/validate`.
+
 ### parse
 
 Parse a file and display or export its contents.

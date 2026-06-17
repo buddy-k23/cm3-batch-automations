@@ -296,6 +296,7 @@ def compare_db_to_file(
     key_columns: list[str] | str | None = None,
     apply_transforms: bool = False,
     connection_override: dict[str, Any] | None = None,
+    output_path: str | None = None,
 ) -> dict[str, Any]:
     """Extract data from the configured database, format it, and compare against a file.
 
@@ -318,8 +319,13 @@ def compare_db_to_file(
         mapping_config: Parsed mapping JSON dict (must contain a ``fields``
             list with ``name`` entries).
         actual_file: Path to the actual batch file to compare against.
-        output_format: Desired output format for downstream use (``"json"``
-            or ``"html"``). Currently informational only.
+        output_format: Desired output format for the report (``"json"`` or
+            ``"html"``).  When ``output_path`` is supplied, ``"html"`` (or an
+            ``output_path`` ending in ``.html``) renders a real HTML comparison
+            report via
+            :class:`~src.reports.renderers.comparison_renderer.HTMLReporter`,
+            reusing the file-compare renderer because the db-compare ``compare``
+            section is the same ``run_compare_service`` shape it consumes.
         key_columns: Column name(s) used as join keys during comparison.
             May be a comma-separated string or a list. When None, row-by-row
             comparison is used.
@@ -339,12 +345,21 @@ def compare_db_to_file(
             env-configured adapter (``DB_ADAPTER`` and the corresponding env
             vars) is used.  Credentials are passed straight to the adapter and
             are never logged.
+        output_path: Optional filesystem path for an HTML report.  When set and
+            the resolved format is HTML (``output_format == "html"`` or the path
+            ends with ``.html``), an HTML report is rendered to this path and the
+            resolved path is recorded under the result's ``report_path`` key.
+            When ``None`` (the default), no report is written and the result
+            shape is unchanged — preserving backward compatibility.
 
     Returns:
         Dict with two top-level keys:
 
         - ``workflow``: status, db_rows_extracted, query_or_table
         - ``compare``: full output of run_compare_service
+
+        When an HTML report is rendered, an additional ``report_path`` key holds
+        the path to the written ``.html`` file.
 
     Raises:
         FileNotFoundError: When *actual_file* does not exist on disk.
@@ -436,4 +451,23 @@ def compare_db_to_file(
     }
     if transform_details is not None:
         result["transform_details"] = transform_details
+
+    # --- Optional HTML report (S23-2, #444) ---------------------------------
+    # The db-compare verdict's ``compare`` section is the exact
+    # ``run_compare_service`` output shape that the file-compare HTMLReporter
+    # already consumes, so we reuse that renderer verbatim (no new HTML engine,
+    # no shape adapter).  ``.html`` extension or ``output_format == "html"``
+    # both select HTML, honouring the consistent output contract.
+    if output_path:
+        wants_html = output_format == "html" or output_path.lower().endswith(".html")
+        if wants_html:
+            # Local import keeps the reporting layer optional for callers that
+            # never request HTML and avoids any import cycle at module load.
+            from src.reports.renderers.comparison_renderer import HTMLReporter
+
+            out = Path(output_path)
+            out.parent.mkdir(parents=True, exist_ok=True)
+            HTMLReporter().generate(compare_result, str(out))
+            result["report_path"] = str(out)
+
     return result

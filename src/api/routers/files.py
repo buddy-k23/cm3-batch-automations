@@ -734,6 +734,15 @@ async def db_compare(
     try:
         key_columns_list = [k.strip() for k in key_columns.split(",") if k.strip()]
 
+        # When HTML is requested, render the report into UPLOADS_DIR so it can be
+        # served back as a ``report_url`` (mirroring /compare and /validate). The
+        # service reuses the file-compare HTMLReporter (S23-2, #444).
+        report_url: str | None = None
+        report_output_path: str | None = None
+        if output_format == "html":
+            report_stem = f"dbcompare_{upload_path.stem}"
+            report_output_path = str(UPLOADS_DIR / f"{report_stem}.html")
+
         result = compare_db_to_file(
             query_or_table=query_or_table,
             mapping_config=mapping_config,
@@ -742,7 +751,12 @@ async def db_compare(
             key_columns=key_columns_list or None,
             apply_transforms=apply_transforms,
             connection_override=connection_override,
+            output_path=report_output_path,
         )
+
+        written = result.get("report_path")
+        if written and Path(written).exists():
+            report_url = f"/uploads/{Path(written).name}"
 
         workflow = result.get("workflow", {})
         compare = result.get("compare", {})
@@ -768,6 +782,7 @@ async def db_compare(
             only_in_file1=_to_int(compare.get("only_in_file1", 0)),
             only_in_file2=_to_int(compare.get("only_in_file2", 0)),
             differences=_to_int(rows_with_diffs),
+            report_url=report_url,
             structure_compatible=compare.get("structure_compatible"),
             structure_errors=compare.get("structure_errors"),
             field_statistics=compare.get("field_statistics"),

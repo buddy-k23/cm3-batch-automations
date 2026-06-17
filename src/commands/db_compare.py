@@ -21,6 +21,7 @@ def run_db_compare_command(
     output: str | None,
     logger: Any,
     apply_transforms: bool = False,
+    connection_override: dict[str, Any] | None = None,
 ) -> None:
     """Execute the DB extract → file comparison workflow from the CLI.
 
@@ -35,11 +36,18 @@ def run_db_compare_command(
         output_format: Output format for the report (``"json"`` or ``"html"``).
         key_columns: Comma-separated key column names for row-level matching.
             Pass ``None`` or empty string for row-by-row comparison.
-        output: Optional file path to write the JSON result report.
+        output: Optional file path to write the result report.  A ``.html``
+            path (or ``output_format == "html"``) writes a real HTML comparison
+            report; any other extension writes machine JSON — the consistent
+            output contract (``.html`` -> HTML, ``.json`` -> JSON).
         logger: Logger instance used for error messages.
         apply_transforms: When ``True``, field-level transforms defined in
             the mapping are applied to each DB row before comparison.
             Defaults to ``False``.
+        connection_override: Optional per-request DB connection override passed
+            straight through to
+            :func:`~src.services.db_file_compare_service.compare_db_to_file`
+            (e.g. ``{"db_adapter": "sqlite", "db_path": ...}``).
 
     Raises:
         SystemExit: On any error (mapping not found, DB failure, etc.).
@@ -56,6 +64,14 @@ def run_db_compare_command(
         logger.error(f"Failed to load mapping file: {exc}")
         sys.exit(1)
 
+    # --- Resolve the output contract (.html -> HTML, else JSON) --------------
+    # When the user requests an HTML report, the service renders it directly
+    # (reusing the file-compare HTMLReporter); JSON is written by this command.
+    wants_html = bool(output) and (
+        output_format == "html" or str(output).lower().endswith(".html")
+    )
+    html_output_path = output if wants_html else None
+
     # --- Delegate to service layer -------------------------------------------
     try:
         result = compare_db_to_file(
@@ -65,6 +81,8 @@ def run_db_compare_command(
             output_format=output_format,
             key_columns=key_columns or None,
             apply_transforms=apply_transforms,
+            connection_override=connection_override,
+            output_path=html_output_path,
         )
     except FileNotFoundError as exc:
         logger.error(str(exc))
@@ -97,8 +115,16 @@ def run_db_compare_command(
         click.echo(click.style("\n  FAIL", fg="red"))
 
     # --- Optional report output ----------------------------------------------
+    # HTML reports are rendered by the service (path recorded in
+    # ``result['report_path']``); JSON reports are written here.  This keeps the
+    # consistent output contract: ``.html`` -> HTML, anything else -> JSON.
     if output:
-        output_path = Path(output)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(json.dumps(result, indent=2, default=str), encoding="utf-8")
-        click.echo(f"\nReport written to: {output}")
+        if wants_html:
+            click.echo(f"\nReport written to: {result.get('report_path', output)}")
+        else:
+            output_path = Path(output)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_text(
+                json.dumps(result, indent=2, default=str), encoding="utf-8"
+            )
+            click.echo(f"\nReport written to: {output}")

@@ -52,6 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - chore(repo): remove pilot_database_validations/ prototype per ADR 0020 — kill-and-defer, no DB-to-DB capability lost (S8.5-2, #394)
 
 ### Fixed
+- fix(reports): db-compare emits a real HTML report (was 'informational only') (S23-2, #444)
 - test(api): authenticate the stale file/system integration tests (asserted pre-auth open-access; product auth unchanged)
 - fix(db): extract_to_file uses csv-module quoting so delimiter/newline values round-trip; stable numeric formatting (S16-2, #426)
 - fix(robustness): unreadable input fails (not valid:True), cross_type coercion failures surface, /health does a real DB check, configured secrets providers fail closed (S16-1, #425)
