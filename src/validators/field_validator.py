@@ -348,3 +348,75 @@ class FieldValidator:
         """
         series = df[field].astype(str)
         return series.str.len() < length
+
+    # ------------------------------------------------------------------
+    # ADR 0018 / issue #395 — JSON (NDJSON) predicates.
+    #
+    # JsonParser flattens each NDJSON record to one column per field. A
+    # ``json_path`` ending in ``[*]`` becomes an integer ``<field>_count``
+    # column; scalar paths preserve JSON's three states (value / present-null
+    # / absent) as (value / None / pd.NA). These two predicates are the only
+    # JSON-specific rules in v1 — every other field predicate above operates
+    # unchanged on the flattened scalar columns.
+    # ------------------------------------------------------------------
+
+    def validate_json_array_length(
+        self, df: pd.DataFrame, field: str,
+        min_len: int, max_len: int = None
+    ) -> pd.Series:
+        """Flag rows whose JSON array count column is outside ``[min_len, max_len]``.
+
+        Operates on the integer count column
+        :class:`~src.parsers.json_parser.JsonParser` emits for a
+        ``[*]`` path (e.g. ``transactions_count``). Drives BA rules such as
+        "every statement must carry at least one transaction" (``min_len=1``)
+        or "no statement may carry more than 500 transactions"
+        (``max_len=500``).
+
+        Args:
+            df: DataFrame to validate.
+            field: The count column name (e.g. ``transactions_count``).
+            min_len: Inclusive minimum array length.
+            max_len: Optional inclusive maximum array length. When ``None``
+                only the lower bound is enforced.
+
+        Returns:
+            Boolean mask where ``True`` indicates a row whose count is below
+            ``min_len`` or above ``max_len``. A non-numeric / absent count
+            (``pd.NA``) coerces to ``NaN`` and is flagged — it cannot satisfy
+            a minimum.
+        """
+        counts = pd.to_numeric(df[field], errors="coerce")
+        # NaN (non-numeric / absent count) fails the lower bound: a row with
+        # no resolvable array cannot meet a minimum length requirement.
+        below = ~(counts >= min_len)
+        if max_len is not None:
+            above = counts > max_len
+            return below | above
+        return below
+
+    def validate_nested_required(
+        self, df: pd.DataFrame, field: str
+    ) -> pd.Series:
+        """Flag rows where the JSON path did not resolve (key absent).
+
+        Distinct from :meth:`validate_not_empty`: JSON has three states a
+        flat file does not — present-with-value, present-with-null, and
+        absent.  :class:`~src.parsers.json_parser.JsonParser` writes
+        ``pd.NA`` for an absent path and ``None`` for a present-null value,
+        so this predicate flags **only** absence. Use ``not_empty`` in
+        addition when a non-null value is also required.
+
+        Args:
+            df: DataFrame to validate.
+            field: The flattened column name (e.g. ``customer_id``).
+
+        Returns:
+            Boolean mask where ``True`` indicates the path was absent
+            (``pd.NA``). Present-null (``None``) and present values are not
+            flagged.
+        """
+        # ``isna()`` treats both pd.NA and None as missing, so distinguish
+        # them explicitly: only pd.NA (absent) is a violation, not None
+        # (present-with-null). ``is pd.NA`` is the exact-identity check.
+        return df[field].map(lambda v: v is pd.NA)

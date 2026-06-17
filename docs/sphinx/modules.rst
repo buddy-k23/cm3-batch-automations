@@ -109,6 +109,11 @@ Parsers
    :members:
    :undoc-members:
 
+.. automodule:: src.parsers.json_parser
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: src.parsers.chunked_parser
    :members:
    :undoc-members:

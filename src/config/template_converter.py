@@ -14,7 +14,12 @@ class TemplateConverter:
     REQUIRED_COLUMNS = ['Field Name', 'Data Type']
     OPTIONAL_COLUMNS = [
         'Position', 'Length', 'Format', 'Required',
-        'Description', 'Default Value', 'Target Name', 'Valid Values'
+        'Description', 'Default Value', 'Target Name', 'Valid Values',
+        # ADR 0018: JSONPath selector locating each field in a JSON record
+        # (e.g. ``$.customer.id``, ``$.transactions[*]``). Presence of a
+        # populated value in this column switches the converter to the JSON
+        # mapping shape (``json_path`` per field instead of position/length).
+        'JSON Path',
     ]
     
     def __init__(self, frozen_timestamp: str | None = None):
@@ -86,7 +91,39 @@ class TemplateConverter:
         # docstring block in ``from_excel`` for the full rationale.
         df = pd.read_csv(csv_path, dtype=str)
         return self._convert_dataframe(df, csv_path, mapping_name, file_format)
-    
+
+    def from_json_template(self, template_path: str,
+                           mapping_name: str = None) -> dict:
+        """Convert a CSV/Excel template carrying a ``JSON Path`` column to a JSON mapping.
+
+        Identical in shape to :meth:`from_csv` / :meth:`from_excel`, but
+        forces ``file_format='json'`` so the emitted mapping carries a
+        ``json_path`` per field (the JSONPath selector
+        :class:`~src.parsers.json_parser.JsonParser` resolves at parse time)
+        instead of positional ``position`` / ``length`` anchors (ADR 0018).
+
+        Args:
+            template_path: Path to the ``.csv`` / ``.xlsx`` / ``.xls``
+                template. The ``JSON Path`` column locates each field in a
+                JSON record (e.g. ``$.customer.id``, ``$.transactions[*]``).
+            mapping_name: Optional mapping name. Derived from the template
+                filename stem when omitted.
+
+        Returns:
+            Universal mapping dict whose ``source.format`` is ``"json"`` and
+            whose per-field entries carry ``json_path`` when the template
+            cell is populated.
+        """
+        # Per ADR 0007: ``dtype=str`` preserves cell literals (see from_excel).
+        suffix = Path(template_path).suffix.lower()
+        if suffix in ('.xlsx', '.xls'):
+            df = pd.read_excel(template_path, sheet_name=0, dtype=str)
+        else:
+            df = pd.read_csv(template_path, dtype=str)
+        return self._convert_dataframe(
+            df, template_path, mapping_name, file_format='json'
+        )
+
     def _convert_dataframe(self, df: pd.DataFrame, template_path: str,
                           mapping_name: str = None, file_format: str = None) -> dict:
         """Convert DataFrame to universal mapping."""
@@ -101,6 +138,7 @@ class TemplateConverter:
             'required': 'Required', 'description': 'Description',
             'default_value': 'Default Value', 'target_name': 'Target Name',
             'valid_values': 'Valid Values', 'transformation': 'Transformation',
+            'json_path': 'JSON Path',
         }
         df.columns = [col_map.get(c.lower().replace(' ', '_'), c) for c in df.columns]
 
@@ -193,10 +231,23 @@ class TemplateConverter:
         return mapping
     
     def _detect_format(self, df: pd.DataFrame) -> str:
-        """Auto-detect file format from template columns."""
+        """Auto-detect file format from template columns.
+
+        A populated ``JSON Path`` column wins (ADR 0018): it unambiguously
+        marks a JSON mapping. Otherwise the historic position+length →
+        fixed-width / else → pipe-delimited heuristic applies, so templates
+        without the column remain backward-compatible.
+        """
+        # JSON takes precedence: a JSON Path column with at least one
+        # non-blank cell means the BA authored JSONPath selectors.
+        if 'JSON Path' in df.columns and df['JSON Path'].notna().any():
+            non_blank = df['JSON Path'].astype(str).str.strip()
+            if (non_blank != '').any():
+                return 'json'
+
         has_position = 'Position' in df.columns
         has_length = 'Length' in df.columns
-        
+
         if has_position and has_length:
             return 'fixed_width'
         else:
@@ -220,6 +271,14 @@ class TemplateConverter:
                 field['position'] = int(row['Position'])
             if 'Length' in row and pd.notna(row['Length']):
                 field['length'] = int(row['Length'])
+
+        # Add the JSONPath selector for JSON mappings (ADR 0018). Only emit
+        # when the cell is populated — a blank cell must not leak an empty
+        # json_path key (the field is simply not located in the JSON record).
+        if file_format == 'json' and 'JSON Path' in row and pd.notna(row['JSON Path']):
+            json_path = str(row['JSON Path']).strip()
+            if json_path:
+                field['json_path'] = json_path
         
         # Add format if specified
         if 'Format' in row and pd.notna(row['Format']):

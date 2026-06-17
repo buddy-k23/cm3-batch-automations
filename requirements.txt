@@ -27,6 +27,11 @@ openpyxl>=3.1.0
 # YAML configuration
 pyyaml>=6.0
 
+# JSON (NDJSON) parsing — JSONPath resolution for the JSON parser (ADR 0018,
+# S19-1, #395). Pure-Python (no C extension); resolves per-field json_path
+# selectors against each NDJSON record at parse time.
+jsonpath-ng>=1.6.0
+
 # API Framework (optional - for REST API)
 fastapi>=0.109.0
 uvicorn[standard]>=0.27.0

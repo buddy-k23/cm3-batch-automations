@@ -11,6 +11,7 @@ class FileFormat(Enum):
     FIXED_WIDTH = "fixed_width"
     CSV = "csv"
     TSV = "tsv"
+    JSON = "json"  # NDJSON / .jsonl — one JSON object per line (ADR 0018).
     UNKNOWN = "unknown"
 
 
@@ -65,6 +66,7 @@ class FormatDetector:
             FileFormat.CSV: self._score_csv(sample_lines),
             FileFormat.TSV: self._score_tsv(sample_lines),
             FileFormat.FIXED_WIDTH: self._score_fixed_width(sample_lines),
+            FileFormat.JSON: self._score_json(sample_lines),
         }
 
         # Get best match
@@ -164,6 +166,54 @@ class FormatDetector:
             return 0.6
         return 0.2
 
+    def _score_json(self, lines: list) -> float:
+        """Score likelihood of NDJSON format from the first non-blank line.
+
+        NDJSON has one JSON object per line, so the first non-blank line
+        starts with ``{``. A first line starting with ``[`` signals a
+        top-level JSON array (plain ``.json``), which v1 does **not**
+        support — that case is flagged for the caller in
+        :meth:`describe_json_array_hint`, not scored as JSON here.
+
+        Args:
+            lines: Sample non-blank lines from the file.
+
+        Returns:
+            ``0.9`` when the first non-blank line begins with ``{`` (an
+            NDJSON record), otherwise ``0.0``.
+        """
+        if not lines:
+            return 0.0
+        first = lines[0].lstrip()
+        return 0.9 if first.startswith("{") else 0.0
+
+    @staticmethod
+    def _looks_like_json_array(file_path: str) -> bool:
+        """Return True if the file's first non-blank char is ``[``.
+
+        A top-level JSON array (plain ``.json``) is the unsupported v1 case
+        — the parser is NDJSON-only. This sniff lets the router raise a
+        clear "convert to NDJSON first" error instead of a confusing parse
+        failure.
+
+        Args:
+            file_path: Path whose leading content is inspected.
+
+        Returns:
+            ``True`` when the first non-whitespace character is ``[``.
+        """
+        try:
+            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                while True:
+                    chunk = f.read(64)
+                    if not chunk:
+                        return False
+                    stripped = chunk.lstrip()
+                    if stripped:
+                        return stripped[0] == "["
+        except Exception:
+            return False
+
     # Extension-driven routing table. Consulted before content sniffing so
     # ``.csv`` / ``.tsv`` / ``.psv`` files route deterministically to a
     # delimited parser with the correct separator, instead of being
@@ -173,6 +223,12 @@ class FormatDetector:
     # — those can be pipe-delimited OR fixed-width and need content
     # inspection to disambiguate.
     _DELIMITED_EXTENSIONS = frozenset({".csv", ".tsv", ".psv"})
+
+    # NDJSON extensions route deterministically to :class:`JsonParser`
+    # (ADR 0018). Plain ``.json`` (a top-level array) is deliberately NOT
+    # here — it is the unsupported v1 case and is flagged with a clear
+    # "convert to NDJSON first" message in :meth:`get_parser_class`.
+    _JSON_EXTENSIONS = frozenset({".ndjson", ".jsonl"})
 
     def get_parser_class(self, file_path: str):
         """Get appropriate parser class for file.
@@ -205,6 +261,7 @@ class FormatDetector:
         """
         from .pipe_delimited_parser import PipeDelimitedParser
         from .fixed_width_parser import FixedWidthParser
+        from .json_parser import JsonParser
 
         # Extension-driven fast path. Treat known delimited extensions as
         # authoritative — the parser itself maps the extension to the
@@ -214,6 +271,19 @@ class FormatDetector:
         if suffix in self._DELIMITED_EXTENSIONS:
             return PipeDelimitedParser
 
+        # NDJSON extensions route to JsonParser (ADR 0018). A plain ``.json``
+        # holding a top-level array is the unsupported v1 case — fail fast
+        # with the one-line conversion recipe rather than a cryptic parse
+        # error deep in JsonParser.
+        if suffix in self._JSON_EXTENSIONS:
+            return JsonParser
+        if suffix == ".json" and self._looks_like_json_array(file_path):
+            raise ValueError(
+                f"{file_path} looks like a top-level JSON array, which is not "
+                "supported. Convert it to NDJSON first "
+                "(e.g. `jq -c '.[]' in.json > in.ndjson`) and re-run."
+            )
+
         detection = self.detect(file_path)
         format_type = detection['format']
 
@@ -221,6 +291,8 @@ class FormatDetector:
             return PipeDelimitedParser
         elif format_type == FileFormat.FIXED_WIDTH:
             return FixedWidthParser
+        elif format_type == FileFormat.JSON:
+            return JsonParser
         elif format_type in (FileFormat.CSV, FileFormat.TSV):
             # Content-sniffed CSV/TSV with an unusual extension — still
             # delegate to PipeDelimitedParser, but in this branch the

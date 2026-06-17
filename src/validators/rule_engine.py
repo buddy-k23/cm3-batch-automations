@@ -236,6 +236,17 @@ class RuleEngine:
             mask = validator.validate_exact_length(df, field, int(rule.get('value', 0)))
         elif operator == 'min_length':
             mask = validator.validate_min_length(df, field, int(rule.get('value', 0)))
+        # ----- ADR 0018 / issue #395 — JSON (NDJSON) operators -----
+        # JsonParser flattens NDJSON records; ``json_array_length`` runs
+        # against a ``<field>_count`` column and ``nested_required`` flags an
+        # absent (pd.NA) JSON path. See FieldValidator for the predicates.
+        elif operator == 'json_array_length':
+            min_len = int(rule.get('min_len', 0))
+            max_len = rule.get('max_len')
+            max_len = int(max_len) if max_len is not None else None
+            mask = validator.validate_json_array_length(df, field, min_len, max_len)
+        elif operator == 'nested_required':
+            mask = validator.validate_nested_required(df, field)
         else:
             raise ValueError(f"Unknown operator: {operator}")
         
