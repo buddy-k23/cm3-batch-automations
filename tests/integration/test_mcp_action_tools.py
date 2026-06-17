@@ -652,8 +652,9 @@ def test_mcp_tools_list_has_ten_entries(monkeypatch):
     """``tools/list`` advertises every registered tool (EF-S2..S21-2).
 
     #407 added ``reconcile_mapping`` (eleven); S21-1 added ``db_compare``
-    (twelve); S21-2 added ``reconcile_all``, taking the surface to thirteen.
-    The expected list below is the TRUE registered surface.
+    (twelve); S21-2 added ``reconcile_all`` (thirteen); S21-3 added
+    ``mask_file``, taking the surface to fourteen. The expected list below is
+    the TRUE registered surface.
     """
     monkeypatch.setenv("VALDO_MCP_AUTH", "dev")
     app = _fresh_app()
@@ -673,6 +674,7 @@ def test_mcp_tools_list_has_ten_entries(monkeypatch):
         "infer_mapping_from_sample",
         "list_recent_runs",
         "list_sources",
+        "mask_file",
         "onboard_source_dry_run",
         "reconcile_all",
         "reconcile_mapping",

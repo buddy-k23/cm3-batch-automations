@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- feat(mcp): mask_file tool — PII masking (6 strategies) over MCP (S21-3, #435)
 - feat(mcp): reconcile_all tool — bulk mapping reconcile + baseline drift over MCP (S21-2, #434)
 - feat(mcp): db_compare tool — DB-extract vs file over MCP (honors DB_ADAPTER) (S21-1, #433)
 

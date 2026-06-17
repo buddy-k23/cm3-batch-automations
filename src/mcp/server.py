@@ -98,6 +98,10 @@ from src.mcp.reconcile_all_tools import (
     RECONCILE_ALL_DESCRIPTION,
     reconcile_all_payload,
 )
+from src.mcp.mask_tools import (
+    MASK_FILE_DESCRIPTION,
+    mask_file_payload,
+)
 from src.mcp.onboarding_tools import (
     INFER_MAPPING_FROM_SAMPLE_DESCRIPTION,
     ONBOARD_SOURCE_DRY_RUN_DESCRIPTION,
@@ -702,6 +706,37 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
             pattern=pattern,
             baseline=baseline,
             db_adapter=db_adapter,
+        )
+
+    # ------------------------------------------------------------------
+    # S21-3 (#435) — PII masking tool.
+    #
+    # ``mask_file`` wraps the existing masking service
+    # (:class:`src.services.masking_service.MaskingService`), the same code
+    # path the ``valdo mask`` CLI drives. Thin adapter only — masking logic
+    # (the six strategies, format detection, output plumbing) lives in the
+    # service layer. CRITICAL PII posture: the tool response carries only the
+    # masked-file path, the record count, and a per-field strategy summary
+    # (strategy + field NAMES) — NEVER raw masked/unmasked field values. The
+    # original input file is never modified.
+    # ------------------------------------------------------------------
+
+    @mcp_server.tool(
+        name="mask_file",
+        title="Mask PII in a batch file",
+        description=MASK_FILE_DESCRIPTION,
+    )
+    def _mask_file_tool(
+        file: str,
+        mapping: str,
+        masking_config: str,
+        output: str,
+    ) -> Dict[str, Any]:
+        return mask_file_payload(
+            file=file,
+            mapping=mapping,
+            masking_config=masking_config,
+            output=output,
         )
 
     # ------------------------------------------------------------------

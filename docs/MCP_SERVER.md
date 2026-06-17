@@ -17,7 +17,7 @@ see the `tools/list` response or
 
 ## Tools
 
-The MCP server exposes thirteen tools:
+The MCP server exposes fourteen tools:
 
 - `list_sources`, `get_source_spec`, `list_recent_runs` — read-only
   (EF-S2)
@@ -29,6 +29,7 @@ The MCP server exposes thirteen tools:
 - `reconcile_mapping` — adapter-agnostic mapping-vs-table reconcile (#407)
 - `db_compare` — adapter-agnostic DB-extract-vs-file compare (S21-1)
 - `reconcile_all` — adapter-agnostic bulk mapping reconcile + baseline drift (S21-2)
+- `mask_file` — PII masking of a batch file with 6 strategies (S21-3)
 
 ### Tool: `reconcile_mapping` (#407)
 
@@ -115,6 +116,35 @@ and `new_warnings`. A single mapping that fails to process is recorded as an
 invalid `results` entry — it does NOT raise a tool error. Tool errors are
 reserved for caller-fixable problems (a bad adapter name or an unreadable
 baseline report). No connection credentials are echoed in the response.
+
+### Tool: `mask_file` (S21-3)
+
+Masks the PII in a batch file (fixed-width or pipe-delimited) and writes a
+masked copy. It wraps the existing masking service
+[`src/services/masking_service.py::MaskingService.mask_file`](../src/services/masking_service.py)
+— the same code path the `valdo mask` CLI command drives. The original input
+file is never modified. Six strategies are supported: `preserve`,
+`preserve_format`, `deterministic_hash`, `random_range`, `redact`, `fake_name`.
+
+**Input parameters**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `file` | string | yes | Path to the input batch file. Never modified. |
+| `mapping` | string | yes | Path to the mapping JSON; its `fields` list names the columns and (for fixed-width) their positions/lengths. |
+| `masking_config` | string | yes | Path to the masking-rules JSON; its `fields` object maps each field name to a rule carrying a `strategy`. Unmapped fields are preserved. |
+| `output` | string | yes | Destination path for the masked output file. Parent directories are created if needed. |
+
+**Response shape** — `output_path` (where the masked file was written),
+`records_masked` (count), and `field_strategies` (a per-field list of
+`{field, strategy}` — strategy and field NAMES only).
+
+**PII safety (critical)** — the response NEVER contains raw field values:
+neither the unmasked originals nor the masked replacements. To inspect the
+masked rows, read the output file directly. Tool errors are reserved for
+caller-fixable problems: a missing/blank argument, a mapping or masking-config
+file that cannot be found or parsed, an input file that does not exist, an
+unsupported mapping format, or an unrecognised masking strategy.
 
 ### Tool: `compare_two_files` (S7-4)
 
