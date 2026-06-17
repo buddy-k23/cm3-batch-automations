@@ -1,4 +1,4 @@
-name: Unit tests + coverage gate
+name: Tests (unit + integration)
 
 # S13.5-5 (Sprint 13.5, #411) → S14-5 (Sprint 14, #416) → S17-4 (Sprint 17,
 # #432): run the unit suite (tests/unit/) and the coverage gate
@@ -23,6 +23,15 @@ name: Unit tests + coverage gate
 # a GitHub branch-protection repo setting and must be enabled by a repo admin
 # in Settings → Branches → branch protection rules. The workflow change here
 # only makes the check itself go red on failure.
+#
+# INTEGRATION JOB (added per user request, 2026-06-17): the `integration-tests`
+# job runs `tests/integration/` as a SEPARATE job from the unit job. This is
+# deliberate — unit and integration must run in distinct processes; running
+# them in one pytest invocation leaks state (env vars, app singletons,
+# monkeypatch ordering) and produces spurious failures. The integration job is
+# blocking on test pass/fail but does NOT enforce the coverage gate (integration
+# alone does not exercise 80% of src; `--no-cov` disables the pytest.ini gate
+# for this job). Coverage remains the unit job's responsibility.
 
 on:
   pull_request:
@@ -80,3 +89,38 @@ jobs:
         # omit set match the local gate exactly.
         run: |
           pytest tests/unit/ --cov=src --cov-report=term-missing
+
+  integration-tests:
+    name: Integration tests
+    runs-on: ubuntu-latest
+
+    # Same CI-only dummy signing key as the unit job (test value, not a secret).
+    env:
+      VALDO_SESSION_SIGNING_KEY: ci-dummy-signing-key-not-a-secret
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        # requirements.txt is enough for the TestClient-based integration suite;
+        # requirements-dev.txt adds optional test deps (e.g. fakeredis) that a
+        # few MCP tests use opportunistically (they skip if absent).
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Run integration tests (blocking, no coverage gate)
+        # Separate process from the unit job (state-isolation, see header note).
+        # --no-cov disables the pytest.ini coverage gate for this job — the
+        # integration suite is a pass/fail signal, not a coverage contributor.
+        run: |
+          pytest tests/integration/ --no-cov -q
