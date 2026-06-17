@@ -106,6 +106,10 @@ from src.mcp.drift_tools import (
     DETECT_DRIFT_DESCRIPTION,
     detect_drift_payload,
 )
+from src.mcp.extract_tools import (
+    EXTRACT_TABLE_DESCRIPTION,
+    extract_table_payload,
+)
 from src.mcp.onboarding_tools import (
     INFER_MAPPING_FROM_SAMPLE_DESCRIPTION,
     ONBOARD_SOURCE_DRY_RUN_DESCRIPTION,
@@ -762,6 +766,43 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
     )
     def _detect_drift_tool(file: str, mapping: str) -> Dict[str, Any]:
         return detect_drift_payload(file=file, mapping=mapping)
+
+    # ------------------------------------------------------------------
+    # S21-5 (#437) — adapter-agnostic DB-extract-to-file tool.
+    #
+    # ``extract_table`` wraps the existing adapter-based extract path
+    # (:class:`src.database.extractor.DataExtractor`), the same code path the
+    # ``valdo extract`` CLI drives. Adapter-agnostic per ADR 0022 §4: it
+    # extracts from whichever backend DB_ADAPTER selects. Thin adapter only —
+    # SQL building, the S13.5-4 hardening (identifier allow-listing, bound
+    # limit, raw-WHERE rejection), and file writing live in the extractor.
+    # The response carries only the output-file path + row count — no extracted
+    # row data and no credentials.
+    # ------------------------------------------------------------------
+
+    @mcp_server.tool(
+        name="extract_table",
+        title="Extract a database table or query to a file",
+        description=EXTRACT_TABLE_DESCRIPTION,
+    )
+    def _extract_table_tool(
+        table: Optional[str] = None,
+        query: Optional[str] = None,
+        columns: Optional[List[str]] = None,
+        limit: Optional[int] = None,
+        output: str = "",
+        delimiter: str = "|",
+        db_adapter: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        return extract_table_payload(
+            table=table,
+            query=query,
+            columns=columns,
+            limit=limit,
+            output=output,
+            delimiter=delimiter,
+            db_adapter=db_adapter,
+        )
 
     # ------------------------------------------------------------------
     # EF-S6 — workflow prompts.

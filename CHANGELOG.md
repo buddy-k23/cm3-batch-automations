@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- feat(mcp): extract_table tool — DB extract to file over MCP (adapter-based; S13.5-4 SQL hardening preserved) (S21-5, #437)
 - feat(mcp): detect_drift tool — schema drift (file vs mapping) over MCP (S21-4, #436)
 - feat(mcp): mask_file tool — PII masking (6 strategies) over MCP (S21-3, #435)
 - feat(mcp): reconcile_all tool — bulk mapping reconcile + baseline drift over MCP (S21-2, #434)

@@ -17,7 +17,7 @@ see the `tools/list` response or
 
 ## Tools
 
-The MCP server exposes fifteen tools:
+The MCP server exposes sixteen tools:
 
 - `list_sources`, `get_source_spec`, `list_recent_runs` — read-only
   (EF-S2)
@@ -31,6 +31,7 @@ The MCP server exposes fifteen tools:
 - `reconcile_all` — adapter-agnostic bulk mapping reconcile + baseline drift (S21-2)
 - `mask_file` — PII masking of a batch file with 6 strategies (S21-3)
 - `detect_drift` — schema drift between a file and its mapping (S21-4)
+- `extract_table` — adapter-agnostic DB extract (table or query) to a flat file (S21-5)
 
 ### Tool: `reconcile_mapping` (#407)
 
@@ -174,6 +175,40 @@ in the verdict (`drifted=true`) — it does NOT raise a tool error. Tool errors
 are reserved for caller-fixable problems: a missing/blank argument, or a
 mapping file that cannot be found or parsed. The response carries no raw field
 values.
+
+### Tool: `extract_table` (S21-5)
+
+Extracts rows from a database table or SQL query and writes them to a delimited
+flat file. It wraps the existing adapter-based extractor
+[`src/database/extractor.py::DataExtractor`](../src/database/extractor.py) —
+the same code path the `valdo extract` CLI command drives. Backend-agnostic
+(ADR 0022 §4): the active database is selected by the `DB_ADAPTER` environment
+variable (`oracle` | `postgresql` | `sqlite`), optionally overridden per-call.
+
+**Input parameters**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `table` | string | one of `table`/`query` | Table name to extract from (allow-list validated). Mutually exclusive with `query`. |
+| `query` | string | one of `table`/`query` | Full SQL `SELECT` statement to extract with. Mutually exclusive with `table`. |
+| `columns` | string[] | no | Column names to project (table mode only; each allow-list validated). Defaults to all columns. |
+| `limit` | int | no | Positive-integer row cap (table mode only; bound as a parameter, never interpolated). |
+| `output` | string | yes | Output flat-file path. |
+| `delimiter` | string | no | Output field delimiter. Defaults to `\|`. |
+| `db_adapter` | string | no | Adapter-name override (`sqlite` \| `postgresql` \| `oracle`). Defaults to the env-configured `DB_ADAPTER`. |
+
+**Result shape** — `output_file` (the path written), `row_count` (int),
+`mode` (`table` \| `query`), and the resolved `db_adapter`. The response
+carries **no extracted row data** and **no database credentials**.
+
+**Security** — the S13.5-4 SQL hardening is preserved on this path because the
+tool routes through the same `DataExtractor`: SQL identifiers (table/column
+names) are allow-listed, the row `limit` is bound as a parameter, and raw
+free-form `WHERE` clauses are rejected on the table-based path. A malicious
+table/column (e.g. `"X; DROP TABLE Y"`) is rejected before any SQL runs. Tool
+errors are reserved for caller-fixable problems: a missing `output`,
+neither/both of `table`/`query`, a bad adapter name, an invalid SQL identifier,
+a non-positive `limit`, or an extraction failure.
 
 ### Tool: `compare_two_files` (S7-4)
 
