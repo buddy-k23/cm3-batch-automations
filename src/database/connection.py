@@ -38,8 +38,6 @@ class OracleConnection:
         * ``src/pipeline/oracle_expected_generator.py`` — the ``run-tests``
           Oracle-expected-rowset generator (Oracle-bound by design; see ADR 0010).
         * ``src/api/routers/system.py`` — the Oracle DB-profile ping endpoint.
-        * ``src/database/transaction.py`` — the Oracle-only transaction/log-table
-          helpers (quarantined; see that module).
         * ``src/database/query_executor.py`` — legacy type reference.
 
         None of the adapter-routed DB-integration features import it any more.

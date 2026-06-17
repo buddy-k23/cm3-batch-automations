@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - security(auth): MCP dev-auth requires explicit VALDO_ALLOW_DEV_AUTH opt-in; constant-time API-key compare; placeholder sample keys (S13.5-3, #409)
 - security(db): parameterize extractor SQL — bind limit, allow-list identifiers, validate where (S13.5-4, #410)
 
+### Removed
+- chore(db): remove dead Oracle-only transaction.py (zero src/ consumers) per ADR 0022 / #431 (S18-4, #431)
+
 ### Changed
 - refactor(api): onboarding git/gh orchestration moved from the router into an onboarding service (S18-3, #429)
 - refactor(api): thin files.py — cross-type reshaping + connection resolution moved into the services (S18-2, #428)
