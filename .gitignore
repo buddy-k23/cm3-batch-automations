@@ -1,3 +1,6 @@
+# Local E2E dry-run synthetic data (seed source files; not for VCS)
+.e2e_seed/
+
 # Python
 __pycache__/
 *.py[cod]
