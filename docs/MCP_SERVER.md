@@ -17,7 +17,7 @@ see the `tools/list` response or
 
 ## Tools
 
-The MCP server exposes twelve tools:
+The MCP server exposes thirteen tools:
 
 - `list_sources`, `get_source_spec`, `list_recent_runs` — read-only
   (EF-S2)
@@ -28,6 +28,7 @@ The MCP server exposes twelve tools:
 - `compare_two_files` — ad-hoc file diff (S7-4)
 - `reconcile_mapping` — adapter-agnostic mapping-vs-table reconcile (#407)
 - `db_compare` — adapter-agnostic DB-extract-vs-file compare (S21-1)
+- `reconcile_all` — adapter-agnostic bulk mapping reconcile + baseline drift (S21-2)
 
 ### Tool: `reconcile_mapping` (#407)
 
@@ -87,6 +88,33 @@ it does NOT raise a tool error. Tool errors are reserved for caller-fixable
 problems (mapping or actual file not found, neither/both of `table`/`query`
 supplied, or a bad adapter name). Connection credentials are never included in
 the tool response.
+
+### Tool: `reconcile_all` (S21-2)
+
+Bulk-reconciles every Valdo mapping in a directory against a live database on
+whichever backend `DB_ADAPTER` selects (`sqlite` | `postgresql` | `oracle`),
+per ADR 0022, and aggregates a summary — adding a baseline drift-diff when a
+prior report is supplied. It wraps the shared bulk-reconcile service seam
+[`src/services/reconcile_all_service.py::reconcile_all_service`](../src/services/reconcile_all_service.py)
+— the same code path the `valdo reconcile-all` CLI calls.
+
+**Input parameters**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `mappings_dir` | string | no | Directory of mapping JSON files. Defaults to `config/mappings`. |
+| `pattern` | string | no | Glob for mapping files within `mappings_dir`. Defaults to `*.json`. |
+| `baseline` | string | no | Path to a prior reconcile-all JSON report; enables the `drift` block. |
+| `db_adapter` | string | no | Adapter override (`sqlite` \| `postgresql` \| `oracle`); defaults to env `DB_ADAPTER`. |
+
+**Verdict shape** — `total_mappings`, `valid_mappings`, `invalid_mappings`,
+`total_errors`, `total_warnings`, and a per-mapping `results` list (each entry
+carrying the field-level reconcile verdict). When `baseline` is supplied, a
+`drift` block reports `added_files`, `removed_files`, `changed`, `new_errors`,
+and `new_warnings`. A single mapping that fails to process is recorded as an
+invalid `results` entry — it does NOT raise a tool error. Tool errors are
+reserved for caller-fixable problems (a bad adapter name or an unreadable
+baseline report). No connection credentials are echoed in the response.
 
 ### Tool: `compare_two_files` (S7-4)
 

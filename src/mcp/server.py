@@ -94,6 +94,10 @@ from src.mcp.db_compare_tools import (
     DB_COMPARE_DESCRIPTION,
     db_compare_payload,
 )
+from src.mcp.reconcile_all_tools import (
+    RECONCILE_ALL_DESCRIPTION,
+    reconcile_all_payload,
+)
 from src.mcp.onboarding_tools import (
     INFER_MAPPING_FROM_SAMPLE_DESCRIPTION,
     ONBOARD_SOURCE_DRY_RUN_DESCRIPTION,
@@ -665,6 +669,39 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
             key_columns=key_columns,
             db_adapter=db_adapter,
             connection=connection,
+        )
+
+    # ------------------------------------------------------------------
+    # S21-2 (#434) — adapter-agnostic bulk mapping-vs-table reconcile tool.
+    #
+    # ``reconcile_all`` wraps the shared bulk-reconcile service seam
+    # (:func:`src.services.reconcile_all_service.reconcile_all_service`),
+    # which the CLI (``valdo reconcile-all``) also calls. Adapter-agnostic
+    # per ADR 0022: it reconciles every mapping in a directory against
+    # whichever backend DB_ADAPTER selects, aggregates a summary, and
+    # — when a baseline report is supplied — computes the baseline
+    # drift-diff. Thin adapter only — business logic lives in the service
+    # layer. A single mapping that fails to process is a result (an
+    # invalid entry in ``results``), not a tool error; no credentials are
+    # echoed back.
+    # ------------------------------------------------------------------
+
+    @mcp_server.tool(
+        name="reconcile_all",
+        title="Bulk-reconcile every mapping in a directory",
+        description=RECONCILE_ALL_DESCRIPTION,
+    )
+    def _reconcile_all_tool(
+        mappings_dir: str = "config/mappings",
+        pattern: str = "*.json",
+        baseline: Optional[str] = None,
+        db_adapter: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        return reconcile_all_payload(
+            mappings_dir=mappings_dir,
+            pattern=pattern,
+            baseline=baseline,
+            db_adapter=db_adapter,
         )
 
     # ------------------------------------------------------------------

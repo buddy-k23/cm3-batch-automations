@@ -182,7 +182,7 @@ def test_mcp_capabilities_advertise_expected_registries(monkeypatch):
 
     Baseline pinned after each MCP-track story lands:
 
-    * ``tools/list``     — exactly twelve entries: three read-only added
+    * ``tools/list``     — exactly thirteen entries: three read-only added
       by EF-S2 (``list_sources``, ``get_source_spec``,
       ``list_recent_runs``), three action tools added by EF-S4
       (``validate_file``, ``get_run_status``, ``get_violations``),
@@ -190,8 +190,9 @@ def test_mcp_capabilities_advertise_expected_registries(monkeypatch):
       (``upload_workbook_as_spec``, ``onboard_source_dry_run``,
       ``infer_mapping_from_sample``), one ad-hoc compare tool
       added by S7-4 (``compare_two_files``), one reconcile tool added
-      by #407 (``reconcile_mapping``), and one db-compare tool added by
-      S21-1 (``db_compare``). Stories beyond S21 will extend this set.
+      by #407 (``reconcile_mapping``), one db-compare tool added by
+      S21-1 (``db_compare``), and one bulk-reconcile tool added by S21-2
+      (``reconcile_all``). Stories beyond S21 will extend this set.
     * ``resources/list`` — exactly two entries, the
       ``taxonomy://violations`` and ``taxonomy://rules`` URIs added by
       EF-S3. Stories EF-S5 and onwards will extend this; this test pins
@@ -252,15 +253,16 @@ def test_mcp_capabilities_advertise_expected_registries(monkeypatch):
         "pick_etl_shape",
     ], f"prompts/list names drifted from EF-S6+S7-5 baseline: {prompt_names!r}"
 
-    # EF-S2 + EF-S4 + EF-S5 + S7-4 + #407 + S21-1 — twelve tools: three
-    # read-only, three action, three onboarding, one ad-hoc compare, one
-    # reconcile, one db-compare, no more, no less. The full input-schema
-    # shape of each tool is asserted in ``test_mcp_read_tools.py`` (EF-S2),
-    # ``test_mcp_action_tools.py`` (EF-S4), ``test_mcp_onboarding_tools.py``
-    # (EF-S5), ``test_mcp_compare_tool.py`` (S7-4), and
-    # ``test_mcp_db_compare_tool.py`` (S21-1); here we only pin the registry
-    # size and tool names so accidental drift is caught at the registry
-    # level.
+    # EF-S2 + EF-S4 + EF-S5 + S7-4 + #407 + S21-1 + S21-2 — thirteen tools:
+    # three read-only, three action, three onboarding, one ad-hoc compare,
+    # one reconcile, one db-compare, one bulk-reconcile, no more, no less.
+    # The full input-schema shape of each tool is asserted in
+    # ``test_mcp_read_tools.py`` (EF-S2), ``test_mcp_action_tools.py``
+    # (EF-S4), ``test_mcp_onboarding_tools.py`` (EF-S5),
+    # ``test_mcp_compare_tool.py`` (S7-4), ``test_mcp_db_compare_tool.py``
+    # (S21-1), and ``test_mcp_reconcile_all_tool.py`` (S21-2); here we only
+    # pin the registry size and tool names so accidental drift is caught at
+    # the registry level.
     tool_names = sorted(t["name"] for t in list_results["tools/list"])
     assert tool_names == [
         "compare_two_files",
@@ -272,6 +274,7 @@ def test_mcp_capabilities_advertise_expected_registries(monkeypatch):
         "list_recent_runs",
         "list_sources",
         "onboard_source_dry_run",
+        "reconcile_all",
         "reconcile_mapping",
         "upload_workbook_as_spec",
         "validate_file",
