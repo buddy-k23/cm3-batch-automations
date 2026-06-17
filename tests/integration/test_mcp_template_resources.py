@@ -208,6 +208,9 @@ def test_etl_templates_list_resource(monkeypatch):
         # up by templates://etl auto-discovery with zero MCP code change — its
         # presence here is the acceptance criterion.
         "json_single_record",
+        # XML single-record template (ADR 0019, S19-4, #396) — likewise
+        # auto-discovered; its presence is the S19-4 acceptance criterion.
+        "xml_single_record",
     }
     assert expected.issubset(shapes), (
         f"templates://etl/list missing committed shapes: "

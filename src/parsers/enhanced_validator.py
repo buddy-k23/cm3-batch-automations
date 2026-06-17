@@ -483,15 +483,27 @@ class EnhancedFileValidator:
         if not self.mapping_config or 'fields' not in self.mapping_config:
             return
         
-        # For a JSON mapping (ADR 0018), a field whose json_path ends in
-        # ``[*]`` (array-of-objects) is emitted by JsonParser as an integer
+        # A JSON/XML "array" field is emitted by the parser as an integer
         # count column named ``<name>_count`` — expect that column name, not
         # the bare field name, so the array field is not flagged as missing.
+        # JSON (ADR 0018): json_path ends in ``[*]``. XML (ADR 0019): an
+        # explicit ``xml_array`` flag, or (mirroring XmlParser._looks_like_array)
+        # an integer-typed field whose xml_xpath's last step is not an
+        # attribute read (``@name``).
+        def _is_array_field(f: dict) -> bool:
+            if str(f.get('json_path', '') or '').rstrip().endswith('[*]'):
+                return True
+            if f.get('xml_array'):
+                return True
+            xpath = str(f.get('xml_xpath', '') or '').strip()
+            if xpath and str(f.get('data_type', '')).lower() in ('integer', 'int'):
+                last_step = xpath.split('/')[-1]
+                if not last_step.startswith('@'):
+                    return True
+            return False
+
         def _expected_column(f: dict) -> str:
-            json_path = str(f.get('json_path', '') or '').rstrip()
-            if json_path.endswith('[*]'):
-                return f"{f['name']}_count"
-            return f['name']
+            return f"{f['name']}_count" if _is_array_field(f) else f['name']
 
         expected_fields = {_expected_column(f) for f in self.mapping_config['fields']}
         actual_fields = set(df.columns)

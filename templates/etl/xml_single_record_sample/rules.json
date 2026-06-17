@@ -1,0 +1,55 @@
+{
+  "metadata": {
+    "name": "xml_single_record_sample_rules",
+    "description": "Business rules for the XML single-record worked example (ADR 0019). Mirrors the JSON sample: a required attribute path, a valid_values allowlist, a numeric type, and an array-length minimum on the parser's count column.",
+    "template_type": "hand_curated"
+  },
+  "rules": [
+    {
+      "id": "R001",
+      "name": "CUSTOMER_ID required (attribute present)",
+      "description": "The customer/@id attribute must be present. Flags record 9 (no id attribute).",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "field": "CUSTOMER_ID",
+      "operator": "nested_required",
+      "message": "CUSTOMER_ID (customer/@id) must be present"
+    },
+    {
+      "id": "R002",
+      "name": "STATUS valid values",
+      "description": "Account status must be one of the allowlist. Flags record 8 ('FROZEN').",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "field": "STATUS",
+      "operator": "valid_values",
+      "values": ["ACTIVE", "CLOSED", "SUSPENDED"],
+      "message": "STATUS must be one of ACTIVE/CLOSED/SUSPENDED"
+    },
+    {
+      "id": "R003",
+      "name": "AGE numeric",
+      "description": "Age must be numeric. Flags record 10 ('NaN').",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "field": "AGE",
+      "operator": "numeric",
+      "message": "AGE must be numeric"
+    },
+    {
+      "id": "R004",
+      "name": "At least one transaction",
+      "description": "Every customer must carry at least one transaction. Runs xml_array_length against the TXN_COUNT_count column the parser emits from the repeated transactions/transaction child. Flags record 6 (empty transactions).",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "field": "TXN_COUNT_count",
+      "operator": "xml_array_length",
+      "min_len": 1,
+      "message": "Each record must carry at least one transaction"
+    }
+  ]
+}

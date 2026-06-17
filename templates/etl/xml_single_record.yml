@@ -1,0 +1,74 @@
+# Valdo template -- XML single-record validation  (ADR 0019)
+#
+# Use this template when:
+#   - Your file is XML with a REPEATED record element (e.g. <record>...</record>
+#     repeated, or an ISO 20022 <CdtTrfTxInf>). Name the element via
+#     `source.record_tag` in the mapping (default "record").
+#   - Every record has the SAME shape (one record type per file).
+#   - You want field-level validation against a mapping whose fields are
+#     located by XPath (e.g. customer/@id) relative to the record element.
+#
+# For NDJSON, see json_single_record.yml; for fixed-width see
+# fixed_width_single_record.yml; for delimited see csv_file_comparison.yml.
+#
+# SECURITY: the XML parser is hardened (ADR 0019) -- it streams with
+# lxml.iterparse and sets resolve_entities=False / no_network=True /
+# load_dtd=False and REJECTS any <!DOCTYPE>. XXE, billion-laughs entity
+# expansion, and external-entity fetches are refused. Do not put a DOCTYPE in
+# your file.
+#
+# How this template is wired:
+#   - Top-level keys (source, schema_version) load through
+#     src.pipeline.etl_config.SourceConfig.model_validate(...).
+#   - The mapping JSON is the contract. Each fields[] entry carries an
+#     `xml_xpath` (relative to the record element). A trailing `@name` step
+#     reads an ATTRIBUTE (customer/@id); any other path reads element text. A
+#     repeated child collapses to an integer `<FieldName>_count` column when
+#     the field is `data_type: integer` (and/or `xml_array: true`) -- drive a
+#     "must have at least one" rule against it with the `xml_array_length`
+#     operator. Use `nested_required` to require a path is present.
+#     `source.record_tag` names the repeated record element; namespaces are
+#     stripped by default (set `source.namespace_aware: true` + a
+#     `source.namespaces` map to honor them).
+#   - The committed worked example lives under
+#     templates/etl/xml_single_record_sample/ (input.xml + mapping.json +
+#     rules.json + expected_report.json).
+#   - Replace every <FILL_IN_*> marker with your value, then run:
+#       valdo validate \
+#         --file <input.xml> \
+#         --mapping <this_dir>/mapping.json \
+#         --rules <this_dir>/rules.json \
+#         --output reports/xml_validate.html
+
+# ---------------------------------------------------------------------------
+# Identity -- required by SourceConfig
+# ---------------------------------------------------------------------------
+source: <FILL_IN_SOURCE_NAME>                  # e.g., "CUSTOMER_FEED_XML"
+schema_version: 1
+description: "Brief one-line description of the XML file being validated"
+
+# ---------------------------------------------------------------------------
+# Input files -- the XML file(s) to validate
+#
+# The mapping JSON's fields[] entries carry `xml_xpath` + `data_type` +
+# optional `valid_values` / `required`, and its `source.record_tag` names the
+# repeated record element. The worked sample at
+# templates/etl/xml_single_record_sample/mapping.json is the example.
+# ---------------------------------------------------------------------------
+input_files:
+  - file_type: <FILL_IN_FILE_TYPE>             # e.g., "CUSTOMERS"
+    glob: "<FILL_IN_GLOB>"                     # e.g., "customers_*.xml"
+    mapping: "<FILL_IN_PATH_TO_MAPPING_JSON>"  # e.g., "config/mappings/customer_xml_mapping.json"
+    target_staging_table: ""                   # leave empty for file-only validation
+
+# ---------------------------------------------------------------------------
+# Strictness
+#   strict_xml:   when true, a record that fails to parse fails the run
+#                 (line-addressable error); a DOCTYPE is always rejected.
+#   strict_level: one of "basic", "format", "all".
+#                   basic  -- nested_required + not_empty only
+#                   format -- adds data_type / valid_values / xml_array_length
+#                   all    -- adds full field analysis
+# ---------------------------------------------------------------------------
+strict_xml: true
+strict_level: "all"

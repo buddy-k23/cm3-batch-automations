@@ -204,14 +204,20 @@ Response body (abbreviated):
   {"shape": "fixed_width_single_record",
    "description": "Brief one-line description of the file being validated"},
   {"shape": "json_single_record",
-   "description": "Brief one-line description of the NDJSON file being validated"}
+   "description": "Brief one-line description of the NDJSON file being validated"},
+  {"shape": "xml_single_record",
+   "description": "Brief one-line description of the XML file being validated"}
 ]
 ```
 
 > The `json_single_record` shape (ADR 0018) validates newline-delimited JSON;
 > its mapping locates fields by JSONPath (`$.customer.id`) and an array path
-> `$.transactions[*]` becomes a `<field>_count` column. It is auto-discovered —
-> dropping the template into `templates/etl/` required no MCP code change.
+> `$.transactions[*]` becomes a `<field>_count` column. The `xml_single_record`
+> shape (ADR 0019) validates repeated-record XML with a **hardened** parser
+> (rejects DOCTYPE / XXE); fields are located by XPath (`customer/@id` reads an
+> attribute, `customer/name` reads element text) and a repeated child becomes a
+> `<field>_count` column. Both are auto-discovered — dropping the template into
+> `templates/etl/` required no MCP code change.
 
 #### Example — fetch one template body
 

@@ -1,0 +1,65 @@
+{
+  "mapping_name": "xml_single_record_sample",
+  "version": "1.0.0",
+  "description": "Sample XML single-record mapping for the BA-facing XML template (ADR 0019). Worked example: a customer feed of repeated <record> elements, each with a nested <customer> (id as an attribute) and a <transactions> block. Each field carries an `xml_xpath` (relative to the record element) instead of fixed-width position/length. `customer/@id` reads the id ATTRIBUTE; `customer/name` reads element text; `transactions/transaction` is a repeated child collapsed by the parser to an integer count column (TXN_COUNT_count).",
+  "source": {
+    "type": "file",
+    "format": "xml",
+    "encoding": "UTF-8",
+    "record_tag": "record"
+  },
+  "target": {
+    "type": "file"
+  },
+  "fields": [
+    {
+      "name": "CUSTOMER_ID",
+      "data_type": "string",
+      "target_name": "customer_id",
+      "xml_xpath": "customer/@id",
+      "required": true,
+      "description": "Customer identifier read from the customer element's `id` attribute. Record 9 omits the attribute to exercise nested_required."
+    },
+    {
+      "name": "NAME",
+      "data_type": "string",
+      "target_name": "name",
+      "xml_xpath": "customer/name",
+      "required": true,
+      "description": "Customer display name (element text)."
+    },
+    {
+      "name": "AGE",
+      "data_type": "decimal",
+      "target_name": "age",
+      "xml_xpath": "customer/age",
+      "required": true,
+      "description": "Customer age (numeric element text). Record 10 carries 'NaN' to exercise the numeric check."
+    },
+    {
+      "name": "STATUS",
+      "data_type": "string",
+      "target_name": "status",
+      "xml_xpath": "customer/status",
+      "required": true,
+      "valid_values": [
+        "ACTIVE",
+        "CLOSED",
+        "SUSPENDED"
+      ],
+      "description": "Account status code (element text). Record 8 carries 'FROZEN' to exercise valid_values."
+    },
+    {
+      "name": "TXN_COUNT",
+      "data_type": "integer",
+      "target_name": "txn_count",
+      "xml_xpath": "transactions/transaction",
+      "xml_array": true,
+      "required": false,
+      "description": "Number of <transaction> children. The repeated-child XPath is collapsed by the XmlParser to an integer count column (TXN_COUNT_count). Record 6 carries an empty <transactions/> (count 0). Drive a 'must have at least one transaction' rule with the xml_array_length operator on this count."
+    }
+  ],
+  "key_columns": [
+    "CUSTOMER_ID"
+  ]
+}
