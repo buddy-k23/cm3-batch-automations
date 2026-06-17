@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - security(db): parameterize extractor SQL — bind limit, allow-list identifiers, validate where (S13.5-4, #410)
 
 ### Changed
+- refactor(ui): central apiFetch() wrapper (auth headers, timeout, uniform 401/403/5xx handling) replaces ~45 raw fetch() calls (S18-1, #427)
 - ci: unit coverage raised to >=80%; CI coverage gate re-enabled (S17-4, #432)
 - perf(mcp): claim_next fetches one candidate (FETCH FIRST 1 / SKIP LOCKED where supported) instead of scanning the queue; reap_stuck bounded (S17-3, #430)
 - feat(mcp): jti on MCPPrincipal + per-token limiter keyed on jti; cross-worker revocation propagation (optional shared store; DB remains source of truth) (S17-2, #420)

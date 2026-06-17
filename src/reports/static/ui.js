@@ -66,7 +66,7 @@ function initTabVisibility() {
   // On LDAPS-disabled deployments /auth/whoami returns 404 (route not
   // registered), the catch swallows it, and the API-key UX continues unchanged.
   try {
-    fetch('/auth/whoami', { credentials: 'include' })
+    apiFetch('/auth/whoami', { silent: true })
       .then(function (r) {
         if (r.status === 401) {
           var nxt = encodeURIComponent(window.location.pathname + window.location.search);
@@ -83,7 +83,7 @@ function initTabVisibility() {
       .catch(function () { /* auth disabled — fall through to API-key UX */ });
   } catch (e) { /* fetch unavailable — ignore */ }
 
-  fetch('/api/v1/system/ui-config', { credentials: 'include' })
+  apiFetch('/api/v1/system/ui-config', { silent: true })
     .then(function(r) { return r.ok ? r.json() : null; })
     .then(function(data) {
       if (!data || !data.tabs) return;
@@ -131,6 +131,141 @@ function _apiHeaders() {
   return window._apiKey ? { 'X-API-Key': window._apiKey } : {}; // gitleaks:allow
 }
 
+/** Default request timeout (ms) applied by apiFetch when none is supplied. */
+var API_FETCH_TIMEOUT_MS = 30000;
+
+// Throttle auth-failure toasts so a burst of 401/403 (e.g. many baseline cells)
+// does not stack dozens of identical messages.
+var _apiAuthToastAt = 0;
+
+/**
+ * Surface a uniform, user-visible message for a failed API request.
+ *
+ * Uses showToast() when available and falls back to console only. Auth
+ * failures (401/403) are de-duplicated within a short window so concurrent
+ * requests do not spam the toast container.
+ *
+ * @param {string} message - Human-readable error text.
+ * @param {boolean} [isAuth=false] - True for 401/403 (de-duplicated, prompts for key).
+ */
+function _apiFetchNotify(message, isAuth) {
+  if (isAuth) {
+    var now = Date.now();
+    if (now - _apiAuthToastAt < 3000) { return; }
+    _apiAuthToastAt = now;
+  }
+  if (typeof showToast === 'function') {
+    showToast(message, 'error', 6000);
+  } else {
+    console.error(message);
+  }
+}
+
+/**
+ * Central fetch wrapper for all Valdo Web UI API calls.
+ *
+ * Injects authentication headers (via _apiHeaders()), applies a request
+ * timeout through an AbortController, and provides a single, uniform place
+ * for surfacing auth-failure (401/403), server (5xx), timeout and network
+ * errors instead of dozens of ad-hoc per-call handlers.
+ *
+ * Contract:
+ *   - Returns the raw Response on a completed HTTP exchange (any status),
+ *     so callers keep their existing `.ok` / `.json()` / `.blob()` / `.status`
+ *     handling. The wrapper does NOT throw on 4xx/5xx HTTP responses.
+ *   - On 401/403 it shows a toast prompting for the API key (de-duplicated)
+ *     and still returns the Response so callers may branch on `.status`.
+ *   - On 5xx it shows a generic server-error toast and returns the Response.
+ *   - Throws on timeout or network failure (TypeError / AbortError). Timeout
+ *     aborts are normalised so callers can distinguish them (`err.isTimeout`).
+ *   - Honours a caller-supplied `opts.signal` (e.g. a Stop button); the
+ *     caller's abort and the timeout abort are composed — whichever fires
+ *     first aborts the request.
+ *
+ * The path is taken verbatim, so both `/api/v1/*` and `/api/v2/*` work; no
+ * version is hardcoded here.
+ *
+ * @param {string} path - Request URL/path (e.g. '/api/v1/files/validate').
+ * @param {Object} [opts={}] - fetch() options. Extra keys:
+ *   - timeout {number} Override the default timeout in ms.
+ *   - silent {boolean} Suppress the uniform error toast (caller handles UX).
+ *   - signal {AbortSignal} Caller abort signal, composed with the timeout.
+ * @returns {Promise<Response>} The fetch Response.
+ * @throws {Error} On network failure or timeout (err.isTimeout / err.isNetwork).
+ */
+function apiFetch(path, opts) {
+  opts = opts || {};
+  var timeoutMs = (typeof opts.timeout === 'number') ? opts.timeout : API_FETCH_TIMEOUT_MS;
+  var silent = opts.silent === true;
+  var callerSignal = opts.signal || null;
+
+  var controller = new AbortController();
+  var timedOut = false;
+  var timer = setTimeout(function () {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+
+  // Compose a caller-provided signal (e.g. the downloader Stop button) with
+  // the timeout controller: if the caller aborts, abort the timeout one too.
+  if (callerSignal) {
+    if (callerSignal.aborted) {
+      controller.abort();
+    } else {
+      callerSignal.addEventListener('abort', function () { controller.abort(); });
+    }
+  }
+
+  // Build the final options: caller headers merged over the auth headers,
+  // default credentials, and our composed abort signal.
+  var fetchOpts = {};
+  for (var k in opts) {
+    if (Object.prototype.hasOwnProperty.call(opts, k) &&
+        k !== 'timeout' && k !== 'silent' && k !== 'signal') {
+      fetchOpts[k] = opts[k];
+    }
+  }
+  fetchOpts.headers = Object.assign({}, _apiHeaders(), opts.headers || {});
+  if (!('credentials' in fetchOpts)) { fetchOpts.credentials = 'include'; }
+  fetchOpts.signal = controller.signal;
+
+  return fetch(path, fetchOpts)
+    .then(function (resp) {
+      clearTimeout(timer);
+      if (!silent) {
+        if (resp.status === 401 || resp.status === 403) {
+          _apiFetchNotify(
+            'Authentication failed. Please enter or update your API key and try again.',
+            true
+          );
+        } else if (resp.status >= 500) {
+          _apiFetchNotify('Server error (' + resp.status + '). Please try again.', false);
+        }
+      }
+      return resp;
+    })
+    .catch(function (err) {
+      clearTimeout(timer);
+      // A caller-driven abort (Stop button) is re-thrown unchanged so existing
+      // AbortError handling keeps working; only the timeout/network paths are
+      // re-shaped and surfaced.
+      if (err && err.name === 'AbortError' && callerSignal && callerSignal.aborted && !timedOut) {
+        throw err;
+      }
+      if (timedOut) {
+        var to = new Error('Request timed out after ' + Math.round(timeoutMs / 1000) + 's');
+        to.name = 'TimeoutError';
+        to.isTimeout = true;
+        if (!silent) { _apiFetchNotify('Request timed out. Please try again.', false); }
+        throw to;
+      }
+      // Network failure (server down, CORS, DNS, offline, …).
+      err.isNetwork = true;
+      if (!silent) { _apiFetchNotify('Network error — could not reach the server.', false); }
+      throw err;
+    });
+}
+
 /**
  * Escape a string for safe insertion as HTML text.
  *
@@ -151,7 +286,7 @@ function _escHtml(str) {
  */
 function loadDownloaderPaths() {
   if (_fdPaths.length > 0) return;
-  fetch('/api/v1/downloader/paths', { headers: _apiHeaders(), credentials: 'include' })
+  apiFetch('/api/v1/downloader/paths')
     .then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
     .then(function(data) {
       _fdPaths = data.paths || [];
@@ -312,7 +447,7 @@ function _fdBrowseDir(dirPath, pattern) {
   var url = '/api/v1/downloader/browse?path=' + encodeURIComponent(dirPath);
   if (pattern) url += '&pattern=' + encodeURIComponent(pattern);
 
-  fetch(url, { headers: _apiHeaders(), credentials: 'include' })
+  apiFetch(url)
     .then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
     .then(function(data) {
       container.textContent = '';
@@ -521,7 +656,7 @@ function fdExpandArchive(path, archive, container, btn) {
 
   var url = '/api/v1/downloader/archive-contents?path=' + encodeURIComponent(path)
             + '&archive=' + encodeURIComponent(archive);
-  fetch(url, { headers: _apiHeaders(), credentials: 'include' })
+  apiFetch(url)
     .then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
     .then(function(data) {
       container.textContent = '';
@@ -574,11 +709,10 @@ function fdDownload(path, filename, archive) {
   var body = { path: path, filename: filename };
   if (archive) body.archive = archive;
 
-  fetch('/api/v1/downloader/download', {
+  apiFetch('/api/v1/downloader/download', {
     method: 'POST',
-    headers: Object.assign({ 'Content-Type': 'application/json' }, _apiHeaders()),
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
-    credentials: 'include',
   })
     .then(function(r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -910,7 +1044,7 @@ document.getElementById('mappingFilter').addEventListener('input', function() {
 async function loadMappings() {
   var sel = document.getElementById('mappingSelect');
   try {
-    var resp = await fetch('/api/v1/mappings/', { credentials: 'include' });
+    var resp = await apiFetch('/api/v1/mappings/');
     if (!resp.ok) { throw new Error('HTTP ' + resp.status); }
     var list = await resp.json();
     _allMappingOptions = [];
@@ -984,7 +1118,7 @@ async function loadMappings() {
 async function loadRules() {
   var sel = document.getElementById('rulesSelect');
   try {
-    var resp = await fetch('/api/v1/rules/', { credentials: 'include' });
+    var resp = await apiFetch('/api/v1/rules/');
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     var list = await resp.json();
     while (sel.options.length > 1) sel.removeChild(sel.lastChild);
@@ -1061,7 +1195,7 @@ document.getElementById('btnValidate').addEventListener('click', async function(
     if (rulesVal && !mrYamlFile) { fd.append('rules_id', rulesVal); }
     fd.append('suppress_pii', document.getElementById('suppressPii').checked ? 'true' : 'false');
 
-    var resp = await fetch('/api/v1/files/validate', { method: 'POST', body: fd, credentials: 'include' });
+    var resp = await apiFetch('/api/v1/files/validate', { method: 'POST', body: fd });
     if (!resp.ok) {
       var errData = await resp.json().catch(function() { return { detail: resp.statusText }; });
       throw new Error(errData.detail || resp.statusText);
@@ -1131,7 +1265,7 @@ document.getElementById('btnDownloadErrors').addEventListener('click', async fun
       fd.append('mapping_id', mapping);
     }
 
-    var resp = await fetch('/api/v1/files/export-errors', { method: 'POST', body: fd, credentials: 'include' });
+    var resp = await apiFetch('/api/v1/files/export-errors', { method: 'POST', body: fd });
     if (!resp.ok) {
       var errData = await resp.json().catch(function() { return { detail: resp.statusText }; });
       throw new Error(errData.detail || resp.statusText);
@@ -1221,7 +1355,7 @@ async function _runDriftCheck(file, mappingId) {
     var fd = new FormData();
     fd.append('file', file);
     fd.append('mapping_id', mappingId);
-    var resp = await fetch('/api/v1/files/detect-drift', { method: 'POST', body: fd, credentials: 'include' });
+    var resp = await apiFetch('/api/v1/files/detect-drift', { method: 'POST', body: fd });
     if (!resp.ok) { _hideDriftBadge(); return; }
     var data = await resp.json();
     if (data && data.drifted && Array.isArray(data.fields) && data.fields.length > 0) {
@@ -1269,7 +1403,7 @@ document.getElementById('btnCompare').addEventListener('click', async function()
     fd.append('key_columns', '');
     fd.append('detailed', 'true');
 
-    var resp = await fetch('/api/v1/files/compare', { method: 'POST', body: fd, credentials: 'include' });
+    var resp = await apiFetch('/api/v1/files/compare', { method: 'POST', body: fd });
     if (!resp.ok) {
       var errData = await resp.json().catch(function() { return { detail: resp.statusText }; });
       throw new Error(errData.detail || resp.statusText);
@@ -1504,7 +1638,7 @@ async function loadRunHistory() {
   loadingP.textContent = 'Loading run history\u2026';
   wrap.appendChild(loadingP);
   try {
-    var resp = await fetch('/api/v1/runs/history');
+    var resp = await apiFetch('/api/v1/runs/history');
     if (!resp.ok) { throw new Error('HTTP ' + resp.status); }
     _runsData = await resp.json();
     buildRunsTable(_runsData);
@@ -1583,7 +1717,7 @@ function loadTrendChart() {
 
   container.innerHTML = '<span style="font-size:12px;color:var(--text-secondary);">Loading\u2026</span>';
 
-  fetch(url, { headers: window._apiKey ? { 'X-API-Key': window._apiKey } : {} }) // gitleaks:allow
+  apiFetch(url)
     .then(function(r) { return r.ok ? r.json() : []; })
     .then(function(data) { renderTrendChart(data, container); })
     .catch(function() {
@@ -1768,9 +1902,7 @@ function loadSummaryCards() {
   var container = document.getElementById('suiteSummaryCards');
   if (!container) return;
 
-  fetch('/api/v1/runs/summaries', {
-    headers: window._apiKey ? { 'X-API-Key': window._apiKey } : {} // gitleaks:allow
-  })
+  apiFetch('/api/v1/runs/summaries', { silent: true })
   .then(function(r) { return r.ok ? r.json() : []; })
   .then(function(summaries) { _renderSummaryCards(summaries, container); })
   .catch(function() { container.textContent = ''; });
@@ -1907,10 +2039,10 @@ function _fetchBaselineStatuses() {
     var runId = td.getAttribute('data-run-id');
     var suite = td.getAttribute('data-suite');
     if (!runId || !suite) { return Promise.resolve(); }
-    return fetch(
+    return apiFetch(
       '/api/v1/runs/baseline-check?suite=' + encodeURIComponent(suite) +
       '&run_id=' + encodeURIComponent(runId),
-      { headers: { 'X-API-Key': window._apiKey || '' } } // gitleaks:allow
+      { silent: true }
     )
     .then(function(r) { return r.ok ? r.json() : null; })
     .then(function(data) {
@@ -2261,7 +2393,7 @@ document.getElementById('btnGenMapping').addEventListener('click', async functio
     if (params.length) { url += '?' + params.join('&'); }
     var fd = new FormData();
     fd.append('file', mapFile);
-    var resp = await fetch(url, { method: 'POST', body: fd });
+    var resp = await apiFetch(url, { method: 'POST', body: fd });
     if (!resp.ok) {
       var err = await resp.json().catch(function() { return { detail: resp.statusText }; });
       throw new Error(err.detail || resp.statusText);
@@ -2304,7 +2436,7 @@ document.getElementById('btnGenRules').addEventListener('click', async function(
     if (rulesName) { url += '&rules_name=' + encodeURIComponent(rulesName); }
     var fd = new FormData();
     fd.append('file', rulesFile);
-    var resp = await fetch(url, { method: 'POST', body: fd });
+    var resp = await apiFetch(url, { method: 'POST', body: fd });
     if (!resp.ok) {
       var err = await resp.json().catch(function() { return { detail: resp.statusText }; });
       throw new Error(err.detail || resp.statusText);
@@ -2447,7 +2579,7 @@ function mrPopulateMappingList() {
     _mrRenderMappingCheckboxes(_allMappingOptions);
     return;
   }
-  fetch('/api/v1/mappings/', { headers: _apiHeaders() })
+  apiFetch('/api/v1/mappings/')
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var opts = (data.mappings || data || []).map(function(m) {
@@ -2492,7 +2624,7 @@ function mrAutoDetect() {
   btn.disabled = true;
   var formData = new FormData();
   formData.append('file', fileInput.files[0]);
-  fetch('/api/v1/multi-record/detect-discriminator', { method: 'POST', headers: _apiHeaders(), body: formData })
+  apiFetch('/api/v1/multi-record/detect-discriminator', { method: 'POST', body: formData })
     .then(function(r) { return r.json(); })
     .then(function(data) {
       btn.disabled = false;
@@ -2717,9 +2849,9 @@ function mrGenerateYaml() {
   [copyBtn, dlBtn, valBtn].forEach(function(b) { b.disabled = true; });
 
   var payload = mrBuildPayload();
-  fetch('/api/v1/multi-record/generate', {
+  apiFetch('/api/v1/multi-record/generate', {
     method: 'POST',
-    headers: Object.assign({ 'Content-Type': 'application/json' }, _apiHeaders()),
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   })
     .then(function(r) {
@@ -2811,7 +2943,7 @@ async function checkHealth() {
   var dot   = document.getElementById('healthDot');
   var label = document.getElementById('healthLabel');
   try {
-    var resp = await fetch('/api/v1/system/health', { cache: 'no-store' });
+    var resp = await apiFetch('/api/v1/system/health', { cache: 'no-store', silent: true });
     if (resp.ok) {
       dot.className = 'health-dot ok';
       dot.setAttribute('aria-label', 'Server health: healthy');
@@ -3118,7 +3250,7 @@ async function atSend() {
   document.getElementById('atRespStatusLine').classList.remove('visible');
 
   try {
-    var resp = await fetch('/api/v1/api-tester/proxy', {method: 'POST', body: fd});
+    var resp = await apiFetch('/api/v1/api-tester/proxy', {method: 'POST', body: fd});
     var data = await resp.json();
     if (!resp.ok) {
       respBody.textContent = 'Proxy error: ' + JSON.stringify(data.detail || resp.statusText);
@@ -3227,7 +3359,7 @@ function atHighlightJson(str) {
  */
 async function atLoadSuites() {
   try {
-    var resp = await fetch('/api/v1/api-tester/suites');
+    var resp = await apiFetch('/api/v1/api-tester/suites');
     _atSuites = await resp.json();
     ['atSuiteSel','atRunnerSuiteSel'].forEach(function(selId) {
       var sel = document.getElementById(selId);
@@ -3266,11 +3398,11 @@ async function atSaveRequest() {
   };
 
   try {
-    var getResp = await fetch('/api/v1/api-tester/suites/' + suiteId);
+    var getResp = await apiFetch('/api/v1/api-tester/suites/' + suiteId);
     if (!getResp.ok) { alert('Could not load suite (status ' + getResp.status + ').'); return; }
     var suite = await getResp.json();
     suite.requests.push(req);
-    var putResp = await fetch('/api/v1/api-tester/suites/' + suiteId, {
+    var putResp = await apiFetch('/api/v1/api-tester/suites/' + suiteId, {
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(suite),
@@ -3294,7 +3426,7 @@ async function atNewSuite() {
   var name = prompt('Suite name:');
   if (!name) return;
   var base = document.getElementById('atBaseUrl').value.trim() || 'http://127.0.0.1:8000';
-  await fetch('/api/v1/api-tester/suites', {
+  await apiFetch('/api/v1/api-tester/suites', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({name: name, base_url: base, requests: []}),
@@ -3316,7 +3448,7 @@ async function atLoadSuiteIntoRunner() {
   _atCurrentSuite = null;
   _atCurrentResults = [];
   if (!suiteId) return;
-  var resp = await fetch('/api/v1/api-tester/suites/' + suiteId);
+  var resp = await apiFetch('/api/v1/api-tester/suites/' + suiteId);
   _atCurrentSuite = await resp.json();
   atRenderRunnerList(_atCurrentSuite.requests, []);
 }
@@ -3405,7 +3537,7 @@ async function atSaveOrder() {
   if (!_atCurrentSuite) return;
   var btn = document.getElementById('btnSaveOrder');
   try {
-    var resp = await fetch('/api/v1/api-tester/suites/' + _atCurrentSuite.id, {
+    var resp = await apiFetch('/api/v1/api-tester/suites/' + _atCurrentSuite.id, {
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(_atCurrentSuite),
@@ -3449,7 +3581,7 @@ async function atRunSuite() {
 
     var proxyResp = {status_code: 0, body: '', headers: {}, elapsed_ms: 0};
     try {
-      var resp = await fetch('/api/v1/api-tester/proxy', {method: 'POST', body: fd});
+      var resp = await apiFetch('/api/v1/api-tester/proxy', {method: 'POST', body: fd, silent: true});
       proxyResp = await resp.json();
     } catch (_) {}
 
@@ -3847,7 +3979,7 @@ toggleAutoRefresh = function() {
     loadMsg.textContent = 'Loading usage guide...';
     body.appendChild(loadMsg);
 
-    fetch('/api/v1/guide?format=markdown')
+    apiFetch('/api/v1/guide?format=markdown')
       .then(function(r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.text();
@@ -3950,10 +4082,11 @@ function fdStopSearch(kind) {
   if (!active) return;
   try { active.controller.abort(); } catch (_) { /* no-op */ }
   // Best-effort server-side cancel; do not block the UI on this call.
-  fetch('/api/v1/downloader/search-cancel', {
+  apiFetch('/api/v1/downloader/search-cancel', {
     method: 'POST',
-    headers: Object.assign({ 'Content-Type': 'application/json' }, _apiHeaders()),
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ search_id: active.id }),
+    silent: true,
   }).catch(function() { /* ignore — local abort already happened */ });
 }
 
@@ -3988,9 +4121,9 @@ function fdSearchFiles() {
   _fdActiveSearches.files = { id: searchId, controller: controller };
   _fdSetSearchRunning('files', true);
 
-  fetch('/api/v1/downloader/search-files', {
+  apiFetch('/api/v1/downloader/search-files', {
     method: 'POST',
-    headers: Object.assign({ 'Content-Type': 'application/json' }, _apiHeaders()),
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       path: path,
       filename_pattern: filenamePattern,
@@ -3998,6 +4131,8 @@ function fdSearchFiles() {
       search_id: searchId,
     }),
     signal: controller.signal,
+    timeout: 120000,
+    silent: true,
   })
     .then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
     .then(function(data) { _fdRenderSearchResults(data, container); })
@@ -4142,9 +4277,9 @@ function fdSearchArchive() {
   _fdActiveSearches.archive = { id: searchId, controller: controller };
   _fdSetSearchRunning('archive', true);
 
-  fetch('/api/v1/downloader/search-archive', {
+  apiFetch('/api/v1/downloader/search-archive', {
     method: 'POST',
-    headers: Object.assign({ 'Content-Type': 'application/json' }, _apiHeaders()),
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       path: path,
       archive_pattern: archivePattern,
@@ -4153,6 +4288,8 @@ function fdSearchArchive() {
       search_id: searchId,
     }),
     signal: controller.signal,
+    timeout: 120000,
+    silent: true,
   })
     .then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
     .then(function(data) { _fdRenderSearchResults(data, container); })
@@ -4182,8 +4319,7 @@ function fdSearchArchive() {
  */
 async function loadDbConnections() {
   try {
-    var hdrs = window._apiKey ? { 'X-API-Key': window._apiKey } : {}; // gitleaks:allow
-    var resp = await fetch('/api/v1/system/db-connections', { headers: hdrs });
+    var resp = await apiFetch('/api/v1/system/db-connections', { silent: true });
     if (!resp.ok) return;
     var connections = await resp.json();
     var select = document.getElementById('dbcConnectionSelect');
@@ -4255,7 +4391,7 @@ function onDbcConnectionSelectChange() {
     if (!sel) return;
     var apiKeyEl = document.getElementById('apiKeyInput');
     var hdrs = apiKeyEl && apiKeyEl.value ? { 'X-API-Key': apiKeyEl.value } : {}; // gitleaks:allow
-    fetch('/api/v1/system/db-profiles', { headers: hdrs })
+    apiFetch('/api/v1/system/db-profiles', { headers: hdrs, silent: true })
       .then(function(r) { return r.json(); })
       .then(function(data) {
         _profiles = data.profiles || [];
@@ -4454,7 +4590,7 @@ function onDbcConnectionSelectChange() {
         }
         var apiKeyEl = document.getElementById('apiKeyInput');
         var hdrs = apiKeyEl && apiKeyEl.value ? { 'X-API-Key': apiKeyEl.value } : {}; // gitleaks:allow
-        var resp = await fetch('/api/v1/system/db-ping', { method: 'POST', body: fd, headers: hdrs });
+        var resp = await apiFetch('/api/v1/system/db-ping', { method: 'POST', body: fd, headers: hdrs });
         var data = await resp.json();
         if (result) {
           result.style.display = '';
@@ -4562,9 +4698,7 @@ if (_dbcRunBtn) {
         fd.append('db_schema',   (document.getElementById('dbcSchema')   || {}).value || '');
       }
 
-      var hdrs = window._apiKey ? { 'X-API-Key': window._apiKey } : {}; // gitleaks:allow
-
-      var resp = await fetch('/api/v1/files/db-compare', { method: 'POST', body: fd, headers: hdrs });
+      var resp = await apiFetch('/api/v1/files/db-compare', { method: 'POST', body: fd });
       var data = await resp.json();
 
       if (!resp.ok) {
@@ -4804,10 +4938,9 @@ if (_btnReconcile) {
       var body = { mapping: mapping };
       if (table)  { body.table  = table; }
       if (schema) { body.schema = schema; }
-      var resp = await fetch('/api/v2/reconcile', {
+      var resp = await apiFetch('/api/v2/reconcile', {
         method: 'POST',
-        headers: Object.assign({ 'Content-Type': 'application/json' }, _apiHeaders()),
-        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
       var data = await resp.json();
@@ -4863,10 +4996,7 @@ function loadOnboardingSources() {
   if (!box) return;
   box.innerHTML = '<p class="empty-msg">Loading sources&hellip;</p>';
 
-  fetch('/api/v2/onboarding/sources', {
-    credentials: 'include',
-    headers: _apiHeaders()
-  })
+  apiFetch('/api/v2/onboarding/sources')
     .then(function(r) {
       if (!r.ok) {
         throw new Error('HTTP ' + r.status + ' ' + r.statusText);
@@ -4998,10 +5128,8 @@ function submitOnboardingPreview() {
   var fd = new FormData();
   fd.append('file', _seSelectedFile, _seSelectedFile.name);
 
-  fetch('/api/v2/onboarding/preview', {
+  apiFetch('/api/v2/onboarding/preview', {
     method: 'POST',
-    credentials: 'include',
-    headers: _apiHeaders(),
     body: fd
   })
     .then(function(r) {
@@ -5347,11 +5475,8 @@ function viewArtefactContent(path) {
   // emitted (cached server-side via /artefact-content) content so the
   // unified-diff renderer can show the real change set, not just the
   // committed text twice.
-  var fetchCommitted = fetch('/api/v2/onboarding/committed-artefact?path='
-        + encodeURIComponent(path), {
-    credentials: 'include',
-    headers: _apiHeaders()
-  }).then(function(r) {
+  var fetchCommitted = apiFetch('/api/v2/onboarding/committed-artefact?path='
+        + encodeURIComponent(path)).then(function(r) {
     if (!r.ok) throw new Error('committed: HTTP ' + r.status);
     return r.json();
   }).then(function(d) { return (d && d.content) || ''; });
@@ -5408,10 +5533,7 @@ function _seFetchEmittedContent(path) {
   var url = '/api/v2/onboarding/artefact-content?workbook_hash='
     + encodeURIComponent(hash)
     + '&path=' + encodeURIComponent(path);
-  return fetch(url, {
-    credentials: 'include',
-    headers: _apiHeaders()
-  }).then(function(r) {
+  return apiFetch(url).then(function(r) {
     if (!r.ok) throw new Error('emitted: HTTP ' + r.status);
     return r.json();
   }).then(function(d) {
@@ -5576,10 +5698,8 @@ function downloadOnboardingZip() {
   var fd = new FormData();
   fd.append('file', _seSelectedFile, _seSelectedFile.name);
 
-  fetch('/api/v2/onboarding/download-zip', {
+  apiFetch('/api/v2/onboarding/download-zip', {
     method: 'POST',
-    credentials: 'include',
-    headers: _apiHeaders(),
     body: fd
   })
     .then(function(r) {
@@ -5695,10 +5815,8 @@ function submitOnboardingMr() {
     fd.append('branch_name', branchInput.value);
   }
 
-  fetch('/api/v2/onboarding/open-mr', {
+  apiFetch('/api/v2/onboarding/open-mr', {
     method: 'POST',
-    credentials: 'include',
-    headers: _apiHeaders(),
     body: fd
   })
     .then(function(r) {
