@@ -1,8 +1,9 @@
 name: Unit tests + coverage gate
 
-# S13.5-5 (Sprint 13.5, #411) → S14-5 (Sprint 14, #416): run the unit suite
-# (tests/unit/) and the coverage gate (--cov-fail-under, configured in
-# pytest.ini) on every PR/push.
+# S13.5-5 (Sprint 13.5, #411) → S14-5 (Sprint 14, #416) → S17-4 (Sprint 17,
+# #432): run the unit suite (tests/unit/) and the coverage gate
+# (--cov-fail-under=80, configured in pytest.ini) on every PR/push. As of
+# S17-4 the coverage gate is ENFORCED (no longer informational).
 #
 # BLOCKING ON TESTS: as of S14-5 (#416) this job is blocking on test pass/fail.
 # The ~27 env-bound failures have been triaged to xfail/skip with documented
@@ -11,12 +12,12 @@ name: Unit tests + coverage gate
 # signing key). The "Run unit tests" step no longer carries `continue-on-error`,
 # so any TEST failure now fails the workflow.
 #
-# COVERAGE IS INFORMATIONAL FOR NOW: unit coverage under `--cov=src` is ~72%,
-# below pytest.ini's `--cov-fail-under=80` (a PRE-EXISTING shortfall, not from
-# the triage). To avoid a guaranteed-red blocking check, this CI run overrides
-# `--cov-fail-under=0` so it blocks on tests but only REPORTS coverage. Raising
-# coverage to 80% and re-enabling the gate here is tracked by #432. The local
-# pytest.ini 80% gate is unchanged (developers still see it locally).
+# COVERAGE GATE IS ENFORCED (S17-4, #432): unit coverage under `--cov=src`
+# is now >=80%, so the prior `--cov-fail-under=0` informational override has
+# been removed. This job therefore blocks on BOTH test pass/fail AND the 80%
+# coverage gate. The scope is reconciled: CI and local pytest.ini both use the
+# single `--cov=src` whole-package scope, with the small, justified `omit` set
+# living in `.coveragerc` (applied identically locally and in CI).
 #
 # NOTE: making this a *required* status check on `valdo-version-v4`/`main` is
 # a GitHub branch-protection repo setting and must be enabled by a repo admin
@@ -71,11 +72,11 @@ jobs:
           pip install -e .
           pip install -r requirements.txt
 
-      - name: Run unit tests (blocking) + coverage report (informational)
-        # BLOCKING ON TESTS (S14-5, #416): no continue-on-error — a test failure
-        # fails the workflow. Coverage is REPORTED but not enforced yet:
-        # --cov-fail-under=0 overrides pytest.ini's 80 gate because unit
-        # coverage is ~72% (pre-existing). Re-enabling the coverage gate at 80%
-        # is tracked by #432.
+      - name: Run unit tests (blocking) + coverage gate (blocking)
+        # BLOCKING ON TESTS (S14-5, #416) AND COVERAGE (S17-4, #432): no
+        # continue-on-error, and no --cov-fail-under override — the 80% gate
+        # from pytest.ini is enforced here. Either a test failure OR coverage
+        # below 80% fails the workflow. Scope (`--cov=src`) + the .coveragerc
+        # omit set match the local gate exactly.
         run: |
-          pytest tests/unit/ --cov=src --cov-report=term-missing --cov-fail-under=0
+          pytest tests/unit/ --cov=src --cov-report=term-missing

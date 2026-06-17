@@ -1,0 +1,31 @@
+# Coverage configuration — canonical unit-coverage scope (S17-4, #432).
+#
+# The unit-test coverage scope is `--cov=src` (whole package) in BOTH the
+# local gate (pytest.ini) and CI (.github/workflows/unit-tests.yml). This file
+# is the single source of truth for what is EXCLUDED from that scope, applied
+# identically locally and in CI.
+#
+# Every entry below is genuinely not unit-testable without live infrastructure
+# (a real LDAP/Oracle backend) or is a quarantined dead path. Modules are NOT
+# omitted merely to hit the number — pure-logic modules are tested, not omitted.
+
+[run]
+source = src
+branch = False
+omit =
+    # Live-LDAP bind/search path: requires a reachable LDAP directory and the
+    # ldap3 driver to exercise authenticate()/search(); the bind handshake
+    # cannot run in the no-network unit-CI sandbox.
+    src/api/auth_ldap.py
+    # Oracle-only, quarantined (ADR 0022 §6 / #431): imports oracledb, emits
+    # Oracle DDL (VARCHAR2 / IDENTITY / SYSTIMESTAMP), and has zero functional
+    # consumers in src/ — not on any adapter-routed feature path.
+    src/database/transaction.py
+    # Great Expectations checkpoint runner: great_expectations is an optional,
+    # version-gated dependency (not installed in the lean unit-CI image) and
+    # the runner is only wired as a CLI entry point.
+    src/quality/gx_checkpoint1.py
+
+[report]
+show_missing = True
+skip_covered = False
