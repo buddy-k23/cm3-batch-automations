@@ -17,7 +17,8 @@ see the `tools/list` response or
 
 ## Tools
 
-The MCP server exposes twenty tools:
+The MCP server exposes twenty-one tools (every CLI verb now has a matching MCP
+tool — MCP parity is complete):
 
 - `list_sources`, `get_source_spec`, `list_recent_runs` — read-only
   (EF-S2)
@@ -36,6 +37,41 @@ The MCP server exposes twenty tools:
 - `run_etl_pipeline` — run a multi-gate ETL validation pipeline from a YAML config (S22-2)
 - `export_failed_rows` — validate a file and export only the failed rows to a file (S22-3)
 - `submit_task` — submit a canonical task request over MCP (idempotency-aware) (S22-4)
+- `run_suite` — run a whole test suite (YAML) over MCP, returning per-test + overall results (S22-5)
+
+### Tool: `run_suite` (S22-5)
+
+Runs a **Valdo test suite** defined in a YAML file (e.g. under `config/suites/`)
+over MCP and returns the per-test pass/fail breakdown plus the overall verdict.
+It wraps the existing suite runner
+([`src/commands/run_tests_command.py::run_suite_from_path`](../src/commands/run_tests_command.py))
+— the same code path the `valdo run-tests` CLI command and the webhook /
+file-watcher triggers drive: load the suite YAML → run each test (`structural` |
+`rules` | `oracle_vs_file` | `api_check`) in order → evaluate per-test thresholds
+→ aggregate. This tool **completes MCP parity**: every CLI verb now has a
+matching MCP tool.
+
+**Input parameters**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `suite` | string | yes | Path to the suite YAML file (e.g. `config/suites/daily.yaml`). Non-blank. |
+| `env` | string | no | Environment name recorded in reports; defaults to the suite's own `environment`. |
+| `params` | object | no | `${variable}` substitutions for each test's file path (e.g. `{"run_date": "20260615"}`). |
+| `output_dir` | string | no | Directory for HTML reports + run history. Defaults to `reports`. |
+
+**Result shape** — `suite`, `environment`, `overall_status` (`PASS` \| `PARTIAL`
+\| `FAIL`), the aggregate `total_count` / `pass_count` / `fail_count` /
+`skip_count`, and a `tests` list of per-test records (each with `name`, `type`,
+`status`, `total_rows`, `error_count`, `warning_count`, `duration_seconds`,
+`report_path`, `detail`).
+
+**Failures are results, not errors.** A suite whose tests fail (or are mixed) is
+a *result* — inspect `overall_status` to decide what to do. An `oracle_vs_file`
+test is reported `SKIPPED` when Oracle is not configured. The response carries no
+secrets. Tool errors are reserved for caller-fixable problems: a missing/blank
+`suite`, a suite file that does not exist, or malformed suite YAML that fails
+schema validation.
 
 ### Tool: `submit_task` (S22-4)
 

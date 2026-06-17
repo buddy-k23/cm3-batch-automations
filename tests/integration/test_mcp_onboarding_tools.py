@@ -554,13 +554,13 @@ def test_infer_mapping_unknown_format_raises(monkeypatch, tmp_path: Path):
 # S21-1 db_compare (1) + S21-2 reconcile_all (1) + S21-3 mask_file (1) +
 # S21-4 detect_drift (1) + S21-5 extract_table (1) + S22-1 parse_file (1) +
 # S22-2 run_etl_pipeline (1) + S22-3 export_failed_rows (1) +
-# S22-4 submit_task (1) = 20 tools. We set
-# the expected list to the TRUE registered surface here.
+# S22-4 submit_task (1) + S22-5 run_suite (1) = 21 tools (MCP parity complete).
+# We set the expected list to the TRUE registered surface here.
 # ---------------------------------------------------------------------------
 
 
 def test_mcp_tools_list_has_nine_entries(monkeypatch):
-    """``tools/list`` advertises every registered tool (EF-S2..S22-3)."""
+    """``tools/list`` advertises every registered tool (EF-S2..S22-5)."""
     monkeypatch.setenv("VALDO_MCP_AUTH", "dev")
     app = _fresh_app()
 
@@ -588,6 +588,7 @@ def test_mcp_tools_list_has_nine_entries(monkeypatch):
         "reconcile_all",
         "reconcile_mapping",
         "run_etl_pipeline",
+        "run_suite",
         "submit_task",
         "upload_workbook_as_spec",
         "validate_file",

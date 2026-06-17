@@ -289,6 +289,7 @@ def test_mcp_capabilities_advertise_expected_registries(monkeypatch):
         "reconcile_all",
         "reconcile_mapping",
         "run_etl_pipeline",
+        "run_suite",
         "submit_task",
         "upload_workbook_as_spec",
         "validate_file",

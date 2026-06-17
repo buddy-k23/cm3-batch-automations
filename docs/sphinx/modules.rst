@@ -539,6 +539,10 @@ MCP Server
    :members:
    :undoc-members:
 
+.. automodule:: src.mcp.suite_tools
+   :members:
+   :undoc-members:
+
 .. automodule:: src.mcp.health
    :members:
    :undoc-members:

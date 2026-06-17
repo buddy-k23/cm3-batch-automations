@@ -126,6 +126,10 @@ from src.mcp.task_tools import (
     SUBMIT_TASK_DESCRIPTION,
     submit_task_payload,
 )
+from src.mcp.suite_tools import (
+    RUN_SUITE_DESCRIPTION,
+    run_suite_payload,
+)
 from src.mcp.onboarding_tools import (
     INFER_MAPPING_FROM_SAMPLE_DESCRIPTION,
     ONBOARD_SOURCE_DRY_RUN_DESCRIPTION,
@@ -952,6 +956,39 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
             idempotency_key=idempotency_key,
             priority=priority,
             deadline=deadline,
+        )
+
+    # ------------------------------------------------------------------
+    # S22-5 (#442) — run-suite tool. COMPLETES MCP parity.
+    #
+    # ``run_suite`` wraps the existing Valdo suite runner
+    # (:func:`src.commands.run_tests_command.run_suite_from_path`), the same code
+    # path the ``valdo run-tests`` CLI command and the webhook / file-watcher
+    # triggers drive. Thin adapter only — suite YAML loading, per-test execution
+    # (structural | rules | oracle_vs_file | api_check), threshold evaluation,
+    # report generation, run-history persistence, and baseline updates all live in
+    # the runner. The response is the per-test pass/fail breakdown plus the overall
+    # verdict; a suite whose tests FAIL (or are mixed) is a RESULT
+    # (overall_status PARTIAL/FAIL), not a tool error. The response carries no
+    # secrets. With this tool every CLI verb now has a matching MCP tool.
+    # ------------------------------------------------------------------
+
+    @mcp_server.tool(
+        name="run_suite",
+        title="Run a Valdo test suite",
+        description=RUN_SUITE_DESCRIPTION,
+    )
+    def _run_suite_tool(
+        suite: str,
+        env: Optional[str] = None,
+        params: Optional[Dict[str, str]] = None,
+        output_dir: str = "reports",
+    ) -> Dict[str, Any]:
+        return run_suite_payload(
+            suite=suite,
+            env=env,
+            params=params,
+            output_dir=output_dir,
         )
 
     # ------------------------------------------------------------------
