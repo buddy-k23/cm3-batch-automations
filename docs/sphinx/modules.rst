@@ -523,6 +523,10 @@ MCP Server
    :members:
    :undoc-members:
 
+.. automodule:: src.mcp.parse_tools
+   :members:
+   :undoc-members:
+
 .. automodule:: src.mcp.health
    :members:
    :undoc-members:

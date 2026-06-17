@@ -17,7 +17,7 @@ see the `tools/list` response or
 
 ## Tools
 
-The MCP server exposes sixteen tools:
+The MCP server exposes seventeen tools:
 
 - `list_sources`, `get_source_spec`, `list_recent_runs` — read-only
   (EF-S2)
@@ -32,6 +32,7 @@ The MCP server exposes sixteen tools:
 - `mask_file` — PII masking of a batch file with 6 strategies (S21-3)
 - `detect_drift` — schema drift between a file and its mapping (S21-4)
 - `extract_table` — adapter-agnostic DB extract (table or query) to a flat file (S21-5)
+- `parse_file` — parse/inspect a batch file, returning a bounded preview (S22-1)
 
 ### Tool: `reconcile_mapping` (#407)
 
@@ -209,6 +210,35 @@ table/column (e.g. `"X; DROP TABLE Y"`) is rejected before any SQL runs. Tool
 errors are reserved for caller-fixable problems: a missing `output`,
 neither/both of `table`/`query`, a bad adapter name, an invalid SQL identifier,
 a non-positive `limit`, or an extraction failure.
+
+### Tool: `parse_file` (S22-1)
+
+Parses a batch file and returns a **bounded preview** of its contents — the
+column layout plus a sample of rows — so an agent can inspect a file without
+loading the whole thing into its context. It wraps the existing Valdo parser
+layer ([`src/parsers/format_detector.py`](../src/parsers/format_detector.py) +
+[`PipeDelimitedParser`](../src/parsers/pipe_delimited_parser.py) /
+[`FixedWidthParser`](../src/parsers/fixed_width_parser.py)) — the same code path
+the `valdo parse` CLI command drives. The input file is never modified.
+
+**Input parameters**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `file` | string | yes | Path to the batch file to inspect. Never modified. |
+| `mapping` | string | no | Path to a mapping JSON. When supplied, the file is parsed as fixed-width using the mapping's `fields` layout (each field's `name` + `length`). |
+| `format` | string | no | Explicit delimited format — `pipe` \| `csv` \| `tsv` (`comma` is an alias of `csv`). Ignored when `mapping` is given; auto-detected when both are omitted. |
+| `limit` | int | no | Preview row cap. Defaults to `10`; clamped to a maximum of `100`. Must be a positive integer. |
+
+**Result shape** — `columns` (parsed column names), `rows` (up to `limit` rows,
+each a `{column: value}` dict), `row_count` (the **true** total row count, which
+may exceed the rows returned), `preview_count` (rows actually returned),
+`truncated` (bool — `true` when `row_count > preview_count`), and `format` (how
+the file was parsed: `fixed-width` \| the resolved delimited format \| `auto`).
+The preview is **always bounded** — an unbounded file is never dumped over the
+response. Tool errors are reserved for caller-fixable problems: a missing/blank
+`file`, a mapping file that cannot be found or parsed, an unknown `format`, a
+non-positive `limit`, a missing input file, or a parse failure.
 
 ### Tool: `compare_two_files` (S7-4)
 

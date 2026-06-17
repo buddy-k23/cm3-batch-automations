@@ -182,7 +182,7 @@ def test_mcp_capabilities_advertise_expected_registries(monkeypatch):
 
     Baseline pinned after each MCP-track story lands:
 
-    * ``tools/list``     — exactly sixteen entries: three read-only added
+    * ``tools/list``     — exactly seventeen entries: three read-only added
       by EF-S2 (``list_sources``, ``get_source_spec``,
       ``list_recent_runs``), three action tools added by EF-S4
       (``validate_file``, ``get_run_status``, ``get_violations``),
@@ -194,8 +194,9 @@ def test_mcp_capabilities_advertise_expected_registries(monkeypatch):
       S21-1 (``db_compare``), one bulk-reconcile tool added by S21-2
       (``reconcile_all``), one PII-masking tool added by S21-3
       (``mask_file``), one schema-drift tool added by S21-4
-      (``detect_drift``), and one DB-extract-to-file tool added by S21-5
-      (``extract_table``). Stories beyond S21 will extend this set.
+      (``detect_drift``), one DB-extract-to-file tool added by S21-5
+      (``extract_table``), and one parse/inspect tool added by S22-1
+      (``parse_file``). Stories beyond S22 will extend this set.
     * ``resources/list`` — exactly two entries, the
       ``taxonomy://violations`` and ``taxonomy://rules`` URIs added by
       EF-S3. Stories EF-S5 and onwards will extend this; this test pins
@@ -256,10 +257,10 @@ def test_mcp_capabilities_advertise_expected_registries(monkeypatch):
         "pick_etl_shape",
     ], f"prompts/list names drifted from EF-S6+S7-5 baseline: {prompt_names!r}"
 
-    # EF-S2 + EF-S4 + EF-S5 + S7-4 + #407 + S21-1..S21-5 —
-    # sixteen tools: three read-only, three action, three onboarding, one
+    # EF-S2 + EF-S4 + EF-S5 + S7-4 + #407 + S21-1..S21-5 + S22-1 —
+    # seventeen tools: three read-only, three action, three onboarding, one
     # ad-hoc compare, one reconcile, one db-compare, one bulk-reconcile, one
-    # PII-masking, one schema-drift, one DB-extract, no more, no less.
+    # PII-masking, one schema-drift, one DB-extract, one parse, no more, no less.
     # The full input-schema shape of each tool is asserted in
     # ``test_mcp_read_tools.py`` (EF-S2), ``test_mcp_action_tools.py``
     # (EF-S4), ``test_mcp_onboarding_tools.py`` (EF-S5),
@@ -281,6 +282,7 @@ def test_mcp_capabilities_advertise_expected_registries(monkeypatch):
         "list_sources",
         "mask_file",
         "onboard_source_dry_run",
+        "parse_file",
         "reconcile_all",
         "reconcile_mapping",
         "upload_workbook_as_spec",

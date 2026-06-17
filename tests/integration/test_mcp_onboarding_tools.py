@@ -552,13 +552,13 @@ def test_infer_mapping_unknown_format_raises(monkeypatch, tmp_path: Path):
 # Count reconciled to reality: EF-S2 (3) + EF-S4 (3) + EF-S5 (3) +
 # S7-4 compare_two_files (1) + #407 reconcile_mapping (1) +
 # S21-1 db_compare (1) + S21-2 reconcile_all (1) + S21-3 mask_file (1) +
-# S21-4 detect_drift (1) + S21-5 extract_table (1) = 16 tools. We set the
-# expected list to the TRUE registered surface here.
+# S21-4 detect_drift (1) + S21-5 extract_table (1) + S22-1 parse_file (1) =
+# 17 tools. We set the expected list to the TRUE registered surface here.
 # ---------------------------------------------------------------------------
 
 
 def test_mcp_tools_list_has_nine_entries(monkeypatch):
-    """``tools/list`` advertises every registered tool (EF-S2..S21-5)."""
+    """``tools/list`` advertises every registered tool (EF-S2..S22-1)."""
     monkeypatch.setenv("VALDO_MCP_AUTH", "dev")
     app = _fresh_app()
 
@@ -581,6 +581,7 @@ def test_mcp_tools_list_has_nine_entries(monkeypatch):
         "list_sources",
         "mask_file",
         "onboard_source_dry_run",
+        "parse_file",
         "reconcile_all",
         "reconcile_mapping",
         "upload_workbook_as_spec",

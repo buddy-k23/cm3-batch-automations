@@ -110,6 +110,10 @@ from src.mcp.extract_tools import (
     EXTRACT_TABLE_DESCRIPTION,
     extract_table_payload,
 )
+from src.mcp.parse_tools import (
+    PARSE_FILE_DESCRIPTION,
+    parse_file_payload,
+)
 from src.mcp.onboarding_tools import (
     INFER_MAPPING_FROM_SAMPLE_DESCRIPTION,
     ONBOARD_SOURCE_DRY_RUN_DESCRIPTION,
@@ -802,6 +806,36 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
             output=output,
             delimiter=delimiter,
             db_adapter=db_adapter,
+        )
+
+    # ------------------------------------------------------------------
+    # S22-1 (#438) — parse/inspect tool.
+    #
+    # ``parse_file`` wraps the existing Valdo parser layer (FormatDetector +
+    # PipeDelimitedParser / FixedWidthParser), the same code path the
+    # ``valdo parse`` CLI drives. Thin adapter only — the format detection, the
+    # mapping-driven field layout, and the DataFrame construction live in the
+    # parser classes. The response is a BOUNDED preview (column names + first N
+    # rows + the true total row count) — never an unbounded file dump; the
+    # input file is never modified.
+    # ------------------------------------------------------------------
+
+    @mcp_server.tool(
+        name="parse_file",
+        title="Parse and inspect a batch file (bounded preview)",
+        description=PARSE_FILE_DESCRIPTION,
+    )
+    def _parse_file_tool(
+        file: str,
+        mapping: Optional[str] = None,
+        format: Optional[str] = None,
+        limit: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        return parse_file_payload(
+            file=file,
+            mapping=mapping,
+            format=format,
+            limit=limit,
         )
 
     # ------------------------------------------------------------------
