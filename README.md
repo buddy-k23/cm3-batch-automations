@@ -2,7 +2,7 @@
 
 Automated batch file validation, comparison, and ETL testing tool with multi-database support, REST API, and modern web UI.
 
-**1,063 unit tests + 46 E2E tests = 1,109 total | 80%+ coverage | ADA/WCAG 2.1 AA compliant**
+**~3,850 unit tests + ~145 E2E tests | 80%+ coverage | ADA/WCAG 2.1 AA compliant**
 
 ## Features
 

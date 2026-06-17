@@ -9,9 +9,9 @@
 - API: `src/api/main.py` (FastAPI app at port 8000)
 - Web UI: `src/reports/static/ui.html` (served at `/ui`)
 
-**Test suite:** 1836 unit tests + 125 E2E Playwright tests = 1961 total, 80% coverage
+**Test suite:** ~3,850 unit tests + ~145 E2E Playwright tests, 80% coverage
 
-**Active branch:** `main`
+**Active branch:** `valdo-version-v4`
 
 ---
 
@@ -221,8 +221,8 @@ docs/
   splunk-setup.md                # Audit log integration
   sphinx/                        # Auto-generated API reference
 tests/
-  unit/              # 1730 unit tests (pytest)
-  e2e/               # 106 Playwright E2E tests
+  unit/              # ~3,850 unit tests (pytest)
+  e2e/               # ~145 Playwright E2E tests
 ci/
   templates/         # Azure DevOps + GitLab CI reusable templates
 .github/
@@ -276,4 +276,4 @@ Configurable via environment variables (defaults for local dev):
 
 ## Open Issues
 
-No critical open issues. All planned feature chains (Alembic migrations, trend/baseline/drift/export services, multi-record wizard, E2E expansion) have been implemented and merged.
+Issue tracker is at 0 open issues as of completion of the MCP-parity + HTML program. Active work is the SHAW E2E test-run package under `docs/testing/`.

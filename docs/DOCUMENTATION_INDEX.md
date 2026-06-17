@@ -50,7 +50,7 @@ This is the **single source of truth** for docs navigation.
 ## API
 - `docs/API_UPLOAD_GUIDE.md`
 - `docs/USAGE_GUIDE.md#api-tester-tab` — API Tester: proxy-based REST tester with suite runner and assertions
-- `docs/secrets-setup.md` — secret provider configuration for environment/CyberArk-backed Oracle credentials
+- `docs/USAGE_AND_OPERATIONS_GUIDE.md#using-a-secrets-provider-for-passwords` — secret provider configuration (env, Vault, Azure Key Vault) for Oracle credentials
 
 ## Security
 - `docs/USAGE_AND_OPERATIONS_GUIDE.md#authentication` — `X-API-Key` header,

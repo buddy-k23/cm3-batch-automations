@@ -1,8 +1,8 @@
 # MCP Clients — Connecting Agents to Valdo
 
 Valdo's Model Context Protocol (MCP) server (see
-[`docs/MCP_SERVER.md`](MCP_SERVER.md)) exposes 9 tools, 2 resources, and
-3 prompts. This document is the **client-side index**: it lists the
+[`docs/MCP_SERVER.md`](MCP_SERVER.md)) exposes 21 tools, 7 resources, and
+4 prompts. This document is the **client-side index**: it lists the
 agent platforms that have been integration-tested against Valdo and
 links to the per-client setup guides.
 
@@ -37,7 +37,7 @@ Which Valdo MCP tools work in each client (as of June 2026):
 | `upload_workbook_as_spec`     | onboarding  | Yes            | Yes              | Yes                     | Possible (multi-part awkward)          |
 | `onboard_source_dry_run`      | onboarding  | Yes            | Yes              | Yes                     | Yes (via dedicated Custom Tool)        |
 | MCP resources (`runs/recent`) | resource    | Yes            | Yes              | Yes                     | Not available                          |
-| MCP prompts (3 BA prompts)    | prompt      | Yes            | Yes              | Yes                     | Not available (use Duo's prompt library) |
+| MCP prompts (4 prompts)       | prompt      | Yes            | Yes              | Yes                     | Not available (use Duo's prompt library) |
 
 **Notes on the matrix:**
 
