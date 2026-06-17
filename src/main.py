@@ -351,7 +351,7 @@ def info():
 @click.option('--mapping', '-m', required=True, help='Mapping file to validate')
 @click.option('--table', '-t', help='Target table override (else uses mapping target.table_name)')
 @click.option('--schema', '-s', help='Schema / owner, prepended to the table')
-@click.option('--output', '-o', help='Write reconciliation report to file (.json for machine-readable output)')
+@click.option('--output', '-o', help='Write reconciliation report to file (.json for machine-readable JSON, .html for an HTML report)')
 @click.option('--fail-on-warnings', is_flag=True, help='Return non-zero exit code if warnings are found')
 def reconcile(mapping, table, schema, output, fail_on_warnings):
     """Reconcile mapping document with database schema.
@@ -393,8 +393,16 @@ def reconcile(mapping, table, schema, output, fail_on_warnings):
         click.echo(f"Database columns: {verdict['summary']['database_columns']}")
 
         if output:
-            with open(output, 'w') as f:
-                json.dump(verdict, f, indent=2)
+            if output.lower().endswith('.html'):
+                # Consistent output contract (CLAUDE.md): .html -> HTML report,
+                # .json -> machine JSON. Delegates rendering to the shared
+                # reconcile renderer (ADR 0023 — same renderer the S23-4 MCP
+                # tool plugs HTML in through).
+                from src.reports.renderers.reconcile_renderer import ReconcileReporter
+                ReconcileReporter().generate(verdict, output)
+            else:
+                with open(output, 'w') as f:
+                    json.dump(verdict, f, indent=2)
             click.echo(f"Report written to: {output}")
 
         if (not verdict['valid']) or (fail_on_warnings and verdict['summary']['warning_count']):
@@ -411,7 +419,7 @@ def reconcile(mapping, table, schema, output, fail_on_warnings):
 @click.option('--mappings-dir', '-d', default='config/mappings', type=click.Path(exists=True, file_okay=False),
               help='Directory containing mapping files (default: config/mappings)')
 @click.option('--pattern', default='*.json', help='Glob pattern for mapping files (default: *.json)')
-@click.option('--output', '-o', help='Write aggregate reconciliation report (.json recommended)')
+@click.option('--output', '-o', help='Write aggregate reconciliation report (.json for machine JSON, .html for an HTML report)')
 @click.option('--baseline', '-b', type=click.Path(exists=True),
               help='Baseline reconcile-all JSON report to compare drift against')
 @click.option('--fail-on-warnings', is_flag=True, help='Return non-zero exit code if warnings are found')
@@ -479,8 +487,14 @@ def reconcile_all(mappings_dir, pattern, output, baseline, fail_on_warnings, fai
             click.echo(f"New warnings:     {drift['new_warnings']}")
 
         if output:
-            with open(output, 'w') as f:
-                json.dump(summary, f, indent=2)
+            if output.lower().endswith('.html'):
+                # Consistent output contract (CLAUDE.md): .html -> HTML report,
+                # .json -> machine JSON. Same shared renderer as reconcile.
+                from src.reports.renderers.reconcile_renderer import ReconcileReporter
+                ReconcileReporter().generate_all(summary, output)
+            else:
+                with open(output, 'w') as f:
+                    json.dump(summary, f, indent=2)
             click.echo(f"\nAggregate report written to: {output}")
 
         has_drift_regression = bool(drift and (drift.get('new_errors', 0) > 0 or drift.get('new_warnings', 0) > 0))
