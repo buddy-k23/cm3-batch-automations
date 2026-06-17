@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- feat(mcp): db_compare tool — DB-extract vs file over MCP (honors DB_ADAPTER) (S21-1, #433)
+
 ### Security
 - security(audit): tamper-evident audit records — HMAC/hash-chain + sequence; write failures no longer silent (S13.5-1, #408)
 - security(audit): audit auth failures + config/mapping/rule/masking mutations (S13.5-2, #415)

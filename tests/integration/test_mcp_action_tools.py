@@ -649,10 +649,11 @@ def test_get_violations_unknown_run_id_raises(monkeypatch):
 
 
 def test_mcp_tools_list_has_ten_entries(monkeypatch):
-    """``tools/list`` advertises every registered tool (EF-S2..#407).
+    """``tools/list`` advertises every registered tool (EF-S2..S21-1).
 
-    #407 added ``reconcile_mapping``, taking the surface from ten to eleven.
-    The expected list below is the TRUE registered surface.
+    #407 added ``reconcile_mapping`` (eleven); S21-1 added ``db_compare``,
+    taking the surface to twelve. The expected list below is the TRUE
+    registered surface.
     """
     monkeypatch.setenv("VALDO_MCP_AUTH", "dev")
     app = _fresh_app()
@@ -665,6 +666,7 @@ def test_mcp_tools_list_has_ten_entries(monkeypatch):
     names = sorted(t["name"] for t in tools)
     assert names == [
         "compare_two_files",
+        "db_compare",
         "get_run_status",
         "get_source_spec",
         "get_violations",

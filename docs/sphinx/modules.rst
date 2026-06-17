@@ -503,6 +503,10 @@ MCP Server
    :members:
    :undoc-members:
 
+.. automodule:: src.mcp.db_compare_tools
+   :members:
+   :undoc-members:
+
 .. automodule:: src.mcp.health
    :members:
    :undoc-members:

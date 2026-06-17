@@ -17,7 +17,7 @@ see the `tools/list` response or
 
 ## Tools
 
-The MCP server exposes eleven tools:
+The MCP server exposes twelve tools:
 
 - `list_sources`, `get_source_spec`, `list_recent_runs` — read-only
   (EF-S2)
@@ -27,6 +27,7 @@ The MCP server exposes eleven tools:
   `onboard_source_dry_run` — onboarding (EF-S5)
 - `compare_two_files` — ad-hoc file diff (S7-4)
 - `reconcile_mapping` — adapter-agnostic mapping-vs-table reconcile (#407)
+- `db_compare` — adapter-agnostic DB-extract-vs-file compare (S21-1)
 
 ### Tool: `reconcile_mapping` (#407)
 
@@ -55,6 +56,37 @@ NOT raise a tool error. Tool errors are reserved for caller-fixable problems
 
 Each tool's input schema and description are surfaced via the standard
 MCP `tools/list` discovery call.
+
+### Tool: `db_compare` (S21-1)
+
+Extracts rows from a database table or SQL query on whichever backend
+`DB_ADAPTER` selects (`sqlite` | `postgresql` | `oracle`), writes them to a
+temp file, and diffs that against an actual batch file. It wraps the existing
+db-compare service
+[`src/services/db_file_compare_service.py::compare_db_to_file`](../src/services/db_file_compare_service.py)
+— the same code path the `valdo db-compare` CLI and the
+`POST /api/v1/files/db-compare` REST endpoint call.
+
+**Input parameters**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `mapping` | string | yes | Path to a mapping JSON whose `fields` list names the columns. |
+| `actual_file` | string | yes | Path to the actual batch file to compare the DB extract against. |
+| `table` | string | one-of | Bare table name to extract from. Mutually exclusive with `query`. |
+| `query` | string | one-of | A SQL `SELECT` statement to extract with. Mutually exclusive with `table`. |
+| `key_columns` | list[string] | no | Column name(s) used as join keys; omit for row-by-row comparison. |
+| `db_adapter` | string | no | Adapter override (`sqlite` \| `postgresql` \| `oracle`); defaults to env `DB_ADAPTER`. |
+| `connection` | object | no | Per-request connection values (`db_host`, `db_user`, `db_password`, `db_schema`, `db_path`). Never echoed in the response. |
+
+**Verdict shape** — `workflow` (`status` `passed` \| `failed`,
+`db_rows_extracted`, `query_or_table`) and `compare` (`structure_compatible`,
+`matching_rows`, `only_in_file1` / `only_in_file2`, `differences`, row counts).
+A genuine comparison difference is reported in the verdict (`status=failed`) —
+it does NOT raise a tool error. Tool errors are reserved for caller-fixable
+problems (mapping or actual file not found, neither/both of `table`/`query`
+supplied, or a bad adapter name). Connection credentials are never included in
+the tool response.
 
 ### Tool: `compare_two_files` (S7-4)
 

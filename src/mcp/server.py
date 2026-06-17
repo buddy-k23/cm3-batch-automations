@@ -90,6 +90,10 @@ from src.mcp.reconcile_tools import (
     RECONCILE_MAPPING_DESCRIPTION,
     reconcile_mapping_payload,
 )
+from src.mcp.db_compare_tools import (
+    DB_COMPARE_DESCRIPTION,
+    db_compare_payload,
+)
 from src.mcp.onboarding_tools import (
     INFER_MAPPING_FROM_SAMPLE_DESCRIPTION,
     ONBOARD_SOURCE_DRY_RUN_DESCRIPTION,
@@ -624,6 +628,43 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
             mapping=mapping,
             table=table,
             schema=schema,
+        )
+
+    # ------------------------------------------------------------------
+    # S21-1 (#433) — adapter-agnostic DB-extract-vs-file compare tool.
+    #
+    # ``db_compare`` wraps the existing db-compare service
+    # (:func:`src.services.db_file_compare_service.compare_db_to_file`),
+    # which the CLI (``valdo db-compare``) and the REST endpoint
+    # (``POST /api/v1/files/db-compare``) also call. Adapter-agnostic per
+    # ADR 0022 §5: it extracts from whichever backend DB_ADAPTER selects.
+    # Thin adapter only — business logic lives in the service layer. A
+    # genuine comparison difference is a result (workflow.status=failed),
+    # not a tool error; per-request credentials are never echoed back.
+    # ------------------------------------------------------------------
+
+    @mcp_server.tool(
+        name="db_compare",
+        title="Compare a database extract against a file",
+        description=DB_COMPARE_DESCRIPTION,
+    )
+    def _db_compare_tool(
+        mapping: str,
+        actual_file: str,
+        table: Optional[str] = None,
+        query: Optional[str] = None,
+        key_columns: Optional[List[str]] = None,
+        db_adapter: Optional[str] = None,
+        connection: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        return db_compare_payload(
+            mapping=mapping,
+            actual_file=actual_file,
+            table=table,
+            query=query,
+            key_columns=key_columns,
+            db_adapter=db_adapter,
+            connection=connection,
         )
 
     # ------------------------------------------------------------------
