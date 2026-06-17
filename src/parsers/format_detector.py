@@ -12,6 +12,7 @@ class FileFormat(Enum):
     CSV = "csv"
     TSV = "tsv"
     JSON = "json"  # NDJSON / .jsonl — one JSON object per line (ADR 0018).
+    XML = "xml"  # repeated record elements parsed by hardened lxml (ADR 0019).
     UNKNOWN = "unknown"
 
 
@@ -67,6 +68,7 @@ class FormatDetector:
             FileFormat.TSV: self._score_tsv(sample_lines),
             FileFormat.FIXED_WIDTH: self._score_fixed_width(sample_lines),
             FileFormat.JSON: self._score_json(sample_lines),
+            FileFormat.XML: self._score_xml(sample_lines),
         }
 
         # Get best match
@@ -187,6 +189,27 @@ class FormatDetector:
         first = lines[0].lstrip()
         return 0.9 if first.startswith("{") else 0.0
 
+    def _score_xml(self, lines: list) -> float:
+        """Score likelihood of XML from the first non-blank line.
+
+        XML documents open with an ``<?xml`` declaration or a ``<`` element
+        tag. Content sniffing is a fallback only — ``.xml`` is authoritative by
+        extension (ADR 0019), like ``.csv`` / ``.tsv`` (S8-2).
+
+        Args:
+            lines: Sample non-blank lines from the file.
+
+        Returns:
+            ``0.9`` when the first non-blank line begins with ``<?xml`` or a
+            ``<`` element open (and is not an NDJSON line), otherwise ``0.0``.
+        """
+        if not lines:
+            return 0.0
+        first = lines[0].lstrip()
+        if first.startswith("<?xml") or (first.startswith("<") and not first.startswith("<!--")):
+            return 0.9
+        return 0.0
+
     @staticmethod
     def _looks_like_json_array(file_path: str) -> bool:
         """Return True if the file's first non-blank char is ``[``.
@@ -230,6 +253,12 @@ class FormatDetector:
     # "convert to NDJSON first" message in :meth:`get_parser_class`.
     _JSON_EXTENSIONS = frozenset({".ndjson", ".jsonl"})
 
+    # ``.xml`` routes deterministically to the hardened :class:`XmlParser`
+    # (ADR 0019). Like ``.csv`` / ``.tsv`` the extension is authoritative;
+    # content sniffing (``_score_xml``) is only a fallback for un-extensioned
+    # XML.
+    _XML_EXTENSIONS = frozenset({".xml"})
+
     def get_parser_class(self, file_path: str):
         """Get appropriate parser class for file.
 
@@ -262,6 +291,7 @@ class FormatDetector:
         from .pipe_delimited_parser import PipeDelimitedParser
         from .fixed_width_parser import FixedWidthParser
         from .json_parser import JsonParser
+        from .xml_parser import XmlParser
 
         # Extension-driven fast path. Treat known delimited extensions as
         # authoritative — the parser itself maps the extension to the
@@ -277,6 +307,11 @@ class FormatDetector:
         # error deep in JsonParser.
         if suffix in self._JSON_EXTENSIONS:
             return JsonParser
+
+        # ``.xml`` routes to the hardened XmlParser (ADR 0019).
+        if suffix in self._XML_EXTENSIONS:
+            return XmlParser
+
         if suffix == ".json" and self._looks_like_json_array(file_path):
             raise ValueError(
                 f"{file_path} looks like a top-level JSON array, which is not "
@@ -293,6 +328,8 @@ class FormatDetector:
             return FixedWidthParser
         elif format_type == FileFormat.JSON:
             return JsonParser
+        elif format_type == FileFormat.XML:
+            return XmlParser
         elif format_type in (FileFormat.CSV, FileFormat.TSV):
             # Content-sniffed CSV/TSV with an unusual extension — still
             # delegate to PipeDelimitedParser, but in this branch the

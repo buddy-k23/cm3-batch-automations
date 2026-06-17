@@ -395,10 +395,55 @@ class FieldValidator:
             return below | above
         return below
 
+    # ------------------------------------------------------------------
+    # ADR 0019 / issue #396 — XML predicate.
+    #
+    # XmlParser flattens each repeated record element to one column per field
+    # exactly like JsonParser. An ``xml_xpath`` flagged as a repeated child
+    # becomes an integer ``<field>_count`` column; scalar paths preserve XML's
+    # three states (value / present-empty / absent) as (value / None / pd.NA),
+    # so ``validate_nested_required`` below is REUSED verbatim from ADR 0018 —
+    # no XML-specific version is needed. The only XML net-new predicate is the
+    # array-length check, the twin of ``validate_json_array_length``.
+    # ------------------------------------------------------------------
+
+    def validate_xml_array_length(
+        self, df: pd.DataFrame, field: str,
+        min_len: int, max_len: int = None
+    ) -> pd.Series:
+        """Flag rows whose XML repeated-child count is outside ``[min_len, max_len]``.
+
+        Operates on the integer count column
+        :class:`~src.parsers.xml_parser.XmlParser` emits for a repeated-child
+        XPath (e.g. ``transactions_count``). The XML twin of
+        :meth:`validate_json_array_length`. Drives BA rules such as "every
+        payment file must carry at least one transaction" (``min_len=1``) or
+        "no more than 500 transactions" (``max_len=500``).
+
+        Args:
+            df: DataFrame to validate.
+            field: The count column name (e.g. ``transactions_count``).
+            min_len: Inclusive minimum repeated-child count.
+            max_len: Optional inclusive maximum count. When ``None`` only the
+                lower bound is enforced.
+
+        Returns:
+            Boolean mask where ``True`` indicates a row whose count is below
+            ``min_len`` or above ``max_len``. A non-numeric / absent count
+            (``pd.NA``) coerces to ``NaN`` and is flagged — it cannot satisfy a
+            minimum.
+        """
+        counts = pd.to_numeric(df[field], errors="coerce")
+        below = ~(counts >= min_len)
+        if max_len is not None:
+            above = counts > max_len
+            return below | above
+        return below
+
     def validate_nested_required(
         self, df: pd.DataFrame, field: str
     ) -> pd.Series:
-        """Flag rows where the JSON path did not resolve (key absent).
+        """Flag rows where the JSON/XML path did not resolve (key/element absent).
 
         Distinct from :meth:`validate_not_empty`: JSON has three states a
         flat file does not — present-with-value, present-with-null, and

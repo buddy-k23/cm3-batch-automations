@@ -32,6 +32,13 @@ pyyaml>=6.0
 # selectors against each NDJSON record at parse time.
 jsonpath-ng>=1.6.0
 
+# XML parsing — hardened lxml parser for untrusted XML batch files (ADR 0019,
+# S19-3, #396). Streaming iterparse + full XPath + a security-locked parser
+# (resolve_entities/load_dtd/no_network disabled; DOCTYPE rejected) that
+# defends XXE / billion-laughs / external-entity. Ships manylinux wheels (no
+# system libxml build needed on RHEL); pin and track for CVEs.
+lxml>=5.0.0
+
 # API Framework (optional - for REST API)
 fastapi>=0.109.0
 uvicorn[standard]>=0.27.0

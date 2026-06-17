@@ -20,6 +20,12 @@ class TemplateConverter:
         # populated value in this column switches the converter to the JSON
         # mapping shape (``json_path`` per field instead of position/length).
         'JSON Path',
+        # ADR 0019: XPath selector locating each field in an XML record
+        # (e.g. ``customer/id``, ``account/@id``, ``transactions/transaction``).
+        # Presence of a populated value switches the converter to the XML
+        # mapping shape (``xml_xpath`` per field). The XPath itself carries the
+        # attribute-vs-element-text distinction (a trailing ``@name`` step).
+        'XML XPath',
     ]
     
     def __init__(self, frozen_timestamp: str | None = None):
@@ -124,6 +130,41 @@ class TemplateConverter:
             df, template_path, mapping_name, file_format='json'
         )
 
+    def from_xml_template(self, template_path: str,
+                          mapping_name: str = None) -> dict:
+        """Convert a CSV/Excel template carrying an ``XML XPath`` column to an XML mapping.
+
+        Identical in shape to :meth:`from_csv` / :meth:`from_excel`, but forces
+        ``file_format='xml'`` so the emitted mapping carries an ``xml_xpath``
+        per field (the XPath selector
+        :class:`~src.parsers.xml_parser.XmlParser` resolves at parse time)
+        instead of positional ``position`` / ``length`` anchors (ADR 0019).
+        The XPath itself carries the attribute-vs-element-text distinction —
+        a trailing ``@name`` step (``account/@id``) reads the attribute.
+
+        Args:
+            template_path: Path to the ``.csv`` / ``.xlsx`` / ``.xls``
+                template. The ``XML XPath`` column locates each field in an
+                XML record (e.g. ``customer/id``, ``account/@id``,
+                ``transactions/transaction``).
+            mapping_name: Optional mapping name. Derived from the template
+                filename stem when omitted.
+
+        Returns:
+            Universal mapping dict whose ``source.format`` is ``"xml"`` and
+            whose per-field entries carry ``xml_xpath`` when the template cell
+            is populated.
+        """
+        # Per ADR 0007: ``dtype=str`` preserves cell literals (see from_excel).
+        suffix = Path(template_path).suffix.lower()
+        if suffix in ('.xlsx', '.xls'):
+            df = pd.read_excel(template_path, sheet_name=0, dtype=str)
+        else:
+            df = pd.read_csv(template_path, dtype=str)
+        return self._convert_dataframe(
+            df, template_path, mapping_name, file_format='xml'
+        )
+
     def _convert_dataframe(self, df: pd.DataFrame, template_path: str,
                           mapping_name: str = None, file_format: str = None) -> dict:
         """Convert DataFrame to universal mapping."""
@@ -138,7 +179,7 @@ class TemplateConverter:
             'required': 'Required', 'description': 'Description',
             'default_value': 'Default Value', 'target_name': 'Target Name',
             'valid_values': 'Valid Values', 'transformation': 'Transformation',
-            'json_path': 'JSON Path',
+            'json_path': 'JSON Path', 'xml_xpath': 'XML XPath',
         }
         df.columns = [col_map.get(c.lower().replace(' ', '_'), c) for c in df.columns]
 
@@ -233,10 +274,11 @@ class TemplateConverter:
     def _detect_format(self, df: pd.DataFrame) -> str:
         """Auto-detect file format from template columns.
 
-        A populated ``JSON Path`` column wins (ADR 0018): it unambiguously
-        marks a JSON mapping. Otherwise the historic position+length →
-        fixed-width / else → pipe-delimited heuristic applies, so templates
-        without the column remain backward-compatible.
+        A populated ``JSON Path`` column wins (ADR 0018), or a populated
+        ``XML XPath`` column (ADR 0019): each unambiguously marks a nested
+        mapping. Otherwise the historic position+length → fixed-width / else →
+        pipe-delimited heuristic applies, so templates without either column
+        remain backward-compatible.
         """
         # JSON takes precedence: a JSON Path column with at least one
         # non-blank cell means the BA authored JSONPath selectors.
@@ -244,6 +286,13 @@ class TemplateConverter:
             non_blank = df['JSON Path'].astype(str).str.strip()
             if (non_blank != '').any():
                 return 'json'
+
+        # XML next: a populated XML XPath column means the BA authored XPath
+        # selectors (ADR 0019).
+        if 'XML XPath' in df.columns and df['XML XPath'].notna().any():
+            non_blank = df['XML XPath'].astype(str).str.strip()
+            if (non_blank != '').any():
+                return 'xml'
 
         has_position = 'Position' in df.columns
         has_length = 'Length' in df.columns
@@ -279,7 +328,24 @@ class TemplateConverter:
             json_path = str(row['JSON Path']).strip()
             if json_path:
                 field['json_path'] = json_path
-        
+
+        # Add the XPath selector for XML mappings (ADR 0019). Only emit when the
+        # cell is populated — a blank cell must not leak an empty xml_xpath key
+        # (the field is simply not located in the XML record). An ``integer``
+        # field whose XPath points at a repeated child collapses to a
+        # ``<field>_count`` column in XmlParser; flag it with ``xml_array`` so
+        # the parser does not depend solely on the data-type heuristic.
+        if file_format == 'xml' and 'XML XPath' in row and pd.notna(row['XML XPath']):
+            xml_xpath = str(row['XML XPath']).strip()
+            if xml_xpath:
+                field['xml_xpath'] = xml_xpath
+                last_step = xml_xpath.split('/')[-1]
+                if (
+                    field['data_type'] == 'integer'
+                    and not last_step.startswith('@')
+                ):
+                    field['xml_array'] = True
+
         # Add format if specified
         if 'Format' in row and pd.notna(row['Format']):
             field['format'] = str(row['Format']).strip()

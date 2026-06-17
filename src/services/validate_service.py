@@ -103,6 +103,23 @@ def run_validate_service(
             # list, not columns/has_header. Fields without a json_path are
             # skipped by the parser (they can't be located in a JSON record).
             parser = parser_class(file, (mapping_config or {}).get("fields", []))
+        elif parser_class.__name__ == "XmlParser":
+            # XML (ADR 0019): the hardened XmlParser resolves each field's
+            # xml_xpath against the repeated record element. Like JsonParser it
+            # takes the mapping's flat field list (not columns/has_header). The
+            # record element name and namespace mode come from the mapping's
+            # source config (record_tag / namespace_aware / namespaces).
+            _source = (mapping_config or {}).get("source", {})
+            _xml_kwargs: dict[str, Any] = {}
+            if _source.get("record_tag"):
+                _xml_kwargs["record_tag"] = _source["record_tag"]
+            if _source.get("namespace_aware"):
+                _xml_kwargs["namespace_aware"] = True
+            if _source.get("namespaces"):
+                _xml_kwargs["namespaces"] = _source["namespaces"]
+            parser = parser_class(
+                file, (mapping_config or {}).get("fields", []), **_xml_kwargs
+            )
         else:
             # has_header drives whether the parser consumes the first line as a
             # header. Default True to align with the chunked path (which defaults

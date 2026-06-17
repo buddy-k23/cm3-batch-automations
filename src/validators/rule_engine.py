@@ -245,6 +245,15 @@ class RuleEngine:
             max_len = rule.get('max_len')
             max_len = int(max_len) if max_len is not None else None
             mask = validator.validate_json_array_length(df, field, min_len, max_len)
+        # ----- ADR 0019 / issue #396 — XML operator -----
+        # XmlParser flattens repeated record elements; ``xml_array_length`` runs
+        # against a ``<field>_count`` column. ``nested_required`` (above) is
+        # reused unchanged for absent XML paths. See FieldValidator.
+        elif operator == 'xml_array_length':
+            min_len = int(rule.get('min_len', 0))
+            max_len = rule.get('max_len')
+            max_len = int(max_len) if max_len is not None else None
+            mask = validator.validate_xml_array_length(df, field, min_len, max_len)
         elif operator == 'nested_required':
             mask = validator.validate_nested_required(df, field)
         else:

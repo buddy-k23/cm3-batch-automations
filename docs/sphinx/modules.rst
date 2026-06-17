@@ -114,6 +114,11 @@ Parsers
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: src.parsers.xml_parser
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: src.parsers.chunked_parser
    :members:
    :undoc-members:
