@@ -17,7 +17,7 @@ see the `tools/list` response or
 
 ## Tools
 
-The MCP server exposes seventeen tools:
+The MCP server exposes twenty tools:
 
 - `list_sources`, `get_source_spec`, `list_recent_runs` — read-only
   (EF-S2)
@@ -35,6 +35,43 @@ The MCP server exposes seventeen tools:
 - `parse_file` — parse/inspect a batch file, returning a bounded preview (S22-1)
 - `run_etl_pipeline` — run a multi-gate ETL validation pipeline from a YAML config (S22-2)
 - `export_failed_rows` — validate a file and export only the failed rows to a file (S22-3)
+- `submit_task` — submit a canonical task request over MCP (idempotency-aware) (S22-4)
+
+### Tool: `submit_task` (S22-4)
+
+Submits a **canonical Valdo task request** over MCP and returns the queued
+task's id + status. It wraps the existing task-ingest path
+([`src/adapters/api_task_adapter.py::normalize_api_task_request`](../src/adapters/api_task_adapter.py)
++ [`src/contracts/validation.py::validate_task_request`](../src/contracts/validation.py)
++ [`src/services/job_state_store.py::JobStateStore`](../src/services/job_state_store.py))
+— the same code path the `valdo submit-task` CLI command and the
+`POST /api/v1/tasks/submit` REST endpoint drive (normalise → contract-validate →
+idempotency-dedup → store write).
+
+**Input parameters**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `intent` | string | yes | Task intent (e.g. `validate`, `compare`). Non-blank. |
+| `payload` | object | no | The task's inputs (e.g. `{"source": "HR", "file": "..."}`). Defaults to `{}`. Must be a JSON object. |
+| `task_id` | string | no | Task id override; a UUID4 is minted when omitted. |
+| `trace_id` | string | no | Trace id override; a UUID4 is minted when omitted. |
+| `idempotency_key` | string | no | Dedup key — a repeat submission (same key + intent + source) returns the existing task. |
+| `priority` | string | no | `low` \| `normal` \| `high` \| `urgent`. Defaults to `normal`. |
+| `deadline` | string | no | ISO-8601 deadline (`Z` accepted); defaults to now (UTC). |
+
+**Result shape** — the canonical task-result: `task_id`, `trace_id`, `status`
+(`queued` on a fresh submission, or the existing task's status on a dedup hit),
+`result` (`{"accepted": true}` on a fresh submission), `errors` (empty on
+success), `warnings` (`["duplicate idempotency key"]` on a dedup hit), and
+`version` (`v1`).
+
+**Idempotency.** When `idempotency_key` is supplied and a task with that key (for
+the same intent + source) already exists, the **existing** task id/status is
+returned instead of minting a second task — exactly matching the CLI/REST dedup
+behaviour. The response carries no secrets. Tool errors are reserved for
+caller-fixable problems: a missing/blank `intent`, a `payload` that is not a JSON
+object, a malformed `deadline`, or a request that fails contract validation.
 
 ### Tool: `reconcile_mapping` (#407)
 

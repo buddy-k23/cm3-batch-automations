@@ -553,7 +553,8 @@ def test_infer_mapping_unknown_format_raises(monkeypatch, tmp_path: Path):
 # S7-4 compare_two_files (1) + #407 reconcile_mapping (1) +
 # S21-1 db_compare (1) + S21-2 reconcile_all (1) + S21-3 mask_file (1) +
 # S21-4 detect_drift (1) + S21-5 extract_table (1) + S22-1 parse_file (1) +
-# S22-2 run_etl_pipeline (1) + S22-3 export_failed_rows (1) = 19 tools. We set
+# S22-2 run_etl_pipeline (1) + S22-3 export_failed_rows (1) +
+# S22-4 submit_task (1) = 20 tools. We set
 # the expected list to the TRUE registered surface here.
 # ---------------------------------------------------------------------------
 
@@ -587,6 +588,7 @@ def test_mcp_tools_list_has_nine_entries(monkeypatch):
         "reconcile_all",
         "reconcile_mapping",
         "run_etl_pipeline",
+        "submit_task",
         "upload_workbook_as_spec",
         "validate_file",
     ], f"tools/list drifted from the registered tool surface: {names!r}"

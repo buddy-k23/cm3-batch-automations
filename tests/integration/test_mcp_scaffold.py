@@ -289,6 +289,7 @@ def test_mcp_capabilities_advertise_expected_registries(monkeypatch):
         "reconcile_all",
         "reconcile_mapping",
         "run_etl_pipeline",
+        "submit_task",
         "upload_workbook_as_spec",
         "validate_file",
     ], f"tools/list names drifted from the registered tool surface: {tool_names!r}"

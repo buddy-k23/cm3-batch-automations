@@ -122,6 +122,10 @@ from src.mcp.export_tools import (
     EXPORT_FAILED_ROWS_DESCRIPTION,
     export_failed_rows_payload,
 )
+from src.mcp.task_tools import (
+    SUBMIT_TASK_DESCRIPTION,
+    submit_task_payload,
+)
 from src.mcp.onboarding_tools import (
     INFER_MAPPING_FROM_SAMPLE_DESCRIPTION,
     ONBOARD_SOURCE_DRY_RUN_DESCRIPTION,
@@ -908,6 +912,46 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
             output=output,
             rules=rules,
             use_chunked=use_chunked,
+        )
+
+    # ------------------------------------------------------------------
+    # S22-4 (#441) — submit-task tool.
+    #
+    # ``submit_task`` wraps the existing Valdo canonical task-ingest path
+    # (:func:`src.adapters.api_task_adapter.normalize_api_task_request` +
+    # :func:`src.contracts.validation.validate_task_request` +
+    # :class:`src.services.job_state_store.JobStateStore`), the same code path the
+    # ``valdo submit-task`` CLI command and the ``POST /api/v1/tasks/submit`` REST
+    # endpoint drive (normalise -> contract-validate -> idempotency-dedup -> store
+    # write). Thin adapter only — request shaping, contract validation, and dedup
+    # all live in those layers. Idempotency-aware: a repeat submission with the
+    # same idempotency key (for the same intent + source) returns the EXISTING
+    # task id/status rather than minting a second task. The response carries no
+    # secrets; a contract-validation failure is a caller-fixable tool error.
+    # ------------------------------------------------------------------
+
+    @mcp_server.tool(
+        name="submit_task",
+        title="Submit a canonical task request",
+        description=SUBMIT_TASK_DESCRIPTION,
+    )
+    def _submit_task_tool(
+        intent: str,
+        payload: Optional[Dict[str, Any]] = None,
+        task_id: Optional[str] = None,
+        trace_id: Optional[str] = None,
+        idempotency_key: Optional[str] = None,
+        priority: str = "normal",
+        deadline: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        return submit_task_payload(
+            intent=intent,
+            payload=payload,
+            task_id=task_id,
+            trace_id=trace_id,
+            idempotency_key=idempotency_key,
+            priority=priority,
+            deadline=deadline,
         )
 
     # ------------------------------------------------------------------

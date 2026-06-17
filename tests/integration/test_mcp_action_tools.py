@@ -656,8 +656,8 @@ def test_mcp_tools_list_has_ten_entries(monkeypatch):
     ``mask_file`` (fourteen); S21-4 added ``detect_drift`` (fifteen); S21-5
     added ``extract_table`` (sixteen); S22-1 added ``parse_file`` (seventeen);
     S22-2 added ``run_etl_pipeline`` (eighteen); S22-3 added
-    ``export_failed_rows``, taking the surface to nineteen. The expected list
-    below is the TRUE registered surface.
+    ``export_failed_rows`` (nineteen); S22-4 added ``submit_task``, taking the
+    surface to twenty. The expected list below is the TRUE registered surface.
     """
     monkeypatch.setenv("VALDO_MCP_AUTH", "dev")
     app = _fresh_app()
@@ -686,6 +686,7 @@ def test_mcp_tools_list_has_ten_entries(monkeypatch):
         "reconcile_all",
         "reconcile_mapping",
         "run_etl_pipeline",
+        "submit_task",
         "upload_workbook_as_spec",
         "validate_file",
     ], f"tools/list drifted from the registered tool surface: {names!r}"
