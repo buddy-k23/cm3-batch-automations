@@ -15,6 +15,7 @@ and the CLI produce.
 from __future__ import annotations
 
 import logging
+import uuid
 from typing import Any, Dict, Optional
 
 from mcp.server.fastmcp.exceptions import ToolError
@@ -36,6 +37,8 @@ def reconcile_mapping_payload(
     mapping: str,
     table: Optional[str] = None,
     schema: Optional[str] = None,
+    include_report: bool = False,
+    suppress_pii: bool = True,
 ) -> Dict[str, Any]:
     """Reconcile a mapping against a database table and return the verdict.
 
@@ -48,12 +51,21 @@ def reconcile_mapping_payload(
         table: Optional target table override. When omitted the mapping's
             declared ``target.table_name`` is used.
         schema: Optional schema / owner, prepended to the table.
+        include_report: Opt-in HTML report (S23-4, ADR 0023). When ``False``
+            (default) behaviour is unchanged — JSON only, no HTML rendered.
+            When ``True`` a :class:`ReconcileReporter` report is rendered into
+            ``<reports_dir>/<id>.html`` and the response also carries
+            ``report_uri`` / ``report_url`` / ``report_path``.
+        suppress_pii: Forwarded to the renderer when ``include_report`` is set
+            (default ``True``, ADR 0023 §4). Ignored otherwise.
 
     Returns:
         The structured verdict dict — ``status`` (clean | advisories |
         mismatch | error), ``valid``, ``summary`` counts, and the
         ``errors`` / ``mismatches`` / ``advisories`` field-level lists. See
-        :func:`reconcile_mapping_service` for the full shape.
+        :func:`reconcile_mapping_service` for the full shape. When
+        ``include_report=True`` three additional keys are present:
+        ``report_uri`` / ``report_url`` / ``report_path``.
 
     Raises:
         ToolError: When the mapping cannot be loaded / parsed, the adapter
@@ -65,7 +77,7 @@ def reconcile_mapping_payload(
         raise ToolError("mapping is required and must be a non-empty string")
 
     try:
-        return reconcile_mapping_service(
+        verdict = reconcile_mapping_service(
             mapping,
             table=table,
             schema=schema,
@@ -75,6 +87,27 @@ def reconcile_mapping_payload(
     except Exception as exc:  # noqa: BLE001 — surface infra failures as ToolError
         logger.exception("reconcile_mapping tool failed for mapping=%r", mapping)
         raise ToolError(f"Reconciliation failed: {exc}") from exc
+
+    # S23-4 (#446) / ADR 0023: opt-in HTML report rendered via ReconcileReporter
+    # into ``<reports_dir>/<id>.html`` so the ``report://`` resolver finds it.
+    if include_report:
+        from src.mcp.resources.reports import (
+            reports_dir,
+            report_uri_for,
+            report_url_for,
+        )
+        from src.reports.renderers.reconcile_renderer import ReconcileReporter
+
+        report_id = uuid.uuid4().hex
+        report_path = reports_dir() / f"{report_id}.html"
+        ReconcileReporter().generate(
+            verdict, str(report_path), suppress_pii=suppress_pii
+        )
+        verdict["report_uri"] = report_uri_for(report_id)
+        verdict["report_url"] = report_url_for(report_id)
+        verdict["report_path"] = str(report_path)
+
+    return verdict
 
 
 RECONCILE_MAPPING_DESCRIPTION = (

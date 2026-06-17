@@ -465,6 +465,7 @@ def compare_two_files_payload(
     key_columns: List[str],
     *,
     mapping_path: Optional[str] = None,
+    include_report: bool = False,
 ) -> Dict[str, Any]:
     """Compare two files row-by-row by the declared key columns.
 
@@ -488,6 +489,12 @@ def compare_two_files_payload(
         mapping_path: Optional path to a mapping JSON. Required when
             either file is ``.txt`` (fixed-width). When supplied, the
             mapping's ``fields`` list drives column extraction.
+        include_report: Opt-in HTML report (S23-4, ADR 0023). When
+            ``False`` (default) behaviour is unchanged — JSON only, no
+            HTML rendered. When ``True`` a :class:`HTMLReporter` comparison
+            report is rendered into ``<reports_dir>/<comparison_id>.html``
+            and the response also carries ``report_uri`` / ``report_url`` /
+            ``report_path``.
 
     Returns:
         Dict with three keys::
@@ -504,6 +511,9 @@ def compare_two_files_payload(
             }
 
         ``comparison_id`` is ephemeral — minted per call, never persisted.
+        When ``include_report=True`` three additional keys are present:
+        ``report_uri`` (``report://<comparison_id>``), ``report_url``
+        (``/reports/<comparison_id>.html``), and ``report_path`` (absolute).
 
     Raises:
         ToolError: When either file is missing, the extension is
@@ -532,11 +542,53 @@ def compare_two_files_payload(
         logger.exception("FileComparator.compare() failed: %s", exc)
         raise ToolError(f"File comparison failed: {exc}") from exc
 
-    return {
-        "comparison_id": uuid.uuid4().hex,
+    comparison_id = uuid.uuid4().hex
+    payload: Dict[str, Any] = {
+        "comparison_id": comparison_id,
         "summary": _project_summary(raw_result),
         "top_differences": _project_top_differences(raw_result),
     }
+
+    # S23-4 (#446) / ADR 0023: opt-in HTML report rendered via HTMLReporter
+    # into ``<reports_dir>/<comparison_id>.html`` so the ``report://`` resolver
+    # finds it by id. The raw comparator result is the renderer's contract.
+    if include_report:
+        _render_compare_report(comparison_id, raw_result, payload)
+
+    return payload
+
+
+def _render_compare_report(
+    comparison_id: str,
+    raw_result: Dict[str, Any],
+    payload: Dict[str, Any],
+) -> None:
+    """Render the comparison HTML report and add the report fields to *payload*.
+
+    Mints the report at ``<reports_dir>/<comparison_id>.html`` using
+    :class:`~src.reports.renderers.comparison_renderer.HTMLReporter` so the
+    file name matches the id the ``report://`` resolver looks up. Mutates
+    *payload* in place to add ``report_uri`` / ``report_url`` / ``report_path``
+    (ADR 0023 §2).
+
+    Args:
+        comparison_id: The ephemeral comparison id; doubles as the report id.
+        raw_result: The raw ``FileComparator.compare()`` result the renderer
+            consumes.
+        payload: The tool response dict to enrich with the report fields.
+    """
+    from src.mcp.resources.reports import (
+        reports_dir,
+        report_uri_for,
+        report_url_for,
+    )
+    from src.reports.renderers.comparison_renderer import HTMLReporter
+
+    report_path = reports_dir() / f"{comparison_id}.html"
+    HTMLReporter().generate(raw_result, str(report_path))
+    payload["report_uri"] = report_uri_for(comparison_id)
+    payload["report_url"] = report_url_for(comparison_id)
+    payload["report_path"] = str(report_path)
 
 
 # ---------------------------------------------------------------------------

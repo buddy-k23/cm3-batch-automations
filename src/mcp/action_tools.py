@@ -477,7 +477,13 @@ def _canonicalise_violations(result: Dict[str, Any]) -> List[Dict[str, Any]]:
 # ---------------------------------------------------------------------------
 
 
-def _run_validate_synchronously(record: RunRecord, artefacts: Dict[str, Optional[str]]) -> None:
+def _run_validate_synchronously(
+    record: RunRecord,
+    artefacts: Dict[str, Optional[str]],
+    *,
+    report_info: Optional[Dict[str, str]] = None,
+    suppress_pii: bool = True,
+) -> None:
     """Drive the validation service for *record* and update its state.
 
     Runs synchronously — see the module docstring for the rationale and
@@ -496,6 +502,13 @@ def _run_validate_synchronously(record: RunRecord, artefacts: Dict[str, Optional
         record: The freshly-constructed run record (status will be
             mutated from ``queued`` -> ``running`` -> terminal).
         artefacts: Mapping/rules paths resolved from the source overlay.
+        report_info: When supplied (``include_report=True``, S23-4 / ADR
+            0023), the validation also renders an HTML report into this
+            dict's ``report_path``. When the run succeeds, the dict is
+            mutated in place to carry ``report_uri`` / ``report_url`` /
+            ``report_path``; when it fails, no report is produced.
+        suppress_pii: Forwarded to :class:`ValidationReporter` when
+            rendering a report (default ``True``, ADR 0023 §4).
     """
     # Import lazily so a missing optional dependency only blows up the
     # one tool call that needs it, not every MCP request.
@@ -527,11 +540,27 @@ def _run_validate_synchronously(record: RunRecord, artefacts: Dict[str, Optional
     record.finished_at = _utcnow_iso()
     registry.put(record)
 
+    # S23-4 (#446) / ADR 0023: opt-in HTML report. We render here — in the
+    # synchronous path, after a successful run — using the run_id the tool
+    # already minted, so the report file is named ``<run_id>.html`` and the
+    # ``report://<run_id>`` resolver finds it by a direct lookup.
+    if report_info is not None and isinstance(result, dict):
+        from src.reports.renderers.validation_renderer import ValidationReporter
+
+        ValidationReporter().generate(
+            result,
+            report_info["report_path"],
+            suppress_pii=suppress_pii,
+        )
+        report_info["rendered"] = "1"
+
 
 def validate_file_payload(
     source: str,
     file_path: str,
     file_type: Optional[str] = None,
+    include_report: bool = False,
+    suppress_pii: bool = True,
 ) -> Dict[str, Any]:
     """Kick off a validation run and return its identifier.
 
@@ -546,12 +575,25 @@ def validate_file_payload(
             entries in the source overlay. When omitted, the file_type
             is inferred by matching the basename against each entry's
             ``glob`` pattern.
+        include_report: Opt-in HTML report (S23-4, ADR 0023). When
+            ``False`` (default) behaviour is unchanged — JSON only, no
+            HTML rendered. When ``True`` the run executes synchronously
+            (so the report is ready before this call returns), renders a
+            :class:`ValidationReporter` HTML report into
+            ``<reports_dir>/<run_id>.html``, and the response also carries
+            ``report_uri`` / ``report_url`` / ``report_path``.
+        suppress_pii: Forwarded to the renderer when ``include_report`` is
+            set (default ``True``, ADR 0023 §4). Ignored otherwise.
 
     Returns:
         ``{"run_id": "<uuid>", "started_at": "ISO-8601 UTC"}``. Poll
         :func:`get_run_status_payload` (or the ``get_run_status`` MCP
         tool) to discover when the run completes; then page through
-        :func:`get_violations_payload` for the results.
+        :func:`get_violations_payload` for the results. When
+        ``include_report=True`` and the run succeeded, three additional
+        keys are present: ``report_uri`` (``report://<run_id>``),
+        ``report_url`` (``/reports/<run_id>.html``), and ``report_path``
+        (absolute server path).
 
     Raises:
         ToolError: When the source is unknown, the file does not exist,
@@ -593,6 +635,21 @@ def validate_file_payload(
     # worker) can see the run regardless of which execution path we take.
     registry.put(record)
 
+    # S23-4 (#446) / ADR 0023: when an HTML report is requested we render it
+    # into ``<reports_dir>/<run_id>.html``. Build the target path up front so
+    # the synchronous run can render straight into it.
+    report_info: Optional[Dict[str, str]] = None
+    if include_report:
+        from src.mcp.resources.reports import (
+            reports_dir,
+            report_uri_for,
+            report_url_for,
+        )
+
+        report_info = {
+            "report_path": str(reports_dir() / f"{run_id}.html"),
+        }
+
     # ADR 0021 / S10-2 liveness-aware dispatch:
     #
     # * async enabled (the default) AND a worker has heartbeated within the
@@ -603,16 +660,35 @@ def validate_file_payload(
     #   queue -> run the validation INLINE so the call always completes. This is
     #   what makes flipping the default ON safe in environments (local dev) with
     #   no worker deployed — nothing is ever stranded in ``queued``.
-    enqueue = _async_validate_enabled() and registry.has_live_worker(
-        _worker_liveness_seconds()
+    #
+    # When include_report=True we force the INLINE path so the report is
+    # produced before this call returns (the enqueue path defers rendering to
+    # the worker, which is out of scope for S23-4 — see ADR 0023 §5).
+    enqueue = (
+        not include_report
+        and _async_validate_enabled()
+        and registry.has_live_worker(_worker_liveness_seconds())
     )
     if not enqueue:
-        _run_validate_synchronously(record, artefacts)
+        _run_validate_synchronously(
+            record,
+            artefacts,
+            report_info=report_info,
+            suppress_pii=suppress_pii,
+        )
 
-    return {
+    payload: Dict[str, Any] = {
         "run_id": run_id,
         "started_at": record.started_at,
     }
+    # Only surface the report fields when rendering actually happened (a failed
+    # run produces no report) — absent, not null-padded (ADR 0023 §2).
+    if report_info is not None and report_info.get("rendered"):
+        payload["report_uri"] = report_uri_for(run_id)
+        payload["report_url"] = report_url_for(run_id)
+        payload["report_path"] = report_info["report_path"]
+
+    return payload
 
 
 def _lookup_run(run_id: str) -> RunRecord:

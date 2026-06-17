@@ -570,3 +570,7 @@ MCP Resources
 .. automodule:: src.mcp.resources.formats
    :members:
    :undoc-members:
+
+.. automodule:: src.mcp.resources.reports
+   :members:
+   :undoc-members:

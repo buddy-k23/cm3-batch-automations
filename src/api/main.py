@@ -36,7 +36,16 @@ from src.utils.cleanup import cleanup_old_files
 logger = logging.getLogger(__name__)
 
 FILE_RETENTION_HOURS = float(os.getenv("FILE_RETENTION_HOURS", "24"))
+# Reports-dir retention window (S23-4, #446, ADR 0023 §5). The startup sweep
+# also cleans the reports dir (where MCP include_report=true writes
+# <run_id>.html). Configurable via REPORT_RETENTION_HOURS; defaults to the
+# REPORT_RETENTION_DAYS (365) the archive util uses, expressed in hours, so a
+# report read of an expired report returns a clean "expired / not found".
+REPORT_RETENTION_HOURS = float(
+    os.getenv("REPORT_RETENTION_HOURS", str(int(os.getenv("REPORT_RETENTION_DAYS", "365")) * 24))
+)
 _UPLOADS_DIR = Path(__file__).parent.parent.parent / "uploads"
+_REPORTS_DIR_FOR_CLEANUP = Path(__file__).parent.parent.parent / "reports"
 _UI_CONFIG_PATH = Path(__file__).parent.parent.parent / "config" / "ui.yml"
 
 # Read ui.yml early (before app creation) so the downloader router can be
@@ -70,6 +79,18 @@ async def lifespan(app: FastAPI):
             "Startup cleanup: removed %d files (%d bytes)",
             result["deleted_count"],
             result["deleted_bytes"],
+        )
+
+    # S23-4 (#446, ADR 0023 §5): also sweep the reports dir, where MCP
+    # include_report=true writes <run_id>.html. An expired report is a normal
+    # terminal state — a report:// read of an expired id returns a clean
+    # "expired / not found", not an error the agent must special-case.
+    report_result = cleanup_old_files(_REPORTS_DIR_FOR_CLEANUP, REPORT_RETENTION_HOURS)
+    if report_result["deleted_count"] > 0:
+        logger.info(
+            "Startup cleanup: removed %d report files (%d bytes)",
+            report_result["deleted_count"],
+            report_result["deleted_bytes"],
         )
 
     # Load tab visibility + downloader config from ui.yml

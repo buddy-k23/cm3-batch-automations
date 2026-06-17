@@ -154,6 +154,7 @@ from src.mcp.resources.etl_templates import (
     load_template_yaml,
 )
 from src.mcp.resources.formats import formats_supported_payload
+from src.mcp.resources.reports import read_report_html
 from src.mcp.taxonomy import list_rule_taxonomy, list_violation_taxonomy
 from src.mcp.tools import (
     GET_SOURCE_SPEC_DESCRIPTION,
@@ -184,6 +185,13 @@ ETL_TEMPLATE_SAMPLE_URI = "templates://etl/{shape}/sample"
 # :mod:`src.mcp.resources.formats` so adding a new format when an ADR
 # closes is a one-line edit there, not a server-file change.
 FORMATS_SUPPORTED_URI = "formats://supported"
+
+# Report retrieval resource URI (S23-4, #446, ADR 0023). The ``{run_id}``
+# placeholder is bound by a single handler (mirroring
+# ``templates://etl/{shape}``); no per-run registration is needed. The report
+# id is resolved to a file traversal-safely and served ONLY from the reports
+# dir, behind the same MCP auth as every other call.
+REPORT_BY_RUN_ID_URI = "report://{run_id}"
 
 # JSON MIME type advertised on each taxonomy resource — agents that fetch
 # the resource know to ``json.loads`` the text body without sniffing.
@@ -454,6 +462,44 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
         )
 
     # ------------------------------------------------------------------
+    # S23-4 (#446) — HTML report retrieval resource (ADR 0023).
+    #
+    # ``report://{run_id}`` returns the rendered HTML body of a report
+    # produced by a report-producing tool (validate_file, compare_two_files,
+    # db_compare, reconcile_mapping, reconcile_all) when that tool was called
+    # with ``include_report=True``. The tool advertises the report by
+    # returning ``report_uri = report://<run_id>``; the agent then passes it
+    # to ``resources/read``.
+    #
+    # The ``{run_id}`` placeholder is bound by this single handler — same
+    # model as ``templates://etl/{shape}`` (server.py ~:405) — so no per-run
+    # registration is needed. Resolution is traversal-safe and serves ONLY
+    # from the reports dir (see :func:`src.mcp.resources.reports.read_report_html`,
+    # modelled on ``_safe_upload_path``). The read is served by the MCP
+    # transport, which is wrapped by ``MCPAuthMiddleware``, so it inherits
+    # the same auth as every other MCP call. A missing / expired report
+    # yields a clean ResourceError, not a stack trace or directory probe.
+    # ------------------------------------------------------------------
+
+    @mcp_server.resource(
+        REPORT_BY_RUN_ID_URI,
+        name="report",
+        title="Valdo HTML report",
+        description=(
+            "Rendered HTML body of a Valdo report (validation, comparison, "
+            "db-compare, or reconcile) produced when a report-producing tool "
+            "was called with include_report=true. The producing tool returns "
+            "the report_uri (report://<run_id>) to read here. The id is "
+            "resolved traversal-safely and served only from the reports dir; "
+            "a traversal attempt or a missing / expired report yields a clean "
+            "error. Behind the same MCP auth as every other call."
+        ),
+        mime_type="text/html",
+    )
+    def _report_resource(run_id: str) -> str:
+        return read_report_html(run_id)
+
+    # ------------------------------------------------------------------
     # EF-S2 — read-only MCP tools.
     #
     # Each tool is a 1-3 line adapter around :mod:`src.mcp.tools`. The
@@ -521,11 +567,13 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
         source: str,
         file_path: str,
         file_type: Optional[str] = None,
+        include_report: bool = False,
     ) -> Dict[str, Any]:
         return validate_file_payload(
             source=source,
             file_path=file_path,
             file_type=file_type,
+            include_report=include_report,
         )
 
     @mcp_server.tool(
@@ -631,12 +679,14 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
         right_path: str,
         key_columns: List[str],
         mapping_path: Optional[str] = None,
+        include_report: bool = False,
     ) -> Dict[str, Any]:
         return compare_two_files_payload(
             left_path=left_path,
             right_path=right_path,
             key_columns=key_columns,
             mapping_path=mapping_path,
+            include_report=include_report,
         )
 
     # ------------------------------------------------------------------
@@ -659,11 +709,13 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
         mapping: str,
         table: Optional[str] = None,
         schema: Optional[str] = None,
+        include_report: bool = False,
     ) -> Dict[str, Any]:
         return reconcile_mapping_payload(
             mapping=mapping,
             table=table,
             schema=schema,
+            include_report=include_report,
         )
 
     # ------------------------------------------------------------------
@@ -692,6 +744,7 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
         key_columns: Optional[List[str]] = None,
         db_adapter: Optional[str] = None,
         connection: Optional[Dict[str, Any]] = None,
+        include_report: bool = False,
     ) -> Dict[str, Any]:
         return db_compare_payload(
             mapping=mapping,
@@ -701,6 +754,7 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
             key_columns=key_columns,
             db_adapter=db_adapter,
             connection=connection,
+            include_report=include_report,
         )
 
     # ------------------------------------------------------------------
@@ -728,12 +782,14 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
         pattern: str = "*.json",
         baseline: Optional[str] = None,
         db_adapter: Optional[str] = None,
+        include_report: bool = False,
     ) -> Dict[str, Any]:
         return reconcile_all_payload(
             mappings_dir=mappings_dir,
             pattern=pattern,
             baseline=baseline,
             db_adapter=db_adapter,
+            include_report=include_report,
         )
 
     # ------------------------------------------------------------------

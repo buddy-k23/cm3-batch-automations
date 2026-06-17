@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -83,6 +84,41 @@ def _json_safe_verdict(verdict: Dict[str, Any]) -> Dict[str, Any]:
     return json.loads(json.dumps(coerced, default=str))
 
 
+def _render_db_compare_report(verdict: Dict[str, Any]) -> Dict[str, str]:
+    """Render the db-compare HTML report and return the report fields.
+
+    S23-4 (#446) / ADR 0023: db_compare plugs into the comparison-style
+    renderer (:class:`~src.reports.renderers.comparison_renderer.HTMLReporter`).
+    The renderer consumes the verdict's ``compare`` sub-dict (the
+    ``run_compare_service`` output: ``total_rows_file1/2``, ``matching_rows``,
+    ``only_in_file1/2``, ``differences``). We mint a fresh report id, render
+    into ``<reports_dir>/<id>.html``, and return the three response fields.
+
+    Args:
+        verdict: The RAW verdict from :func:`compare_db_to_file` (before the
+            JSON-safe coercion that collapses DataFrames to counts), so the
+            renderer sees the full ``differences`` list.
+
+    Returns:
+        ``{"report_uri", "report_url", "report_path"}`` (ADR 0023 §2).
+    """
+    from src.mcp.resources.reports import (
+        reports_dir,
+        report_uri_for,
+        report_url_for,
+    )
+    from src.reports.renderers.comparison_renderer import HTMLReporter
+
+    report_id = uuid.uuid4().hex
+    report_path = reports_dir() / f"{report_id}.html"
+    HTMLReporter().generate(verdict.get("compare", {}) or {}, str(report_path))
+    return {
+        "report_uri": report_uri_for(report_id),
+        "report_url": report_url_for(report_id),
+        "report_path": str(report_path),
+    }
+
+
 def db_compare_payload(
     mapping: str,
     actual_file: str,
@@ -91,6 +127,7 @@ def db_compare_payload(
     key_columns: Optional[List[str]] = None,
     db_adapter: Optional[str] = None,
     connection: Optional[Dict[str, Any]] = None,
+    include_report: bool = False,
 ) -> Dict[str, Any]:
     """Compare a database extract against a file and return the verdict.
 
@@ -187,7 +224,15 @@ def db_compare_payload(
             key_columns=key_columns or None,
             connection_override=connection_override,
         )
-        return _json_safe_verdict(verdict)
+        # S23-4 (#446) / ADR 0023: render the HTML report from the RAW verdict
+        # (full ``differences`` list) BEFORE collapsing DataFrames to counts.
+        report_fields = (
+            _render_db_compare_report(verdict) if include_report else None
+        )
+        safe = _json_safe_verdict(verdict)
+        if report_fields:
+            safe.update(report_fields)
+        return safe
     except (FileNotFoundError, ValueError) as exc:
         raise ToolError(str(exc)) from exc
     except Exception as exc:  # noqa: BLE001 — surface infra failures as ToolError
