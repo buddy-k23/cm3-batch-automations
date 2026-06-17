@@ -189,6 +189,54 @@ def run_validate_service(
     return result
 
 
+def build_multi_record_validation_response(result: dict[str, Any]) -> dict[str, Any]:
+    """Reshape multi-record validator output into FileValidationResult fields.
+
+    Splits the ``cross_type_violations`` list emitted by
+    :func:`~src.services.multi_record_validate_service.run_multi_record_validate_service`
+    into separate ``errors`` and ``warnings`` lists keyed by each violation's
+    ``severity`` and derives the row-count fields the API response model expects.
+
+    This is the shared shaping previously inlined in the ``POST
+    /api/v1/files/validate`` endpoint; relocating it here keeps the router thin
+    and makes the reshaping unit-testable at the service layer (S18-2, #428).
+    The output mapping is unchanged from the previous inline implementation.
+
+    Args:
+        result: Raw dict returned by ``run_multi_record_validate_service``. Read
+            keys: ``cross_type_violations`` (list of ``{"message", "severity"}``
+            dicts), ``valid`` (bool), and ``total_rows`` (int).
+
+    Returns:
+        Dict of keyword arguments for
+        :class:`~src.api.models.file.FileValidationResult`: ``valid``,
+        ``total_rows``, ``valid_rows``, ``invalid_rows``, ``errors``,
+        ``warnings``, ``quality_score`` (always ``None``), and ``report_url``
+        (always ``None``).
+    """
+    cross_violations = result.get("cross_type_violations", [])
+    errors = [
+        {"message": v.get("message", ""), "severity": v.get("severity", "error")}
+        for v in cross_violations
+        if v.get("severity") == "error"
+    ]
+    warnings = [
+        {"message": v.get("message", ""), "severity": v.get("severity", "warning")}
+        for v in cross_violations
+        if v.get("severity") == "warning"
+    ]
+    return {
+        "valid": result.get("valid", False),
+        "total_rows": result.get("total_rows", 0),
+        "valid_rows": result.get("total_rows", 0) if result.get("valid") else 0,
+        "invalid_rows": len(errors),
+        "errors": errors,
+        "warnings": warnings,
+        "quality_score": None,
+        "report_url": None,
+    }
+
+
 def _is_fixed_width_mapping(cfg: dict) -> bool:
     """Return True when the mapping defines fixed-width fields (each has a 'length')."""
     fields = cfg.get("fields", [])

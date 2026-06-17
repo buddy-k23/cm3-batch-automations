@@ -36,6 +36,106 @@ from src.transforms.transform_orchestrator import TransformEngine
 # SQL keywords that unambiguously identify a query string vs. a table name.
 _SQL_KEYWORDS = frozenset(["select", "with", "from"])
 
+# Adapter names accepted on the db-compare connection-override path. Mirrors the
+# set enforced by the API router prior to S18-2 (oracle / postgresql / sqlite).
+ALLOWED_DB_ADAPTERS = frozenset({"oracle", "postgresql", "sqlite"})
+
+
+def build_connection_override(
+    *,
+    named_connection: Any | None = None,
+    profile_config: Any | None = None,
+    db_host: str | None = None,
+    db_user: str | None = None,
+    db_password: str | None = None,
+    db_schema: str | None = None,
+    db_adapter: str | None = None,
+) -> dict[str, Any] | None:
+    """Assemble the ``connection_override`` dict for :func:`compare_db_to_file`.
+
+    Resolves the per-request DB connection from one of three mutually
+    prioritised sources and returns the override dict that the db-compare
+    service forwards to the adapter factory. This is the pure assembly logic
+    previously inlined in the ``POST /api/v1/files/db-compare`` endpoint;
+    relocating it here keeps the router thin and makes the resolution
+    unit-testable at the service layer (S18-2, #428). The output shape and
+    field-selection rules are unchanged from the previous inline implementation.
+
+    Resolution precedence:
+
+    1. *named_connection* (the resolved ``DB_CONNECTIONS`` entry): its ``host``
+       / ``user`` / ``password`` / ``schema`` / ``adapter`` attributes seed the
+       individual ``db_*`` values, overriding any individually supplied fields.
+    2. *profile_config* (a resolved ``config/db_connections.yaml`` profile):
+       when present (and no named connection), its ``dsn`` / ``user`` /
+       ``password`` / ``schema`` / ``db_adapter`` populate the override; the
+       individual ``db_*`` fields are ignored.
+    3. The individual ``db_host`` / ``db_user`` / ``db_password`` /
+       ``db_schema`` / ``db_adapter`` fields: an override is built from the
+       non-``None`` subset only when at least one of ``db_host`` / ``db_user``
+       / ``db_password`` / ``db_adapter`` is provided.
+
+    ``db_adapter`` (whether seeded from the named connection or supplied
+    individually) is validated against :data:`ALLOWED_DB_ADAPTERS` before any
+    override is built. The *profile_config* adapter is trusted (already
+    validated upstream) and is not re-checked.
+
+    Args:
+        named_connection: Optional resolved named connection with ``host``,
+            ``user``, ``password``, ``schema``, ``adapter`` attributes.
+        profile_config: Optional resolved profile config with ``dsn``, ``user``,
+            ``password``, ``schema``, ``db_adapter`` attributes.
+        db_host: Optional DB host/DSN override.
+        db_user: Optional DB username override.
+        db_password: Optional DB password override.
+        db_schema: Optional DB schema override.
+        db_adapter: Optional adapter name override.
+
+    Returns:
+        The ``connection_override`` dict, or ``None`` when no connection source
+        is supplied (the env-configured adapter is then used downstream).
+
+    Raises:
+        ValueError: When the resolved ``db_adapter`` is not one of
+            :data:`ALLOWED_DB_ADAPTERS`.
+    """
+    if named_connection is not None:
+        db_host = named_connection.host
+        db_user = named_connection.user
+        db_password = named_connection.password
+        db_schema = named_connection.schema
+        db_adapter = named_connection.adapter
+
+    if db_adapter is not None and db_adapter not in ALLOWED_DB_ADAPTERS:
+        raise ValueError(
+            f"Invalid db_adapter '{db_adapter}'. "
+            f"Must be one of: {', '.join(sorted(ALLOWED_DB_ADAPTERS))}"
+        )
+
+    if profile_config is not None:
+        return {
+            "db_host": profile_config.dsn,
+            "db_user": profile_config.user,
+            "db_password": profile_config.password,
+            "db_schema": profile_config.schema,
+            "db_adapter": profile_config.db_adapter,
+        }
+
+    if db_host or db_user or db_password or db_adapter:
+        return {
+            k: v
+            for k, v in {
+                "db_host": db_host,
+                "db_user": db_user,
+                "db_password": db_password,
+                "db_schema": db_schema,
+                "db_adapter": db_adapter,
+            }.items()
+            if v is not None
+        }
+
+    return None
+
 
 def _is_sql_query(query_or_table: str) -> bool:
     """Return True when *query_or_table* appears to be a SQL statement.

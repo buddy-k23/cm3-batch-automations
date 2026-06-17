@@ -197,3 +197,43 @@ class TestValidateWithMultiRecordConfig:
         assert resp.status_code == 200
         data = resp.json()
         assert data["valid"] is False
+
+    def test_cross_type_violations_reshaped_into_errors_and_warnings(self):
+        """Parity (S18-2, #428): the errors/warnings split is unchanged after the
+        reshaping moved into validate_service.build_multi_record_validation_response.
+        """
+        mock_result = {
+            "valid": False,
+            "total_rows": 8,
+            "record_type_results": {},
+            "cross_type_violations": [
+                {"severity": "error", "message": "Missing TRL"},
+                {"severity": "warning", "message": "Odd count"},
+                {"severity": "error", "message": "Bad sum"},
+            ],
+        }
+        with patch(
+            "src.api.routers.files.run_multi_record_validate_service",
+            return_value=mock_result,
+        ):
+            resp = client.post(
+                "/api/v1/files/validate",
+                files={
+                    "file": _make_batch_file(),
+                    "multi_record_config": _make_yaml_file(),
+                },
+                headers=_HEADERS,
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["valid"] is False
+        assert data["total_rows"] == 8
+        assert data["valid_rows"] == 0
+        assert data["invalid_rows"] == 2
+        assert data["errors"] == [
+            {"message": "Missing TRL", "severity": "error"},
+            {"message": "Bad sum", "severity": "error"},
+        ]
+        assert data["warnings"] == [{"message": "Odd count", "severity": "warning"}]
+        assert data["quality_score"] is None
+        assert data["report_url"] is None

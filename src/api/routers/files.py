@@ -27,10 +27,16 @@ from src.api.models.file import (
 )
 from src.parsers.format_detector import FormatDetector
 from src.services.compare_service import run_compare_service
-from src.services.db_file_compare_service import compare_db_to_file
+from src.services.db_file_compare_service import (
+    compare_db_to_file,
+    build_connection_override,
+)
 from src.config.db_connections import get_named_connections
 from src.services.parse_service import run_parse_service
-from src.services.validate_service import run_validate_service
+from src.services.validate_service import (
+    run_validate_service,
+    build_multi_record_validation_response,
+)
 from src.services.multi_record_validate_service import run_multi_record_validate_service
 from src.reports.renderers.comparison_renderer import HTMLReporter
 from src.services.compare_job_store import CompareJobStore
@@ -254,26 +260,8 @@ async def validate_file(
             except ValueError as exc:
                 raise HTTPException(status_code=400, detail=str(exc))
 
-            cross_violations = result.get("cross_type_violations", [])
-            errors = [
-                {"message": v.get("message", ""), "severity": v.get("severity", "error")}
-                for v in cross_violations
-                if v.get("severity") == "error"
-            ]
-            warnings = [
-                {"message": v.get("message", ""), "severity": v.get("severity", "warning")}
-                for v in cross_violations
-                if v.get("severity") == "warning"
-            ]
             return FileValidationResult(
-                valid=result.get("valid", False),
-                total_rows=result.get("total_rows", 0),
-                valid_rows=result.get("total_rows", 0) if result.get("valid") else 0,
-                invalid_rows=len(errors),
-                errors=errors,
-                warnings=warnings,
-                quality_score=None,
-                report_url=None,
+                **build_multi_record_validation_response(result)
             )
 
         # --- Standard field-level validation path ---
@@ -636,9 +624,6 @@ async def compare_job_status(job_id: str):
     )
 
 
-_ALLOWED_DB_ADAPTERS = {"oracle", "postgresql", "sqlite"}
-
-
 @router.post("/db-compare", response_model=DbCompareResult)
 async def db_compare(
     actual_file: UploadFile = File(...),
@@ -696,6 +681,7 @@ async def db_compare(
         HTTPException: 404 if ``connection_name`` is provided but not found.
         HTTPException: 500 if DB extraction or comparison fails.
     """
+    named_connection = None
     if connection_name is not None:
         named = get_named_connections()
         if connection_name not in named:
@@ -703,21 +689,29 @@ async def db_compare(
                 status_code=404,
                 detail=f"Named connection '{connection_name}' not found",
             )
-        conn = named[connection_name]
-        db_host = conn.host
-        db_user = conn.user
-        db_password = conn.password
-        db_schema = conn.schema
-        db_adapter = conn.adapter
+        named_connection = named[connection_name]
 
-    if db_adapter is not None and db_adapter not in _ALLOWED_DB_ADAPTERS:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Invalid db_adapter '{db_adapter}'. "
-                f"Must be one of: {', '.join(sorted(_ALLOWED_DB_ADAPTERS))}"
-            ),
+    profile_config = None
+    if profile_name:
+        try:
+            profile_config = resolve_profile(profile_name)
+        except (KeyError, RuntimeError) as exc:
+            raise HTTPException(status_code=500, detail=str(exc))
+
+    # Resolve the per-request connection in the service layer; the router only
+    # fetches the named connection / profile and maps service errors to HTTP.
+    try:
+        connection_override = build_connection_override(
+            named_connection=named_connection,
+            profile_config=profile_config,
+            db_host=db_host,
+            db_user=db_user,
+            db_password=db_password,
+            db_schema=db_schema,
+            db_adapter=db_adapter,
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
     mapping_file = MAPPINGS_DIR / f"{mapping_id}.json"
     if not mapping_file.exists():
@@ -729,32 +723,6 @@ async def db_compare(
     upload_path = _safe_upload_path(actual_file.filename, prefix="dbcompare_")
     with open(upload_path, "wb") as buffer:
         shutil.copyfileobj(actual_file.file, buffer)
-
-    connection_override: dict | None = None
-    if profile_name:
-        try:
-            prof_cfg = resolve_profile(profile_name)
-        except (KeyError, RuntimeError) as exc:
-            raise HTTPException(status_code=500, detail=str(exc))
-        connection_override = {
-            "db_host": prof_cfg.dsn,
-            "db_user": prof_cfg.user,
-            "db_password": prof_cfg.password,
-            "db_schema": prof_cfg.schema,
-            "db_adapter": prof_cfg.db_adapter,
-        }
-    elif db_host or db_user or db_password or db_adapter:
-        connection_override = {
-            k: v
-            for k, v in {
-                "db_host": db_host,
-                "db_user": db_user,
-                "db_password": db_password,
-                "db_schema": db_schema,
-                "db_adapter": db_adapter,
-            }.items()
-            if v is not None
-        }
 
     try:
         key_columns_list = [k.strip() for k in key_columns.split(",") if k.strip()]
