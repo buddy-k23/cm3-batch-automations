@@ -12,8 +12,33 @@ import io
 import pytest
 from fastapi.testclient import TestClient
 from src.api.main import app
+from src.api.auth import AuthContext, verify_session_or_api_key
 
 client = TestClient(app, raise_server_exceptions=False)
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _authenticate_api():
+    """Authenticate every request in this module as an admin AuthContext.
+
+    These regression tests predate the auth-hardening change and call the
+    file endpoints with no ``X-API-Key`` header, so they were exercising the
+    pre-auth open-access behaviour. The endpoints now correctly fail closed
+    (401, or 503 when no keys are configured at all). Overriding the shared
+    base dependency ``verify_session_or_api_key`` makes ``require_api_key``
+    and every ``require_role(...)`` resolve to this test context, so the
+    tests reach the real handlers again. Product auth is unchanged — the
+    override is installed only for this module and removed on teardown.
+
+    None of the tests in this file assert an auth rejection (401/403), so
+    applying the override module-wide does not weaken any fail-closed
+    coverage.
+    """
+    app.dependency_overrides[verify_session_or_api_key] = (
+        lambda: AuthContext(key_id="uat-int-test", role="admin")
+    )
+    yield
+    app.dependency_overrides.pop(verify_session_or_api_key, None)
 
 # Minimal pipe-delimited content that matches customer_batch_universal mapping
 _PIPE_CONTENT = (
