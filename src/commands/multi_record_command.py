@@ -112,10 +112,17 @@ def run_multi_record_command(
 
     # --- Write output ---
     if output:
+        # Per-type results from the validator embed NumPy scalars (e.g.
+        # ``numpy.int64`` row counts produced by pandas). Reuse the shared
+        # ``_json_default`` converter from the single-record validate command
+        # so ``json.dump`` coerces them to native Python primitives instead of
+        # raising "Object of type int64 is not JSON serializable".
+        from src.commands.validate_command import _json_default
+
         Path(output).parent.mkdir(parents=True, exist_ok=True)
         if output.lower().endswith(".json"):
             with open(output, "w", encoding="utf-8") as fh:
-                json.dump(result, fh, indent=2)
+                json.dump(result, fh, indent=2, default=_json_default)
             click.echo(f"\n✓ Multi-record validation report: {output}")
         else:
             click.echo(
