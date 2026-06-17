@@ -183,6 +183,19 @@ _PER_FIELD_DESCRIPTIONS: Dict[str, str] = {
     "max_value": "Field value must be less than or equal to the declared maximum.",
     "exact_length": "Field value must have exactly the declared character length.",
     "min_length": "Field value must have at least the declared character length.",
+    "json_array_length": (
+        "JSON (NDJSON) array field: the array element count (the <field>_count "
+        "column the parser emits from a [*] path) must fall within "
+        "[min_len, max_len] (ADR 0018)."
+    ),
+    "nested_required": (
+        "JSON/XML field: the located path must be present (the key/element/"
+        "attribute exists), distinct from a present-but-null value (ADR 0018/0019)."
+    ),
+    "xml_array_length": (
+        "XML field: the repeated-child count (the <field>_count column the "
+        "parser emits) must fall within [min_len, max_len] (ADR 0019)."
+    ),
 }
 
 # Regex used to extract per-field operator names from the source of

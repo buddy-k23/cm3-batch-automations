@@ -169,6 +169,12 @@ def persistent_sqlite_db() -> Iterator[Path]:
             "finished_at TIMESTAMP, "
             "violation_count INTEGER, "
             "payload TEXT NOT NULL, "
+            # last_heartbeat_at + attempt_count were added by Alembic 0006
+            # (S10-1, #397). DatabaseRunRegistry.put() writes them, so the
+            # hand-built fixture table must include them or inserts fail with
+            # 'no column named last_heartbeat_at'.
+            "last_heartbeat_at TIMESTAMP, "
+            "attempt_count INTEGER DEFAULT 0, "
             "created_ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
         ))
     engine.dispose()
