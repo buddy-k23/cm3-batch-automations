@@ -1,5 +1,9 @@
 # RPM Package Deployment Guide
 
+> Part of the deployment guide set — start at
+> [`DEPLOYMENT_OPTIONS.md`](DEPLOYMENT_OPTIONS.md) for the overview and the
+> option comparison (which packaging method to choose).
+
 ## Overview
 
 This guide explains how to build and deploy Valdo as an RPM package for RHEL 8.9.

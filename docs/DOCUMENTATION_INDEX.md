@@ -4,8 +4,8 @@ This is the **single source of truth** for docs navigation.
 
 ## Start Here
 - `README.md` — quick start and project overview
-- `docs/USAGE_AND_OPERATIONS_GUIDE.md` — **comprehensive usage, API, CI, and operations guide** (CLI, Web UI, REST API, CI/CD, Docker, monitoring)
-- `docs/USAGE_GUIDE.md` — practical command usage
+- `docs/USAGE_AND_OPERATIONS_GUIDE.md` — **canonical, comprehensive usage, API, CI, and operations guide** (CLI, Web UI, REST API, CI/CD, Docker, monitoring)
+- `docs/USAGE_GUIDE.md` — quick-reference cheat sheet (most-used commands; points to the comprehensive guide for full detail)
 - `docs/FUNCTIONALITY_MATRIX.md` — capability matrix (CLI/API/inputs/outputs)
 - `docs/architecture.md` — architecture and flow diagrams
 
@@ -40,16 +40,18 @@ This is the **single source of truth** for docs navigation.
 - `docs/TRANSFORMATION_TYPES.md`
 
 ## Deployment
+- `docs/DEPLOYMENT_OPTIONS.md` — **deployment hub**: start here for the option comparison and "which packaging method to choose" (RHEL 8.9, no Docker)
+  - `docs/RHEL_DEPLOYMENT.md` — traditional virtual-environment install (detailed procedure)
+  - `docs/PEX_DEPLOYMENT.md` — single-file PEX executable (detailed procedure)
+  - `docs/RPM_DEPLOYMENT.md` — RPM package for yum/dnf-managed fleets (detailed procedure)
 - `docs/PRODUCTION_DEPLOYMENT.md` — MCP production runbook: TLS + nginx reverse proxy, X-Forwarded-* (S9-1), and later S9 hardening sections
-- `docs/DEPLOYMENT_OPTIONS.md`
-- `docs/RHEL_DEPLOYMENT.md`
-- `docs/RPM_DEPLOYMENT.md`
-- `docs/PEX_DEPLOYMENT.md`
+- `docs/ORACLE_RHEL_SETUP.md` — install and configure Oracle on RHEL for Valdo's DB integration
+- `docs/ORACLE_SCHEMA.md` — Oracle schema Valdo expects (run history and related tables)
 - `docs/INSTALL.md` — local installation guide (Windows, Linux, VSCode)
 
 ## API
 - `docs/API_UPLOAD_GUIDE.md`
-- `docs/USAGE_GUIDE.md#api-tester-tab` — API Tester: proxy-based REST tester with suite runner and assertions
+- `docs/USAGE_AND_OPERATIONS_GUIDE.md#api-tester-tab` — API Tester: proxy-based REST tester with suite runner and assertions
 - `docs/USAGE_AND_OPERATIONS_GUIDE.md#using-a-secrets-provider-for-passwords` — secret provider configuration (env, Vault, Azure Key Vault) for Oracle credentials
 
 ## Security

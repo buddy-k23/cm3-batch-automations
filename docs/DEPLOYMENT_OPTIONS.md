@@ -4,6 +4,10 @@
 
 This guide covers all deployment options for Valdo on RHEL 8.9 **without using Docker**. The system now includes a **REST API with Swagger UI** and **universal mapping structure**.
 
+**This document is the deployment hub** — start here for the overview and the
+option comparison, then follow the link to the detailed guide for your chosen
+packaging method.
+
 ## Deployment Modes
 
 ### 1. CLI Mode (Traditional)
@@ -27,6 +31,23 @@ This guide covers all deployment options for Valdo on RHEL 8.9 **without using D
 | **4. Systemd + venv** | Low | None | Easy | Production, service management |
 | **5. Podman** | Medium | Full | Medium | Container-like without Docker |
 | **6. API Server** | Low | None | Easy | Web access, REST API |
+
+## Detailed Deployment Guides
+
+Each packaging method below summarises the steps inline; follow the linked
+guide for the complete, copy-pasteable procedure.
+
+| Guide | Packaging | When to use it |
+|---|---|---|
+| [`RHEL_DEPLOYMENT.md`](RHEL_DEPLOYMENT.md) | Traditional virtual environment | The default — development and most production installs where you manage the venv directly. |
+| [`PEX_DEPLOYMENT.md`](PEX_DEPLOYMENT.md) | PEX (single Python executable) | Simple production where you want one self-contained artifact and no on-server pip install. |
+| [`RPM_DEPLOYMENT.md`](RPM_DEPLOYMENT.md) | RPM package | Enterprise fleets managed with `yum`/`dnf` and standard package governance. |
+
+### Related guides
+
+- [`PRODUCTION_DEPLOYMENT.md`](PRODUCTION_DEPLOYMENT.md) — MCP production runbook: TLS, the nginx reverse proxy, `X-Forwarded-*` handling, and S9 hardening. Use it once you have chosen a packaging method above and are exposing the API in production.
+- [`ORACLE_RHEL_SETUP.md`](ORACLE_RHEL_SETUP.md) — installing and configuring Oracle on RHEL for Valdo's database integration.
+- [`ORACLE_SCHEMA.md`](ORACLE_SCHEMA.md) — the Oracle schema Valdo expects (run-history and related tables).
 
 ---
 

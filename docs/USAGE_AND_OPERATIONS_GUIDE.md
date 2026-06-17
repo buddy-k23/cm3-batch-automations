@@ -1102,6 +1102,33 @@ model, fail-soft behaviour, and the end-to-end incident-response flow) is in
 [`docs/PRODUCTION_DEPLOYMENT.md`](PRODUCTION_DEPLOYMENT.md), section
 "Token revocation (S9-4)".
 
+#### `watch` — trigger-file watcher for batch completion
+
+Drop a file named `batch_complete_YYYYMMDD.trigger` into the watch directory
+when a batch job completes. The watcher polls the directory, runs the matching
+suite, and deletes the trigger once processed.
+
+```bash
+valdo watch \
+  --dir /batch/triggers \
+  --suites config/test_suites/ \
+  --env dev \
+  --output-dir reports \
+  --interval 30
+```
+
+| Option | Description |
+|---|---|
+| `--dir` | Directory polled for `*.trigger` files |
+| `--suites` | Directory of suite YAML definitions to match against |
+| `--env` | Environment label passed to the suite run |
+| `--output-dir` | Where run reports are written |
+| `--interval` | Poll interval in seconds |
+
+The equivalent push-based mechanism is the webhook trigger
+([`POST /api/v1/runs/trigger`](#post-apiv1runstrigger)) for CI systems
+(GitLab/Azure) that call the API directly after the batch completes.
+
 ---
 
 ## 5. API Reference
@@ -1574,6 +1601,38 @@ curl -H "X-API-Key: key-admin-secret:admin" \
     {"name": "task_failure_rate", "severity": "high", "value": 0.08, "threshold": 0.05}
   ]
 }
+```
+
+### Tasks (Canonical Task Contracts)
+
+The canonical task ingest persists a durable lifecycle row for each submitted
+request. The CLI counterpart is [`submit-task`](#submit-task).
+
+#### POST /api/v1/tasks/submit
+
+Accepts canonical request fields and persists an initial `queued` lifecycle
+row.
+
+```bash
+curl -X POST http://localhost:8000/api/v1/tasks/submit \
+  -H "Content-Type: application/json" \
+  -d '{"intent": "validate", "payload": {"mapping_id": "p327_mapping", "file": "input.txt"}}'
+```
+
+#### GET /api/v1/tasks/{task_id}
+
+Returns the durable lifecycle state for a single task.
+
+```bash
+curl http://localhost:8000/api/v1/tasks/a1b2c3d4
+```
+
+#### GET /api/v1/tasks?limit=50
+
+Lists recent jobs (default limit 50).
+
+```bash
+curl "http://localhost:8000/api/v1/tasks?limit=50"
 ```
 
 ---

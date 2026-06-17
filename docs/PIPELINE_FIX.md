@@ -33,8 +33,7 @@
 ### 3. Test Automation
 
 - `run_tests.sh` - Test runner script with options
-- `docs/TESTING_GUIDE.md` - Complete testing documentation
-- `docs/TEST_EXECUTION.md` - Step-by-step execution guide
+- `docs/TESTING_GUIDE.md` - Complete testing documentation (strategy, commands, coverage gates, workflow verification)
 - `docs/CICD_GUIDE.md` - CI/CD pipeline documentation
 
 ### 4. Build Script Improvements

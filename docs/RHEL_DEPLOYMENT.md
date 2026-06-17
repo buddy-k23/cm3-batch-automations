@@ -1,5 +1,10 @@
 # RHEL 8.9 Deployment Guide
 
+> Part of the deployment guide set — start at
+> [`DEPLOYMENT_OPTIONS.md`](DEPLOYMENT_OPTIONS.md) for the overview and the
+> option comparison (which packaging method to choose). This guide covers the
+> traditional virtual-environment install.
+
 ## Prerequisites
 
 - RHEL 8.9 server with root or sudo access

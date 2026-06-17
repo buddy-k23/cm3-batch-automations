@@ -438,7 +438,7 @@ valdo convert-suite --template config/test_suites/my_suite.xlsx
 valdo run-tests --suite config/test_suites/my_suite.yaml --params "run_date=20260301"
 ```
 
-For full suite YAML format and test type reference, see the [Test Suite Orchestration](#test-suite-orchestration) section in `docs/USAGE_GUIDE.md`.
+For full suite YAML format and test type reference, see [Suite YAML Format](docs/USAGE_AND_OPERATIONS_GUIDE.md#suite-yaml-format) in `docs/USAGE_AND_OPERATIONS_GUIDE.md`.
 
 ## Project Structure
 
