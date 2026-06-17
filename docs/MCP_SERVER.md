@@ -33,6 +33,7 @@ The MCP server exposes seventeen tools:
 - `detect_drift` — schema drift between a file and its mapping (S21-4)
 - `extract_table` — adapter-agnostic DB extract (table or query) to a flat file (S21-5)
 - `parse_file` — parse/inspect a batch file, returning a bounded preview (S22-1)
+- `run_etl_pipeline` — run a multi-gate ETL validation pipeline from a YAML config (S22-2)
 
 ### Tool: `reconcile_mapping` (#407)
 
@@ -239,6 +240,34 @@ The preview is **always bounded** — an unbounded file is never dumped over the
 response. Tool errors are reserved for caller-fixable problems: a missing/blank
 `file`, a mapping file that cannot be found or parsed, an unknown `format`, a
 non-positive `limit`, a missing input file, or a parse failure.
+
+### Tool: `run_etl_pipeline` (S22-2)
+
+Runs a multi-gate ETL validation pipeline defined in a YAML config and returns
+its **structured result** — the per-gate pass/fail breakdown plus the overall
+pipeline verdict — so an agent can gate a data flow without shelling out to the
+CLI. It wraps the existing Valdo ETL pipeline orchestrator
+([`src/pipeline/etl_pipeline_runner.py::ETLPipelineRunner`](../src/pipeline/etl_pipeline_runner.py))
+— the same code path the `valdo run-etl-pipeline` CLI command drives. The
+pipeline config selects which gates run; a gate's database step extracts from
+whichever backend `DB_ADAPTER` selects (ADR 0022).
+
+**Input parameters**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `config` | string | yes | Path to the pipeline YAML configuration file. |
+| `run_date` | string | no | Run-date string (e.g. `20260326`) injected into template placeholders as `{run_date}`. |
+| `params` | object | no | Extra template variables (e.g. `{"env": "staging"}`) expanded into `{key}` placeholders. |
+
+**Result shape** — `pipeline_name`, `status` (`passed` \| `failed` — the overall
+verdict), `gates` (a list of per-gate records, each with `name`, `status`,
+`steps`, and an optional `error`), and the `started_at`/`finished_at` UTC
+timestamps. A pipeline or gate that reports `status` `failed` is a **result, not a
+tool error** — inspect `status` to decide what to do next. The response carries no
+secrets. Tool errors are reserved for caller-fixable problems: a missing/blank
+`config`, a config file that does not exist, malformed pipeline YAML, or an
+unexpected runner failure.
 
 ### Tool: `compare_two_files` (S7-4)
 

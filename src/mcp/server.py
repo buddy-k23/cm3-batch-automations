@@ -114,6 +114,10 @@ from src.mcp.parse_tools import (
     PARSE_FILE_DESCRIPTION,
     parse_file_payload,
 )
+from src.mcp.etl_pipeline_tools import (
+    RUN_ETL_PIPELINE_DESCRIPTION,
+    run_etl_pipeline_payload,
+)
 from src.mcp.onboarding_tools import (
     INFER_MAPPING_FROM_SAMPLE_DESCRIPTION,
     ONBOARD_SOURCE_DRY_RUN_DESCRIPTION,
@@ -836,6 +840,35 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
             mapping=mapping,
             format=format,
             limit=limit,
+        )
+
+    # ------------------------------------------------------------------
+    # S22-2 (#439) — ETL-pipeline runner tool.
+    #
+    # ``run_etl_pipeline`` wraps the existing Valdo ETL pipeline orchestrator
+    # (:class:`src.pipeline.etl_pipeline_runner.ETLPipelineRunner`), the same code
+    # path the ``valdo run-etl-pipeline`` CLI drives. Thin adapter only — gate
+    # sequencing, template-variable expansion, per-step threshold evaluation, and
+    # service delegation all live in the runner. The response is the runner's
+    # structured aggregate result (per-gate pass/fail + overall verdict); a
+    # pipeline/gate that reports status "failed" is a RESULT, not a tool error.
+    # The response carries no secrets.
+    # ------------------------------------------------------------------
+
+    @mcp_server.tool(
+        name="run_etl_pipeline",
+        title="Run a multi-gate ETL validation pipeline",
+        description=RUN_ETL_PIPELINE_DESCRIPTION,
+    )
+    def _run_etl_pipeline_tool(
+        config: str,
+        run_date: Optional[str] = None,
+        params: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        return run_etl_pipeline_payload(
+            config=config,
+            run_date=run_date,
+            params=params,
         )
 
     # ------------------------------------------------------------------

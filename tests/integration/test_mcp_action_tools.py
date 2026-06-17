@@ -649,14 +649,14 @@ def test_get_violations_unknown_run_id_raises(monkeypatch):
 
 
 def test_mcp_tools_list_has_ten_entries(monkeypatch):
-    """``tools/list`` advertises every registered tool (EF-S2..S22-1).
+    """``tools/list`` advertises every registered tool (EF-S2..S22-2).
 
     #407 added ``reconcile_mapping`` (eleven); S21-1 added ``db_compare``
     (twelve); S21-2 added ``reconcile_all`` (thirteen); S21-3 added
     ``mask_file`` (fourteen); S21-4 added ``detect_drift`` (fifteen); S21-5
-    added ``extract_table`` (sixteen); S22-1 added ``parse_file``, taking the
-    surface to seventeen. The expected list below is the TRUE registered
-    surface.
+    added ``extract_table`` (sixteen); S22-1 added ``parse_file`` (seventeen);
+    S22-2 added ``run_etl_pipeline``, taking the surface to eighteen. The
+    expected list below is the TRUE registered surface.
     """
     monkeypatch.setenv("VALDO_MCP_AUTH", "dev")
     app = _fresh_app()
@@ -683,6 +683,7 @@ def test_mcp_tools_list_has_ten_entries(monkeypatch):
         "parse_file",
         "reconcile_all",
         "reconcile_mapping",
+        "run_etl_pipeline",
         "upload_workbook_as_spec",
         "validate_file",
     ], f"tools/list drifted from the registered tool surface: {names!r}"
