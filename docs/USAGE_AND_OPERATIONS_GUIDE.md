@@ -725,8 +725,18 @@ valdo compare \
 | `--thresholds, -t` | | Threshold configuration file |
 | `--detailed / --basic` | `--detailed` | Field-level analysis |
 | `--chunk-size` | 100000 | Rows per chunk |
-| `--use-chunked` | off | Chunked processing |
+| `--use-chunked / --no-chunked` | auto | Force or disable chunked processing. Default: auto-routes to the chunked comparator when keys are supplied and either file is ≥ 50 MB (mirrors the API). `--use-chunked` / `--no-chunked` override the size heuristic. |
 | `--progress / --no-progress` | `--progress` | Show progress bar |
+
+**Chunked processing (large files).** The chunked comparator streams both files
+into a temporary SQLite database (bounded memory) and computes
+matches/mismatches with a single set-based JOIN and the `only_in_file1` /
+`only_in_file2` sets with `EXCEPT` queries — a bounded number of queries
+regardless of row count, rather than one query per row. It returns the same
+result schema as the in-memory comparator, including complete `only_in_file1` /
+`only_in_file2` lists. The number of materialised difference / only-in entries
+is capped (default 100,000; configurable) while the `*_count` totals remain
+exact. Chunked mode requires `--keys`.
 
 **Exit codes (CI/CD gates):**
 
@@ -770,13 +780,15 @@ valdo compare \
   -o txn_diff.html
 ```
 
-**Compare large files with chunked processing:**
+**Compare large files (chunked processing auto-routes by size):**
 
 ```bash
+# Large keyed files (≥ 50 MB) auto-route to the set-based chunked comparator —
+# no flag needed. Add --use-chunked to force it, or --no-chunked to disable.
 valdo compare \
   -f1 expected_large.txt -f2 actual_large.txt \
   -m config/mappings/large_mapping.json \
-  -k "ID" --use-chunked --chunk-size 100000 \
+  -k "ID" --chunk-size 100000 \
   -o diff_report.html
 ```
 

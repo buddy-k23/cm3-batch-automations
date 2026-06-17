@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -9,6 +10,30 @@ from src.comparators.chunked_comparator import ChunkedFileComparator
 from src.comparators.file_comparator import FileComparator
 from src.parsers.fixed_width_parser import FixedWidthParser
 from src.parsers.format_detector import FormatDetector
+
+# Shared chunked-routing threshold (S18-5, #423). The CLI and the API both
+# route large compares to the chunked comparator using this single constant
+# so their behaviour stays in lock-step.
+CHUNK_THRESHOLD_BYTES: int = 50 * 1024 * 1024  # 50 MB
+
+
+def should_use_chunked(path: str | Path) -> bool:
+    """Return True when the file at *path* is large enough to warrant chunking.
+
+    This is the single source of truth for the size-based auto-route decision
+    shared by the CLI (``valdo compare``) and the API (``POST /compare``).
+
+    Args:
+        path: Filesystem path to the candidate file.
+
+    Returns:
+        True if the file size is >= :data:`CHUNK_THRESHOLD_BYTES`, False
+        otherwise (including when the file does not exist).
+    """
+    try:
+        return Path(path).stat().st_size >= CHUNK_THRESHOLD_BYTES
+    except OSError:
+        return False
 
 
 def _build_fixed_width_specs(cfg: dict[str, Any]) -> list[tuple[str, int, int]]:

@@ -26,7 +26,11 @@ from src.api.models.file import (
     DbCompareResult,
 )
 from src.parsers.format_detector import FormatDetector
-from src.services.compare_service import run_compare_service
+from src.services.compare_service import (
+    CHUNK_THRESHOLD_BYTES,
+    run_compare_service,
+    should_use_chunked,
+)
 from src.services.db_file_compare_service import (
     compare_db_to_file,
     build_connection_override,
@@ -56,23 +60,26 @@ except ImportError:
 
 router = APIRouter()
 
-_CHUNK_THRESHOLD_BYTES: int = 50 * 1024 * 1024  # 50 MB
+# The chunked-routing threshold + helper now live in the compare service so the
+# CLI and the API share one source of truth (S18-5, #423). These module-level
+# aliases preserve the existing public names used by callers and tests.
+_CHUNK_THRESHOLD_BYTES: int = CHUNK_THRESHOLD_BYTES
 
 
 def _should_use_chunked(path: Path) -> bool:
     """Return True when the file at *path* meets the chunked-processing threshold.
 
+    Thin wrapper around :func:`src.services.compare_service.should_use_chunked`
+    so the CLI and API route large compares identically.
+
     Args:
         path: Filesystem path to the uploaded file.
 
     Returns:
-        True if the file size is >= _CHUNK_THRESHOLD_BYTES, False otherwise
-        (including when the file does not exist).
+        True if the file size is >= :data:`_CHUNK_THRESHOLD_BYTES`, False
+        otherwise (including when the file does not exist).
     """
-    try:
-        return path.stat().st_size >= _CHUNK_THRESHOLD_BYTES
-    except OSError:
-        return False
+    return should_use_chunked(path)
 
 
 UPLOADS_DIR = Path("uploads")

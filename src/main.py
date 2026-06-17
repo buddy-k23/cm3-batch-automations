@@ -204,7 +204,9 @@ def convert_rules(template, output, sheet):
 @click.option('--detailed/--basic', default=True, help='Detailed field analysis')
 @click.option('--chunk-size', default=100000, help='Chunk size for large files (default: 100000)')
 @click.option('--progress/--no-progress', default=True, help='Show progress bar')
-@click.option('--use-chunked', is_flag=True, help='Use chunked processing for large files')
+@click.option('--use-chunked/--no-chunked', 'use_chunked', default=None,
+              help='Force (--use-chunked) or disable (--no-chunked) chunked '
+                   'processing. Default: auto-route by file size when keys are given.')
 def compare(file1, file2, keys, mapping, output, thresholds, detailed, chunk_size, progress, use_chunked):
     """Compare two files and generate report."""
     logger = setup_logger('valdo', log_to_file=False)

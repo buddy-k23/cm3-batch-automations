@@ -6,8 +6,20 @@ from pathlib import Path
 import click
 
 
+from src.services.compare_service import run_compare_service, should_use_chunked
+
+
 def run_compare_command(file1, file2, keys, mapping, output, thresholds, detailed, chunk_size, progress, use_chunked, logger):
     """Compare two files and generate a diff report.
+
+    Chunked auto-routing (S18-5, #423):
+        ``use_chunked`` is tri-state. When ``None`` (no explicit flag) and
+        ``keys`` are supplied, the command auto-routes to the chunked
+        comparator when either input file meets the shared size threshold
+        (:func:`src.services.compare_service.should_use_chunked`), mirroring
+        the API. Passing ``True`` (``--use-chunked``) or ``False``
+        (``--no-chunked``) overrides the size heuristic. Without keys, chunked
+        processing is never selected (it requires key columns).
 
     Exit code contract (S8-1, #392):
         * ``0`` — files match (no rows in ``only_in_file1``, ``only_in_file2``,
@@ -25,11 +37,21 @@ def run_compare_command(file1, file2, keys, mapping, output, thresholds, detaile
     try:
         from src.reports.renderers.comparison_renderer import HTMLReporter
         from src.validators.threshold import ThresholdEvaluator, ThresholdConfig
-        from src.services.compare_service import run_compare_service
-        
+
         if not keys:
             click.echo("No keys provided - using row-by-row comparison...")
-        if use_chunked:
+
+        # Resolve tri-state chunked flag → bool (S18-5, #423).
+        if use_chunked is None:
+            resolved_chunked = bool(keys) and (
+                should_use_chunked(file1) or should_use_chunked(file2)
+            )
+            if resolved_chunked:
+                click.echo("Large file detected - auto-routing to chunked processing...")
+        else:
+            resolved_chunked = bool(use_chunked)
+
+        if resolved_chunked:
             click.echo(f"Using chunked processing (chunk size: {chunk_size:,})...")
 
         results = run_compare_service(
@@ -40,7 +62,7 @@ def run_compare_command(file1, file2, keys, mapping, output, thresholds, detaile
             detailed=detailed,
             chunk_size=chunk_size,
             progress=progress,
-            use_chunked=use_chunked,
+            use_chunked=resolved_chunked,
         )
         
         # Display summary
