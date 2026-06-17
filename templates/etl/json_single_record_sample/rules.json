@@ -1,0 +1,55 @@
+{
+  "metadata": {
+    "name": "json_single_record_sample_rules",
+    "description": "Business rules for the JSON (NDJSON) single-record worked example (ADR 0018). Drives the actual pass/fail checks the mapping alone only profiles: a required nested path, a valid_values allowlist, a numeric type, and an array-length minimum on the parser's count column.",
+    "template_type": "hand_curated"
+  },
+  "rules": [
+    {
+      "id": "R001",
+      "name": "CUSTOMER_ID required (nested path present)",
+      "description": "The customer.id JSON path must resolve (key present). Flags line 9 where customer.id is absent.",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "field": "CUSTOMER_ID",
+      "operator": "nested_required",
+      "message": "CUSTOMER_ID ($.customer.id) must be present"
+    },
+    {
+      "id": "R002",
+      "name": "STATUS valid values",
+      "description": "Account status must be one of the allowlist. Flags line 8 ('FROZEN').",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "field": "STATUS",
+      "operator": "valid_values",
+      "values": ["ACTIVE", "CLOSED", "SUSPENDED"],
+      "message": "STATUS must be one of ACTIVE/CLOSED/SUSPENDED"
+    },
+    {
+      "id": "R003",
+      "name": "AGE numeric",
+      "description": "Age must be numeric. Flags line 10 ('NaN').",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "field": "AGE",
+      "operator": "numeric",
+      "message": "AGE must be numeric"
+    },
+    {
+      "id": "R004",
+      "name": "At least one transaction",
+      "description": "Every customer must carry at least one transaction. Runs json_array_length against the TXN_COUNT_count column the parser emits from $.transactions[*]. Flags line 6 (empty transactions array).",
+      "type": "field_validation",
+      "severity": "error",
+      "enabled": true,
+      "field": "TXN_COUNT_count",
+      "operator": "json_array_length",
+      "min_len": 1,
+      "message": "Each record must carry at least one transaction"
+    }
+  ]
+}

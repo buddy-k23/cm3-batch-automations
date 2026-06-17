@@ -1,0 +1,63 @@
+{
+  "mapping_name": "json_single_record_sample",
+  "version": "1.0.0",
+  "description": "Sample NDJSON single-record mapping for the BA-facing JSON template (ADR 0018). Worked example: a customer feed where each line is one JSON object with a nested `customer` object and a `transactions` array. Each field carries a `json_path` (JSONPath selector) instead of fixed-width position/length. The `TXN_COUNT` field maps an array path (`$.transactions[*]`) which the JsonParser collapses to an integer count column.",
+  "source": {
+    "type": "file",
+    "format": "json",
+    "encoding": "UTF-8"
+  },
+  "target": {
+    "type": "file"
+  },
+  "fields": [
+    {
+      "name": "CUSTOMER_ID",
+      "data_type": "string",
+      "target_name": "customer_id",
+      "json_path": "$.customer.id",
+      "required": true,
+      "description": "Customer identifier (required). Line 9 omits the customer.id key to exercise the required check."
+    },
+    {
+      "name": "NAME",
+      "data_type": "string",
+      "target_name": "name",
+      "json_path": "$.customer.name",
+      "required": true,
+      "description": "Customer display name."
+    },
+    {
+      "name": "AGE",
+      "data_type": "decimal",
+      "target_name": "age",
+      "json_path": "$.customer.age",
+      "required": true,
+      "description": "Customer age (numeric). Line 10 carries the string 'NaN' to exercise the decimal data-type check."
+    },
+    {
+      "name": "STATUS",
+      "data_type": "string",
+      "target_name": "status",
+      "json_path": "$.customer.status",
+      "required": true,
+      "description": "Account status code. Line 8 carries 'FROZEN' to exercise the valid_values check.",
+      "valid_values": [
+        "ACTIVE",
+        "CLOSED",
+        "SUSPENDED"
+      ]
+    },
+    {
+      "name": "TXN_COUNT",
+      "data_type": "decimal",
+      "target_name": "txn_count",
+      "json_path": "$.transactions[*]",
+      "required": false,
+      "description": "Number of transactions on the record. The array path `$.transactions[*]` is collapsed by the JsonParser to an integer count column (TXN_COUNT_count). Line 6 carries an empty transactions array (count 0). Drive a 'must have at least one transaction' rule with the json_array_length operator on this count."
+    }
+  ],
+  "key_columns": [
+    "CUSTOMER_ID"
+  ]
+}

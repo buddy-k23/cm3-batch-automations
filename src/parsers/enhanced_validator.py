@@ -483,7 +483,17 @@ class EnhancedFileValidator:
         if not self.mapping_config or 'fields' not in self.mapping_config:
             return
         
-        expected_fields = {f['name'] for f in self.mapping_config['fields']}
+        # For a JSON mapping (ADR 0018), a field whose json_path ends in
+        # ``[*]`` (array-of-objects) is emitted by JsonParser as an integer
+        # count column named ``<name>_count`` — expect that column name, not
+        # the bare field name, so the array field is not flagged as missing.
+        def _expected_column(f: dict) -> str:
+            json_path = str(f.get('json_path', '') or '').rstrip()
+            if json_path.endswith('[*]'):
+                return f"{f['name']}_count"
+            return f['name']
+
+        expected_fields = {_expected_column(f) for f in self.mapping_config['fields']}
         actual_fields = set(df.columns)
         
         # Missing fields

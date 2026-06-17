@@ -48,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - fix(parsers): FormatDetector routes .csv to CSV parser (comma) and .tsv to TSV (tab), not PipeDelimitedParser (S8-2, #393)
 
 ### Added
+- feat(templates): JSON single-record ETL template + worked sample + README; wired JsonParser into the validate path so NDJSON validates end-to-end; MCP auto-discovery (S19-2, #395)
 - feat(parsers): JSON (NDJSON) parser + JSON Path template column + json_array_length/nested_required validators, per ADR 0018 (S19-1, #395)
 - feat(mcp): optional Redis-backed rate-limit backend so caps hold across gunicorn workers; in-memory remains default (S17-1, #419)
 - ci: GitHub Actions unit-test + coverage gate workflow (informational; #416 promotes to required) (S13.5-5, #411)

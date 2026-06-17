@@ -97,6 +97,12 @@ def run_validate_service(
         if mapping_config and parser_class == FixedWidthParser:
             field_specs = _build_fixed_width_specs(mapping_config)
             parser = FixedWidthParser(file, field_specs)
+        elif parser_class.__name__ == "JsonParser":
+            # NDJSON (ADR 0018): JsonParser resolves each field's json_path
+            # against the per-record dict — it takes the mapping's flat field
+            # list, not columns/has_header. Fields without a json_path are
+            # skipped by the parser (they can't be located in a JSON record).
+            parser = parser_class(file, (mapping_config or {}).get("fields", []))
         else:
             # has_header drives whether the parser consumes the first line as a
             # header. Default True to align with the chunked path (which defaults

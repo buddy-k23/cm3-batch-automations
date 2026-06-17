@@ -202,9 +202,16 @@ Response body (abbreviated):
   {"shape": "db_to_file_reconciliation",
    "description": "Brief one-line description of what this reconciliation proves"},
   {"shape": "fixed_width_single_record",
-   "description": "Brief one-line description of the file being validated"}
+   "description": "Brief one-line description of the file being validated"},
+  {"shape": "json_single_record",
+   "description": "Brief one-line description of the NDJSON file being validated"}
 ]
 ```
+
+> The `json_single_record` shape (ADR 0018) validates newline-delimited JSON;
+> its mapping locates fields by JSONPath (`$.customer.id`) and an array path
+> `$.transactions[*]` becomes a `<field>_count` column. It is auto-discovered —
+> dropping the template into `templates/etl/` required no MCP code change.
 
 #### Example — fetch one template body
 

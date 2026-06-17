@@ -1,0 +1,68 @@
+# Valdo template -- JSON (NDJSON) single-record validation  (ADR 0018)
+#
+# Use this template when:
+#   - Your file is newline-delimited JSON (NDJSON): ONE JSON object per line
+#     (.ndjson / .jsonl). A plain .json file that is a single top-level array
+#     is NOT supported in v1 -- convert it first:  jq -c '.[]' in.json > in.ndjson
+#   - Every line has the SAME shape (one record type per file)
+#   - You want field-level validation against a mapping whose fields are
+#     located by JSONPath (e.g. $.customer.id), not by fixed-width position.
+#
+# For fixed-width, see fixed_width_single_record.yml; for delimited (CSV/TSV/
+# pipe), see csv_file_comparison.yml.
+#
+# How this template is wired:
+#   - Top-level keys (source, schema_version) load through
+#     src.pipeline.etl_config.SourceConfig.model_validate(...), the same
+#     Pydantic contract used for per-source YAMLs.
+#   - The mapping JSON is the contract. Each fields[] entry carries a
+#     `json_path` (the JSONPath selector) instead of position/length. A path
+#     ending in `[*]` (array-of-objects) is collapsed by the JsonParser to an
+#     integer count column named `<FieldName>_count` -- drive a
+#     "must have at least one" rule against it with the `json_array_length`
+#     operator. Use the `nested_required` operator to require that a JSON path
+#     is present (distinct from a present-but-null value).
+#   - The committed worked example lives under
+#     templates/etl/json_single_record_sample/ (input.ndjson + mapping.json +
+#     rules.json + expected_report.json).
+#   - Replace every <FILL_IN_*> marker with your value, then run:
+#       valdo validate \
+#         --file <input.ndjson> \
+#         --mapping <this_dir>/mapping.json \
+#         --rules <this_dir>/rules.json \
+#         --output reports/json_validate.html
+#
+# Where does this template fit? See docs/etl/CHOOSE_YOUR_SHAPE.md.
+
+# ---------------------------------------------------------------------------
+# Identity -- required by SourceConfig
+# ---------------------------------------------------------------------------
+source: <FILL_IN_SOURCE_NAME>                  # e.g., "CUSTOMER_FEED"
+schema_version: 1
+description: "Brief one-line description of the NDJSON file being validated"
+
+# ---------------------------------------------------------------------------
+# Input files -- the NDJSON file(s) to validate
+#
+# The mapping JSON's fields[] entries carry `json_path` (JSONPath) +
+# `data_type` + optional `valid_values` / `required`. The worked sample
+# mapping at templates/etl/json_single_record_sample/mapping.json is the
+# example -- adapt it; do not rebuild from scratch.
+# ---------------------------------------------------------------------------
+input_files:
+  - file_type: <FILL_IN_FILE_TYPE>             # e.g., "CUSTOMERS"
+    glob: "<FILL_IN_GLOB>"                     # e.g., "customers_*.ndjson"
+    mapping: "<FILL_IN_PATH_TO_MAPPING_JSON>"  # e.g., "config/mappings/customer_mapping.json"
+    target_staging_table: ""                   # leave empty for file-only validation
+
+# ---------------------------------------------------------------------------
+# Strictness
+#   strict_json:  when true, every non-blank line must be a valid JSON object;
+#                 a malformed line fails the run (line-addressable error).
+#   strict_level: one of "basic", "format", "all".
+#                   basic  -- required/nested_required + not_empty only
+#                   format -- adds data_type / valid_values / json_array_length
+#                   all    -- adds full field analysis
+# ---------------------------------------------------------------------------
+strict_json: true
+strict_level: "all"

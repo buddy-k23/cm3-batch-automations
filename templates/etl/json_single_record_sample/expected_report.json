@@ -1,0 +1,378 @@
+{
+  "appendix": {
+    "affected_rows": {
+      "affected_row_pct": 0.0,
+      "top_problematic_rows": [],
+      "total_affected_rows": 0
+    },
+    "mapping_details": {
+      "field_names": [
+        "CUSTOMER_ID",
+        "NAME",
+        "AGE",
+        "STATUS",
+        "TXN_COUNT"
+      ],
+      "required_field_count": 4,
+      "required_fields": [
+        "CUSTOMER_ID",
+        "NAME",
+        "AGE",
+        "STATUS"
+      ],
+      "total_fields": 5,
+      "total_width": null
+    },
+    "validation_config": {
+      "detailed_mode": true,
+      "mapping_file": "templates/etl/json_single_record_sample/mapping.json",
+      "validation_timestamp": "2026-06-16T21:51:22.233190",
+      "validator_version": "1.0.0"
+    }
+  },
+  "business_rules": {
+    "enabled": true,
+    "statistics": {
+      "compliance_rate": 60.0,
+      "enabled_rules": 4,
+      "executed_rules": 4,
+      "total_rows": 10,
+      "total_rules": 4,
+      "total_violations": 4,
+      "violations_by_rule": {
+        "R001": 1,
+        "R002": 1,
+        "R003": 1,
+        "R004": 1
+      },
+      "violations_by_severity": {
+        "error": 4,
+        "info": 0,
+        "warning": 0
+      }
+    },
+    "violations": [
+      {
+        "expected": null,
+        "field": "CUSTOMER_ID",
+        "issue_code": "BR_R001_FIELD",
+        "message": "The customer.id JSON path must resolve (key present). Flags line 9 where customer.id is absent. (got: nan)",
+        "row_number": 9,
+        "rule_id": "R001",
+        "rule_name": "CUSTOMER_ID required (nested path present)",
+        "severity": "error",
+        "value": NaN
+      },
+      {
+        "expected": [
+          "ACTIVE",
+          "CLOSED",
+          "SUSPENDED"
+        ],
+        "field": "STATUS",
+        "issue_code": "BR_R002_FIELD",
+        "message": "Account status must be one of the allowlist. Flags line 8 ('FROZEN'). (got: FROZEN)",
+        "row_number": 8,
+        "rule_id": "R002",
+        "rule_name": "STATUS valid values",
+        "severity": "error",
+        "value": "FROZEN"
+      },
+      {
+        "expected": null,
+        "field": "AGE",
+        "issue_code": "BR_R003_FIELD",
+        "message": "Age must be numeric. Flags line 10 ('NaN'). (got: NaN)",
+        "row_number": 10,
+        "rule_id": "R003",
+        "rule_name": "AGE numeric",
+        "severity": "error",
+        "value": "NaN"
+      },
+      {
+        "expected": null,
+        "field": "TXN_COUNT_count",
+        "issue_code": "BR_R004_FIELD",
+        "message": "Every customer must carry at least one transaction. Runs json_array_length against the TXN_COUNT_count column the parser emits from $.transactions[*]. Flags line 6 (empty transactions array). (got: 0)",
+        "row_number": 6,
+        "rule_id": "R004",
+        "rule_name": "At least one transaction",
+        "severity": "error",
+        "value": "0"
+      }
+    ]
+  },
+  "data_profile": {
+    "column_count": 6,
+    "columns": [
+      "__source_row__",
+      "CUSTOMER_ID",
+      "NAME",
+      "AGE",
+      "STATUS",
+      "TXN_COUNT_count"
+    ],
+    "memory_usage_mb": 0.0,
+    "row_count": 10
+  },
+  "date_analysis": {
+    "AGE": {
+      "date_range_days": 0,
+      "detected_formats": [
+        "Mixed/Unknown"
+      ],
+      "earliest_date": "1970-01-01T00:00:00.000000022",
+      "future_date_count": "0",
+      "future_date_pct": 0.0,
+      "invalid_date_count": "1",
+      "invalid_date_pct": 10.0,
+      "latest_date": "1970-01-01T00:00:00.000000063",
+      "null_date_count": "0",
+      "null_date_pct": 0.0,
+      "valid_date_count": "9",
+      "valid_date_pct": 90.0
+    },
+    "TXN_COUNT_count": {
+      "date_range_days": 0,
+      "detected_formats": [
+        "Mixed/Unknown"
+      ],
+      "earliest_date": "1970-01-01T00:00:00",
+      "future_date_count": "0",
+      "future_date_pct": 0.0,
+      "invalid_date_count": "0",
+      "invalid_date_pct": 0.0,
+      "latest_date": "1970-01-01T00:00:00.000000005",
+      "null_date_count": "0",
+      "null_date_pct": 0.0,
+      "valid_date_count": "10",
+      "valid_date_pct": 100.0
+    },
+    "__source_row__": {
+      "date_range_days": 0,
+      "detected_formats": [
+        "Mixed/Unknown"
+      ],
+      "earliest_date": "1970-01-01T00:00:00.000000001",
+      "future_date_count": "0",
+      "future_date_pct": 0.0,
+      "invalid_date_count": "0",
+      "invalid_date_pct": 0.0,
+      "latest_date": "1970-01-01T00:00:00.000000010",
+      "null_date_count": "0",
+      "null_date_pct": 0.0,
+      "valid_date_count": "10",
+      "valid_date_pct": 100.0
+    }
+  },
+  "duplicate_analysis": {
+    "duplicate_pct": 0.0,
+    "duplicate_rows": 0,
+    "top_duplicate_counts": [],
+    "total_rows": 10,
+    "unique_rows": 10
+  },
+  "error_count": 4,
+  "errors": [
+    {
+      "category": "business_rule",
+      "field": "CUSTOMER_ID",
+      "message": "The customer.id JSON path must resolve (key present). Flags line 9 where customer.id is absent. (got: nan)",
+      "row": 9,
+      "rule_id": "R001",
+      "rule_name": "CUSTOMER_ID required (nested path present)",
+      "severity": "error"
+    },
+    {
+      "category": "business_rule",
+      "field": "STATUS",
+      "message": "Account status must be one of the allowlist. Flags line 8 ('FROZEN'). (got: FROZEN)",
+      "row": 8,
+      "rule_id": "R002",
+      "rule_name": "STATUS valid values",
+      "severity": "error"
+    },
+    {
+      "category": "business_rule",
+      "field": "AGE",
+      "message": "Age must be numeric. Flags line 10 ('NaN'). (got: NaN)",
+      "row": 10,
+      "rule_id": "R003",
+      "rule_name": "AGE numeric",
+      "severity": "error"
+    },
+    {
+      "category": "business_rule",
+      "field": "TXN_COUNT_count",
+      "message": "Every customer must carry at least one transaction. Runs json_array_length against the TXN_COUNT_count column the parser emits from $.transactions[*]. Flags line 6 (empty transactions array). (got: 0)",
+      "row": 6,
+      "rule_id": "R004",
+      "rule_name": "At least one transaction",
+      "severity": "error"
+    }
+  ],
+  "field_analysis": {
+    "AGE": {
+      "data_type": "object",
+      "fill_rate_pct": 100.0,
+      "filled_count": "10",
+      "inferred_type": "datetime",
+      "null_count": "0",
+      "sample_values": [
+        "34",
+        "51",
+        "28",
+        "63",
+        "45"
+      ],
+      "total_values": 10,
+      "unique_count": 10,
+      "unique_ratio_pct": 100.0
+    },
+    "CUSTOMER_ID": {
+      "avg_length": 5.0,
+      "data_type": "str",
+      "fill_rate_pct": 90.0,
+      "filled_count": "9",
+      "inferred_type": "string",
+      "max_length": 5,
+      "min_length": 5,
+      "null_count": "1",
+      "sample_values": [
+        "C0001",
+        "C0002",
+        "C0003",
+        "C0004",
+        "C0005"
+      ],
+      "total_values": 10,
+      "unique_count": 9,
+      "unique_ratio_pct": 100.0
+    },
+    "NAME": {
+      "avg_length": 10.8,
+      "data_type": "str",
+      "fill_rate_pct": 100.0,
+      "filled_count": "10",
+      "inferred_type": "string",
+      "max_length": 14,
+      "min_length": 9,
+      "null_count": "0",
+      "sample_values": [
+        "Alice Anderson",
+        "Bob Brown",
+        "Carol Chen",
+        "David Davis",
+        "Eve Evans"
+      ],
+      "total_values": 10,
+      "unique_count": 10,
+      "unique_ratio_pct": 100.0
+    },
+    "STATUS": {
+      "avg_length": 6.6,
+      "data_type": "str",
+      "fill_rate_pct": 100.0,
+      "filled_count": "10",
+      "inferred_type": "string",
+      "max_length": 9,
+      "min_length": 6,
+      "null_count": "0",
+      "sample_values": [
+        "ACTIVE",
+        "ACTIVE",
+        "CLOSED",
+        "SUSPENDED",
+        "ACTIVE"
+      ],
+      "total_values": 10,
+      "unique_count": 4,
+      "unique_ratio_pct": 40.0
+    },
+    "TXN_COUNT_count": {
+      "data_type": "int64",
+      "fill_rate_pct": 100.0,
+      "filled_count": "10",
+      "inferred_type": "numeric",
+      "max": 5.0,
+      "mean": 2.1,
+      "median": 2.0,
+      "min": 0.0,
+      "null_count": "0",
+      "sample_values": [
+        "3",
+        "1",
+        "2",
+        "5",
+        "2"
+      ],
+      "std_dev": 1.5238839267549948,
+      "total_values": 10,
+      "unique_count": 6,
+      "unique_ratio_pct": 60.0
+    },
+    "__source_row__": {
+      "data_type": "int64",
+      "fill_rate_pct": 100.0,
+      "filled_count": "10",
+      "inferred_type": "numeric",
+      "max": 10.0,
+      "mean": 5.5,
+      "median": 5.5,
+      "min": 1.0,
+      "null_count": "0",
+      "sample_values": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5"
+      ],
+      "std_dev": 3.0276503540974917,
+      "total_values": 10,
+      "unique_count": 10,
+      "unique_ratio_pct": 100.0
+    }
+  },
+  "file_metadata": {
+    "exists": true,
+    "file_name": "input.ndjson",
+    "file_path": "templates/etl/json_single_record_sample/input.ndjson",
+    "format": "json",
+    "modified_time": "2026-06-16T21:47:15.447258",
+    "size_bytes": 1639,
+    "size_mb": 0.0015630722045898438
+  },
+  "fixed_width_alignment": null,
+  "info": [],
+  "info_count": 0,
+  "issue_code_summary": {},
+  "quality_metrics": {
+    "completeness_pct": 98.33,
+    "duplicate_rows": 0,
+    "filled_cells": "59",
+    "null_cells": "1",
+    "quality_score": 99.0,
+    "total_cells": 60,
+    "total_columns": 6,
+    "total_rows": 10,
+    "unique_rows": 10,
+    "uniqueness_pct": 100.0
+  },
+  "strict_fixed_width": null,
+  "timestamp": "2026-06-16T21:51:22.237523",
+  "total_rows": 10,
+  "valid": false,
+  "valid_rows": 6,
+  "warning_count": 1,
+  "warnings": [
+    {
+      "category": "data",
+      "expected_format": null,
+      "field": "AGE",
+      "message": "Field 'AGE' has 1 invalid date values (10.00%).",
+      "row": null,
+      "severity": "warning"
+    }
+  ]
+}

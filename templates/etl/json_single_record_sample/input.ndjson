@@ -1,0 +1,10 @@
+{"customer":{"id":"C0001","name":"Alice Anderson","age":34,"status":"ACTIVE"},"transactions":[{"amount":100.0,"currency":"USD"},{"amount":110.5,"currency":"USD"},{"amount":121.0,"currency":"USD"}]}
+{"customer":{"id":"C0002","name":"Bob Brown","age":51,"status":"ACTIVE"},"transactions":[{"amount":100.0,"currency":"USD"}]}
+{"customer":{"id":"C0003","name":"Carol Chen","age":28,"status":"CLOSED"},"transactions":[{"amount":100.0,"currency":"USD"},{"amount":110.5,"currency":"USD"}]}
+{"customer":{"id":"C0004","name":"David Davis","age":63,"status":"SUSPENDED"},"transactions":[{"amount":100.0,"currency":"USD"},{"amount":110.5,"currency":"USD"},{"amount":121.0,"currency":"USD"},{"amount":131.5,"currency":"USD"},{"amount":142.0,"currency":"USD"}]}
+{"customer":{"id":"C0005","name":"Eve Evans","age":45,"status":"ACTIVE"},"transactions":[{"amount":100.0,"currency":"USD"},{"amount":110.5,"currency":"USD"}]}
+{"customer":{"id":"C0006","name":"Frank Fisher","age":39,"status":"ACTIVE"},"transactions":[]}
+{"customer":{"id":"C0007","name":"Grace Gomez","age":22,"status":"CLOSED"},"transactions":[{"amount":100.0,"currency":"USD"},{"amount":110.5,"currency":"USD"},{"amount":121.0,"currency":"USD"},{"amount":131.5,"currency":"USD"}]}
+{"customer":{"id":"C0008","name":"Henry Hall","age":57,"status":"FROZEN"},"transactions":[{"amount":100.0,"currency":"USD"}]}
+{"customer":{"name":"Iris Iverson","age":41,"status":"ACTIVE"},"transactions":[{"amount":100.0,"currency":"USD"},{"amount":110.5,"currency":"USD"}]}
+{"customer":{"id":"C0010","name":"Jack Jones","age":"NaN","status":"SUSPENDED"},"transactions":[{"amount":100.0,"currency":"USD"}]}

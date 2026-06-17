@@ -204,6 +204,10 @@ def test_etl_templates_list_resource(monkeypatch):
         "csv_file_comparison",
         "fixed_width_single_record",
         "db_to_file_reconciliation",
+        # JSON (NDJSON) single-record template (ADR 0018, S19-2, #395). Picked
+        # up by templates://etl auto-discovery with zero MCP code change — its
+        # presence here is the acceptance criterion.
+        "json_single_record",
     }
     assert expected.issubset(shapes), (
         f"templates://etl/list missing committed shapes: "

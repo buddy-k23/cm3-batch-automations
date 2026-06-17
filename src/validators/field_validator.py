@@ -416,7 +416,12 @@ class FieldValidator:
             (``pd.NA``). Present-null (``None``) and present values are not
             flagged.
         """
-        # ``isna()`` treats both pd.NA and None as missing, so distinguish
-        # them explicitly: only pd.NA (absent) is a violation, not None
-        # (present-with-null). ``is pd.NA`` is the exact-identity check.
-        return df[field].map(lambda v: v is pd.NA)
+        # Distinguish absent from present-with-null. The parser writes pd.NA
+        # for an absent path and None for a present JSON null, but building a
+        # DataFrame coerces pd.NA -> np.nan in a mixed column, so an exact
+        # ``is pd.NA`` identity check is unreliable. Instead: a value is
+        # "absent" when it is NaN/NA (``pd.isna``) AND not Python ``None``.
+        # ``None`` (present-null) is therefore NOT flagged; np.nan and pd.NA
+        # (absent) are. This survives DataFrame construction and preserves the
+        # absent-vs-null distinction per ADR 0018 §4.
+        return df[field].map(lambda v: v is not None and pd.isna(v))
