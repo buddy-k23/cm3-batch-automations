@@ -653,8 +653,8 @@ def test_mcp_tools_list_has_ten_entries(monkeypatch):
 
     #407 added ``reconcile_mapping`` (eleven); S21-1 added ``db_compare``
     (twelve); S21-2 added ``reconcile_all`` (thirteen); S21-3 added
-    ``mask_file``, taking the surface to fourteen. The expected list below is
-    the TRUE registered surface.
+    ``mask_file`` (fourteen); S21-4 added ``detect_drift``, taking the surface
+    to fifteen. The expected list below is the TRUE registered surface.
     """
     monkeypatch.setenv("VALDO_MCP_AUTH", "dev")
     app = _fresh_app()
@@ -668,6 +668,7 @@ def test_mcp_tools_list_has_ten_entries(monkeypatch):
     assert names == [
         "compare_two_files",
         "db_compare",
+        "detect_drift",
         "get_run_status",
         "get_source_spec",
         "get_violations",

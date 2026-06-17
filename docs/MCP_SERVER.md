@@ -17,7 +17,7 @@ see the `tools/list` response or
 
 ## Tools
 
-The MCP server exposes fourteen tools:
+The MCP server exposes fifteen tools:
 
 - `list_sources`, `get_source_spec`, `list_recent_runs` — read-only
   (EF-S2)
@@ -30,6 +30,7 @@ The MCP server exposes fourteen tools:
 - `db_compare` — adapter-agnostic DB-extract-vs-file compare (S21-1)
 - `reconcile_all` — adapter-agnostic bulk mapping reconcile + baseline drift (S21-2)
 - `mask_file` — PII masking of a batch file with 6 strategies (S21-3)
+- `detect_drift` — schema drift between a file and its mapping (S21-4)
 
 ### Tool: `reconcile_mapping` (#407)
 
@@ -145,6 +146,34 @@ masked rows, read the output file directly. Tool errors are reserved for
 caller-fixable problems: a missing/blank argument, a mapping or masking-config
 file that cannot be found or parsed, an input file that does not exist, an
 unsupported mapping format, or an unrecognised masking strategy.
+
+### Tool: `detect_drift` (S21-4)
+
+Detects whether a batch file's on-disk layout has drifted from the field
+layout declared in its mapping. It wraps the existing drift-detector service
+[`src/services/drift_detector.py::detect_drift`](../src/services/drift_detector.py)
+— the same code path the `valdo detect-drift` CLI command and the
+`POST /api/v1/files/detect-drift` REST endpoint drive. The input file is never
+modified.
+
+**Input parameters**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `file` | string | yes | Path to the batch data file to inspect. Never modified. |
+| `mapping` | string | yes | Path to the mapping JSON; its `fields` list names the columns and (for fixed-width) their positions/lengths. An optional `format` key selects `csv` \| `pipe` \| `tsv` \| `fixed-width` (defaults to fixed-width). |
+
+**Report shape** — `drifted` (bool) and `fields` (per-field findings: `name`,
+`expected_start`, `expected_length`, `actual_start`, `actual_length`,
+`severity` `warning` \| `error`; delimited findings add a `reason`:
+`column_missing` \| `unexpected_column` \| `column_count_mismatch`). When the
+check cannot run (file not found/unreadable, unsupported mapping format, too
+few sample lines, or no mapped fields) the report carries `skipped: true` and a
+`reason` — that is a RESULT, not an error. A genuine drift finding is reported
+in the verdict (`drifted=true`) — it does NOT raise a tool error. Tool errors
+are reserved for caller-fixable problems: a missing/blank argument, or a
+mapping file that cannot be found or parsed. The response carries no raw field
+values.
 
 ### Tool: `compare_two_files` (S7-4)
 

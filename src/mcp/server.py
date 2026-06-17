@@ -102,6 +102,10 @@ from src.mcp.mask_tools import (
     MASK_FILE_DESCRIPTION,
     mask_file_payload,
 )
+from src.mcp.drift_tools import (
+    DETECT_DRIFT_DESCRIPTION,
+    detect_drift_payload,
+)
 from src.mcp.onboarding_tools import (
     INFER_MAPPING_FROM_SAMPLE_DESCRIPTION,
     ONBOARD_SOURCE_DRY_RUN_DESCRIPTION,
@@ -738,6 +742,26 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
             masking_config=masking_config,
             output=output,
         )
+
+    # ------------------------------------------------------------------
+    # S21-4 (#436) — schema drift-detection tool.
+    #
+    # ``detect_drift`` wraps the existing drift-detector service
+    # (:func:`src.services.drift_detector.detect_drift`), the same code path
+    # the ``valdo detect-drift`` CLI and the ``POST /api/v1/files/detect-drift``
+    # REST endpoint drive. Thin adapter only — the sampling + the fixed-width
+    # position heuristic + the delimited header comparison live in the service
+    # layer. A genuine drift finding is a result (report.drifted=True), not a
+    # tool error; the response carries no raw field values.
+    # ------------------------------------------------------------------
+
+    @mcp_server.tool(
+        name="detect_drift",
+        title="Detect schema drift between a file and its mapping",
+        description=DETECT_DRIFT_DESCRIPTION,
+    )
+    def _detect_drift_tool(file: str, mapping: str) -> Dict[str, Any]:
+        return detect_drift_payload(file=file, mapping=mapping)
 
     # ------------------------------------------------------------------
     # EF-S6 — workflow prompts.

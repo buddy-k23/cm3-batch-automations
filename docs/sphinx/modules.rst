@@ -515,6 +515,10 @@ MCP Server
    :members:
    :undoc-members:
 
+.. automodule:: src.mcp.drift_tools
+   :members:
+   :undoc-members:
+
 .. automodule:: src.mcp.health
    :members:
    :undoc-members:
