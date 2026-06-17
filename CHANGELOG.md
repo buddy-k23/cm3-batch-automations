@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - chore(db): remove dead Oracle-only transaction.py (zero src/ consumers) per ADR 0022 / #431 (S18-4, #431)
 
 ### Changed
+- refactor(cli): extract + submit-task logic moved from main.py into src/commands/ (S-followup, #422)
 - perf(compare): set-based chunked comparator (JOIN not per-row SELECT); complete only_in_file1/2; CLI auto-routes large files to chunked (S18-5, #423)
 - refactor(api): onboarding git/gh orchestration moved from the router into an onboarding service (S18-3, #429)
 - refactor(api): thin files.py — cross-type reshaping + connection resolution moved into the services (S18-2, #428)

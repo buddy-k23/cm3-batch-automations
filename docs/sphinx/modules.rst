@@ -16,6 +16,14 @@ Commands
    :members:
    :undoc-members:
 
+.. automodule:: src.commands.extract_command
+   :members:
+   :undoc-members:
+
+.. automodule:: src.commands.submit_task_command
+   :members:
+   :undoc-members:
+
 .. automodule:: src.commands.watch_command
    :members:
    :undoc-members:

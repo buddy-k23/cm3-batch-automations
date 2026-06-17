@@ -509,68 +509,17 @@ def reconcile_all(mappings_dir, pattern, output, baseline, fail_on_warnings, fai
 def extract(table, query, sql_file, output, limit, delimiter):
     """Extract data from a database to a flat file.
 
-    Backend-agnostic (ADR 0022 §4): the active database is selected by the
-    ``DB_ADAPTER`` environment variable (``oracle`` | ``postgresql`` |
-    ``sqlite``) via the adapter factory, so the same command runs against any
-    supported backend rather than Oracle only.
-
-    Supports three modes:
-    1. Table extraction: --table TABLENAME
-    2. Direct query: --query "SELECT ..."
-    3. SQL file: --sql-file path/to/query.sql
+    Thin delegator: the backend selection (S15 adapter factory, ADR 0022 §4),
+    SQL hardening (S13.5-4), mode selection, and output writing live in
+    ``src.commands.extract_command`` so logic stays out of main.py
+    (Architecture Principle #1/#6).
     """
     logger = setup_logger('valdo', log_to_file=False)
-
-    # Validate input options
-    options_provided = sum([bool(table), bool(query), bool(sql_file)])
-    if options_provided == 0:
-        click.echo(click.style('Error: Must provide one of --table, --query, or --sql-file', fg='red'))
-        sys.exit(1)
-    elif options_provided > 1:
-        click.echo(click.style('Error: Only one of --table, --query, or --sql-file can be specified', fg='red'))
-        sys.exit(1)
-
-    try:
-        from src.database.adapters.factory import get_database_adapter
-        from src.database.extractor import DataExtractor
-
-        # Resolve the backend from DB_ADAPTER and connect for the command's
-        # lifetime; the context manager guarantees disconnect on exit/error.
-        with get_database_adapter() as adapter:
-            extractor = DataExtractor(adapter)
-
-            # Determine extraction mode
-            if sql_file:
-                # Read SQL from file
-                with open(sql_file, 'r') as f:
-                    sql_query = f.read().strip()
-                click.echo(f"\nExecuting SQL from file: {sql_file}")
-                stats = extractor.extract_to_file(output_file=output, query=sql_query, delimiter=delimiter)
-                click.echo(f"Extracted {stats['total_rows']} rows to {output}")
-
-            elif query:
-                # Use provided SQL query
-                click.echo(f"\nExecuting custom query")
-                stats = extractor.extract_to_file(output_file=output, query=query, delimiter=delimiter)
-                click.echo(f"Extracted {stats['total_rows']} rows to {output}")
-
-            else:
-                # Table extraction
-                click.echo(f"\nExtracting from table: {table}")
-
-                if limit:
-                    df = extractor.extract_table(table, limit=limit)
-                    df.to_csv(output, sep=delimiter, index=False, header=False)
-                    click.echo(f"Extracted {len(df)} rows to {output}")
-                else:
-                    stats = extractor.extract_to_file(table_name=table, output_file=output, delimiter=delimiter)
-                    click.echo(f"Extracted {stats['total_rows']} rows to {output}")
-
-        click.echo(click.style('✓ Extraction complete', fg='green'))
-
-    except Exception as e:
-        logger.error(f"Error extracting data: {e}")
-        sys.exit(1)
+    from src.commands.extract_command import run_extract_command
+    run_extract_command(
+        table=table, query=query, sql_file=sql_file,
+        output=output, limit=limit, delimiter=delimiter, logger=logger,
+    )
 
 
 @cli.command('generate-oracle-expected')
@@ -855,55 +804,18 @@ def get_run(run_id):
 @click.option('--deadline', default=None, help='ISO timestamp deadline')
 @click.option('--machine-errors', is_flag=True, help='Emit machine-readable JSON errors')
 def submit_task(intent, payload, task_id, trace_id, idempotency_key, priority, deadline, machine_errors):
-    """Submit a canonical task request from CLI ingest boundary."""
-    from datetime import datetime, timezone
-    from src.adapters.cli_task_adapter import normalize_cli_task_request
-    from src.contracts.validation import validate_task_request
-    from src.contracts.task_contracts import TaskResult
-    from src.services.job_state_store import JobStateStore
+    """Submit a canonical task request from CLI ingest boundary.
 
-    try:
-        payload_obj = json.loads(payload)
-    except json.JSONDecodeError as exc:
-        err = {"errors": [{"code": "INVALID_JSON", "message": str(exc), "path": "payload"}]}
-        click.echo(json.dumps(err, indent=2) if machine_errors else f"Invalid payload JSON: {exc}")
-        raise SystemExit(2)
-
-    req = normalize_cli_task_request(
-        intent=intent,
-        payload=payload_obj,
-        task_id=task_id,
-        trace_id=trace_id,
-        idempotency_key=idempotency_key,
-        priority=priority,
-        deadline=datetime.fromisoformat(deadline.replace('Z', '+00:00')) if deadline else datetime.now(timezone.utc),
+    Thin delegator: normalisation, contract validation, idempotency dedup, and
+    store writes live in ``src.commands.submit_task_command`` so logic stays out
+    of main.py (Architecture Principle #1/#6).
+    """
+    from src.commands.submit_task_command import run_submit_task_command
+    run_submit_task_command(
+        intent=intent, payload=payload, task_id=task_id, trace_id=trace_id,
+        idempotency_key=idempotency_key, priority=priority, deadline=deadline,
+        machine_errors=machine_errors,
     )
-
-    _, errors = validate_task_request(req.model_dump())
-    if errors:
-        err = {"errors": [e.model_dump() for e in errors]}
-        click.echo(json.dumps(err, indent=2) if machine_errors else str(err))
-        raise SystemExit(2)
-
-    store = JobStateStore()
-    if req.idempotency_key:
-        existing = store.get_by_idempotency_key(req.idempotency_key, intent=req.intent, source=req.source)
-        if existing:
-            dedup_result = {
-                "task_id": existing["task_id"],
-                "trace_id": existing["trace_id"],
-                "status": existing["status"],
-                "result": existing.get("result") or {"deduplicated": True},
-                "errors": [],
-                "warnings": ["duplicate idempotency key"],
-                "version": "v1",
-            }
-            click.echo(json.dumps(dedup_result, indent=2))
-            return
-
-    result = TaskResult(task_id=req.task_id, trace_id=req.trace_id, status='queued', result={"accepted": True})
-    store.create(req, result)
-    click.echo(json.dumps(result.model_dump(), indent=2))
 
 
 @cli.command('run-etl-pipeline')
