@@ -1,7 +1,9 @@
 """Chunked file validator for memory-efficient validation."""
 
 import json
+import re
 import time
+from functools import lru_cache
 from concurrent.futures import ProcessPoolExecutor, wait, FIRST_COMPLETED
 import pandas as pd
 from typing import Dict, Any, List, Optional
@@ -30,17 +32,66 @@ def _is_float(value: str) -> bool:
         return False
 
 
-def _is_value_valid_for_format(value: str, fmt: str) -> bool:
-    """Check whether *value* matches the COBOL-style format specifier *fmt*.
+@lru_cache(maxsize=256)
+def _compiled_format_pattern(fmt: str) -> Optional[re.Pattern]:
+    """Return a compiled regex for COBOL-style format *fmt*, cached per format.
 
-    Supported format codes include:
+    The format-to-regex translation is performed once per distinct *fmt* and
+    the compiled :class:`re.Pattern` is memoised, eliminating the per-cell
+    ``re.fullmatch`` pattern-rebuild that dominated the old row loop.
+
+    Supported format codes:
     - ``XXX`` — exactly three alphabetic characters.
-    - ``CCYYMMDD`` / ``YYYYMMDD`` — eight-digit date string.
+    - ``CCYYMMDD`` — eight-digit date string.
     - ``S9(n)`` — signed numeric with *n* digits.
     - ``9(n)`` — unsigned numeric with *n* digits.
     - ``[+S]9(n)V9(m)`` — signed/unsigned fixed-decimal with *n* integer and
       *m* fractional digits.
-    Unrecognised format codes always return True (no constraint applied).
+
+    Args:
+        fmt: COBOL-style format specifier. Must already be upper-cased by the
+            caller (the cache key is case-sensitive).
+
+    Returns:
+        A compiled, fully-anchored pattern, or ``None`` when *fmt* imposes no
+        constraint (empty or unrecognised) — mirroring the legacy
+        "return True" fall-through.
+    """
+    if not fmt:
+        return None
+    if fmt == 'XXX':
+        return re.compile(r'[A-Za-z]{3}')
+    if fmt == 'CCYYMMDD':
+        return re.compile(r'\d{8}')
+
+    m_s9 = re.fullmatch(r'S9\((\d+)\)', fmt)
+    if m_s9:
+        n = int(m_s9.group(1))
+        return re.compile(rf'[+-]?\d{{{n}}}')
+
+    m_9 = re.fullmatch(r'9\((\d+)\)', fmt)
+    if m_9:
+        n = int(m_9.group(1))
+        return re.compile(rf'\d{{{n}}}')
+
+    m_dec = re.fullmatch(r'([+S])?9\((\d+)\)V9\((\d+)\)', fmt)
+    if m_dec:
+        sign_kind = m_dec.group(1)
+        n = int(m_dec.group(2))
+        m = int(m_dec.group(3))
+        if sign_kind == '+':
+            return re.compile(rf'[+-]\d{{{n+m}}}')
+        if sign_kind == 'S':
+            return re.compile(rf'[+-]?\d{{{n+m}}}')
+        return re.compile(rf'\d{{{n+m}}}')
+    return None
+
+
+def _is_value_valid_for_format(value: str, fmt: str) -> bool:
+    """Check whether *value* matches the COBOL-style format specifier *fmt*.
+
+    Thin wrapper over :func:`_compiled_format_pattern` preserving the original
+    public signature and "unrecognised format passes" semantics.
 
     Args:
         value: The string value extracted from the data file.
@@ -49,38 +100,205 @@ def _is_value_valid_for_format(value: str, fmt: str) -> bool:
     Returns:
         True if the value conforms to *fmt*, or if *fmt* is unrecognised.
     """
-    import re
-
-    v = str(value).strip()
-    fmt = str(fmt or '').upper()
-    if not fmt:
+    pattern = _compiled_format_pattern(str(fmt or '').upper())
+    if pattern is None:
         return True
-    if fmt == 'XXX':
-        return bool(re.fullmatch(r'[A-Za-z]{3}', v))
-    if fmt == 'CCYYMMDD':
-        return bool(re.fullmatch(r'\d{8}', v))
+    return bool(pattern.fullmatch(str(value).strip()))
 
-    m_s9 = re.fullmatch(r'S9\((\d+)\)', fmt)
-    if m_s9:
-        n = int(m_s9.group(1))
-        return bool(re.fullmatch(rf'[+-]?\d{{{n}}}', v))
 
-    m_9 = re.fullmatch(r'9\((\d+)\)', fmt)
-    if m_9:
-        n = int(m_9.group(1))
-        return bool(re.fullmatch(rf'\d{{{n}}}', v))
+def _stripped_str_column(col: pd.Series) -> pd.Series:
+    """Return *col* as stripped strings with NaN/None mapped to ``''``.
 
-    m_dec = re.fullmatch(r'([+S])?9\((\d+)\)V9\((\d+)\)', fmt)
-    if m_dec:
-        sign_kind = m_dec.group(1)
-        n = int(m_dec.group(2))
-        m = int(m_dec.group(3))
-        if sign_kind == '+':
-            return bool(re.fullmatch(rf'[+-]\d{{{n+m}}}', v))
-        if sign_kind == 'S':
-            return bool(re.fullmatch(rf'[+-]?\d{{{n+m}}}', v))
-        return bool(re.fullmatch(rf'\d{{{n+m}}}', v))
-    return True
+    Reproduces the per-cell expression ``'' if pd.isna(v) else str(v).strip()``
+    used by the original row loop, but vectorized over the whole column. The
+    returned Series is positionally indexed (0..n-1) to match
+    ``reset_index(drop=True)`` semantics so violating positions map directly to
+    ``row_base + pos + 1`` absolute row numbers.
+
+    Args:
+        col: A column slice from the chunk DataFrame.
+
+    Returns:
+        A string Series (RangeIndex 0..n-1) where empty/NaN cells are ``''``
+        and all other cells are ``str(value).strip()``.
+    """
+    s = col.reset_index(drop=True)
+    isna = s.isna()
+    stripped = s.astype(str).str.strip()
+    # astype(str) turns NaN into the literal "nan"; force those back to "".
+    stripped = stripped.mask(isna, '')
+    return stripped
+
+
+def _validate_strict_chunk(
+    chunk: pd.DataFrame,
+    row_base: int,
+    strict_fixed_width: bool,
+    strict_fields: list[dict],
+    strict_level: str,
+) -> list[dict]:
+    """Vectorized strict + data-type field validation for one chunk.
+
+    Single shared implementation used by both the sequential
+    (:meth:`ChunkedFileValidator._validate_chunk`) and parallel
+    (:func:`_validate_chunk_worker`) paths so the strict logic exists exactly
+    once. For each strict field it computes boolean violation masks over the
+    whole column in one pass, then materialises error dicts only for the
+    violating positions.
+
+    Error ORDER is identical to the original ``iterrows × strict_fields``
+    nested loop: for each row, all ``data_type`` errors (in field order) are
+    emitted first, then all ``strict_fixed_width`` errors (in field order),
+    before moving to the next row. This is reproduced by tagging every
+    candidate error with a ``(row_position, phase, field_order)`` sort key
+    (``phase`` 0 = data_type, 1 = strict) and sorting before emission.
+
+    Per-field strict precedence (REQ > VAL > FMT) and the original ``continue``
+    short-circuit (at most one strict error per field per row) are preserved by
+    selecting a single strict error per cell. The data-type checks are
+    independent and may co-occur with a strict error on the same field/row,
+    exactly as before.
+
+    Args:
+        chunk: The DataFrame slice to validate.
+        row_base: Absolute 0-based offset of this chunk's first row
+            (``(chunk_num - 1) * chunk_size``). Row numbers are
+            ``row_base + position + 1``.
+        strict_fixed_width: When True, run the required/valid_values/format
+            checks (FW_REQ/FW_VAL/FW_FMT).
+        strict_fields: Field definitions; each dict may carry ``name``,
+            ``data_type``, ``required``, ``valid_values``, and ``format``.
+        strict_level: ``'format'`` or ``'all'`` enable strict fixed-width
+            checks; anything else disables them.
+
+    Returns:
+        List of error dicts in the same order, shape, and row numbering the
+        original nested row loop produced.
+    """
+    if not strict_fields:
+        return []
+
+    columns = chunk.columns
+    do_strict = strict_fixed_width and strict_level in {'format', 'all'}
+    # Candidate tuples: (row_position, phase, field_order, error_dict).
+    candidates: list[tuple] = []
+
+    for field_order, field in enumerate(strict_fields):
+        name = field.get('name')
+        if name not in columns:
+            continue
+
+        stripped = _stripped_str_column(chunk[name])
+        non_empty = stripped != ''
+
+        # --- phase 0: data-type checks ---
+        dtype = str(field.get('data_type') or '').lower()
+        if dtype and dtype != 'string':
+            if dtype in {'integer', 'int'}:
+                # Only non-empty values are checked (original `if not value: continue`).
+                subset = stripped[non_empty]
+                bad = subset[~subset.map(_is_integer)]
+                for pos, value in bad.items():
+                    candidates.append((
+                        pos, 0, field_order,
+                        {
+                            'severity': 'error',
+                            'category': 'data_type',
+                            'code': 'DT_INT_001',
+                            'message': f"Field '{name}' expects integer but got '{value}'",
+                            'row': row_base + pos + 1,
+                            'field': name,
+                        },
+                    ))
+            elif dtype in {'float', 'decimal', 'number'}:
+                subset = stripped[non_empty]
+                bad = subset[~subset.map(_is_float)]
+                for pos, value in bad.items():
+                    candidates.append((
+                        pos, 0, field_order,
+                        {
+                            'severity': 'error',
+                            'category': 'data_type',
+                            'code': 'DT_FLT_001',
+                            'message': f"Field '{name}' expects float but got '{value}'",
+                            'row': row_base + pos + 1,
+                            'field': name,
+                        },
+                    ))
+
+        # --- phase 1: strict fixed-width checks (one error per cell max) ---
+        if not do_strict:
+            continue
+
+        required = bool(field.get('required'))
+        valid_values = field.get('valid_values')
+        fmt = str(field.get('format') or '').upper()
+
+        # FW_REQ: required and value == '' (highest precedence).
+        if required:
+            for pos in stripped[~non_empty].index:
+                candidates.append((
+                    pos, 1, field_order,
+                    {
+                        'severity': 'error',
+                        'category': 'strict_fixed_width',
+                        'code': 'FW_REQ_001',
+                        'message': f"Required field '{name}' is empty",
+                        'row': row_base + pos + 1,
+                        'field': name,
+                    },
+                ))
+
+        # The remaining strict checks only consider non-empty cells, and only
+        # cells NOT already consumed by FW_REQ. Since FW_REQ fires exclusively
+        # on empty cells, non-empty cells are disjoint — no extra masking
+        # needed to honour the `continue` after FW_REQ.
+        ne = stripped[non_empty]
+
+        # FW_VAL: value not in allowed set (precedence over FMT — `continue`).
+        consumed_val = pd.Series(False, index=ne.index)
+        if len(ne) and valid_values:
+            allowed = {str(v).strip() for v in valid_values}
+            bad_val_mask = ~ne.isin(allowed)
+            consumed_val = bad_val_mask
+            for pos, value in ne[bad_val_mask].items():
+                candidates.append((
+                    pos, 1, field_order,
+                    {
+                        'severity': 'error',
+                        'category': 'strict_fixed_width',
+                        'code': 'FW_VAL_001',
+                        'message': f"Field '{name}' has invalid value '{value}'",
+                        'row': row_base + pos + 1,
+                        'field': name,
+                    },
+                ))
+
+        # FW_FMT: format mismatch, only for cells not already flagged by FW_VAL.
+        if len(ne) and fmt:
+            pattern = _compiled_format_pattern(fmt)
+            if pattern is not None:
+                # Evaluate the cached compiled pattern over the (already small)
+                # non-empty subset. ``pattern.fullmatch`` is exactly the legacy
+                # per-cell check, so behavior is byte-for-byte identical.
+                matches = ne.map(lambda v: pattern.fullmatch(v) is not None)
+                bad_fmt_mask = ~matches & ~consumed_val
+                for pos, value in ne[bad_fmt_mask].items():
+                    candidates.append((
+                        pos, 1, field_order,
+                        {
+                            'severity': 'error',
+                            'category': 'strict_fixed_width',
+                            'code': 'FW_FMT_001',
+                            'message': f"Field '{name}' has invalid format for value '{value}'",
+                            'row': row_base + pos + 1,
+                            'field': name,
+                        },
+                    ))
+
+    # Reproduce original emission order: row, then phase, then field order.
+    candidates.sort(key=lambda t: (t[0], t[1], t[2]))
+    return [c[3] for c in candidates]
 
 
 def _validate_chunk_worker(
@@ -139,77 +357,9 @@ def _validate_chunk_worker(
 
     if strict_fields:
         row_base = (chunk_num - 1) * chunk_size
-        for local_idx, row in chunk.reset_index(drop=True).iterrows():
-            row_num = row_base + local_idx + 1
-            # --- data-type checks ---
-            for field in strict_fields:
-                name = field.get('name')
-                dtype = str(field.get('data_type') or '').lower()
-                if not dtype or dtype == 'string' or name not in chunk.columns:
-                    continue
-                value = '' if pd.isna(row.get(name)) else str(row.get(name)).strip()
-                if not value:
-                    continue
-                if dtype in {'integer', 'int'} and not _is_integer(value):
-                    errors.append({
-                        'severity': 'error',
-                        'category': 'data_type',
-                        'code': 'DT_INT_001',
-                        'message': f"Field '{name}' expects integer but got '{value}'",
-                        'row': row_num,
-                        'field': name,
-                    })
-                elif dtype in {'float', 'decimal', 'number'} and not _is_float(value):
-                    errors.append({
-                        'severity': 'error',
-                        'category': 'data_type',
-                        'code': 'DT_FLT_001',
-                        'message': f"Field '{name}' expects float but got '{value}'",
-                        'row': row_num,
-                        'field': name,
-                    })
-            # --- strict fixed-width checks ---
-            if strict_fixed_width and strict_level in {'format', 'all'}:
-                for field in strict_fields:
-                    name = field.get('name')
-                    if name not in chunk.columns:
-                        continue
-                    value = '' if pd.isna(row.get(name)) else str(row.get(name)).strip()
-
-                    if field.get('required') and value == '':
-                        errors.append({
-                            'severity': 'error',
-                            'category': 'strict_fixed_width',
-                            'code': 'FW_REQ_001',
-                            'message': f"Required field '{name}' is empty",
-                            'row': row_num,
-                            'field': name,
-                        })
-                        continue
-
-                    if value and field.get('valid_values'):
-                        allowed = {str(v).strip() for v in (field.get('valid_values') or [])}
-                        if value not in allowed:
-                            errors.append({
-                                'severity': 'error',
-                                'category': 'strict_fixed_width',
-                                'code': 'FW_VAL_001',
-                                'message': f"Field '{name}' has invalid value '{value}'",
-                                'row': row_num,
-                                'field': name,
-                            })
-                            continue
-
-                    fmt = str(field.get('format') or '').upper()
-                    if value and fmt and not _is_value_valid_for_format(value, fmt):
-                        errors.append({
-                            'severity': 'error',
-                            'category': 'strict_fixed_width',
-                            'code': 'FW_FMT_001',
-                            'message': f"Field '{name}' has invalid format for value '{value}'",
-                            'row': row_num,
-                            'field': name,
-                        })
+        errors.extend(_validate_strict_chunk(
+            chunk, row_base, strict_fixed_width, strict_fields, strict_level,
+        ))
 
     return {'errors': errors, 'warnings': warnings, 'stats': stats, 'rows': len(chunk)}
 
@@ -331,9 +481,11 @@ class ChunkedFileValidator:
                     for chunk_num, chunk in enumerate(parser.parse_chunks(), 1):
                         # Keep duplicate detection active in parallel mode on the coordinator thread
                         # (memory-limited to max_seen_rows, same semantics as sequential mode).
+                        # itertuples replaces the slower iterrows; identical rows
+                        # hash identically so the duplicate count is unchanged.
                         if len(seen_rows) < max_seen_rows:
-                            for _, row in chunk.iterrows():
-                                row_hash = hash(tuple(row.values))
+                            for values in chunk.itertuples(index=False, name=None):
+                                row_hash = hash(values)
                                 if row_hash in seen_rows:
                                     duplicate_count += 1
                                 else:
@@ -674,15 +826,17 @@ class ChunkedFileValidator:
             warnings.append(f"Chunk {chunk_num} is empty")
             return errors, warnings, stats
         
-        # Check for duplicate rows (memory-limited)
+        # Check for duplicate rows (memory-limited). itertuples is materially
+        # faster than iterrows and produces an identical hash for identical
+        # rows, so the duplicate COUNT and seen-set semantics are unchanged.
         if len(seen_rows) < max_seen_rows:
-            for idx, row in chunk.iterrows():
-                row_hash = hash(tuple(row.values))
+            for values in chunk.itertuples(index=False, name=None):
+                row_hash = hash(values)
                 if row_hash in seen_rows:
                     stats['duplicates'] += 1
                 else:
                     seen_rows.add(row_hash)
-        
+
         # Check for null values
         null_counts = chunk.isnull().sum()
         for col, count in null_counts.items():
@@ -698,84 +852,15 @@ class ChunkedFileValidator:
                 if empty_count > 0:
                     stats['empty_strings'][col] = empty_count
 
-        # Single-pass row loop: data-type checks and strict fixed-width checks combined.
+        # Vectorized data-type + strict fixed-width checks (shared with the
+        # parallel worker path). Produces identical error dicts, row numbers,
+        # and ordering as the original nested row loop.
         if self.strict_fields:
             row_base = (chunk_num - 1) * self.chunk_size
-            for local_idx, row in chunk.reset_index(drop=True).iterrows():
-                row_num = row_base + local_idx + 1
-                # --- data-type checks ---
-                for field in self.strict_fields:
-                    name = field.get('name')
-                    dtype = str(field.get('data_type') or '').lower()
-                    if not dtype or dtype == 'string' or name not in chunk.columns:
-                        continue
-                    value = '' if pd.isna(row.get(name)) else str(row.get(name)).strip()
-                    if not value:
-                        continue
-                    if dtype in {'integer', 'int'} and not _is_integer(value):
-                        errors.append({
-                            'severity': 'error',
-                            'category': 'data_type',
-                            'code': 'DT_INT_001',
-                            'message': (
-                                f"Field '{name}' expects integer but got '{value}'"
-                            ),
-                            'row': row_num,
-                            'field': name,
-                        })
-                    elif dtype in {'float', 'decimal', 'number'} and not _is_float(value):
-                        errors.append({
-                            'severity': 'error',
-                            'category': 'data_type',
-                            'code': 'DT_FLT_001',
-                            'message': (
-                                f"Field '{name}' expects float but got '{value}'"
-                            ),
-                            'row': row_num,
-                            'field': name,
-                        })
-                # --- strict fixed-width checks ---
-                if self.strict_fixed_width and self.strict_level in {'format', 'all'}:
-                    for field in self.strict_fields:
-                        name = field.get('name')
-                        if name not in chunk.columns:
-                            continue
-                        value = '' if pd.isna(row.get(name)) else str(row.get(name)).strip()
-
-                        if field.get('required') and value == '':
-                            errors.append({
-                                'severity': 'error',
-                                'category': 'strict_fixed_width',
-                                'code': 'FW_REQ_001',
-                                'message': f"Required field '{name}' is empty",
-                                'row': row_num,
-                                'field': name,
-                            })
-                            continue
-
-                        if value and field.get('valid_values'):
-                            allowed = {str(v).strip() for v in (field.get('valid_values') or [])}
-                            if value not in allowed:
-                                errors.append({
-                                    'severity': 'error',
-                                    'category': 'strict_fixed_width',
-                                    'code': 'FW_VAL_001',
-                                    'message': f"Field '{name}' has invalid value '{value}'",
-                                    'row': row_num,
-                                    'field': name,
-                                })
-                                continue
-
-                        fmt = str(field.get('format') or '').upper()
-                        if value and fmt and not self._is_value_valid_for_format(value, fmt):
-                            errors.append({
-                                'severity': 'error',
-                                'category': 'strict_fixed_width',
-                                'code': 'FW_FMT_001',
-                                'message': f"Field '{name}' has invalid format for value '{value}'",
-                                'row': row_num,
-                                'field': name,
-                            })
+            errors.extend(_validate_strict_chunk(
+                chunk, row_base, self.strict_fixed_width,
+                self.strict_fields, self.strict_level,
+            ))
 
         return errors, warnings, stats
     
