@@ -504,6 +504,7 @@ class ChunkedFileValidator:
 
                         total_rows += len(chunk)
                         if progress:
+                            progress.set_description(f"Validating chunk {chunk_num}")
                             progress.update(total_rows)
 
                         while len(pending) >= max_in_flight:
@@ -605,6 +606,7 @@ class ChunkedFileValidator:
                         total_empty_strings[col] = total_empty_strings.get(col, 0) + count
 
                     if progress:
+                        progress.set_description(f"Validating chunk {chunk_num}")
                         progress.update(total_rows)
 
                     # Periodic garbage collection

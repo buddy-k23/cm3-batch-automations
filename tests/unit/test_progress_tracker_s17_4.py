@@ -63,6 +63,15 @@ def test_display_progress_bar_newline_on_complete(capsys):
     assert captured.out.endswith("\n")
 
 
+def test_set_description_updates_label_on_next_redraw(capsys):
+    t = ProgressTracker(total=10, description="Validating", show_bar=True, bar_width=10)
+    t.set_description("Validating chunk 3")
+    t.update(5)
+    captured = capsys.readouterr()
+    assert "Validating chunk 3" in captured.out
+    assert "50.0%" in captured.out
+
+
 def test_simple_callback_lazily_creates_tracker(capsys):
     cb = SimpleProgressCallback("Loading")
     assert cb.tracker is None

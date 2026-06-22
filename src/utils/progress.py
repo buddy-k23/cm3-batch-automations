@@ -29,14 +29,25 @@ class ProgressTracker:
         
     def update(self, current: int):
         """Update progress.
-        
+
         Args:
             current: Current number of items processed
         """
         self.current = current
-        
+
         if self.show_bar:
             self._display_progress_bar()
+
+    def set_description(self, description: str):
+        """Update the label shown to the left of the progress bar.
+
+        Lets callers surface per-chunk context (e.g. ``"Validating chunk 3/12"``)
+        on the single redrawing bar without emitting a separate line per chunk.
+
+        Args:
+            description: New description text to display on the next redraw.
+        """
+        self.description = description
     
     def increment(self, amount: int = 1):
         """Increment progress by amount.
