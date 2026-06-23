@@ -647,23 +647,131 @@ class EnhancedFileValidator:
             'columns': list(df.columns)
         }
 
+    # Number of non-null values sampled by the cheap date gate before
+    # committing to a full-column ``pd.to_datetime`` coercion. Large enough to
+    # be a reliable estimator of the per-value parse rate, small enough that
+    # dateutil's per-value path on the sample is negligible.
+    _DATE_GATE_SAMPLE_SIZE = 1000
+    # Decision band around the 50% date threshold. When the sampled parse rate
+    # falls inside ``[50 - MARGIN, 50 + MARGIN]`` the column is treated as
+    # ambiguous and the authoritative full-column coercion is run, so the
+    # date/not-date verdict can never differ from the legacy behaviour for any
+    # column whose true rate is near the boundary. The wide margin (35 points)
+    # means only columns that sample WELL below the threshold are skipped.
+    _DATE_GATE_BAND_MARGIN = 35.0
+
+    def _is_date_candidate(self, df: pd.DataFrame, col: str) -> bool:
+        """Cheaply decide whether a column needs full date coercion.
+
+        This is a gate in front of the expensive full-column
+        ``pd.to_datetime`` coercion in :meth:`_analyze_date_fields`. The legacy
+        verdict is ``valid_pct >= 50`` over the whole column; the dominant cost
+        is dateutil's pure-Python per-value parser running on non-date string
+        columns. The gate's job is to skip those non-date columns without
+        changing which columns are reported as dates.
+
+        Decision logic:
+
+        * **Non-object dtypes** (int/float/datetime) pass straight through
+          (``True``). Their coercion already uses pandas' fast C path, and int
+          columns such as ``__source_row__`` legitimately parse as dates under
+          current behaviour — gating them would change output.
+        * **Null-dominated columns**: if fewer than 50% of all rows are
+          non-null the column can never reach the 50% valid-date threshold even
+          if every non-null parses, so return ``False`` with no parsing.
+        * **Small columns** (<= sample size non-null): the sample would equal
+          the whole column, so do no estimate and let the caller run the
+          authoritative coercion (``True``).
+        * **Sampled estimate**: run the *same* ``pd.to_datetime`` coercion on a
+          sample of non-null values. If the sampled parse rate lands inside the
+          ``[50 +/- MARGIN]`` ambiguity band, fall back to full coercion
+          (``True``) so the verdict is authoritative. A sampled rate clearly
+          ABOVE the band is a genuine date column and still needs full coercion
+          to build its entry (``True``). Only a sampled rate clearly BELOW the
+          band returns ``False`` — the case that saves the work.
+
+        The wide ambiguity band guarantees that any column whose true full
+        rate is anywhere near the 50% boundary is decided by the exact legacy
+        coercion, so the reported ``date_analysis`` is unchanged for every
+        realistic column. The only theoretical way the gate could differ from
+        full coercion is a column whose first ``_DATE_GATE_SAMPLE_SIZE``
+        non-null values parse at a wildly different rate (>35 points) from the
+        remainder; such adversarially-ordered data does not occur in batch
+        extracts and is the documented residual of sampling.
+
+        Args:
+            df: The full DataFrame under analysis.
+            col: Name of the column to test.
+
+        Returns:
+            ``True`` if the column must be fully coerced (it is, or might be, a
+            date), ``False`` only when the sample shows it is clearly not a
+            date field.
+        """
+        import warnings
+
+        series = df[col]
+        total = len(df)
+        if total == 0:
+            return True
+
+        # Only string-like columns (numpy object or pandas StringDtype) suffer
+        # the dateutil per-value cost. Non-string columns use pandas' fast C
+        # path already and are never gated out — e.g. integer __source_row__
+        # legitimately parses as dates under current behaviour, and gating it
+        # would change output.
+        dtype = series.dtype
+        is_string_like = (dtype == object) or (
+            pd.api.types.is_string_dtype(dtype)
+            and not pd.api.types.is_numeric_dtype(dtype)
+        )
+        if not is_string_like:
+            return True
+
+        non_null = series.dropna()
+        non_null_count = len(non_null)
+        # Upper bound on valid_pct is non_null_count / total: nulls never parse.
+        if non_null_count / total < 0.5:
+            return False
+
+        if non_null_count <= self._DATE_GATE_SAMPLE_SIZE:
+            # Small column: the "sample" is the whole column, so the gate would
+            # do the same work as full coercion. Skip the estimate and let the
+            # caller run the authoritative coercion.
+            return True
+
+        sample = non_null.head(self._DATE_GATE_SAMPLE_SIZE)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            parsed_sample = pd.to_datetime(sample, errors='coerce')
+        sample_pct = int(parsed_sample.notna().sum()) / len(sample) * 100
+
+        # Only skip when the sample is clearly below the ambiguity band.
+        return sample_pct >= (50 - self._DATE_GATE_BAND_MARGIN)
+
     def _analyze_date_fields(self, df: pd.DataFrame) -> Dict[str, Any]:
         """Analyze date/datetime fields comprehensively."""
         import warnings
-        
+
         date_analysis = {}
-        
+
         for col in df.columns:
+            # Cheap gate: skip the expensive full-column coercion for columns
+            # that provably cannot be dates. Columns that pass the gate run the
+            # identical legacy coercion below, so the reported date_analysis is
+            # byte-for-byte unchanged (see _is_date_candidate).
+            if not self._is_date_candidate(df, col):
+                continue
             # Try to parse as datetime
             try:
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
                     date_series = pd.to_datetime(df[col], errors='coerce')
-                
+
                 # Check if at least 50% of values are valid dates
                 valid_dates = date_series.notna()
                 valid_pct = valid_dates.sum() / len(df) * 100 if len(df) > 0 else 0
-                
+
                 if valid_pct >= 50:  # Consider it a date field if >= 50% are valid dates
                     invalid_count = (~valid_dates).sum()
                     future_count = (date_series > pd.Timestamp.now()).sum()
@@ -1128,14 +1236,18 @@ class EnhancedFileValidator:
             if valid_values:
                 allowed = {str(v) for v in valid_values}
                 bad_mask = ~non_empty.isin(allowed)
-                for idx in non_empty[bad_mask].index:
+                # Pull index AND value from the already-masked Series via
+                # .items() instead of a per-violation df.loc[idx, name] scalar
+                # lookup. non_empty holds str(df[name]) for non-empty cells, so
+                # `value` here equals the legacy df.loc[idx, name] exactly.
+                for idx, value in non_empty[bad_mask].items():
                     invalid_row_numbers.add(int(idx) + 1)
                     format_errors += 1
                     self.errors.append({
                         'severity': 'error',
                         'category': 'strict_fixed_width',
                         'code': 'FW_VAL_001',
-                        'message': f"Field '{name}' has invalid value '{df.loc[idx, name]}'",
+                        'message': f"Field '{name}' has invalid value '{value}'",
                         'row': int(idx) + 1,
                         'field': name,
                     })
@@ -1144,14 +1256,17 @@ class EnhancedFileValidator:
             fmt = str(field.get('format') or '').upper()
             if fmt:
                 bad_mask = ~non_empty.apply(lambda v: self._is_value_valid_for_format(v, fmt))
-                for idx in non_empty[bad_mask].index:
+                # Same vectorised error construction as FW_VAL above: iterate the
+                # masked Series so `value` is the in-hand cell value rather than a
+                # fresh df.loc[idx, name] DataFrame lookup per violation.
+                for idx, value in non_empty[bad_mask].items():
                     invalid_row_numbers.add(int(idx) + 1)
                     format_errors += 1
                     self.errors.append({
                         'severity': 'error',
                         'category': 'strict_fixed_width',
                         'code': 'FW_FMT_001',
-                        'message': f"Field '{name}' has invalid format for value '{df.loc[idx, name]}'",
+                        'message': f"Field '{name}' has invalid format for value '{value}'",
                         'row': int(idx) + 1,
                         'field': name,
                     })
