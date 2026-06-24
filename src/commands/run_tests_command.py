@@ -125,7 +125,7 @@ def _run_oracle_vs_file_test(
     t0 = time.time()
     try:
         from src.database.adapters.factory import get_database_adapter
-        from src.database.extractor import DataExtractor
+        from src.database.extractor import DataExtractor, DEFAULT_DELIMITER
 
         query = test.oracle_query or ""
         if Path(query.strip()).suffix == ".sql" and Path(query.strip()).exists():
@@ -148,6 +148,11 @@ def _run_oracle_vs_file_test(
                 query=query,
                 output_file=str(temp_file),
                 params=oracle_params,
+                # Be explicit about the delimiter so the writer and the
+                # reader below share one source of truth (the file is
+                # pipe-delimited; reading it with pandas' default comma
+                # separator collapsed every row into one bogus column).
+                delimiter=DEFAULT_DELIMITER,
             )
 
         keys_str = ",".join(test.key_columns) if test.key_columns else None
@@ -205,10 +210,33 @@ def _run_oracle_vs_file_test(
                 # to prevent schema mismatches with Oracle result sets.
                 _df = _df.drop(columns=['__source_row__'], errors='ignore')
 
-                _oracle_df = _pd.read_csv(str(temp_file), dtype=str, keep_default_na=False)
+                # Read with the pipe delimiter the extract was written with
+                # (DEFAULT_DELIMITER) — not pandas' default comma.
+                _oracle_df = _pd.read_csv(
+                    str(temp_file),
+                    dtype=str,
+                    keep_default_na=False,
+                    sep=DEFAULT_DELIMITER,
+                )
+
+                # Normalize column names on BOTH sides plus the merge keys to a
+                # single canonical form (UPPER + underscores).  The file side
+                # carries mapping field names (hyphenated, e.g. ``ACCT-NUM``)
+                # while the Oracle side carries raw cursor names (underscored,
+                # e.g. ``ACCT_NUM``) — hyphens are illegal SQL identifiers — so
+                # without this the merge key never lines up.  Oracle names
+                # cannot be changed at the source, so the file side is folded
+                # to match it.
+                from src.utils.column_names import normalize_column_names
+                _df.columns = normalize_column_names(_df.columns)
+                _oracle_df.columns = normalize_column_names(_oracle_df.columns)
 
                 from src.comparators.file_comparator import FileComparator as _FC
-                _key_cols = test.key_columns or None
+                _key_cols = (
+                    normalize_column_names(test.key_columns)
+                    if test.key_columns
+                    else None
+                )
                 _comparator = _FC(_df, _oracle_df, key_columns=_key_cols)
                 svc_result = _comparator.compare(detailed=True)
                 svc_result["duration_seconds"] = time.time() - t0

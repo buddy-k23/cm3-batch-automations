@@ -30,6 +30,13 @@ from typing import Optional, List, Dict, Any
 
 from .adapters.base import DatabaseAdapter
 
+# Shared default column delimiter for every delimited extract/read path
+# (S16-2, #426).  The Oracle/PostgreSQL/SQLite ``extract_to_file`` writers and
+# the comparator readers must agree on this value to round-trip correctly; the
+# constant gives them a single source of truth instead of scattered ``'|'``
+# literals.
+DEFAULT_DELIMITER = "|"
+
 
 class IdentifierValidationError(ValueError):
     """Raised when a SQL identifier fails allow-list validation.
