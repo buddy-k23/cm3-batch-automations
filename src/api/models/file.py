@@ -104,6 +104,33 @@ class DbCompareResult(BaseModel):
     field_statistics: Optional[Dict[str, Any]] = None
 
 
+class ExcelCompareResult(BaseModel):
+    """Model for Excel sheet → DB extract comparison result (S24-3).
+
+    Mirrors :class:`DbCompareResult` but carries the two Excel↔DB-specific
+    workflow fields the service emits — ``excel_rows_read`` and ``direction``
+    (``"db-source"`` / ``"excel-source"``). No database connection fields
+    (host/user/password/schema) are present, so credentials are never echoed
+    back in the response, matching the db-compare contract.
+    """
+
+    workflow_status: str
+    db_rows_extracted: int
+    excel_rows_read: int
+    query_or_table: str
+    direction: str
+    total_rows_file1: int
+    total_rows_file2: int
+    matching_rows: int
+    only_in_file1: int
+    only_in_file2: int
+    differences: int
+    report_url: Optional[str] = None
+    structure_compatible: Optional[bool] = None
+    structure_errors: Optional[List[Dict[str, Any]]] = None
+    field_statistics: Optional[Dict[str, Any]] = None
+
+
 class FileCompareAsyncCreateResponse(BaseModel):
     """Response when creating an async compare job."""
     job_id: str

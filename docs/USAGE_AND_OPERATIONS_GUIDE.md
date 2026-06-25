@@ -1376,6 +1376,46 @@ curl -X POST http://localhost:8000/api/v1/files/db-compare \
   -F "key_columns=ACCOUNT_NUM"
 ```
 
+#### POST /api/v1/files/excel-compare
+
+Compare a sheet of an uploaded Excel workbook against a database extract, in
+either direction. Mirrors `db-compare` (same auth, same upload-safety, same
+HTML-report wiring) but the uploaded file is the `.xlsx` workbook and no
+`mapping_id` is required — the Excel headers are normalised and joined directly
+against the DB columns by the comparison service.
+
+```bash
+curl -X POST http://localhost:8000/api/v1/files/excel-compare \
+  -H "X-API-Key: key-dev-abc123" \
+  -F "excel_file=@data/excel/accounts.xlsx" \
+  -F "query_or_table=SELECT * FROM ACCOUNTS" \
+  -F "key_columns=ID" \
+  -F "direction=db-source" \
+  -F "sheet=Sheet1" \
+  -F "header_row=0" \
+  -F "output_format=json"
+```
+
+Form fields:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `excel_file` | yes | The `.xlsx` / `.xls` workbook to compare. |
+| `query_or_table` | yes | SQL SELECT statement or bare table name for the DB side. |
+| `key_columns` | no | Comma-separated key column names for row matching (empty → row-by-row). |
+| `direction` | no | `db-source` (DB is source/expected, Excel is actual — the default) or `excel-source` (Excel is source/expected, DB is actual). |
+| `sheet` | no | Sheet name to read (omit for the first sheet). |
+| `header_row` | no | Zero-based header row index (default `0`). |
+| `output_format` | no | `json` (default) or `html` — `html` returns a served `report_url`. |
+| `db_host` / `db_user` / `db_password` / `db_schema` / `db_adapter` | no | Per-request DB connection overrides. |
+| `connection_name` / `profile_name` | no | Server-side named connection / profile. |
+
+Returns an `ExcelCompareResult` with `workflow_status`, `db_rows_extracted`,
+`excel_rows_read`, `direction`, the row counts (`total_rows_file1`,
+`total_rows_file2`, `matching_rows`, `only_in_file1`, `only_in_file2`,
+`differences`), and `report_url` when `output_format=html`. No connection
+credentials are echoed back in the response.
+
 #### POST /api/v1/files/detect
 
 Auto-detect file format.

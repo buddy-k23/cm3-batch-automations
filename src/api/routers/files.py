@@ -24,6 +24,7 @@ from src.api.models.file import (
     FileCompareAsyncCreateResponse,
     FileCompareAsyncStatusResponse,
     DbCompareResult,
+    ExcelCompareResult,
 )
 from src.parsers.format_detector import FormatDetector
 from src.services.compare_service import (
@@ -34,6 +35,11 @@ from src.services.compare_service import (
 from src.services.db_file_compare_service import (
     compare_db_to_file,
     build_connection_override,
+)
+from src.services.excel_db_compare_service import (
+    compare_excel_to_db,
+    VALID_DIRECTIONS,
+    EXCEL_AS_ACTUAL,
 )
 from src.config.db_connections import get_named_connections
 from src.services.parse_service import run_parse_service
@@ -794,6 +800,195 @@ async def db_compare(
         raise HTTPException(status_code=500, detail=f"DB extraction failed: {exc}")
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Error running db-compare: {exc}")
+
+    finally:
+        if upload_path.exists():
+            upload_path.unlink()
+
+
+@router.post("/excel-compare", response_model=ExcelCompareResult)
+async def excel_compare(
+    excel_file: UploadFile = File(...),
+    query_or_table: str = Form(...),
+    key_columns: str = Form(""),
+    direction: str = Form(EXCEL_AS_ACTUAL),
+    sheet: str = Form(None),
+    header_row: int = Form(0),
+    output_format: str = Form("json"),
+    db_host: str = Form(None),
+    db_user: str = Form(None),
+    db_password: str = Form(None),
+    db_schema: str = Form(None),
+    db_adapter: str = Form(None),
+    connection_name: str = Form(None),
+    profile_name: str = Form(None),
+    _: str = Depends(require_api_key),
+):
+    """Compare a sheet of an uploaded Excel workbook against a database extract.
+
+    Mirrors :func:`db_compare` exactly in auth, upload-safety, connection
+    resolution, HTML-report wiring, and error semantics, but the uploaded file
+    is the ``.xlsx`` workbook and the comparison runs in **either direction**
+    (``"db-source"`` — DB is source/expected; ``"excel-source"`` — Excel is
+    source/expected). All comparison logic lives in the service
+    (:func:`src.services.excel_db_compare_service.compare_excel_to_db`, S24-2);
+    this router only resolves the per-request connection, saves the upload
+    safely, delegates, and maps the service result/errors to HTTP.
+
+    Args:
+        excel_file: The ``.xlsx`` / ``.xls`` workbook to compare.
+        query_or_table: SQL SELECT statement or bare table name for the DB side.
+        key_columns: Comma-separated key column names for row matching. Empty
+            means a row-by-row comparison.
+        direction: One of ``"db-source"`` (DB is source/expected, Excel is
+            actual) or ``"excel-source"`` (Excel is source/expected, DB is
+            actual). Defaults to ``"db-source"`` (matching the CLI default).
+        sheet: Optional Excel sheet selector — a sheet name. ``None`` reads the
+            first sheet. (A bare numeric string is treated as a sheet name; pass
+            a name for clarity.)
+        header_row: Zero-based header row index for the Excel read. Defaults 0.
+        output_format: Desired output format (``"json"`` or ``"html"``).
+        db_host: Optional database host/DSN to override the environment default.
+        db_user: Optional database username to override the environment default.
+        db_password: Optional database password to override the environment
+            default. Never logged or echoed back in the response.
+        db_schema: Optional database schema to override the environment default.
+        db_adapter: Optional adapter name (``"oracle"``, ``"postgresql"``, or
+            ``"sqlite"``) to override the environment default.
+        connection_name: Optional pre-configured connection from the
+            ``DB_CONNECTIONS`` env var. Resolved server-side; overrides the
+            individual ``db_*`` fields.
+        profile_name: Optional named profile from ``config/db_connections.yaml``.
+            Resolved server-side; overrides the individual ``db_*`` fields.
+
+    Returns:
+        ExcelCompareResult with workflow status, row counts, direction, and diff
+        statistics. No connection credentials are present in the response.
+
+    Raises:
+        HTTPException: 400 if ``direction`` or ``db_adapter`` is invalid, the
+            uploaded filename is unsafe, or the Excel read fails (missing/bad
+            sheet or column).
+        HTTPException: 404 if ``connection_name`` is provided but not found.
+        HTTPException: 500 if DB extraction or comparison fails for another
+            reason.
+    """
+    if direction not in VALID_DIRECTIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Invalid direction '{direction}'. Must be one of: "
+                f"{', '.join(sorted(VALID_DIRECTIONS))}"
+            ),
+        )
+
+    named_connection = None
+    if connection_name is not None:
+        named = get_named_connections()
+        if connection_name not in named:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Named connection '{connection_name}' not found",
+            )
+        named_connection = named[connection_name]
+
+    profile_config = None
+    if profile_name:
+        try:
+            profile_config = resolve_profile(profile_name)
+        except (KeyError, RuntimeError) as exc:
+            raise HTTPException(status_code=500, detail=str(exc))
+
+    try:
+        connection_override = build_connection_override(
+            named_connection=named_connection,
+            profile_config=profile_config,
+            db_host=db_host,
+            db_user=db_user,
+            db_password=db_password,
+            db_schema=db_schema,
+            db_adapter=db_adapter,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    upload_path = _safe_upload_path(excel_file.filename, prefix="excelcompare_")
+    with open(upload_path, "wb") as buffer:
+        shutil.copyfileobj(excel_file.file, buffer)
+
+    try:
+        key_columns_list = [k.strip() for k in key_columns.split(",") if k.strip()]
+
+        # When HTML is requested, render the report into UPLOADS_DIR so it can be
+        # served back as a ``report_url`` (mirroring /db-compare). The service
+        # reuses the file-compare HTMLReporter (S24-2).
+        report_url: str | None = None
+        report_output_path: str | None = None
+        if output_format == "html":
+            report_stem = f"excelcompare_{upload_path.stem}"
+            report_output_path = str(UPLOADS_DIR / f"{report_stem}.html")
+
+        result = compare_excel_to_db(
+            excel_file=str(upload_path),
+            query_or_table=query_or_table,
+            sheet=sheet,
+            header_row=header_row,
+            key_columns=key_columns_list or None,
+            direction=direction,
+            output_format=output_format,
+            output_path=report_output_path,
+            connection_override=connection_override,
+        )
+
+        written = result.get("report_path")
+        if written and Path(written).exists():
+            report_url = f"/uploads/{Path(written).name}"
+
+        workflow = result.get("workflow", {})
+        compare = result.get("compare", {})
+
+        rows_with_diffs = compare.get(
+            "rows_with_differences", compare.get("differences", 0)
+        )
+
+        def _to_int(val):
+            """Coerce a value that may be a DataFrame, list, or int to int."""
+            try:
+                return len(val)
+            except TypeError:
+                return int(val) if val else 0
+
+        return ExcelCompareResult(
+            workflow_status=workflow.get("status", "unknown"),
+            db_rows_extracted=workflow.get("db_rows_extracted", 0),
+            excel_rows_read=workflow.get("excel_rows_read", 0),
+            query_or_table=workflow.get("query_or_table", query_or_table),
+            direction=workflow.get("direction", direction),
+            total_rows_file1=compare.get("total_rows_file1", 0),
+            total_rows_file2=compare.get("total_rows_file2", 0),
+            matching_rows=compare.get("matching_rows", 0),
+            only_in_file1=_to_int(compare.get("only_in_file1", 0)),
+            only_in_file2=_to_int(compare.get("only_in_file2", 0)),
+            differences=_to_int(rows_with_diffs),
+            report_url=report_url,
+            structure_compatible=compare.get("structure_compatible"),
+            structure_errors=compare.get("structure_errors"),
+            field_statistics=compare.get("field_statistics"),
+        )
+
+    except HTTPException:
+        raise
+    except (ValueError, FileNotFoundError, KeyError, IndexError) as exc:
+        # Bad Excel input is a client error, not a server fault — map to a clean
+        # 4xx rather than leaking a 500. This covers a missing/unknown sheet or
+        # an out-of-range sheet index (ValueError from the Excel reader), a key
+        # column that is absent from the sheet (KeyError / IndexError surfaced by
+        # the comparison machinery), and a missing uploaded file (FileNotFound).
+        raise HTTPException(status_code=400, detail=f"Invalid Excel compare request: {exc}")
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=f"DB extraction failed: {exc}")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Error running excel-compare: {exc}")
 
     finally:
         if upload_path.exists():
