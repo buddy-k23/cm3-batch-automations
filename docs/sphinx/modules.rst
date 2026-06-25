@@ -127,6 +127,10 @@ Parsers
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: src.parsers.excel_reader
+   :members:
+   :undoc-members:
+
 .. automodule:: src.parsers.chunked_parser
    :members:
    :undoc-members:
