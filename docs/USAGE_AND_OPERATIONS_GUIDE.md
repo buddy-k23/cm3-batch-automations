@@ -834,6 +834,50 @@ The REST endpoint `POST /api/v1/files/db-compare` mirrors this: passing
 `report_url` (e.g. `/uploads/dbcompare_<file>.html`), just like `/compare` and
 `/validate`.
 
+### excel-compare
+
+Compare a sheet of data in an Excel workbook against a database extract, in
+either direction. The Excel side is read with the same string/ISO-date/integer
+coercions used elsewhere, and the DB side is normalised to match (column names
+upper-cased and underscored, `DATE` rendered to `YYYY-MM-DD`, integer keys
+stripped of any trailing `.0`, `NULL` → `""`) so the two sides join cleanly.
+Backend-agnostic via `DB_ADAPTER` (Oracle / PostgreSQL / SQLite) and the
+`--db-*` overrides.
+
+```bash
+valdo excel-compare \
+  --excel-file data/recon/accounts.xlsx \
+  --sheet 0 \
+  --query-or-table "SELECT ID, NAME, AMOUNT, OPEN_DATE FROM ACCOUNTS" \
+  --key-columns "ID" \
+  --direction db-source \
+  --output-format json \
+  --output excel_compare_report.json
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `--excel-file, -f` | (required) | Excel workbook (`.xlsx`/`.xls`) |
+| `--sheet, -s` | first sheet | Sheet name or zero-based index |
+| `--header-row` | `0` | Zero-based index of the header row |
+| `--query-or-table, -q` | (required) | SQL SELECT or table name for the DB side |
+| `--key-columns, -k` | | Comma-separated key columns for row matching |
+| `--direction` | `db-source` | `db-source` (DB is source, Excel is actual) or `excel-source` (Excel is source, DB is actual) |
+| `--output-format` | `json` | Output format: `json` or `html` |
+| `--output, -o` | | File path for the report |
+| `--db-host` / `--db-user` / `--db-password` / `--db-schema` | | Per-request DB connection overrides |
+| `--db-adapter` | `DB_ADAPTER` env | `oracle`, `postgresql`, or `sqlite` |
+
+**Direction** uses the same vocabulary as the DB Compare UI's source/actual
+swap. With `--direction db-source` the DB is the source-of-truth (file1) and
+Excel is the actual (file2), so `only_in_file1` = only-in-DB and `only_in_file2`
+= only-in-Excel; `--direction excel-source` swaps the two sides. As with
+`compare` / `db-compare`, the command exits non-zero on any mismatch so CI gates
+fail on differences. The output follows the consistent output contract: an
+`--output` path ending in `.html` (or `--output-format html`) writes a real HTML
+comparison report rendered with the same renderer as `valdo compare`; any other
+extension writes machine JSON.
+
 ### parse
 
 Parse a file and display or export its contents.
@@ -3144,6 +3188,7 @@ comparison workflows remain the same.
 | `reconcile` / `reconcile-all` | Yes | Yes | Yes | Adapter-routed (Sprint 12). `CanonicalType` normalises catalog types across backends. PK/UNIQUE constraint reconciliation is currently Oracle-only and degrades to *skipped* (not a false failure) on PostgreSQL/SQLite. |
 | `extract` | Yes | Yes | Yes | Adapter-routed (Sprint 15). Dialect-correct paging (`FETCH FIRST … ROWS ONLY` on Oracle, `LIMIT n` on PostgreSQL/SQLite). |
 | `db-compare` | Yes | Yes | Yes | Adapter-routed (Sprint 15). The `db_file_compare_service` honours `DB_ADAPTER` via the factory — no `OracleConnection.from_env()` fallback. |
+| `excel-compare` | Yes | Yes | Yes | Adapter-routed (Sprint 24). The `excel_db_compare_service` reuses the `db-compare` adapter build, so it honours `DB_ADAPTER` and the `--db-*` overrides on every backend. |
 | `run-tests` (Oracle gate) | Yes | — | — | **Oracle-only by design.** Reads expected rowsets from the Oracle `app_int` schema. |
 | `generate-oracle-expected` | Yes | — | — | **Oracle-only by design.** Uses `OracleConnection.from_env()` directly to read transformation SQL from Oracle; not part of the portable feature set. |
 

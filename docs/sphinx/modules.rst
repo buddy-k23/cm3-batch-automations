@@ -16,6 +16,10 @@ Commands
    :members:
    :undoc-members:
 
+.. automodule:: src.commands.excel_compare
+   :members:
+   :undoc-members:
+
 .. automodule:: src.commands.extract_command
    :members:
    :undoc-members:
@@ -296,6 +300,10 @@ Services
    :undoc-members:
 
 .. automodule:: src.services.db_file_compare_service
+   :members:
+   :undoc-members:
+
+.. automodule:: src.services.excel_db_compare_service
    :members:
    :undoc-members:
 

@@ -275,6 +275,74 @@ def db_compare(query_or_table, mapping, actual_file, key_columns, output_format,
         sys.exit(1)
 
 
+@cli.command('excel-compare')
+@click.option('--excel-file', '-f', 'excel_file', required=True, type=click.Path(exists=True),
+              help='Excel workbook (.xlsx/.xls) of data rows to compare')
+@click.option('--sheet', '-s', default=None,
+              help='Sheet name or zero-based index (default: first sheet)')
+@click.option('--header-row', default=0, show_default=True, type=int,
+              help='Zero-based index of the Excel header row')
+@click.option('--query-or-table', '-q', required=True,
+              help='SQL SELECT statement or bare table name for the DB side')
+@click.option('--key-columns', '-k', default='',
+              help='Comma-separated key column names for row matching')
+@click.option('--direction', type=click.Choice(['db-source', 'excel-source']),
+              default='db-source', show_default=True,
+              help='db-source: DB is source, Excel is actual. '
+                   'excel-source: Excel is source, DB is actual.')
+@click.option('--output-format', type=click.Choice(['json', 'html']), default='json',
+              show_default=True, help='Output format for the report')
+@click.option('--output', '-o', help='File path for the written report')
+@click.option('--db-host', default=None, help='DB host/DSN override')
+@click.option('--db-user', default=None, help='DB username override')
+@click.option('--db-password', default=None, help='DB password override')
+@click.option('--db-schema', default=None, help='DB schema override')
+@click.option('--db-adapter', default=None,
+              type=click.Choice(['oracle', 'postgresql', 'sqlite']),
+              help='DB adapter override (default: DB_ADAPTER env)')
+def excel_compare(excel_file, sheet, header_row, query_or_table, key_columns,
+                  direction, output_format, output, db_host, db_user,
+                  db_password, db_schema, db_adapter):
+    """Compare an Excel sheet against a DB extract, in either direction."""
+    logger = setup_logger('valdo', log_to_file=False)
+
+    try:
+        from src.commands.excel_compare import run_excel_compare_command
+        from src.services.excel_db_compare_service import build_connection_override
+
+        # A sheet selector may be a name or a zero-based index — coerce a pure
+        # integer string to int so positional selection works.
+        sheet_arg = sheet
+        if isinstance(sheet, str) and sheet.lstrip('-').isdigit():
+            sheet_arg = int(sheet)
+
+        connection_override = build_connection_override(
+            db_host=db_host,
+            db_user=db_user,
+            db_password=db_password,
+            db_schema=db_schema,
+            db_adapter=db_adapter,
+        )
+
+        run_excel_compare_command(
+            excel_file=excel_file,
+            query_or_table=query_or_table,
+            sheet=sheet_arg,
+            header_row=header_row,
+            key_columns=key_columns or None,
+            direction=direction,
+            output_format=output_format,
+            output=output,
+            logger=logger,
+            connection_override=connection_override,
+        )
+    except SystemExit:
+        raise
+    except Exception as e:
+        logger.error(f"Error running excel-compare: {e}")
+        sys.exit(1)
+
+
 @cli.command('infer-mapping')
 @click.option('--file', '-f', required=True, help='Sample data file to analyse')
 @click.option('--format', '-t', 'fmt',
