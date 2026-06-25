@@ -28,10 +28,15 @@ def _free_port() -> int:
 
 @pytest.fixture(scope="session")
 def browser_type_launch_args(browser_type_launch_args):
-    """Configure Playwright to use system Edge browser."""
+    """Configure Playwright to use a system browser channel.
+
+    Defaults to ``msedge`` to preserve existing behaviour, but the channel is
+    overridable via the ``APP_E2E_BROWSER_CHANNEL`` env var (e.g. set it to
+    ``chrome`` to run against system Google Chrome).
+    """
     return {
         **browser_type_launch_args,
-        "channel": "msedge",  # Use system Edge browser
+        "channel": os.getenv("APP_E2E_BROWSER_CHANNEL", "msedge"),
     }
 
 
