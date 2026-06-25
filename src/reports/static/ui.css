@@ -1890,6 +1890,10 @@
 
 .dbc-download-row { text-align: center; }
 
+/* Excel Compare — HTML report link row (reuses DB Compare metric/banner styles) */
+.dbc-report-row { text-align: center; margin: 8px 0; }
+.dbc-report-row a.report-link { font-size: 14px; font-weight: 500; }
+
 /* =========================================================
    File Downloader Tab
    ========================================================= */

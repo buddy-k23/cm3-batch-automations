@@ -94,6 +94,8 @@
             aria-controls="panel-tester" onclick="switchTab('tester')">API Tester</button>
     <button id="tab-dbcompare" role="tab" aria-selected="false"
             aria-controls="panel-dbcompare" onclick="switchTab('dbcompare')">DB Compare</button>
+    <button id="tab-excelcompare" role="tab" aria-selected="false"
+            aria-controls="panel-excelcompare" onclick="switchTab('excelcompare')">Excel Compare</button>
     <button id="tab-downloader" role="tab" aria-selected="false"
             aria-controls="panel-downloader" onclick="switchTab('downloader')">File Downloader</button>
     <button id="tab-onboarding" role="tab" aria-selected="false"
@@ -969,6 +971,197 @@
     </div>
 
   </div><!-- /#panel-dbcompare -->
+
+  <!-- EXCEL COMPARE PANEL -->
+  <div id="panel-excelcompare" class="panel panel-hidden" role="tabpanel" aria-labelledby="tab-excelcompare">
+    <h2>Excel Compare</h2>
+
+    <!-- Direction Bar -->
+    <div class="dbc-direction-bar">
+      <span class="dbc-side-label dbc-side-db" id="xlcDbLabel">&#x1F5C4;&#xFE0F; Database</span>
+      <button class="btn btn-secondary dbc-swap-btn" id="xlcSwapBtn"
+              aria-label="Swap comparison direction">&#x21C4; swap</button>
+      <span class="dbc-side-label dbc-side-file" id="xlcExcelLabel">&#x1F4D7; Excel</span>
+      <span class="dbc-direction-label" id="xlcDirectionLabel">DB is source of truth &middot; Excel is actual</span>
+    </div>
+
+    <!-- Split Panel -->
+    <div class="dbc-split">
+
+      <!-- DB Panel (left) -->
+      <div class="dbc-panel dbc-panel--source" id="xlcDbPanel">
+        <div class="dbc-panel-header" id="xlcDbPanelHeader">DATABASE SOURCE</div>
+        <div class="dbc-panel-body">
+
+          <!-- DB Type dropdown -->
+          <div class="form-group" style="margin-bottom:8px">
+            <label for="xlcAdapterSelect" class="dbc-field-label">DB Type</label>
+            <select id="xlcAdapterSelect" class="select-input" style="width:100%">
+              <option value="oracle">Oracle</option>
+              <option value="postgresql">PostgreSQL</option>
+              <option value="sqlite">SQLite</option>
+            </select>
+          </div>
+
+          <!-- Named Connection dropdown -->
+          <div class="form-group" style="margin-bottom:8px">
+            <label for="xlcConnectionSelect" class="dbc-field-label">Connection</label>
+            <select id="xlcConnectionSelect" class="select-input" style="width:100%">
+              <option value="">&#x2014; enter manually &#x2014;</option>
+            </select>
+          </div>
+
+          <!-- Connection chip (collapsed) -->
+          <div class="dbc-conn-chip" id="xlcConnChip" tabindex="0"
+               role="button" aria-expanded="false" aria-controls="xlcConnForm"
+               aria-label="DB connection settings">
+            <span id="xlcConnChipText">&#x1F50C; <span class="dbc-chip-host">not configured</span></span>
+            <span class="dbc-chip-edit">&#x25B8; edit</span>
+          </div>
+
+          <!-- HTTPS warning (shown when not on HTTPS) -->
+          <div class="dbc-https-warning" id="xlcHttpsWarning" style="display:none">
+            &#x26A0;&#xFE0F; Connection credentials will be sent over an unencrypted connection.
+          </div>
+
+          <!-- Connection form (expanded) -->
+          <div class="dbc-conn-form" id="xlcConnForm" style="display:none">
+            <div class="dbc-conn-grid">
+              <div class="dbc-field dbc-field--full">
+                <label for="xlcProfileSelect">DB Profile</label>
+                <select id="xlcProfileSelect" aria-label="Select a named database profile">
+                  <option value="">&#8212; select a profile &#8212;</option>
+                  <option value="__custom__">Custom&#8230;</option>
+                </select>
+              </div>
+              <div id="xlcManualFields">
+                <div class="dbc-field">
+                  <label for="xlcAdapter">DB Adapter</label>
+                  <select id="xlcAdapter">
+                    <option value="oracle">oracle</option>
+                    <option value="postgresql">postgresql</option>
+                    <option value="sqlite">sqlite</option>
+                  </select>
+                </div>
+                <div class="dbc-field">
+                  <label for="xlcHost">Host / DSN</label>
+                  <input type="text" id="xlcHost" placeholder="localhost:1521/FREEPDB1">
+                </div>
+                <div class="dbc-field">
+                  <label for="xlcUser">Username</label>
+                  <input type="text" id="xlcUser" autocomplete="username">
+                </div>
+                <div class="dbc-field">
+                  <label for="xlcPassword">Password</label>
+                  <input type="password" id="xlcPassword" autocomplete="current-password">
+                </div>
+                <div class="dbc-field">
+                  <label for="xlcSchema">Schema</label>
+                  <input type="text" id="xlcSchema">
+                </div>
+                <div class="dbc-field dbc-field-action">
+                  <button class="btn btn-secondary" id="xlcTestConnBtn" type="button">&#x1F517; Test Connection</button>
+                </div>
+              </div><!-- /xlcManualFields -->
+            </div>
+            <div class="dbc-conn-result" id="xlcConnResult" style="display:none"></div>
+          </div>
+
+          <!-- SQL Editor -->
+          <div class="dbc-field-label">QUERY OR TABLE</div>
+          <textarea id="xlcSqlEditor" class="dbc-sql-editor"
+                    placeholder="CUSTOMER  &mdash;or&mdash;  SELECT col1, col2 FROM SCHEMA.TABLE"
+                    aria-label="SQL query or table name for DB extraction"></textarea>
+
+          <!-- Key columns -->
+          <div class="dbc-field-label">
+            <label for="xlcKeyColumns">KEY COLUMNS <span class="dbc-muted">(for row matching)</span></label>
+          </div>
+          <input type="text" id="xlcKeyColumns" class="dbc-key-input"
+                 placeholder="COL1, COL2"
+                 aria-label="Key columns for row matching (comma-separated)">
+
+        </div>
+      </div>
+
+      <!-- Excel Panel (right) -->
+      <div class="dbc-panel dbc-panel--actual" id="xlcExcelPanel">
+        <div class="dbc-panel-header dbc-panel-header--actual" id="xlcExcelPanelHeader">EXCEL (ACTUAL)</div>
+        <div class="dbc-panel-body">
+
+          <!-- Drop zone -->
+          <div class="drop-zone dbc-drop-zone" id="xlcDropZone" tabindex="0"
+               role="button" aria-label="Click or drag an Excel workbook for comparison">
+            <svg class="dz-icon" aria-hidden="true" focusable="false" width="32" height="32"
+                 fill="none" stroke="currentColor" stroke-width="1.4" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+            </svg>
+            <span class="dz-label">Drag &amp; drop or click to browse</span>
+            <span class="dz-sub">Excel workbook (.xlsx)</span>
+          </div>
+          <input type="file" id="xlcFileInput" style="display:none"
+                 accept=".xlsx"
+                 aria-label="Excel workbook for comparison">
+
+          <!-- Sheet -->
+          <div class="dbc-field-label">
+            <label for="xlcSheet">SHEET <span class="dbc-muted">(optional &mdash; name or index)</span></label>
+          </div>
+          <input type="text" id="xlcSheet" class="dbc-key-input"
+                 placeholder="Sheet1"
+                 aria-label="Worksheet name or index (optional, defaults to first sheet)">
+
+          <!-- Header row -->
+          <div class="dbc-field-label">
+            <label for="xlcHeaderRow">HEADER ROW <span class="dbc-muted">(0-based)</span></label>
+          </div>
+          <input type="number" id="xlcHeaderRow" class="dbc-key-input" min="0" step="1" value="0"
+                 placeholder="0"
+                 aria-label="Zero-based index of the header row">
+
+          <!-- Key columns info note -->
+          <div class="dbc-info-note">
+            &#x2139;&#xFE0F; Key columns are shared &mdash; set in the DB panel
+          </div>
+
+          <!-- Options -->
+          <div class="dbc-field-label">OPTIONS</div>
+          <div class="dbc-options">
+            <label class="dbc-option-row">
+              <input type="checkbox" id="xlcHtmlReport" checked>
+              Generate HTML report
+            </label>
+            <label class="dbc-option-row">
+              <input type="checkbox" id="xlcDownloadCsv" checked>
+              Download diff as CSV
+            </label>
+          </div>
+
+        </div>
+      </div>
+
+    </div><!-- /.dbc-split -->
+
+    <!-- Run button -->
+    <div class="dbc-run-row">
+      <button class="btn btn-primary btn-lg" id="excelCompareBtn" disabled
+              data-tooltip="Run Excel to database comparison">&#x25B6; Run Excel Compare</button>
+    </div>
+
+    <!-- Results -->
+    <div id="xlcResults" aria-live="polite" style="display:none">
+      <div id="xlcStatusBanner" class="dbc-status-banner"></div>
+      <div class="dbc-metrics" id="xlcMetrics"></div>
+      <div class="dbc-report-row" id="xlcReportRow" style="display:none"></div>
+      <div class="dbc-download-row" id="xlcDownloadRow" style="display:none">
+        <button class="btn btn-secondary" id="xlcDownloadDiffBtn" type="button">
+          &#x2B07; Download Diff CSV
+        </button>
+      </div>
+    </div>
+
+  </div><!-- /#panel-excelcompare -->
 
   <!-- FILE DOWNLOADER PANEL -->
   <div id="panel-downloader" class="panel panel-hidden" role="tabpanel"

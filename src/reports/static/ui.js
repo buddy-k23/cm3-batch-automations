@@ -20,7 +20,7 @@ var _trendSuite = '';
  * @param {string} name - Tab identifier: 'quick', 'runs', 'mapping', 'tester', 'dbcompare', or 'downloader'.
  */
 function switchTab(name) {
-  ['quick', 'runs', 'mapping', 'tester', 'dbcompare', 'downloader', 'onboarding'].forEach(function(t) {
+  ['quick', 'runs', 'mapping', 'tester', 'dbcompare', 'excelcompare', 'downloader', 'onboarding'].forEach(function(t) {
     var panel = document.getElementById('panel-' + t);
     var btn   = document.getElementById('tab-' + t);
     if (!panel || !btn) return;
@@ -44,6 +44,11 @@ function switchTab(name) {
   if (name === 'runs') { loadTrendChart(); loadSummaryCards(); }
   // Load named connections whenever DB Compare tab is activated (#296)
   if (name === 'dbcompare') { loadDbConnections(); }
+  // Load named connections + profiles whenever Excel Compare tab is activated (S24-5)
+  if (name === 'excelcompare') {
+    if (typeof loadExcelDbConnections === 'function') loadExcelDbConnections();
+    if (typeof window._xlcLoadProfiles === 'function') window._xlcLoadProfiles();
+  }
   // Load downloader paths when Downloader tab is activated
   if (name === 'downloader') { loadDownloaderPaths(); }
   // EE-S1: refresh committed sources whenever Source Editor tab is activated
@@ -4844,6 +4849,601 @@ if (_dbcDlBtn) {
     btn.textContent = '\u23F3 Building CSV\u2026';
     setTimeout(function() {
       try { _dbcTriggerCsvDownload(stats); }
+      finally {
+        btn.disabled    = false;
+        btn.textContent = '\u2B07 Download Diff CSV';
+      }
+    }, 0);
+  });
+}
+
+// ===========================================================================
+// Excel Compare (S24-5) \u2014 mirrors DB Compare exactly, calling the
+// POST /api/v1/files/excel-compare endpoint (S24-3). Compares an uploaded
+// .xlsx workbook against a database query/table. Direction swap toggles which
+// side is treated as the source of truth (db-source <-> excel-source).
+//
+// Password posture is identical to DB Compare: host/user/schema/adapter are
+// persisted to sessionStorage for convenience, the password is NEVER stored
+// (not in sessionStorage, not in localStorage). All network calls go through
+// the central apiFetch() wrapper (#427), never raw fetch().
+// ===========================================================================
+
+// 'db-source' (DB is source of truth) <-> 'excel-source' (Excel is source of truth)
+var _xlcDirection = 'db-source';
+
+/**
+ * Update the Excel Compare direction bar + split-panel styling and the
+ * placeholder hints when the direction is swapped.
+ */
+function _xlcUpdateDirection() {
+  var isDbSource = _xlcDirection === 'db-source';
+  var lbl = document.getElementById('xlcDirectionLabel');
+  if (lbl) lbl.textContent = isDbSource
+    ? 'DB is source of truth \u00B7 Excel is actual'
+    : 'Excel is source of truth \u00B7 DB is actual';
+
+  var dbPanel     = document.getElementById('xlcDbPanel');
+  var excelPanel  = document.getElementById('xlcExcelPanel');
+  var dbHeader    = document.getElementById('xlcDbPanelHeader');
+  var excelHeader = document.getElementById('xlcExcelPanelHeader');
+
+  if (dbPanel)     dbPanel.className     = 'dbc-panel ' + (isDbSource ? 'dbc-panel--source' : 'dbc-panel--actual');
+  if (excelPanel)  excelPanel.className  = 'dbc-panel ' + (isDbSource ? 'dbc-panel--actual' : 'dbc-panel--source');
+  if (dbHeader)    dbHeader.className     = 'dbc-panel-header' + (isDbSource ? '' : ' dbc-panel-header--actual');
+  if (excelHeader) excelHeader.className  = 'dbc-panel-header' + (isDbSource ? ' dbc-panel-header--actual' : '');
+}
+
+(function() {
+  var swapBtn = document.getElementById('xlcSwapBtn');
+  if (swapBtn) {
+    swapBtn.addEventListener('click', function() {
+      _xlcDirection = (_xlcDirection === 'db-source') ? 'excel-source' : 'db-source';
+      _xlcUpdateDirection();
+    });
+  }
+})();
+
+/**
+ * Load named DB connections into the Excel Compare connection dropdown.
+ * Silently no-ops when the endpoint is unavailable so the manual form works.
+ */
+async function loadExcelDbConnections() {
+  try {
+    var resp = await apiFetch('/api/v1/system/db-connections', { silent: true });
+    if (!resp.ok) return;
+    var connections = await resp.json();
+    var select = document.getElementById('xlcConnectionSelect');
+    if (!select) return;
+    while (select.options.length > 1) select.remove(1);
+    connections.forEach(function(c) {
+      var opt = new Option((c.name || '') + ' \u00B7 ' + (c.schema || ''), c.name || '');
+      opt.dataset.adapter = c.adapter || 'oracle';
+      select.add(opt);
+    });
+  } catch (_) {
+    // Silently ignore \u2014 manual form still works
+  }
+}
+
+/**
+ * Handle changes to the Excel Compare named connection dropdown \u2014 hide the
+ * manual chip/form when a named connection is chosen, restore otherwise.
+ */
+function onXlcConnectionSelectChange() {
+  var select = document.getElementById('xlcConnectionSelect');
+  var chip   = document.getElementById('xlcConnChip');
+  var form   = document.getElementById('xlcConnForm');
+  var warn   = document.getElementById('xlcHttpsWarning');
+  if (!select) return;
+
+  if (select.value !== '') {
+    if (chip) chip.style.display = 'none';
+    if (form) form.style.display = 'none';
+    if (warn) warn.style.display = 'none';
+    var adapterSel  = document.getElementById('xlcAdapterSelect');
+    var selectedOpt = select.options[select.selectedIndex];
+    if (adapterSel && selectedOpt && selectedOpt.dataset && selectedOpt.dataset.adapter) {
+      adapterSel.value = selectedOpt.dataset.adapter;
+    }
+  } else {
+    if (chip) chip.style.display = '';
+    if (warn) warn.style.display = (location.protocol === 'http:') ? '' : 'none';
+  }
+  _updateExcelCompareBtn();
+}
+
+(function() {
+  var connSel = document.getElementById('xlcConnectionSelect');
+  if (connSel) connSel.addEventListener('change', onXlcConnectionSelectChange);
+})();
+
+// ---------------------------------------------------------------------------
+// Excel Compare \u2014 profile dropdown (fetch from /api/v1/system/db-profiles)
+// ---------------------------------------------------------------------------
+(function() {
+  var _xlcProfiles = [];
+
+  function _xlcLoadProfiles() {
+    var sel = document.getElementById('xlcProfileSelect');
+    if (!sel) return;
+    var apiKeyEl = document.getElementById('apiKeyInput');
+    var hdrs = apiKeyEl && apiKeyEl.value ? { 'X-API-Key': apiKeyEl.value } : {}; // gitleaks:allow
+    apiFetch('/api/v1/system/db-profiles', { headers: hdrs, silent: true })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        _xlcProfiles = data.profiles || [];
+        var toRemove = [];
+        for (var i = 0; i < sel.options.length; i++) {
+          var v = sel.options[i].value;
+          if (v !== '' && v !== '__custom__') toRemove.push(sel.options[i]);
+        }
+        toRemove.forEach(function(o) { sel.removeChild(o); });
+        var customOpt = null;
+        for (var j = 0; j < sel.options.length; j++) {
+          if (sel.options[j].value === '__custom__') { customOpt = sel.options[j]; break; }
+        }
+        _xlcProfiles.forEach(function(p) {
+          var opt = document.createElement('option');
+          opt.value = p.name;
+          opt.textContent = p.password_env_set ? p.name : (p.name + ' \u26A0\uFE0F');
+          opt.dataset.passwordEnvSet = p.password_env_set ? '1' : '0';
+          sel.insertBefore(opt, customOpt);
+        });
+      })
+      .catch(function() {});
+  }
+
+  function _xlcApplyProfileSelection() {
+    var sel    = document.getElementById('xlcProfileSelect');
+    var manual = document.getElementById('xlcManualFields');
+    var result = document.getElementById('xlcConnResult');
+    if (!sel || !manual) return;
+    var val = sel.value;
+    var isNamed = val && val !== '__custom__';
+    manual.style.display = isNamed ? 'none' : '';
+    if (result) result.style.display = 'none';
+    window._xlcRefreshChipFromProfile();
+    if (typeof _updateExcelCompareBtn === 'function') _updateExcelCompareBtn();
+  }
+
+  window._xlcRefreshChipFromProfile = function() {
+    var sel      = document.getElementById('xlcProfileSelect');
+    var chipText = document.getElementById('xlcConnChipText');
+    if (!chipText) return;
+    var val = sel ? sel.value : '';
+    chipText.textContent = '';
+    chipText.appendChild(document.createTextNode('\uD83D\uDD0C '));
+    var hostSpan = document.createElement('span');
+    hostSpan.className = 'dbc-chip-host';
+    if (val && val !== '__custom__') {
+      hostSpan.textContent = val;
+      chipText.appendChild(hostSpan);
+    } else {
+      var hostEl   = document.getElementById('xlcHost');
+      var schemaEl = document.getElementById('xlcSchema');
+      hostSpan.textContent = (hostEl && hostEl.value) ? hostEl.value : 'not configured';
+      chipText.appendChild(hostSpan);
+      var schema = schemaEl ? schemaEl.value : '';
+      if (schema) {
+        chipText.appendChild(document.createTextNode(' \u00B7 '));
+        var schSpan = document.createElement('span');
+        schSpan.textContent = schema;
+        chipText.appendChild(schSpan);
+      }
+    }
+  };
+
+  window._xlcGetHost = function() {
+    var sel = document.getElementById('xlcProfileSelect');
+    if (sel && sel.value && sel.value !== '__custom__') return sel.value;
+    return (document.getElementById('xlcHost') || {}).value || '';
+  };
+
+  var profileSel = document.getElementById('xlcProfileSelect');
+  if (profileSel) profileSel.addEventListener('change', _xlcApplyProfileSelection);
+
+  window._xlcLoadProfiles = _xlcLoadProfiles;
+  window._xlcApplyProfileSelection = _xlcApplyProfileSelection;
+})();
+
+// ---------------------------------------------------------------------------
+// Excel Compare \u2014 connection chip expand/collapse + sessionStorage + db-ping
+// Password (xlcPassword) is intentionally excluded from sessionStorage.
+// ---------------------------------------------------------------------------
+(function() {
+  var _SS_KEYS = ['xlcHost', 'xlcUser', 'xlcSchema', 'xlcAdapter'];
+
+  function _xlcRestoreSession() {
+    _SS_KEYS.forEach(function(id) {
+      var el  = document.getElementById(id);
+      var val = sessionStorage.getItem('valdo-xlc-' + id);
+      if (el && val) el.value = val;
+    });
+    _xlcRefreshChip();
+  }
+
+  function _xlcSaveSession() {
+    _SS_KEYS.forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) sessionStorage.setItem('valdo-xlc-' + id, el.value);
+    });
+    // Password (xlcPassword) is intentionally excluded \u2014 never persisted
+  }
+
+  function _xlcRefreshChip() {
+    var hostEl   = document.getElementById('xlcHost');
+    var schemaEl = document.getElementById('xlcSchema');
+    var chipText = document.getElementById('xlcConnChipText');
+    if (!chipText) return;
+
+    var host   = hostEl   ? hostEl.value   : '';
+    var schema = schemaEl ? schemaEl.value : '';
+
+    chipText.textContent = '';
+    var icon = document.createTextNode('\uD83D\uDD0C ');
+    var hostSpan = document.createElement('span');
+    hostSpan.className = 'dbc-chip-host';
+    hostSpan.textContent = host || 'not configured';
+    chipText.appendChild(icon);
+    chipText.appendChild(hostSpan);
+    if (schema) {
+      chipText.appendChild(document.createTextNode(' \u00B7 '));
+      var schemaSpan = document.createElement('span');
+      schemaSpan.textContent = schema;
+      chipText.appendChild(schemaSpan);
+    }
+  }
+
+  function _xlcToggleConnForm() {
+    var chip = document.getElementById('xlcConnChip');
+    var form = document.getElementById('xlcConnForm');
+    var warn = document.getElementById('xlcHttpsWarning');
+    if (!chip || !form) return;
+    var isExpanded = chip.getAttribute('aria-expanded') === 'true';
+    if (isExpanded) {
+      _xlcSaveSession();
+      form.style.display = 'none';
+      chip.setAttribute('aria-expanded', 'false');
+      if (warn) warn.style.display = 'none';
+      _xlcRefreshChip();
+    } else {
+      form.style.display = '';
+      chip.setAttribute('aria-expanded', 'true');
+      if (warn && window.location.protocol !== 'https:') warn.style.display = '';
+    }
+  }
+
+  var chip = document.getElementById('xlcConnChip');
+  if (chip) {
+    chip.addEventListener('click', _xlcToggleConnForm);
+    chip.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _xlcToggleConnForm(); }
+    });
+  }
+
+  // Test Connection
+  var testBtn = document.getElementById('xlcTestConnBtn');
+  if (testBtn) {
+    testBtn.addEventListener('click', async function() {
+      var btn    = this;
+      var result = document.getElementById('xlcConnResult');
+      btn.disabled = true;
+      btn.textContent = '\u23F3 Testing\u2026';
+      if (result) result.style.display = 'none';
+      try {
+        var fd = new FormData();
+        var profileSel = document.getElementById('xlcProfileSelect');
+        var profileVal = profileSel ? profileSel.value : '';
+        if (profileVal && profileVal !== '__custom__') {
+          var selOpt = profileSel.options[profileSel.selectedIndex];
+          if (selOpt && selOpt.dataset.passwordEnvSet === '0') {
+            if (result) {
+              result.style.display = '';
+              result.className = 'dbc-conn-result err';
+              result.textContent = '\u274C Password env var for this profile is not set on the server';
+            }
+            btn.disabled = false;
+            btn.textContent = '\uD83D\uDD17 Test Connection';
+            return;
+          }
+          fd.append('profile_name', profileVal);
+        } else {
+          fd.append('db_host',     (document.getElementById('xlcHost')     || {}).value || '');
+          fd.append('db_user',     (document.getElementById('xlcUser')     || {}).value || '');
+          fd.append('db_password', (document.getElementById('xlcPassword') || {}).value || '');
+          fd.append('db_schema',   (document.getElementById('xlcSchema')   || {}).value || '');
+          fd.append('db_adapter',  (document.getElementById('xlcAdapter')  || {}).value || 'oracle');
+        }
+        var apiKeyEl = document.getElementById('apiKeyInput');
+        var hdrs = apiKeyEl && apiKeyEl.value ? { 'X-API-Key': apiKeyEl.value } : {}; // gitleaks:allow
+        var resp = await apiFetch('/api/v1/system/db-ping', { method: 'POST', body: fd, headers: hdrs });
+        var data = await resp.json();
+        if (result) {
+          result.style.display = '';
+          result.className = 'dbc-conn-result ' + (data.ok ? 'ok' : 'err');
+          result.textContent = data.ok ? '\u2705 Connected' : '\u274C ' + (data.error || 'Connection failed');
+        }
+      } catch (err) {
+        if (result) {
+          result.style.display = '';
+          result.className = 'dbc-conn-result err';
+          result.textContent = '\u274C Request failed \u2014 check server is running';
+        }
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '\uD83D\uDD17 Test Connection';
+      }
+    });
+  }
+
+  // Restore session on page load (host/user/schema/adapter only \u2014 never password)
+  _xlcRestoreSession();
+})();
+
+// ---------------------------------------------------------------------------
+// Excel Compare \u2014 drop zone, run button enable/disable, run handler, results
+// ---------------------------------------------------------------------------
+var _xlcFile = null;
+
+(function() {
+  var dz = document.getElementById('xlcDropZone');
+  var fi = document.getElementById('xlcFileInput');
+  if (!dz || !fi) return;
+
+  dz.addEventListener('click', function() { fi.click(); });
+  dz.addEventListener('keydown', function(e) { if (e.key === 'Enter' || e.key === ' ') fi.click(); });
+  dz.addEventListener('dragover', function(e) { e.preventDefault(); dz.classList.add('drag-over'); });
+  dz.addEventListener('dragleave', function() { dz.classList.remove('drag-over'); });
+  dz.addEventListener('drop', function(e) {
+    e.preventDefault();
+    dz.classList.remove('drag-over');
+    var f = e.dataTransfer.files[0];
+    if (f) { _xlcFile = f; dz.querySelector('.dz-label').textContent = f.name; _updateExcelCompareBtn(); }
+  });
+  fi.addEventListener('change', function() {
+    if (fi.files[0]) { _xlcFile = fi.files[0]; dz.querySelector('.dz-label').textContent = fi.files[0].name; _updateExcelCompareBtn(); }
+  });
+})();
+
+function _updateExcelCompareBtn() {
+  var btn = document.getElementById('excelCompareBtn');
+  if (!btn) return;
+  var hasFile      = !!_xlcFile;
+  var hasQuery     = !!(((document.getElementById('xlcSqlEditor') || {}).value || '').trim());
+  var hasNamedConn = !!((document.getElementById('xlcConnectionSelect') || {}).value);
+  var hasHost      = !!(window._xlcGetHost ? window._xlcGetHost() : '');
+  var hasConn      = hasNamedConn || hasHost;
+  btn.disabled     = !(hasFile && hasQuery && hasConn);
+}
+
+['xlcSqlEditor', 'xlcHost'].forEach(function(id) {
+  var el = document.getElementById(id);
+  if (el) el.addEventListener('input', _updateExcelCompareBtn);
+  if (el) el.addEventListener('change', _updateExcelCompareBtn);
+});
+
+var _excelCompareBtn = document.getElementById('excelCompareBtn');
+if (_excelCompareBtn) {
+  _excelCompareBtn.addEventListener('click', async function() {
+    var btn = this;
+    btn.disabled = true;
+    btn.textContent = '\u23F3 Running\u2026';
+    var resultsEl = document.getElementById('xlcResults');
+    if (resultsEl) resultsEl.style.display = 'none';
+
+    var wantHtml = (document.getElementById('xlcHtmlReport') || {}).checked;
+
+    try {
+      var fd = new FormData();
+      fd.append('excel_file',     _xlcFile);
+      fd.append('query_or_table', document.getElementById('xlcSqlEditor').value.trim());
+      fd.append('key_columns',    (document.getElementById('xlcKeyColumns') || {}).value || '');
+      fd.append('direction',      _xlcDirection);
+      fd.append('output_format',  wantHtml ? 'html' : 'json');
+
+      var sheetVal = (document.getElementById('xlcSheet') || {}).value || '';
+      if (sheetVal.trim()) fd.append('sheet', sheetVal.trim());
+      var headerVal = (document.getElementById('xlcHeaderRow') || {}).value;
+      fd.append('header_row', (headerVal === '' || headerVal == null) ? '0' : String(headerVal));
+
+      var profileSel2 = document.getElementById('xlcProfileSelect');
+      var profileVal2 = profileSel2 ? profileSel2.value : '';
+      var connName    = (document.getElementById('xlcConnectionSelect') || {}).value || '';
+      if (connName) {
+        // Named connection \u2014 send connection_name; skip individual credential fields
+        fd.append('connection_name', connName);
+      } else if (profileVal2 && profileVal2 !== '__custom__') {
+        // Named server-side profile \u2014 password resolved server-side from env
+        fd.append('profile_name', profileVal2);
+      } else {
+        // Manual entry \u2014 send individual credential fields
+        fd.append('db_host',     (document.getElementById('xlcHost')     || {}).value || '');
+        fd.append('db_user',     (document.getElementById('xlcUser')     || {}).value || '');
+        fd.append('db_password', (document.getElementById('xlcPassword') || {}).value || '');
+        fd.append('db_schema',   (document.getElementById('xlcSchema')   || {}).value || '');
+        fd.append('db_adapter',  (document.getElementById('xlcAdapter')  || {}).value || 'oracle');
+      }
+
+      var resp = await apiFetch('/api/v1/files/excel-compare', { method: 'POST', body: fd });
+      var data = await resp.json();
+
+      if (!resp.ok) {
+        var detail = (data && data.detail) ? data.detail : ('HTTP ' + resp.status);
+        if (resp.status === 404) {
+          _xlcShowResults(null, 'warn', '\u26A0\uFE0F Not found: ' + detail);
+        } else {
+          _xlcShowResults(null, 'fail', '\u274C Server error \u2014 ' + detail);
+        }
+        return;
+      }
+
+      _xlcShowResults(
+        data,
+        data.workflow_status === 'passed' ? 'pass' : 'fail',
+        data.workflow_status === 'passed'
+          ? '\u2705 Compare complete'
+          : '\u274C Compare failed \u2014 check your query, sheet/header, and connection'
+      );
+
+      if ((document.getElementById('xlcDownloadCsv') || {}).checked &&
+          data.field_statistics && data.field_statistics.length > 0) {
+        _xlcTriggerCsvDownload(data.field_statistics);
+      }
+
+    } catch (err) {
+      _xlcShowResults(null, 'fail', '\u274C Request failed \u2014 check server is running');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '\u25B6 Run Excel Compare';
+      _updateExcelCompareBtn();
+    }
+  });
+}
+
+/**
+ * Render the Excel Compare status banner, metric cards, HTML report link,
+ * and diff-CSV download row from the excel-compare response.
+ */
+function _xlcShowResults(data, bannerClass, bannerText) {
+  var resultsEl = document.getElementById('xlcResults');
+  var bannerEl  = document.getElementById('xlcStatusBanner');
+  var metricsEl = document.getElementById('xlcMetrics');
+  if (!resultsEl) return;
+
+  if (bannerEl) {
+    bannerEl.className   = 'dbc-status-banner ' + bannerClass;
+    bannerEl.textContent = bannerText;
+  }
+
+  if (metricsEl && data) {
+    var isDbSource = (data.direction || _xlcDirection) === 'db-source';
+    var cards = [
+      { label: 'DB Rows',        value: data.db_rows_extracted, color: '' },
+      { label: 'Excel Rows',     value: data.excel_rows_read,   color: '' },
+      { label: 'Matching',       value: data.matching_rows,     color: 'green' },
+      { label: 'Differences',    value: data.differences,       color: 'amber' },
+      { label: 'Only in Source', value: data.only_in_file1,     color: 'red' },
+      { label: 'Only in Actual', value: data.only_in_file2,     color: 'red' },
+      { label: 'Structure',      value: data.structure_compatible ? '\u2713' : '\u2717',
+        color: data.structure_compatible ? 'green' : 'red', raw: true },
+    ];
+    metricsEl.textContent = '';
+    cards.forEach(function(c) {
+      var card  = document.createElement('div');
+      card.className = 'dbc-metric-card';
+      var val   = document.createElement('div');
+      val.className  = 'dbc-metric-value' + (c.color ? ' ' + c.color : '');
+      if (c.raw) {
+        val.textContent = c.value;
+      } else {
+        val.textContent = c.value != null ? c.value.toLocaleString() : '\u2014';
+      }
+      var lbl   = document.createElement('div');
+      lbl.className  = 'dbc-metric-label';
+      lbl.textContent = c.label;
+      card.appendChild(val);
+      card.appendChild(lbl);
+      metricsEl.appendChild(card);
+    });
+  } else if (metricsEl) {
+    metricsEl.textContent = '';
+  }
+
+  // HTML report link (when output_format=html produced a report_url)
+  var reportRow = document.getElementById('xlcReportRow');
+  if (reportRow) {
+    reportRow.textContent = '';
+    if (data && data.report_url) {
+      var a = document.createElement('a');
+      a.className = 'report-link';
+      a.textContent = '\uD83D\uDCC4 Open HTML report';
+      a.href = data.report_url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      reportRow.appendChild(a);
+      reportRow.style.display = '';
+    } else {
+      reportRow.style.display = 'none';
+    }
+  }
+
+  // Structure error messages (if any)
+  if (data && Array.isArray(data.structure_errors) && data.structure_errors.length && bannerEl) {
+    bannerEl.textContent = bannerText + ' \u00B7 ' + data.structure_errors.join('; ');
+  }
+
+  var dlRow = document.getElementById('xlcDownloadRow');
+  var dlBtn = document.getElementById('xlcDownloadDiffBtn');
+  if (dlRow && data) {
+    var hasDiff = ((data.differences || 0) + (data.only_in_file1 || 0) + (data.only_in_file2 || 0)) > 0;
+    dlRow.style.display = hasDiff ? '' : 'none';
+    if (dlBtn) {
+      if (!data.field_statistics) {
+        dlBtn.disabled    = true;
+        dlBtn.textContent = '\u26A0\uFE0F Detailed diff unavailable';
+      } else {
+        dlBtn.disabled    = false;
+        dlBtn.textContent = '\u2B07 Download Diff CSV';
+        dlBtn._fieldStatistics = data.field_statistics;
+      }
+    }
+  } else if (dlRow) {
+    dlRow.style.display = 'none';
+  }
+
+  resultsEl.style.display = '';
+}
+
+// ---------------------------------------------------------------------------
+// Excel Compare \u2014 client-side diff CSV (mirrors DB Compare)
+// ---------------------------------------------------------------------------
+function _xlcBuildDiffCsv(fieldStatistics) {
+  var rows = ['row_number,key_columns,field_name,db_value,excel_value,difference_type'];
+  (fieldStatistics || []).forEach(function(stat) {
+    var fieldName = stat.field_name || stat.field || '';
+    var diffs     = stat.differences || stat.mismatches || [];
+    diffs.forEach(function(d) {
+      function esc(v) {
+        var s = (v == null ? '' : String(v)).replace(/"/g, '""');
+        return (s.indexOf(',') >= 0 || s.indexOf('"') >= 0 || s.indexOf('\n') >= 0) ? '"' + s + '"' : s;
+      }
+      rows.push([
+        esc(d.row_number),
+        esc(Array.isArray(d.key_columns) ? d.key_columns.join('|') : (d.key_columns || '')),
+        esc(fieldName),
+        esc(d.db_value),
+        esc(d.excel_value != null ? d.excel_value : d.file_value),
+        esc(d.difference_type || 'mismatch'),
+      ].join(','));
+    });
+  });
+  return rows.join('\r\n');
+}
+
+function _xlcTriggerCsvDownload(fieldStatistics) {
+  var csv  = _xlcBuildDiffCsv(fieldStatistics);
+  var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'excel_compare_diff.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function() { URL.revokeObjectURL(url); }, 10000);
+}
+
+var _xlcDlBtn = document.getElementById('xlcDownloadDiffBtn');
+if (_xlcDlBtn) {
+  _xlcDlBtn.addEventListener('click', function() {
+    var btn   = this;
+    var stats = btn._fieldStatistics;
+    if (!stats) return;
+    btn.disabled    = true;
+    btn.textContent = '\u23F3 Building CSV\u2026';
+    setTimeout(function() {
+      try { _xlcTriggerCsvDownload(stats); }
       finally {
         btn.disabled    = false;
         btn.textContent = '\u2B07 Download Diff CSV';

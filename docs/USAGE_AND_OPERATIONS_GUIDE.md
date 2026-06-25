@@ -285,7 +285,7 @@ in CI/CD pipelines to validate data files automatically on every build.
 
 ## 3. Web UI Guide
 
-The Web UI is served at `/ui` and provides four main tabs. It supports dark and
+The Web UI is served at `/ui` and provides several tabs (Quick Test, Recent Runs, Mapping Generator, API Tester, DB Compare, Excel Compare, and — when enabled — File Downloader and Source Editor). It supports dark and
 light themes (toggled via the theme button) and respects your system preference
 on first visit. All tabs are fully keyboard-accessible.
 
@@ -521,6 +521,62 @@ Options:
 | Only in Actual | red | Rows present only in the actual |
 
 The **Download Diff CSV** button generates a diff file client-side (no extra server call). CSV columns: `row_number`, `key_columns`, `field_name`, `db_value`, `file_value`, `difference_type`. The button is hidden when the compare is clean.
+
+### Excel Compare Tab
+
+The Excel Compare tab mirrors the DB Compare tab but compares an uploaded **Excel workbook (`.xlsx`)** against a database query or table through the same split-panel interface. It posts to `POST /api/v1/files/excel-compare`.
+
+#### Comparison Directions
+
+| Direction | Source of Truth | Purpose |
+|-----------|----------------|---------|
+| **DB is source of truth** (default) | Database query/table | Verify the spreadsheet matches the system of record |
+| **Excel is source of truth** | Uploaded Excel workbook | Verify the database load matches the supplied spreadsheet |
+
+Click **⇄ swap** to toggle. The direction label spells out which side is the source of truth ("DB is source of truth · Excel is actual" or "Excel is source of truth · DB is actual"); metric card labels update automatically and form values are preserved.
+
+#### DB Panel — Connection
+
+The connection panel is identical to DB Compare. Click the connection chip (`🔌 host · schema`) to expand the form, or pick a named connection / server-side **DB Profile** from the dropdowns:
+
+| Field | Notes |
+|-------|-------|
+| DB Adapter | `oracle`, `postgresql`, or `sqlite` |
+| Host / DSN | e.g. `localhost:1521/FREEPDB1` |
+| Username | DB username |
+| Password | **Never saved to sessionStorage** — entered fresh each session |
+| Schema | Schema prefix (informational) |
+
+Click **🔗 Test Connection** to verify credentials before running. On a non-HTTPS origin, an inline warning reminds you that credentials will be sent unencrypted. Host/user/schema/adapter are remembered in `sessionStorage` for convenience; the password is never persisted (not in sessionStorage, not in localStorage).
+
+#### DB Panel — Query or Table
+
+Enter either a bare table name (e.g. `CUSTOMER`) or a SELECT query (e.g. `SELECT col1, col2 FROM SCHEMA.TABLE`). **Key Columns** (set in the DB panel) are shared between both sides for row matching.
+
+#### Excel Panel
+
+Upload the `.xlsx` workbook, then set:
+
+- **Sheet** (optional) — worksheet name or index; defaults to the first sheet.
+- **Header row** (0-based) — the row index that holds column headers; defaults to `0`.
+
+Options:
+- **Generate HTML report** — requests `output_format=html`; the response returns a `report_url` surfaced as an **Open HTML report** link below the metric cards.
+- **Download diff as CSV** — auto-downloads the diff file when results load.
+
+#### Results
+
+| Tile | Color | Description |
+|------|-------|-------------|
+| DB Rows | accent | Rows extracted from the database |
+| Excel Rows | accent | Rows read from the workbook |
+| Matching | green | Rows that match exactly |
+| Differences | amber | Rows with field-level differences |
+| Only in Source | red | Rows present only in the source side |
+| Only in Actual | red | Rows present only in the actual side |
+| Structure | green/red | Whether the Excel columns and DB columns are compatible (structure errors, if any, are appended to the status banner) |
+
+The **Download Diff CSV** button generates a diff file client-side (no extra server call). CSV columns: `row_number`, `key_columns`, `field_name`, `db_value`, `excel_value`, `difference_type`. The button is hidden when the compare is clean.
 
 ### File Downloader Tab
 
