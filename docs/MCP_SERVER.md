@@ -17,8 +17,8 @@ see the `tools/list` response or
 
 ## Tools
 
-The MCP server exposes twenty-one tools (every CLI verb now has a matching MCP
-tool — MCP parity is complete):
+The MCP server exposes twenty-two tools (every CLI verb has a matching MCP
+tool — MCP parity is complete — plus the Sprint 24 Excel<->DB compare tool):
 
 - `list_sources`, `get_source_spec`, `list_recent_runs` — read-only
   (EF-S2)
@@ -38,6 +38,7 @@ tool — MCP parity is complete):
 - `export_failed_rows` — validate a file and export only the failed rows to a file (S22-3)
 - `submit_task` — submit a canonical task request over MCP (idempotency-aware) (S22-4)
 - `run_suite` — run a whole test suite (YAML) over MCP, returning per-test + overall results (S22-5)
+- `excel_db_compare` — adapter-agnostic Excel-sheet-vs-DB-extract compare, either direction (S24-4)
 
 ### Tool: `run_suite` (S22-5)
 
@@ -167,6 +168,43 @@ it does NOT raise a tool error. Tool errors are reserved for caller-fixable
 problems (mapping or actual file not found, neither/both of `table`/`query`
 supplied, or a bad adapter name). Connection credentials are never included in
 the tool response.
+
+### Tool: `excel_db_compare` (S24-4)
+
+Compares a sheet of **data** from an Excel workbook against a database table or
+SQL query extract on whichever backend `DB_ADAPTER` selects
+(`sqlite` | `postgresql` | `oracle`), in **either direction**, and returns a
+**bounded** verdict. It wraps the existing Excel<->DB reconciliation service
+[`src/services/excel_db_compare_service.py::compare_excel_to_db`](../src/services/excel_db_compare_service.py)
+(S24-2) — which reads the Excel sheet, extracts + normalises the DB side, and
+delegates to the shared `run_compare_service` contract.
+
+**Input parameters**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `excel_file` | string | yes | Path to the `.xlsx` / `.xls` workbook to read. |
+| `table` | string | one-of | Bare table name to extract from. Mutually exclusive with `query`. |
+| `query` | string | one-of | A SQL `SELECT` statement to extract with. Mutually exclusive with `table`. |
+| `sheet` | string | no | Sheet name to read. Defaults to the first sheet. |
+| `header_row` | int | no | Zero-based header row index for the Excel read. Defaults to `0`. |
+| `key_columns` | list[string] | no | Column name(s) used as join keys; omit for row-by-row comparison. |
+| `direction` | string | no | `db-source` (DB is source/expected, Excel is actual) \| `excel-source` (Excel is source/expected, DB is actual). Defaults to `db-source`. |
+| `db_adapter` | string | no | Adapter override (`sqlite` \| `postgresql` \| `oracle`); defaults to env `DB_ADAPTER`. |
+| `connection` | object | no | Per-request connection values (`db_host`, `db_user`, `db_password`, `db_schema`, `db_path`). Never echoed in the response. |
+| `include_report` | bool | no | When `true`, render an HTML report and return a `report://` handle (never inline rows). Defaults to `false`. |
+
+**Verdict shape** — `workflow` (`status` `passed` \| `failed`,
+`db_rows_extracted`, `excel_rows_read`, `query_or_table`, `direction`) and
+`compare` (`structure_compatible`, `matching_rows`, `only_in_db`,
+`only_in_excel`, `differences` — all **COUNTS**, plus the `only_in_file1` /
+`only_in_file2` REST-parity aliases). Unlike `db_compare`, the `compare` block
+carries **no raw rows and no raw diff values** — only counts — so no PII crosses
+the transport (ADR 0023). A genuine comparison difference is reported in the
+verdict (`status=failed`) — it does NOT raise a tool error. Tool errors are
+reserved for caller-fixable problems (Excel file not found, neither/both of
+`table`/`query` supplied, a bad direction, or a bad adapter name). Connection
+credentials are never included in the tool response.
 
 ### Tool: `reconcile_all` (S21-2)
 

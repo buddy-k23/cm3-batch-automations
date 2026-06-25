@@ -94,6 +94,10 @@ from src.mcp.db_compare_tools import (
     DB_COMPARE_DESCRIPTION,
     db_compare_payload,
 )
+from src.mcp.excel_db_compare_tools import (
+    EXCEL_DB_COMPARE_DESCRIPTION,
+    excel_db_compare_payload,
+)
 from src.mcp.reconcile_all_tools import (
     RECONCILE_ALL_DESCRIPTION,
     reconcile_all_payload,
@@ -752,6 +756,52 @@ def build_mcp_server() -> Tuple[FastMCP, Starlette]:
             table=table,
             query=query,
             key_columns=key_columns,
+            db_adapter=db_adapter,
+            connection=connection,
+            include_report=include_report,
+        )
+
+    # ------------------------------------------------------------------
+    # S24-4 (Sprint 24) — adapter-agnostic Excel<->DB compare tool.
+    #
+    # ``excel_db_compare`` wraps the existing Excel<->DB reconciliation service
+    # (:func:`src.services.excel_db_compare_service.compare_excel_to_db`, S24-2),
+    # which the CLI / REST layers also call. Adapter-agnostic per ADR 0022: it
+    # extracts the DB side from whichever backend DB_ADAPTER selects and diffs it
+    # against a sheet of Excel data, in either direction (db-source /
+    # excel-source). Thin adapter only — the Excel read, the both-side
+    # normalisation, and the comparison live in the service layer. A genuine
+    # comparison difference is a result (workflow.status=failed), not a tool
+    # error. Tighter than db_compare on redaction (ADR 0023): the response
+    # carries ONLY bounded counts (never raw rows / diff values) plus a report
+    # HANDLE when requested; per-request credentials are never echoed back.
+    # ------------------------------------------------------------------
+
+    @mcp_server.tool(
+        name="excel_db_compare",
+        title="Compare an Excel sheet against a database extract",
+        description=EXCEL_DB_COMPARE_DESCRIPTION,
+    )
+    def _excel_db_compare_tool(
+        excel_file: str,
+        table: Optional[str] = None,
+        query: Optional[str] = None,
+        sheet: Optional[str] = None,
+        header_row: int = 0,
+        key_columns: Optional[List[str]] = None,
+        direction: str = "db-source",
+        db_adapter: Optional[str] = None,
+        connection: Optional[Dict[str, Any]] = None,
+        include_report: bool = False,
+    ) -> Dict[str, Any]:
+        return excel_db_compare_payload(
+            excel_file=excel_file,
+            table=table,
+            query=query,
+            sheet=sheet,
+            header_row=header_row,
+            key_columns=key_columns,
+            direction=direction,
             db_adapter=db_adapter,
             connection=connection,
             include_report=include_report,

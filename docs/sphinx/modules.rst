@@ -524,6 +524,10 @@ MCP Server
    :members:
    :undoc-members:
 
+.. automodule:: src.mcp.excel_db_compare_tools
+   :members:
+   :undoc-members:
+
 .. automodule:: src.mcp.reconcile_all_tools
    :members:
    :undoc-members:

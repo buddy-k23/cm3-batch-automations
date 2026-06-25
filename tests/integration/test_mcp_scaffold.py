@@ -258,11 +258,12 @@ def test_mcp_capabilities_advertise_expected_registries(monkeypatch):
         "pick_etl_shape",
     ], f"prompts/list names drifted from EF-S6+S7-5 baseline: {prompt_names!r}"
 
-    # EF-S2 + EF-S4 + EF-S5 + S7-4 + #407 + S21-1..S21-5 + S22-1 + S22-2 —
-    # eighteen tools: three read-only, three action, three onboarding, one
-    # ad-hoc compare, one reconcile, one db-compare, one bulk-reconcile, one
-    # PII-masking, one schema-drift, one DB-extract, one parse, one ETL-pipeline
-    # runner, no more, no less.
+    # EF-S2 + EF-S4 + EF-S5 + S7-4 + #407 + S21-1..S21-5 + S22-1..S22-5 +
+    # S24-4 — twenty-two tools: three read-only, three action, three
+    # onboarding, one ad-hoc compare, one reconcile, one db-compare, one
+    # Excel<->DB compare, one bulk-reconcile, one PII-masking, one
+    # schema-drift, one DB-extract, one parse, one ETL-pipeline runner, one
+    # export-failed-rows, one submit-task, one run-suite, no more, no less.
     # The full input-schema shape of each tool is asserted in
     # ``test_mcp_read_tools.py`` (EF-S2), ``test_mcp_action_tools.py``
     # (EF-S4), ``test_mcp_onboarding_tools.py`` (EF-S5),
@@ -275,6 +276,7 @@ def test_mcp_capabilities_advertise_expected_registries(monkeypatch):
         "compare_two_files",
         "db_compare",
         "detect_drift",
+        "excel_db_compare",
         "export_failed_rows",
         "extract_table",
         "get_run_status",

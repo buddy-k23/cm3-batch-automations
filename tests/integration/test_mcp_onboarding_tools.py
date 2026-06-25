@@ -554,7 +554,8 @@ def test_infer_mapping_unknown_format_raises(monkeypatch, tmp_path: Path):
 # S21-1 db_compare (1) + S21-2 reconcile_all (1) + S21-3 mask_file (1) +
 # S21-4 detect_drift (1) + S21-5 extract_table (1) + S22-1 parse_file (1) +
 # S22-2 run_etl_pipeline (1) + S22-3 export_failed_rows (1) +
-# S22-4 submit_task (1) + S22-5 run_suite (1) = 21 tools (MCP parity complete).
+# S22-4 submit_task (1) + S22-5 run_suite (1) = 21 tools (MCP parity complete);
+# S24-4 excel_db_compare (1) = 22 tools.
 # We set the expected list to the TRUE registered surface here.
 # ---------------------------------------------------------------------------
 
@@ -574,6 +575,7 @@ def test_mcp_tools_list_has_nine_entries(monkeypatch):
         "compare_two_files",
         "db_compare",
         "detect_drift",
+        "excel_db_compare",
         "export_failed_rows",
         "extract_table",
         "get_run_status",

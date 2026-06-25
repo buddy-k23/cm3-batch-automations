@@ -658,8 +658,9 @@ def test_mcp_tools_list_has_ten_entries(monkeypatch):
     S22-2 added ``run_etl_pipeline`` (eighteen); S22-3 added
     ``export_failed_rows`` (nineteen); S22-4 added ``submit_task`` (twenty);
     S22-5 added ``run_suite``, taking the surface to twenty-one — and
-    COMPLETING MCP parity (every CLI verb now has a matching MCP tool). The
-    expected list below is the TRUE registered surface.
+    COMPLETING MCP parity (every CLI verb now has a matching MCP tool); S24-4
+    added ``excel_db_compare`` (twenty-two). The expected list below is the
+    TRUE registered surface.
     """
     monkeypatch.setenv("VALDO_MCP_AUTH", "dev")
     app = _fresh_app()
@@ -674,6 +675,7 @@ def test_mcp_tools_list_has_ten_entries(monkeypatch):
         "compare_two_files",
         "db_compare",
         "detect_drift",
+        "excel_db_compare",
         "export_failed_rows",
         "extract_table",
         "get_run_status",
