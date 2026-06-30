@@ -158,3 +158,91 @@ is narrow (one backend interface, one result contract, pandas stays default) and
 3,850-test contract pins the output shape. **Build it — behind the `ComparisonBackend`
 seam, size/flag-gated, pandas default — and gate merge on the contract-parity matrix
 producing the full materialized payload, not just counts.**
+
+---
+
+# Full-contract realized benchmark (S25-3)
+
+**Status:** Re-benchmark complete — validates caveat #1 above. **The realized
+full-contract win lands inside the ADR's conservative 10–30× band.**
+**Date:** 2026-06-30.
+**Harness:** `scripts/benchmark_duckdb_full_contract.py` — unlike the counts-only
+harness above, this runs the **production** `DuckDBComparisonBackend.compare()`
+(native-read fast path, full materialized contract) vs the **production**
+`NativeComparisonBackend.compare()` (pandas `FileComparator`, full contract) on the
+same pipe files, and asserts the two backends' materialized payloads agree
+(counts **and** the lengths of the `differences` / `only_in_*` lists + that
+`field_statistics` was built) before reporting a speedup.
+
+## Why the headline 100× drops to ~20–30× — and how S25-3 keeps it there
+
+The counts-only benchmark stopped at `COUNT(*)`. The real backends must build the
+per-row `differences` list (with `string_analysis`), the `only_in_*` DataFrames
+and `field_statistics`. Two things therefore changed for the production path:
+
+1. **The first naïve full-contract implementation lost almost all the win**
+   (measured **1.6–2.9×**, below). Cause: it fetched **every matched row** into a
+   Python materialization loop — on a clean-ish extract that is ~all rows — so the
+   `fetchall` + per-field Python comparison dominated, and that loop is identical
+   work in both engines. DuckDB's read/join advantage was swamped by Python
+   materialization.
+2. **The fix (shipped): push the diff filter into SQL.** Only the rows where at
+   least one value column actually differs are fetched into Python; the
+   overwhelming majority of *matching* rows are counted set-based in DuckDB and
+   **never cross into Python**. A window `row_number()` over the pandas-merge
+   ordering preserves each differing row's merged-frame position so `source_row`
+   parity holds. This restored the win to **22–33×** on the same inputs.
+
+So the realized win is real but is **bounded by how many rows differ**: it is the
+*matching* rows DuckDB gets to skip materializing. On a reconciliation extract
+(typically a small % differ) that is almost all of them, so the win is large. A
+pathological "everything differs" input would converge both engines toward the
+same Python materialization cost — an honest upper bound on where this path helps.
+
+## Realized results (full materialized contract; single run per scale)
+
+DuckDB here = `DuckDBComparisonBackend` native-read fast path; native =
+`NativeComparisonBackend` (pandas). 1.5% diff rows, 0.5% only-in each side
+(the generator's defaults). Peak memory is `max(tracemalloc python, RSS delta)`.
+
+| Scale (rows × cols) | File MB/side | native wall | duckdb wall | **speedup** | native peak | duckdb peak | mem reduction | contract parity |
+|---|---|---|---|---|---|---|---|---|
+| 50k × 10 (narrow) | 4.4 | 7.34 s | **0.22 s** | **33.5×** | 264 MB | 68 MB | 3.9× | OK |
+| 50k × 100 (wide) | 43.0 | 38.91 s | **1.77 s** | **22.0×** | 1,242 MB | 492 MB | 2.5× | OK |
+| 200k × 100 (wide) | 172.0 | 176.66 s | **6.28 s** | **28.1×** | 4,966 MB | 1,232 MB | 4.0× | OK |
+
+*(The decisive 1M × 100 / ~860 MB case is consistent with the 200k×100 trend —
+native pandas materializes the full inner-merge product and grows superlinearly in
+memory while DuckDB stays bounded; see the counts-only table above for the 1M×100
+shape. Re-run `scripts/benchmark_duckdb_full_contract.py` without `--quick` to
+reproduce the 1M rows on a machine with the time/RAM budget — native pandas alone
+needs ~4–5 min and >10 GB at that scale.)*
+
+### For comparison: the naïve (pre-SQL-filter) full-contract path that was rejected
+
+| Scale | native wall | duckdb wall (naïve fetch-all) | speedup |
+|---|---|---|---|
+| 50k × 10 | 7.43 s | 2.61 s | 2.9× |
+| 50k × 100 | 41.80 s | 25.55 s | 1.6× |
+| 200k × 100 | 175.43 s | 100.57 s | 1.7× |
+
+This is the **"part of DuckDB's edge was the materialization it skipped"** caveat
+made concrete: fetching all matched rows for Python analysis gives only ~2×. The
+SQL pre-filter is what makes the production backend worth the second code path.
+
+## Does it confirm the ADR's estimate?
+
+**Yes.** The ADR (and caveat #1) set the conservative expectation at **~10–30×**
+for the full contract on wide/large data, explicitly *not* the 100× of the
+counts-only run. The realized full-contract numbers are **22–33×** — at or just
+above the top of that band on the in-regime cases, and **never below 10×** on the
+wide/large cases the backend targets. The memory win (2.5–4×, and growing with
+scale as pandas' inner-merge product balloons) is also confirmed, if more modest
+than the counts-only 8–36× because the production path must hold the only-in
+DataFrames and the differences list in memory.
+
+**Bottom line:** the native-read fast path delivers the out-of-core win the
+counts-only benchmark promised, *after* moving the diff filter into SQL so the
+non-differing matched rows never enter pandas/Python. The contract-parity gate
+(`tests/unit/test_duckdb_parity_matrix.py`, every case `duck == native`) holds at
+every benchmarked scale.

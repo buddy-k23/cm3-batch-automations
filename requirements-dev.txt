@@ -18,3 +18,13 @@ playwright~=1.40  # Playwright sync API for E2E UI tests
 # tests without a live Redis (the 'lua' extra provides the scripting engine).
 redis>=5.0.0
 fakeredis[lua]>=2.20.0
+
+# Optional / test-only: DuckDB comparison backend (S25-2/S25-3, #423/#424).
+# The 'duckdb' package is imported LAZILY inside DuckDBComparisonBackend.compare
+# only when COMPARISON_BACKEND=duckdb is selected; the default 'native' (pandas /
+# SQLite) backend is the REQUIRED runtime path and needs nothing here. duckdb is
+# a self-contained wheel (no transitive deps) — installing it only enables the
+# optional out-of-core fast path and lets the parity-matrix gate
+# (tests/unit/test_duckdb_parity_matrix.py) run. Default runtime does NOT need it,
+# so it stays out of base requirements.txt.
+duckdb>=1.5.0
