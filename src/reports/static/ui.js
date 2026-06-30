@@ -4725,7 +4725,7 @@ if (_dbcRunBtn) {
       );
 
       if (document.getElementById('dbcDownloadCsv').checked &&
-          data.field_statistics && data.field_statistics.length > 0) {
+          _dbcHasFieldStats(data.field_statistics)) {
         _dbcTriggerCsvDownload(data.field_statistics);
       }
 
@@ -4802,26 +4802,45 @@ function _dbcShowResults(data, bannerClass, bannerText) {
 
 // ===========================================================================
 // DB Compare — client-side diff CSV
+//
+// As with Excel Compare, the db-compare response returns ``field_statistics``
+// as a SUMMARY DICT (field_difference_counts / field_difference_types), not a
+// per-row diff list, so the CSV is a field-level diff summary. The normalizer
+// tolerates either the dict or a legacy list shape (no .length-on-object bug).
 // ===========================================================================
-function _dbcBuildDiffCsv(fieldStatistics) {
-  var rows = ['row_number,key_columns,field_name,db_value,file_value,difference_type'];
-  (fieldStatistics || []).forEach(function(stat) {
-    var fieldName = stat.field_name || stat.field || '';
-    var diffs     = stat.differences || stat.mismatches || [];
-    diffs.forEach(function(d) {
-      function esc(v) {
-        var s = (v == null ? '' : String(v)).replace(/"/g, '""');
-        return (s.indexOf(',') >= 0 || s.indexOf('"') >= 0 || s.indexOf('\n') >= 0) ? '"' + s + '"' : s;
-      }
-      rows.push([
-        esc(d.row_number),
-        esc(Array.isArray(d.key_columns) ? d.key_columns.join('|') : (d.key_columns || '')),
-        esc(fieldName),
-        esc(d.db_value),
-        esc(d.file_value),
-        esc(d.difference_type || 'mismatch'),
-      ].join(','));
+function _dbcNormalizeFieldStats(fieldStatistics) {
+  if (!fieldStatistics) return [];
+  if (Array.isArray(fieldStatistics)) {
+    return fieldStatistics.map(function(stat) {
+      return {
+        field_name: stat.field_name || stat.field || '',
+        count: stat.count != null ? stat.count : (stat.differences || 0),
+        types: stat.field_difference_types || stat.types || null,
+      };
     });
+  }
+  var counts = fieldStatistics.field_difference_counts || {};
+  var types  = fieldStatistics.field_difference_types || {};
+  return Object.keys(counts).map(function(field) {
+    return { field_name: field, count: counts[field], types: types[field] || null };
+  });
+}
+
+function _dbcHasFieldStats(fieldStatistics) {
+  return _dbcNormalizeFieldStats(fieldStatistics).length > 0;
+}
+
+function _dbcBuildDiffCsv(fieldStatistics) {
+  function esc(v) {
+    var s = (v == null ? '' : String(v)).replace(/"/g, '""');
+    return (s.indexOf(',') >= 0 || s.indexOf('"') >= 0 || s.indexOf('\n') >= 0) ? '"' + s + '"' : s;
+  }
+  var rows = ['field_name,difference_count,difference_types'];
+  _dbcNormalizeFieldStats(fieldStatistics).forEach(function(stat) {
+    var typesStr = stat.types && typeof stat.types === 'object'
+      ? Object.keys(stat.types).map(function(t) { return t + ':' + stat.types[t]; }).join('|')
+      : '';
+    rows.push([esc(stat.field_name), esc(stat.count), esc(typesStr)].join(','));
   });
   return rows.join('\r\n');
 }
@@ -5287,7 +5306,7 @@ if (_excelCompareBtn) {
       );
 
       if ((document.getElementById('xlcDownloadCsv') || {}).checked &&
-          data.field_statistics && data.field_statistics.length > 0) {
+          _xlcHasFieldStats(data.field_statistics)) {
         _xlcTriggerCsvDownload(data.field_statistics);
       }
 
@@ -5397,26 +5416,52 @@ function _xlcShowResults(data, bannerClass, bannerText) {
 
 // ---------------------------------------------------------------------------
 // Excel Compare \u2014 client-side diff CSV (mirrors DB Compare)
+//
+// The excel-compare response (ExcelCompareResult / run_compare_service) returns
+// ``field_statistics`` as a SUMMARY DICT, not a list of per-row diff records:
+//   { fields_with_differences, field_difference_counts: {field: count, ...},
+//     field_difference_types: {field: {type: count, ...}, ...},
+//     most_different_field }
+// The endpoint does not echo per-row diff rows (only_in_file1/2 and differences
+// are integer counts), so the CSV is a field-level diff summary built from the
+// aggregate dict. _xlcNormalizeFieldStats tolerates either the dict form or a
+// legacy list form so the download never silently no-ops on the object shape.
 // ---------------------------------------------------------------------------
-function _xlcBuildDiffCsv(fieldStatistics) {
-  var rows = ['row_number,key_columns,field_name,db_value,excel_value,difference_type'];
-  (fieldStatistics || []).forEach(function(stat) {
-    var fieldName = stat.field_name || stat.field || '';
-    var diffs     = stat.differences || stat.mismatches || [];
-    diffs.forEach(function(d) {
-      function esc(v) {
-        var s = (v == null ? '' : String(v)).replace(/"/g, '""');
-        return (s.indexOf(',') >= 0 || s.indexOf('"') >= 0 || s.indexOf('\n') >= 0) ? '"' + s + '"' : s;
-      }
-      rows.push([
-        esc(d.row_number),
-        esc(Array.isArray(d.key_columns) ? d.key_columns.join('|') : (d.key_columns || '')),
-        esc(fieldName),
-        esc(d.db_value),
-        esc(d.excel_value != null ? d.excel_value : d.file_value),
-        esc(d.difference_type || 'mismatch'),
-      ].join(','));
+function _xlcNormalizeFieldStats(fieldStatistics) {
+  // Returns an array of {field_name, count, types} rows from either the
+  // summary-dict shape or a legacy array shape. Empty array if no diffs.
+  if (!fieldStatistics) return [];
+  if (Array.isArray(fieldStatistics)) {
+    return fieldStatistics.map(function(stat) {
+      return {
+        field_name: stat.field_name || stat.field || '',
+        count: stat.count != null ? stat.count : (stat.differences || 0),
+        types: stat.field_difference_types || stat.types || null,
+      };
     });
+  }
+  var counts = fieldStatistics.field_difference_counts || {};
+  var types  = fieldStatistics.field_difference_types || {};
+  return Object.keys(counts).map(function(field) {
+    return { field_name: field, count: counts[field], types: types[field] || null };
+  });
+}
+
+function _xlcHasFieldStats(fieldStatistics) {
+  return _xlcNormalizeFieldStats(fieldStatistics).length > 0;
+}
+
+function _xlcBuildDiffCsv(fieldStatistics) {
+  function esc(v) {
+    var s = (v == null ? '' : String(v)).replace(/"/g, '""');
+    return (s.indexOf(',') >= 0 || s.indexOf('"') >= 0 || s.indexOf('\n') >= 0) ? '"' + s + '"' : s;
+  }
+  var rows = ['field_name,difference_count,difference_types'];
+  _xlcNormalizeFieldStats(fieldStatistics).forEach(function(stat) {
+    var typesStr = stat.types && typeof stat.types === 'object'
+      ? Object.keys(stat.types).map(function(t) { return t + ':' + stat.types[t]; }).join('|')
+      : '';
+    rows.push([esc(stat.field_name), esc(stat.count), esc(typesStr)].join(','));
   });
   return rows.join('\r\n');
 }

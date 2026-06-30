@@ -94,6 +94,33 @@ def test_js_has_excel_compare_handler_and_endpoint():
     assert "loadExcelDbConnections" in js, "loadExcelDbConnections helper missing"
 
 
+def test_js_excel_compare_diff_csv_handles_dict_field_statistics():
+    """S24-5 fix: the diff-CSV download must not assume field_statistics is a list.
+
+    The excel-compare response (ExcelCompareResult / run_compare_service) returns
+    ``field_statistics`` as a summary DICT (field_difference_counts /
+    field_difference_types), so the old ``data.field_statistics.length > 0``
+    gate silently no-op'd. The handler must normalize the dict shape (via the
+    field_difference_counts keys) rather than testing ``.length`` on an object.
+    """
+    js = _read(_UI_JS)
+    # The list-assuming gate must be gone.
+    assert "data.field_statistics.length" not in js, (
+        "Excel/DB compare must not test .length on the field_statistics object"
+    )
+    # The gate must go through the normalizing guard helper.
+    assert "_xlcHasFieldStats(data.field_statistics)" in js, (
+        "Excel compare download gate must use _xlcHasFieldStats(...) guard"
+    )
+    # The CSV builder must read the dict-shaped summary fields.
+    assert "field_difference_counts" in js, (
+        "Diff CSV must be built from the field_difference_counts dict"
+    )
+    assert "_xlcNormalizeFieldStats" in js, (
+        "_xlcNormalizeFieldStats helper (dict/list normalizer) missing"
+    )
+
+
 def test_js_excel_compare_uses_apifetch_not_raw_fetch():
     """The Excel compare POST must go through apiFetch() (#427), not raw fetch()."""
     js = _read(_UI_JS)
