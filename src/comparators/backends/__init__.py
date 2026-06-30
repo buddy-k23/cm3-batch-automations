@@ -11,8 +11,10 @@ Available backends
   :class:`~src.comparators.backends.native_backend.NativeComparisonBackend`
   (default; wraps the existing in-memory ``FileComparator`` and set-based
   ``ChunkedFileComparator`` dispatch with zero behaviour change).
-- ``"duckdb"`` — recognised placeholder reserved for S25-2; selecting it
-  raises :class:`NotImplementedError` until that story delivers it.
+- ``"duckdb"`` —
+  :class:`~src.comparators.backends.duckdb_backend.DuckDBComparisonBackend`
+  (S25-2; computes the diff with DuckDB SQL while emitting the identical native
+  result contract).  Requires the optional ``duckdb`` package.
 
 The active backend is selected via the ``COMPARISON_BACKEND`` environment
 variable or explicitly by passing ``name`` to :func:`get_comparison_backend`;

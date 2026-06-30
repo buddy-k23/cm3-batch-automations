@@ -181,6 +181,10 @@ Comparison Backends
    :members:
    :undoc-members:
 
+.. automodule:: src.comparators.backends.duckdb_backend
+   :members:
+   :undoc-members:
+
 Configuration & Validators
 --------------------------
 

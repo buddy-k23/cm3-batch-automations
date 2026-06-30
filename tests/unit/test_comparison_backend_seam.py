@@ -239,10 +239,18 @@ def test_factory_env_var(monkeypatch):
     assert isinstance(get_comparison_backend(), NativeComparisonBackend)
 
 
-def test_factory_duckdb_placeholder_not_implemented():
-    """'duckdb' is a recognized-but-unimplemented placeholder for S25-2."""
-    with pytest.raises(NotImplementedError):
-        get_comparison_backend("duckdb")
+def test_factory_duckdb_now_implemented():
+    """'duckdb' is implemented in S25-2 and resolves to the DuckDB backend.
+
+    Gated on the optional ``duckdb`` package being importable so the seam
+    suite still runs on a duckdb-less interpreter (the factory resolution
+    itself does not import duckdb — that is lazy inside ``compare`` — but the
+    class import path is asserted here).
+    """
+    pytest.importorskip("duckdb")
+    from src.comparators.backends.duckdb_backend import DuckDBComparisonBackend
+
+    assert isinstance(get_comparison_backend("duckdb"), DuckDBComparisonBackend)
 
 
 def test_factory_unknown_backend_raises_value_error():

@@ -11,9 +11,11 @@ Recognised names
 ----------------
 - ``"native"`` / ``"pandas"`` — :class:`~src.comparators.backends.native_backend.NativeComparisonBackend`
   (default; wraps the existing ``FileComparator`` / ``ChunkedFileComparator`` dispatch).
-- ``"duckdb"`` — recognised placeholder reserved for S25-2.  Selecting it
-  currently raises :class:`NotImplementedError`; the DuckDB engine is **not**
-  implemented in S25-1.  S25-2 will register a ``DuckDBComparisonBackend`` here.
+- ``"duckdb"`` — :class:`~src.comparators.backends.duckdb_backend.DuckDBComparisonBackend`
+  (S25-2; computes the diff with DuckDB SQL while emitting the identical native
+  result contract).  Requires the optional ``duckdb`` package; selecting it
+  without ``duckdb`` installed raises a clear ``ImportError`` with an install
+  hint when the backend is actually used.
 
 Example::
 
@@ -33,12 +35,14 @@ from src.comparators.backends.base import ComparisonBackend
 _BACKEND_MAP = {
     "native": "src.comparators.backends.native_backend.NativeComparisonBackend",
     "pandas": "src.comparators.backends.native_backend.NativeComparisonBackend",
+    "duckdb": "src.comparators.backends.duckdb_backend.DuckDBComparisonBackend",
 }
 
 # Recognised-but-unimplemented backends.  These are accepted as valid names
 # (so callers get a clear "not yet implemented" signal rather than a generic
 # "unknown backend" error) but raise NotImplementedError until delivered.
-_RESERVED_BACKENDS = {"duckdb"}
+# (Empty now that ``duckdb`` is implemented in S25-2.)
+_RESERVED_BACKENDS: set[str] = set()
 
 
 def get_comparison_backend(name: str | None = None) -> ComparisonBackend:
