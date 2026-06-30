@@ -162,6 +162,25 @@ Comparators
    :members:
    :undoc-members:
 
+Comparison Backends
+-------------------
+
+.. automodule:: src.comparators.backends
+   :members:
+   :undoc-members:
+
+.. automodule:: src.comparators.backends.base
+   :members:
+   :undoc-members:
+
+.. automodule:: src.comparators.backends.factory
+   :members:
+   :undoc-members:
+
+.. automodule:: src.comparators.backends.native_backend
+   :members:
+   :undoc-members:
+
 Configuration & Validators
 --------------------------
 
