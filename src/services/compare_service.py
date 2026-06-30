@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from src.comparators.backends import get_comparison_backend
+from src.comparators.backends.factory import resolve_backend
 
 # Backward-compatible re-exports (S25-1). The engine dispatch and its two
 # helpers now live in the default ``NativeComparisonBackend``; these aliases
@@ -49,6 +50,7 @@ def run_compare_service(
     chunk_size: int = 100000,
     progress: bool = False,
     use_chunked: bool = False,
+    backend: str | None = None,
 ) -> dict[str, Any]:
     """Run the two-phase file comparison workflow (CLI and API entry point).
 
@@ -63,9 +65,18 @@ def run_compare_service(
     :class:`~src.comparators.backends.base.ComparisonBackend` obtained from
     :func:`~src.comparators.backends.get_comparison_backend`.  The default
     backend (``"native"``) reproduces the historical dispatch exactly, so the
-    public behaviour of this function is unchanged.  An alternative engine
-    (S25-2) can be selected via the ``COMPARISON_BACKEND`` environment
-    variable without any change to this call site.
+    public behaviour of this function is unchanged.
+
+    Backend selection (S25-4) is resolved by
+    :func:`~src.comparators.backends.factory.resolve_backend` in the order:
+    explicit *backend* arg → ``COMPARISON_BACKEND`` env var → default
+    ``"native"``.  The env var (and the *backend* arg) accept ``native`` /
+    ``pandas`` (the default engine), ``duckdb`` (always the DuckDB backend), and
+    ``auto`` (DuckDB only when the optional ``duckdb`` package is importable and
+    a file is in the large regime ``>= CHUNK_THRESHOLD_BYTES``; otherwise — and
+    when duckdb is absent — native, with no error).  **With the env var unset
+    and no *backend* arg the behaviour is byte-identical to the historical
+    native path and ``duckdb`` is never imported.**
 
     Args:
         file1: Path to the first file.
@@ -77,6 +88,10 @@ def run_compare_service(
         progress: Show progress output during chunked processing.
         use_chunked: Use the set-based chunked engine instead of the
             in-memory comparator.
+        backend: Optional explicit comparison-backend name (``native`` /
+            ``pandas`` / ``duckdb`` / ``auto``).  When ``None`` (default) the
+            backend is resolved from the ``COMPARISON_BACKEND`` env var, then the
+            ``native`` default — preserving the historical behaviour exactly.
 
     Returns:
         Dict containing at minimum ``structure_compatible``,
@@ -95,8 +110,9 @@ def run_compare_service(
         with open(mapping, 'r', encoding='utf-8') as f:
             mapping_config = json.load(f)
 
-    backend = get_comparison_backend()
-    return backend.compare(
+    resolved_backend = resolve_backend(file1, file2, backend)
+    comparison_backend = get_comparison_backend(resolved_backend)
+    return comparison_backend.compare(
         file1,
         file2,
         key_columns,

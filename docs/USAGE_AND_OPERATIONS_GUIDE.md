@@ -848,6 +848,62 @@ valdo compare \
   -o diff_report.html
 ```
 
+#### Comparison backend (optional DuckDB acceleration)
+
+The comparison engine is pluggable. By default Valdo uses the **native**
+pandas/SQLite engine — the behaviour every release has shipped. An optional,
+SQL-vectorised **DuckDB** engine can be selected for large keyed delimited
+comparisons (the DB-compare / Excel-compare / large-file regime), where it
+avoids routing the bulk data through pandas and recovers an out-of-core /
+order-of-magnitude throughput advantage on large inputs.
+
+Selection is controlled by the **`COMPARISON_BACKEND`** environment variable
+(or, programmatically, the `backend` argument to
+`run_compare_service` / `resolve_backend`). Three modes are supported:
+
+| `COMPARISON_BACKEND` | Engine used | Notes |
+|---|---|---|
+| _(unset)_ / `native` / `pandas` | Native pandas/SQLite | **Default.** Byte-identical to historical behaviour. `duckdb` is never imported on this path. |
+| `duckdb` | DuckDB (always) | Requires the optional `duckdb` package. If absent, raises a clear `ImportError` with an install hint (`pip install duckdb`). |
+| `auto` | DuckDB **only when** `duckdb` is importable **and** a file is in the large regime (≥ **50 MB**, the same `CHUNK_THRESHOLD_BYTES` threshold the chunked router uses); otherwise native | When `duckdb` is **not** installed, `auto` silently falls back to native — **no error, and `duckdb` is never imported**. |
+
+```bash
+# Default — native engine, nothing to set:
+valdo compare -f1 a.txt -f2 b.txt -k ID
+
+# Always DuckDB (requires `pip install duckdb`):
+COMPARISON_BACKEND=duckdb valdo compare -f1 a.txt -f2 b.txt -k ID
+
+# Size/availability-aware: DuckDB only for large files when it is installed:
+COMPARISON_BACKEND=auto   valdo compare -f1 big1.txt -f2 big2.txt -k ID
+```
+
+**Installing the optional dependency.** DuckDB is a *dev/optional* dependency
+(it ships in `requirements-dev.txt`, not the runtime `requirements.txt`):
+
+```bash
+pip install duckdb
+```
+
+**Parity guarantee.** The DuckDB backend emits the **exact same materialized
+result contract** as the native engine — identical `differences`,
+`only_in_file1` / `only_in_file2`, `matching_rows`, `field_statistics`,
+`source_row_file*`, and structure-incompatible early-return shape. Parity is
+pinned by the contract-parity matrix
+(`tests/unit/test_duckdb_parity_matrix.py`); throughput is characterised in
+[`docs/duckdb_compare_benchmark.md`](duckdb_compare_benchmark.md). Cases the
+DuckDB engine does not target — fixed-width inputs, row-by-row (no-keys)
+comparison, the chunked set-based path, and unresolvable keys — are cleanly
+deferred to the native backend, so the result is identical regardless of the
+selected mode.
+
+> **Oracle caveat.** The backend selection governs only the *file-to-file
+> comparison* step. Database extraction (e.g. `valdo db-compare`,
+> `valdo extract`) is always performed via the configured DB adapter
+> (`oracledb` for Oracle, etc.) — DuckDB does **not** read from Oracle. The
+> Oracle extract is written to a (temporary) flat file, and only the subsequent
+> file comparison can be accelerated by the DuckDB backend.
+
 ### db-compare
 
 Extract data from Oracle and compare against a batch file.
@@ -2321,6 +2377,7 @@ cp .env.example .env
 | `API_KEYS` | `key-dev-abc123` | Comma-separated API keys. Optional role suffix: `key:role` |
 | `ALLOWED_ORIGINS` | `http://localhost,http://127.0.0.1` | CORS allowed origins (comma-separated) |
 | `FILE_RETENTION_HOURS` | `24` | Auto-delete uploaded files older than this |
+| `COMPARISON_BACKEND` | `native` | File-comparison engine: `native` / `pandas` (default), `duckdb` (always DuckDB; needs `pip install duckdb`), or `auto` (DuckDB only for ≥ 50 MB files when `duckdb` is installed, else native). See [Comparison backend (optional DuckDB acceleration)](#comparison-backend-optional-duckdb-acceleration). |
 | `DB_ADAPTER` | `oracle` | Database backend: `oracle`, `postgresql`, or `sqlite` |
 | `DB_HOST` | `localhost` | PostgreSQL server hostname (used when `DB_ADAPTER=postgresql`) |
 | `DB_PORT` | `5432` | PostgreSQL server port (used when `DB_ADAPTER=postgresql`) |
