@@ -188,6 +188,22 @@ reconciliation is a genuine capability gap, not an existing pandas path.
 2. **Pilot** an optional `ComparisonBackend` for DB↔file, adopting DuckDB **only**
    if a benchmark against the current SQLite chunked path on wide/large data
    shows a material win. Pandas remains the default.
+   - **BENCHMARK OUTCOME (2026-06-30) — RATIFIED: ADOPT.** The pilot
+     (`scripts/benchmark_duckdb_compare.py`, full results in
+     `docs/duckdb_compare_benchmark.md`) shows DuckDB beats the SQLite chunked
+     path **categorically, not incrementally** — at the decisive 1M×100-col
+     (860 MB/side) scale: **109× vs SQLite chunked, 59× vs pandas**, at **383 MB
+     peak vs pandas' 13.9 GB** (genuinely out-of-core). Correctness parity
+     confirmed at every scale; DuckDB was fastest at *every* size, so there is no
+     speed crossover (the only reason not to route small files is to avoid making
+     `duckdb` mandatory). **Honest discount:** the harness computed *counts*, not
+     the full materialized `differences`/`only_in_*`/`field_statistics` payload —
+     part of DuckDB's edge is the Python `fetchmany` + per-field loop it skipped,
+     so the realized win on the *full contract* is conservatively **~10–30×**, to
+     be re-confirmed by a parity matrix before merge. Oracle caveat holds: DuckDB
+     accelerates only the join, never the `oracledb` extract. `duckdb` stays an
+     **optional** extra (15.5 MB wheel, no transitive deps), never a base
+     dependency. Effort to build the backend: **M**.
 3. **Adopt-targeted** an Excel↔DB comparison capability (a new service parallel to
    `db_file_compare_service`), delivering the capability with pandas first and
    DuckDB as the large-workbook join accelerator. This is the recommended **first
