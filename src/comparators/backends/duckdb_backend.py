@@ -96,6 +96,7 @@ Resolved parity edge cases (S25-2 flags)
 
 from __future__ import annotations
 
+import io
 import os
 from typing import Any
 
@@ -263,6 +264,120 @@ class DuckDBComparisonBackend(ComparisonBackend):
             )
         finally:
             con.close()
+
+    # ------------------------------------------------------------------
+    # S25-5 frame-direct entry (zero temp-file) — db-compare / excel-compare
+    # ------------------------------------------------------------------
+    def compare_frames(
+        self,
+        df1: pd.DataFrame,
+        df2: pd.DataFrame,
+        key_columns: list[str] | None,
+        *,
+        detailed: bool = True,
+    ) -> dict[str, Any]:
+        """Compare two in-memory DataFrames with DuckDB (no temp file).
+
+        This is the S25-5 zero-copy entry used by ``db-compare`` /
+        ``excel-compare`` when DuckDB is the active backend: instead of writing
+        an extracted frame to a temp pipe-delimited file and re-reading it
+        through the native engine, the frame is registered **directly** into
+        DuckDB and diffed with the same parity-proven SQL the pandas-parse
+        fallback uses.
+
+        Byte-parity with the temp-file + native path it replaces is guaranteed
+        by first rendering each frame to the *exact* string form the temp-file
+        round-trip produces — ``df.to_csv(sep='|')`` followed by
+        ``read_csv(dtype=str, keep_default_na=False)`` — performed here in memory
+        (:meth:`_frame_to_native_strings`).  That makes ``1 -> '1'``,
+        ``100.0 -> '100.0'`` and ``NaN/None -> ''`` identically on both paths, so
+        every value comparison, ``string_analysis`` length and
+        ``field_statistics`` entry matches.  The source-row convention is the
+        header-regime one (``physical_source_rows=False``: the merged-frame
+        position), matching native re-reading a temp file with a header row.
+
+        Structure compatibility is checked on the string frames with the same
+        :func:`_check_structure_compatibility` the native path runs, reproducing
+        native's structure-incompatible early-return dict.
+
+        Args:
+            df1: The source/expected frame (becomes ``file1``).
+            df2: The actual frame (becomes ``file2``).
+            key_columns: Key column names for row matching.  Required — passing
+                ``None``/empty raises ``ValueError`` (the DuckDB engine targets
+                keyed comparison, matching :meth:`compare`).
+            detailed: When True include the field-level diff analysis and
+                ``field_statistics``; when False the diff carries only
+                ``file1`` / ``file2`` and ``field_statistics`` is ``{}``.
+
+        Returns:
+            The comparison result dict (native in-memory shape) — identical to
+            running the native backend over temp files written from *df1* /
+            *df2*.
+
+        Raises:
+            ImportError: If the ``duckdb`` package is not installed.
+            ValueError: If ``key_columns`` is empty/``None``.
+        """
+        try:
+            import duckdb
+        except ImportError as exc:  # pragma: no cover - exercised via monkeypatch
+            raise ImportError(_INSTALL_HINT) from exc
+
+        if not key_columns:
+            raise ValueError(
+                "DuckDB backend requires key_columns for comparison; "
+                "row-by-row (no keys) comparison is handled by the native backend."
+            )
+
+        # Render to the same strings the temp-file round-trip yields so the diff
+        # is byte-identical to the native temp-file path.
+        s1 = self._frame_to_native_strings(df1)
+        s2 = self._frame_to_native_strings(df2)
+
+        structure_errors = _check_structure_compatibility(s1, s2, None)
+        if structure_errors:
+            return self._structure_incompatible_result(s1, s2, structure_errors)
+
+        columns = list(s1.columns)
+        # Header-regime source rows (merged-frame position) — matches native
+        # re-reading a temp file by header: physical_source_rows=False.
+        df1_q = self._with_row_order(s1, columns, physical_rows=False)
+        df2_q = self._with_row_order(s2, columns, physical_rows=False)
+
+        con = duckdb.connect(database=":memory:")
+        try:
+            con.register("f1", df1_q)
+            con.register("f2", df2_q)
+            return self._compare_with_sql(
+                con, columns, key_columns, detailed,
+                coalesce=False, physical_source_rows=False,
+            )
+        finally:
+            con.close()
+
+    @staticmethod
+    def _frame_to_native_strings(df: pd.DataFrame) -> pd.DataFrame:
+        """Render *df* to the exact strings the temp-file round-trip produces.
+
+        The native db-compare / excel-compare path writes a frame with
+        ``df.to_csv(sep='|', index=False)`` then re-reads it with
+        ``read_csv(sep='|', dtype=str, keep_default_na=False)``.  This performs
+        that identical serialise/parse **in memory** (via :class:`io.StringIO`),
+        so integers, floats and NULLs render to the same text (``1`` -> ``'1'``,
+        ``100.0`` -> ``'100.0'``, ``NaN``/``None`` -> ``''``) without touching
+        disk — the parity guarantee for :meth:`compare_frames`.
+
+        Args:
+            df: The in-memory frame (native dtypes) to normalise.
+
+        Returns:
+            A new all-string DataFrame matching the temp-file readback exactly.
+        """
+        buf = io.StringIO()
+        df.to_csv(buf, sep="|", index=False)
+        buf.seek(0)
+        return pd.read_csv(buf, sep="|", dtype=str, keep_default_na=False, header=0)
 
     # ------------------------------------------------------------------
     # S25-3 native-read fast path

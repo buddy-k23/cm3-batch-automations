@@ -425,3 +425,77 @@ def test_duckdb_chunked_defers_to_native(value_diff):
         f1, f2, ["customer_id"], detailed=True, use_chunked=True, progress=False
     )
     assert duck == native
+
+
+# ---------------------------------------------------------------------------
+# S25-5: compare_frames — frame-direct entry (zero temp-file) parity
+# ---------------------------------------------------------------------------
+
+
+@requires_duckdb
+def test_compare_frames_matches_temp_file_native(tmp_path):
+    """compare_frames(df1, df2) == native reading the SAME frames via a temp file.
+
+    Proves the S25-5 frame-direct path is byte-parity with the temp-file +
+    native path it replaces: build two typed frames, run them through
+    compare_frames, and compare against writing each frame to a pipe file and
+    running the native backend over the files.
+    """
+    import pandas as pd
+
+    from src.comparators.backends.duckdb_backend import DuckDBComparisonBackend
+    from src.services.db_file_compare_service import _df_to_temp_file
+
+    df1 = pd.DataFrame(
+        [
+            {"ID": 1, "NAME": "alice", "BALANCE": 100.0},
+            {"ID": 2, "NAME": "bob", "BALANCE": 200.0},
+            {"ID": 3, "NAME": "carol", "BALANCE": 300.0},
+        ]
+    )
+    df2 = pd.DataFrame(
+        [
+            {"ID": 1, "NAME": "alice", "BALANCE": 100.0},
+            {"ID": 2, "NAME": "bob", "BALANCE": 999.0},  # diff
+            {"ID": 9, "NAME": "dave", "BALANCE": 900.0},  # only-in-file2
+        ]
+    )
+
+    # Native via the exact temp-file round-trip the service uses today.
+    t1 = _df_to_temp_file(df1)
+    t2 = _df_to_temp_file(df2)
+    try:
+        native = NativeComparisonBackend().compare(t1, t2, ["ID"], detailed=True)
+    finally:
+        Path(t1).unlink(missing_ok=True)
+        Path(t2).unlink(missing_ok=True)
+
+    duck = DuckDBComparisonBackend().compare_frames(df1, df2, ["ID"], detailed=True)
+
+    def _norm(res):
+        out = dict(res)
+        for k in ("only_in_file1", "only_in_file2"):
+            v = res[k]
+            recs = v.to_dict(orient="records") if hasattr(v, "to_dict") else v
+            out[k] = sorted(
+                recs, key=lambda r: tuple(sorted((str(a), str(b)) for a, b in r.items()))
+            )
+        out["differences"] = sorted(
+            res["differences"],
+            key=lambda d: tuple(sorted((str(a), str(b)) for a, b in d["keys"].items())),
+        )
+        return out
+
+    assert _norm(duck) == _norm(native)
+
+
+@requires_duckdb
+def test_compare_frames_requires_keys(tmp_path):
+    """compare_frames raises ValueError when no key columns are given."""
+    import pandas as pd
+
+    from src.comparators.backends.duckdb_backend import DuckDBComparisonBackend
+
+    df = pd.DataFrame([{"ID": 1, "V": "a"}])
+    with pytest.raises(ValueError):
+        DuckDBComparisonBackend().compare_frames(df, df, [], detailed=True)

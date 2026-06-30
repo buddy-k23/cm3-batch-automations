@@ -55,11 +55,13 @@ from typing import Any
 
 import pandas as pd
 
+from src.comparators.backends.factory import resolve_backend
 from src.database.extractor import DataExtractor
 from src.parsers.excel_reader import _coerce_cell, read_excel_data
 from src.services.compare_service import run_compare_service
 from src.services.db_file_compare_service import (
     _build_adapter,
+    _compare_frames_duckdb,
     _determine_workflow_status,
     _df_to_temp_file,
     _is_sql_query,
@@ -158,6 +160,7 @@ def compare_excel_to_db(
     output_format: str = "json",
     output_path: str | None = None,
     connection_override: dict[str, Any] | None = None,
+    backend: str | None = None,
 ) -> dict[str, Any]:
     """Compare a sheet of Excel data against a DB extract, in either direction.
 
@@ -194,6 +197,17 @@ def compare_excel_to_db(
             :func:`src.services.db_file_compare_service.compare_db_to_file`.
             Credentials are passed straight to the adapter and never logged or
             returned in the result.
+        backend: Optional explicit comparison-backend name (``native`` /
+            ``pandas`` / ``duckdb`` / ``auto``), resolved by
+            :func:`~src.comparators.backends.factory.resolve_backend`
+            (explicit arg → ``COMPARISON_BACKEND`` env → ``native`` default).
+            When the resolved backend is ``duckdb`` (S25-5) **and** key columns
+            are supplied, the already-in-memory Excel frame and the normalised DB
+            extract are registered **directly** into DuckDB and diffed — skipping
+            both ``_df_to_temp_file`` writes — producing the **identical** result
+            contract.  When ``native`` (the default), the two-temp-file path runs
+            **unchanged**.  ``duckdb`` stays optional/lazy: when the package is
+            absent, ``auto`` resolves to ``native`` (no import, no error).
 
     Returns:
         Dict with two top-level keys:
@@ -261,26 +275,44 @@ def compare_excel_to_db(
     else:
         file1_df, file2_df = excel_df, db_df
 
-    # --- Write both sides to temp files + compare ---------------------------
-    temp1: str | None = None
-    temp2: str | None = None
-    try:
-        temp1 = _df_to_temp_file(file1_df)
-        temp2 = _df_to_temp_file(file2_df)
-        compare_result = run_compare_service(
-            file1=temp1,
-            file2=temp2,
-            keys=keys_str,
-            mapping=None,
-            detailed=True,
-        )
-    finally:
-        for tmp in (temp1, temp2):
-            if tmp:
-                try:
-                    Path(tmp).unlink(missing_ok=True)
-                except OSError:
-                    pass
+    # --- Backend selection (S25-5) ------------------------------------------
+    # Both sides are already in memory.  Resolve the active backend; the ``auto``
+    # size probe uses the Excel file path on both sides (the DB extract has no
+    # file), so ``auto`` only upgrades to duckdb when duckdb is importable AND the
+    # Excel file is large.
+    resolved_backend = resolve_backend(str(excel_path), str(excel_path), backend)
+
+    # The DuckDB frame-direct path requires key columns; use it only when duckdb
+    # is active AND keys are present, else fall through to the unchanged
+    # two-temp-file + native path.
+    use_frame_direct = resolved_backend == "duckdb" and bool(keys_list)
+
+    if use_frame_direct:
+        # Zero temp files: register the two in-memory frames straight into DuckDB.
+        # Identical result contract to the two-temp-file + native path.
+        compare_result = _compare_frames_duckdb(file1_df, file2_df, keys_list)
+    else:
+        # --- Native path (unchanged): write both sides to temp files ---------
+        temp1: str | None = None
+        temp2: str | None = None
+        try:
+            temp1 = _df_to_temp_file(file1_df)
+            temp2 = _df_to_temp_file(file2_df)
+            compare_result = run_compare_service(
+                file1=temp1,
+                file2=temp2,
+                keys=keys_str,
+                mapping=None,
+                detailed=True,
+                backend=resolved_backend,
+            )
+        finally:
+            for tmp in (temp1, temp2):
+                if tmp:
+                    try:
+                        Path(tmp).unlink(missing_ok=True)
+                    except OSError:
+                        pass
 
     # --- Build unified result ----------------------------------------------
     workflow_status = _determine_workflow_status(compare_result)

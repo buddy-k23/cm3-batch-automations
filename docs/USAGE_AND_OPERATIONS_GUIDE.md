@@ -897,12 +897,26 @@ comparison, the chunked set-based path, and unresolvable keys — are cleanly
 deferred to the native backend, so the result is identical regardless of the
 selected mode.
 
-> **Oracle caveat.** The backend selection governs only the *file-to-file
-> comparison* step. Database extraction (e.g. `valdo db-compare`,
-> `valdo extract`) is always performed via the configured DB adapter
-> (`oracledb` for Oracle, etc.) — DuckDB does **not** read from Oracle. The
-> Oracle extract is written to a (temporary) flat file, and only the subsequent
-> file comparison can be accelerated by the DuckDB backend.
+> **Oracle caveat.** The backend selection governs only the *comparison* step.
+> Database extraction (e.g. `valdo db-compare`, `valdo extract`,
+> `valdo excel-compare`) is always performed via the configured DB adapter
+> (`oracledb` for Oracle, etc.) — DuckDB does **not** read from Oracle.
+>
+> **`db-compare` / `excel-compare` acceleration (S25-5).** `COMPARISON_BACKEND`
+> applies to these workflows too. On the **native** default the extracted DB
+> frame (and, for `excel-compare`, the Excel frame) is written to a temporary
+> flat file and read back. When `COMPARISON_BACKEND=duckdb` (or `auto` resolves
+> to DuckDB) **and key columns are supplied**, the in-memory frames are
+> registered **directly** into DuckDB and diffed — skipping the
+> extract → temp-file → re-read hop entirely — while producing the **identical**
+> result contract (matching / only-in / differences / `field_statistics`). When
+> `duckdb` is absent, `auto` resolves to native and the temp-file path runs
+> exactly as before (no import, no error). Set the variable in the environment:
+>
+> ```bash
+> COMPARISON_BACKEND=duckdb valdo db-compare -q ACCOUNTS -m map.json -f actual.txt -k ID
+> COMPARISON_BACKEND=duckdb valdo excel-compare -e data.xlsx -q ACCOUNTS -k ID
+> ```
 
 ### db-compare
 
@@ -946,6 +960,12 @@ The REST endpoint `POST /api/v1/files/db-compare` mirrors this: passing
 `report_url` (e.g. `/uploads/dbcompare_<file>.html`), just like `/compare` and
 `/validate`.
 
+> **DuckDB acceleration (S25-5).** `db-compare` honours `COMPARISON_BACKEND`.
+> With `COMPARISON_BACKEND=duckdb` (or `auto` on a large actual file) and
+> `--key-columns` supplied, the DB extract and the actual file are diffed
+> directly in DuckDB — the intermediate temp file is skipped — with an identical
+> result. See [Comparison backend (optional DuckDB acceleration)](#comparison-backend-optional-duckdb-acceleration).
+
 ### excel-compare
 
 Compare a sheet of data in an Excel workbook against a database extract, in
@@ -979,6 +999,12 @@ valdo excel-compare \
 | `--output, -o` | | File path for the report |
 | `--db-host` / `--db-user` / `--db-password` / `--db-schema` | | Per-request DB connection overrides |
 | `--db-adapter` | `DB_ADAPTER` env | `oracle`, `postgresql`, or `sqlite` |
+
+> **DuckDB acceleration (S25-5).** `excel-compare` honours `COMPARISON_BACKEND`
+> too. With `COMPARISON_BACKEND=duckdb` (or `auto` on a large Excel file) and
+> `--key-columns` supplied, the Excel frame and the DB extract are registered
+> directly into DuckDB and diffed — both intermediate temp files are skipped —
+> with an identical result. See [Comparison backend (optional DuckDB acceleration)](#comparison-backend-optional-duckdb-acceleration).
 
 **Direction** uses the same vocabulary as the DB Compare UI's source/actual
 swap. With `--direction db-source` the DB is the source-of-truth (file1) and

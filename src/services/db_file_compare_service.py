@@ -28,6 +28,7 @@ from typing import Any
 
 import pandas as pd
 
+from src.comparators.backends.factory import resolve_backend
 from src.database.adapters.factory import get_database_adapter
 from src.database.extractor import DataExtractor
 from src.services.compare_service import run_compare_service
@@ -251,6 +252,58 @@ def _df_to_temp_file(df: pd.DataFrame, delimiter: str = "|") -> str:
         return fh.name
 
 
+def _read_delimited_as_strings(path: str, delimiter: str = "|") -> pd.DataFrame:
+    """Read a header-keyed delimited file into an all-string DataFrame.
+
+    Mirrors the native backend's header re-read
+    (``pd.read_csv(sep='|', dtype=str, keep_default_na=False, header=0)``) so the
+    frame is byte-identical to what the temp-file + native path consumes for the
+    actual (file2) side.  Used only on the DuckDB frame-direct path (S25-5).
+
+    Args:
+        path: Filesystem path to the delimited file.
+        delimiter: Column separator. Defaults to ``"|"``.
+
+    Returns:
+        An all-string DataFrame with the header row as column names.
+    """
+    return pd.read_csv(
+        path, sep=delimiter, dtype=str, keep_default_na=False, header=0
+    )
+
+
+def _compare_frames_duckdb(
+    df1: pd.DataFrame,
+    df2: pd.DataFrame,
+    key_columns_list: list[str] | None,
+) -> dict[str, Any]:
+    """Run the DuckDB frame-direct comparison (no temp file) — S25-5.
+
+    Registers the two already-in-memory frames straight into DuckDB via
+    :meth:`~src.comparators.backends.duckdb_backend.DuckDBComparisonBackend.compare_frames`
+    and returns the identical ``run_compare_service`` result contract the
+    temp-file + native path produces.
+
+    Args:
+        df1: Source/expected frame (``file1``) — for db-compare this is the DB
+            extract.
+        df2: Actual frame (``file2``) — the actual-file side read with
+            :func:`_read_delimited_as_strings` (or, for excel-compare, the Excel
+            frame).
+        key_columns_list: Resolved key column names (``None`` → row-by-row, which
+            the DuckDB engine rejects; callers only take this path when keys are
+            present or accept the raised ``ValueError``).
+
+    Returns:
+        The comparison result dict (native in-memory shape).
+    """
+    from src.comparators.backends.duckdb_backend import DuckDBComparisonBackend
+
+    return DuckDBComparisonBackend().compare_frames(
+        df1, df2, key_columns_list, detailed=True
+    )
+
+
 def _determine_workflow_status(compare_result: dict[str, Any]) -> str:
     """Derive a pass/fail status string from compare service output.
 
@@ -297,6 +350,7 @@ def compare_db_to_file(
     apply_transforms: bool = False,
     connection_override: dict[str, Any] | None = None,
     output_path: str | None = None,
+    backend: str | None = None,
 ) -> dict[str, Any]:
     """Extract data from the configured database, format it, and compare against a file.
 
@@ -351,6 +405,18 @@ def compare_db_to_file(
             resolved path is recorded under the result's ``report_path`` key.
             When ``None`` (the default), no report is written and the result
             shape is unchanged — preserving backward compatibility.
+        backend: Optional explicit comparison-backend name (``native`` /
+            ``pandas`` / ``duckdb`` / ``auto``), resolved by
+            :func:`~src.comparators.backends.factory.resolve_backend`
+            (explicit arg → ``COMPARISON_BACKEND`` env → ``native`` default).
+            When the resolved backend is ``duckdb`` (S25-5) **and** key columns
+            are supplied, the extracted DB frame and the actual file are
+            registered **directly** into DuckDB and diffed — skipping the
+            extract → temp-file → re-read hop — producing the **identical** result
+            contract.  When ``native`` (the default), the temp-file path is used
+            **unchanged**.  ``duckdb`` stays optional/lazy: when the package is
+            absent, ``auto`` resolves to ``native`` (no import, no error) and the
+            temp-file path runs as before.
 
     Returns:
         Dict with two top-level keys:
@@ -418,25 +484,44 @@ def compare_db_to_file(
                 })
         df = pd.DataFrame(transformed_rows)
 
-    # --- Write DB data to temp file -----------------------------------------
-    temp_path: str | None = None
-    try:
-        temp_path = _df_to_temp_file(df)
+    # --- Backend selection (S25-5) ------------------------------------------
+    # Resolve the active backend.  The DB extract is in memory (no file), so the
+    # ``auto`` size probe uses the actual-file path on both sides; ``auto`` only
+    # upgrades to duckdb when duckdb is importable AND the actual file is large.
+    resolved_backend = resolve_backend(str(actual_path), str(actual_path), backend)
 
-        # --- Comparison ------------------------------------------------------
-        compare_result = run_compare_service(
-            file1=temp_path,
-            file2=str(actual_path),
-            keys=keys_str,
-            mapping=None,  # mapping_config is already parsed; not a file path
-            detailed=True,
-        )
-    finally:
-        if temp_path:
-            try:
-                Path(temp_path).unlink(missing_ok=True)
-            except OSError:
-                pass
+    # The DuckDB frame-direct path requires key columns (the engine rejects
+    # row-by-row).  Use it only when duckdb is active AND keys are present;
+    # otherwise fall through to the unchanged temp-file + native path.
+    use_frame_direct = resolved_backend == "duckdb" and bool(key_columns_list)
+
+    if use_frame_direct:
+        # Zero temp file: register the DB frame (file1) and the actual file
+        # (file2, read with native's header re-read semantics) straight into
+        # DuckDB.  Identical result contract to the temp-file + native path.
+        actual_df = _read_delimited_as_strings(str(actual_path))
+        compare_result = _compare_frames_duckdb(df, actual_df, key_columns_list)
+    else:
+        # --- Native path (unchanged): write DB data to temp file -------------
+        temp_path: str | None = None
+        try:
+            temp_path = _df_to_temp_file(df)
+
+            # --- Comparison --------------------------------------------------
+            compare_result = run_compare_service(
+                file1=temp_path,
+                file2=str(actual_path),
+                keys=keys_str,
+                mapping=None,  # mapping_config is already parsed; not a file path
+                detailed=True,
+                backend=resolved_backend,
+            )
+        finally:
+            if temp_path:
+                try:
+                    Path(temp_path).unlink(missing_ok=True)
+                except OSError:
+                    pass
 
     # --- Build unified result ------------------------------------------------
     workflow_status = _determine_workflow_status(compare_result)
